@@ -22,6 +22,7 @@ export function registerSquadsIpc(ctx: IpcContext): void {
       `Rodar um ciclo de ${squad.icon} ${squad.name}${extra ? `\n\n${extra}` : ''}`,
       {
         ...defaultBrain(),
+        model: 'claude-haiku-5-5',
         // Same rule as tickets: a cycle reaches real systems, so it never runs with "bypass".
         permissionMode: delegateMode(mode),
       },
