@@ -4,7 +4,7 @@ import { dialog, ipcMain } from 'electron'
 import { focusItems } from '@shared/planning'
 import { parseTasksFile } from '@shared/tasks'
 import { createTaskWriter, type TaskWriter } from '../tasks-write'
-import { moveTaskSchema, newTaskSchema, parse, taskIdSchema, taskLineSchema, vaultPathSchema } from '../validate'
+import { moveTaskSchema, newTaskSchema, parse, rescheduleTaskSchema, taskIdSchema, taskLineSchema, vaultPathSchema } from '../validate'
 import type { IpcContext } from './context'
 
 export function registerTasksIpc(ctx: IpcContext): void {
@@ -54,6 +54,15 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const input = parse(moveTaskSchema, move, 'Movimento inválido.')
     const path = checkedVault(vaultPath)
     writer.move(path, input.line, input.list)
+    return { board: read(path) }
+  })
+
+  ipcMain.handle('office:rescheduleTask', async (_e, change: unknown) => {
+    const vaultPath = ctx.store.settings.vaultPath
+    if (!vaultPath) throw new Error('Configure a pasta do vault em Ajustes → Tarefas do Obsidian.')
+    const input = parse(rescheduleTaskSchema, change, 'Reagendamento inválido.')
+    const path = checkedVault(vaultPath)
+    writer.reschedule(path, input.line, input.date)
     return { board: read(path) }
   })
 

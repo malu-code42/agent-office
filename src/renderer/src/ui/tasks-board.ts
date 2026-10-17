@@ -1,17 +1,12 @@
 import type { State } from '../state'
 import { focusKey } from '@shared/planning'
-import { ARCHIVE_LIST, type ParsedBoard, type Task, type TaskList } from '@shared/tasks'
+import { ARCHIVE_LIST, type ParsedBoard, rescheduleTargets, type Task, taskWhen, type TaskList } from '@shared/tasks'
 import { arrowList, asDialog, FocusReturn, rove } from './a11y'
 import { h, icon } from './dom'
 import { cleanError } from './modals'
-import { openMoveMenu } from './tasks-move'
+import { openMoveMenu, openTaskMenu } from './tasks-move'
 import { openNewTask } from './tasks-new'
 import './focus.css'
-
-/** The date and time of a task as written in the file, e.g. "16.10.2026 09:00". */
-function when(task: Task): string {
-  return [task.date ?? task.dueDate, task.time].filter(Boolean).join(' ')
-}
 
 /** `moved` is the card to focus after a move: the list it went to and its title. */
 export async function openTasksBoard(
@@ -49,6 +44,27 @@ export async function openTasksBoard(
         card,
         data.lists.map((l) => l.name).filter((name) => name !== list.name && name !== ARCHIVE_LIST),
         (to) => void move(task.line, task.text, to),
+      )
+    // The main process writes the new date; a refusal (a legacy line, the file changed) comes back as the toast.
+    const reschedule = async (list: TaskList, task: Task, date: string) => {
+      try {
+        const next = await window.office.rescheduleTask({ line: task.line, date })
+        board.remove()
+        toast(`Tarefa reagendada para ${date}.`, 'ok')
+        void openTasksBoard(root, state, toast, next.board, { list: list.name, text: task.text })
+      } catch (err) {
+        toast(cleanError(err), 'err')
+      }
+    }
+    const openReschedule = (card: HTMLElement, list: TaskList, task: Task) =>
+      openTaskMenu(
+        card,
+        'Reagendar para…',
+        rescheduleTargets(new Date()).map(({ label, date }) => ({
+          text: `${label} (${date})`,
+          choose: () => void reschedule(list, task, date),
+        })),
+        'Não há data para escolher.',
       )
     // A task with no id gets one in tarefas.md when it is put in focus; the card is focused again after the redraw.
     const toggleFocus = async (list: TaskList, task: Task, wasFocused: boolean) => {
@@ -96,6 +112,11 @@ export async function openTasksBoard(
           } else if (key.key.toLowerCase() === 'f' && !key.ctrlKey && !key.metaKey && !key.altKey) {
             key.preventDefault()
             void toggleFocus(list, task, isFocused(task))
+          } else if (key.key.toLowerCase() === 'r' && !key.ctrlKey && !key.metaKey && !key.altKey && task.status === 'open') {
+            // R is also the Reports shortcut of the page: this keeps it from opening over the board.
+            key.preventDefault()
+            key.stopPropagation()
+            openReschedule(key.currentTarget as HTMLElement, list, task)
           }
         },
       }
@@ -110,6 +131,17 @@ export async function openTasksBoard(
           onclick: (e: Event) => openMove((e.currentTarget as HTMLElement).closest<HTMLElement>('.tcard')!, list, task),
         },
         'Mover para…',
+      )
+    const rescheduleButton = (list: TaskList, task: Task) =>
+      h(
+        'button',
+        {
+          class: 'btn btn-small tcard-reschedule',
+          type: 'button',
+          tabindex: '-1',
+          onclick: (e: Event) => openReschedule((e.currentTarget as HTMLElement).closest<HTMLElement>('.tcard')!, list, task),
+        },
+        'Reagendar…',
       )
     const focusButton = (list: TaskList, task: Task) => {
       const wasFocused = isFocused(task)
@@ -215,11 +247,13 @@ export async function openTasksBoard(
                             task.text,
                             task.status === 'completed' ? 'Concluída' : task.status === 'discarded' ? 'Descartada' : '',
                             isFocused(task) ? 'Em foco' : '',
-                            when(task) ? `Data ${when(task)}` : '',
+                            taskWhen(task) ? `Data ${taskWhen(task)}` : '',
                             task.completedDate
                               ? `${task.status === 'completed' ? 'Concluída em' : 'Descartada em'} ${task.completedDate}`
                               : '',
-                            list.name !== ARCHIVE_LIST ? 'Pressione Enter para mover para outra lista, F para pôr ou tirar do foco' : '',
+                            list.name !== ARCHIVE_LIST
+                              ? `Pressione Enter para mover para outra lista, F para pôr ou tirar do foco${task.status === 'open' ? ', R para reagendar' : ''}`
+                              : '',
                           ]
                             .filter(Boolean)
                             .join('. '),
@@ -237,12 +271,13 @@ export async function openTasksBoard(
                             : null,
                           isFocused(task) ? h('span', { class: 'chip' }, 'Em foco') : null,
                         ),
-                        when(task) ? h('div', { class: 'tcard-foot' }, `📅 ${when(task)}`) : null,
+                        taskWhen(task) ? h('div', { class: 'tcard-foot' }, taskWhen(task)) : null,
                         task.completedDate
                           ? h('div', { class: 'tcard-foot' }, `${task.status === 'completed' ? '✅' : '❌'} ${task.completedDate}`)
                           : null,
                         task.reason ? h('div', { class: 'hint' }, task.reason) : null,
                         list.name !== ARCHIVE_LIST ? moveButton(list, task) : null,
+                        list.name !== ARCHIVE_LIST && task.status === 'open' ? rescheduleButton(list, task) : null,
                         list.name !== ARCHIVE_LIST && (task.status === 'open' || isFocused(task)) ? focusButton(list, task) : null,
                       ),
                     )),

@@ -9,7 +9,7 @@ import type { SquadInfo } from './squads'
 import type { MacJob, Routine, RoutineDraft } from './routines'
 import type { ClaudeStats } from './stats'
 import type { FocusItem } from '../planning'
-import type { NewTaskDraft, ParsedBoard, TaskMove } from '../tasks'
+import type { NewTaskDraft, ParsedBoard, TaskMove, TaskReschedule } from '../tasks'
 import type { DelegateTarget, Ticket, TicketDraft, TicketPatch, TicketStatus } from './tickets'
 
 /** CPU (% of the whole machine) and memory (bytes), as in Activity Monitor. */
@@ -147,6 +147,8 @@ export interface OfficeAPI {
   createTask(draft: NewTaskDraft): Promise<{ id: string; board: ParsedBoard }>
   /** Move a tarefa da linha dada para o fim da lista escolhida e devolve o quadro lido de novo. */
   moveTask(move: TaskMove): Promise<{ board: ParsedBoard }>
+  /** Põe a tarefa da linha dada na data DD.MM.AAAA (só o campo data muda) e devolve o quadro lido de novo. */
+  rescheduleTask(change: TaskReschedule): Promise<{ board: ParsedBoard }>
   /** Lê o foco: cada tarefa com título e lista de origem, ou marcada como sumida do tarefas.md. */
   readFocus(): Promise<FocusItem[]>
   /** Põe em foco a tarefa da linha dada (ganha um id no tarefas.md se não tiver) e devolve o quadro e o foco. */
