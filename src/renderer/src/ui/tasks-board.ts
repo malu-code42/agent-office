@@ -1,6 +1,7 @@
 import type { State } from '../state'
 import { focusKey } from '@shared/planning'
 import { ARCHIVE_LIST, type ParsedBoard, rescheduleTargets, type Task, taskWhen, type TaskList } from '@shared/tasks'
+import { openAgenda } from './agenda'
 import { arrowList, asDialog, FocusReturn, rove } from './a11y'
 import { h, icon } from './dom'
 import { cleanError } from './modals'
@@ -165,6 +166,7 @@ export async function openTasksBoard(
         h('div', { class: 'board-title' }, icon('list', 18), 'Tarefas'),
         h('span', { class: 'board-count' }, `${data.lists.reduce((count, list) => count + list.tasks.length, 0)} tarefas`),
         h('span', { class: 'grow' }),
+        h('button', { class: 'btn btn-small', type: 'button', onclick: () => openAgenda(root) }, icon('calendar', 14), 'Agenda'),
         h(
           'button',
           {

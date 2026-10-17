@@ -9,6 +9,7 @@ const api: OfficeAPI = {
   moveTask: (move) => ipcRenderer.invoke('office:moveTask', move),
   rescheduleTask: (change) => ipcRenderer.invoke('office:rescheduleTask', change),
   readFocus: () => ipcRenderer.invoke('office:readFocus'),
+  readAgenda: () => ipcRenderer.invoke('office:readAgenda'),
   focusTask: (line) => ipcRenderer.invoke('office:focusTask', line),
   unfocusTask: (id) => ipcRenderer.invoke('office:unfocusTask', id),
   saveStep: (id, text) => ipcRenderer.invoke('office:saveStep', id, text),
