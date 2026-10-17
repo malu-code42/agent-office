@@ -311,12 +311,19 @@ export class PlanningStore {
    */
   settleProposal(
     id: string,
-    change: { focus?: string[]; archived?: { id: string; record: ArchivedTask }[]; operations: ProposalOperation[]; failure?: ProposalFailure | undefined },
+    change: {
+      focus?: string[]
+      archived?: { id: string; record: ArchivedTask }[]
+      steps?: { id: string; step: Step }[]
+      operations: ProposalOperation[]
+      failure?: ProposalFailure | undefined
+    },
   ): void {
     const i = this.proposals.findIndex((p) => p.id === id)
     if (i < 0) throw new Error('Essa proposta não existe mais.')
     if (change.focus) this.focusIds = [...new Set(change.focus.map(focusKey))]
     for (const a of change.archived ?? []) this.archived.set(focusKey(a.id), a.record)
+    for (const s of change.steps ?? []) this.steps.set(focusKey(s.id), s.step)
     if (change.operations.length) this.proposals[i] = { ...this.proposals[i]!, operations: change.operations, failure: change.failure }
     else this.proposals.splice(i, 1)
     this.save()

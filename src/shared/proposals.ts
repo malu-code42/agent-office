@@ -26,7 +26,18 @@ export type ProposalOperation =
   /** `date` is DD.MM.AAAA, as tarefas.md writes it. */
   | { kind: 'reschedule'; id: string; date: string }
   | { kind: 'discard'; id: string; reason: string }
+  /** The step of today of a task in focus (planning.json, not tarefas.md). `text` is at most STEP_MAX characters. */
+  | { kind: 'step'; id: string; text: string }
   | ({ kind: 'move-commitment' } & CommitmentMove)
+  | ({ kind: 'add-commitment' } & CommitmentRef)
+  | ({ kind: 'remove-commitment' } & CommitmentRef)
+
+/** The operations that change agenda.md. The rest change tarefas.md or planning.json. */
+export type AgendaOperation = Extract<ProposalOperation, { kind: 'move-commitment' | 'add-commitment' | 'remove-commitment' }>
+
+export function isAgendaOperation(op: ProposalOperation): op is AgendaOperation {
+  return op.kind === 'move-commitment' || op.kind === 'add-commitment' || op.kind === 'remove-commitment'
+}
 
 /** The kinds a proposal may never carry: finishing a task belongs to the board. */
 export const REFUSED_KINDS: readonly string[] = ['concluir', 'complete']
@@ -89,11 +100,17 @@ export function describeOperation(op: ProposalOperation, titleOf: (id: string) =
       return `Reagendar ${labelOf(op.id, titleOf)} para ${op.date}`
     case 'discard':
       return `Descartar ${labelOf(op.id, titleOf)}, com o motivo: ${op.reason}`
+    case 'step':
+      return `Passo de hoje de ${labelOf(op.id, titleOf)}: ${op.text}`
     case 'move-commitment': {
       const { from, to } = op
       if (from.day === to.day) return `Mudar o compromisso “${from.title}” de ${from.time} para ${to.time} em ${dayPt(to.day)}`
       return `Mover o compromisso “${from.title}” de ${dayPt(from.day)} ${from.time} para ${dayPt(to.day)} às ${to.time}`
     }
+    case 'add-commitment':
+      return `Acrescentar o compromisso “${op.title}” em ${dayPt(op.day)} às ${op.time}`
+    case 'remove-commitment':
+      return `Tirar o compromisso “${op.title}” de ${dayPt(op.day)} às ${op.time}`
   }
 }
 
