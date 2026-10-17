@@ -12,6 +12,7 @@ import { DEFAULT_VIDEO, effectiveVideo, frameInterval } from '@shared/video'
 import { openAccounts } from './ui/accounts'
 import { openSkull } from './ui/skull'
 import { openRoutines } from './ui/routines'
+import { openTasksBoard } from './ui/tasks-board'
 import { openReports } from './ui/reports'
 import { copyReport, exportConversation } from './ui/export'
 import { showDataNotice } from './ui/data'
@@ -193,7 +194,7 @@ async function boot(): Promise<void> {
     },
     focusAgent: (id) => game.focusAgent(id),
     openItem: (agentId, itemId) => openItem(agentId, itemId),
-    settings: (section) => openSettings(ui, state, toast, { section, tour: replayTour }),
+    settings: (section) => openSettings(ui, state, toast, { section, tour: replayTour, openTasks: (tasks) => void openTasksBoard(ui, state, toast, tasks) }),
     goHome: () => game.goHome(),
     zoom: (d) => game.zoom(d),
     newAgent: () => void newAgent(),

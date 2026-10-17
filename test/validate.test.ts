@@ -268,6 +268,11 @@ describe('cleanSettings', () => {
       agentBudgetUsd: 12.35,
     })
   })
+  it('não permite que um patch genérico escolha o caminho do vault', () => {
+    const current = { ...settings(), vaultPath: dir }
+    expect(cleanSettings({ vaultPath: dir }, settings()).vaultPath).toBeUndefined()
+    expect(cleanSettings({ vaultPath: 'C:/renderer-path' }, current).vaultPath).toBe(dir)
+  })
   it('campo com tipo ou tamanho errado mantém o valor atual', () => {
     const before = settings()
     const out = cleanSettings(

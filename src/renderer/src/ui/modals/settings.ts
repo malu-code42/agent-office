@@ -1,6 +1,7 @@
 import { HAIR_COLORS, HAIR_STYLES, PANTS_COLORS, SHIRT_COLORS, SKIN_TONES } from '@shared/describe'
 import { floorNameFor, MAX_PROJECT_FLOORS } from '@shared/projects'
 import type { Look, OfficePermissionMode, ProjectFloor } from '@shared/types'
+import type { ParsedBoard } from '@shared/tasks'
 import type { State } from '../../state'
 import { DEFAULT_VIDEO, QUALITY_LABELS, QUALITY_PRESETS, qualityOf, type FpsLimit, type Quality, type ShadowMapSize, type VideoSettings } from '@shared/video'
 import { openAccounts } from '../accounts'
@@ -15,7 +16,7 @@ import { brandFields } from './brand'
 // Configurações: player, defaults, floors, accounts, data, video and the terminal bridge.
 
 /** `section: 'bridge'` opens scrolled to the terminal sessions box (the dock's gear does it when the bridge fails). */
-export function openSettings(root: HTMLElement, state: State, toast: (t: string, k?: 'info' | 'ok' | 'err') => void, opts: { section?: 'bridge'; tour?: () => void } = {}): void {
+export function openSettings(root: HTMLElement, state: State, toast: (t: string, k?: 'info' | 'ok' | 'err') => void, opts: { section?: 'bridge'; tour?: () => void; openTasks?: (board: ParsedBoard) => void } = {}): void {
   const s = state.settings
   const look: Look = { ...s.playerLook }
   const name = h('input', { class: 'input', value: s.playerName, maxlength: 24 })
@@ -62,6 +63,43 @@ export function openSettings(root: HTMLElement, state: State, toast: (t: string,
   const budget = h('input', { class: 'input', type: 'number', min: 0, step: 0.5, value: s.agentBudgetUsd ?? 0 }) as HTMLInputElement
   const updates = updateSettingsBox(root, s.updateChannel)
   const video = videoFields(state)
+  const vaultPath = h('input', { class: 'input', type: 'text', value: s.vaultPath ?? '', readonly: true, 'aria-label': 'Pasta do vault' }) as HTMLInputElement
+  const vaultStatus = h('span', { class: 'field-hint', role: 'status' }, s.vaultPath ? 'Pasta salva. O Office só lê tarefas.md.' : 'Escolha a pasta do vault; o Office só lê tarefas.md.')
+  const vaultSummary = (board: ParsedBoard) => `${board.lists.length} listas encontradas · ${board.lists.reduce((n, list) => n + list.tasks.length, 0)} tarefas · ${board.warnings.length} avisos.`
+  const chooseVault = h('button', { class: 'btn', type: 'button', onclick: async () => {
+    try {
+      const selected = await window.office.selectTasksVault()
+      if (!selected) return
+      vaultPath.value = selected.vaultPath
+      vaultStatus.textContent = vaultSummary(selected.board)
+      toast('Pasta do vault selecionada e validada.', 'ok')
+    } catch (err) {
+      vaultStatus.textContent = cleanError(err)
+      toast(cleanError(err), 'err')
+    }
+  } }, icon('folder', 14), 'Escolher pasta')
+  const verifyVault = h('button', { class: 'btn', type: 'button', onclick: async () => {
+    if (!vaultPath.value) return toast('Escolha a pasta que contém tarefas.md.', 'err')
+    try {
+      const board = await window.office.readTasks()
+      vaultStatus.textContent = vaultSummary(board)
+      toast('Pasta do vault verificada.', 'ok')
+    } catch (err) {
+      vaultStatus.textContent = cleanError(err)
+      toast(cleanError(err), 'err')
+    }
+  } }, icon('check', 14), 'Verificar tarefas.md')
+  const openTasks = h('button', { class: 'btn btn-primary', type: 'button', onclick: async () => {
+    if (!vaultPath.value) return toast('Escolha a pasta que contém tarefas.md.', 'err')
+    try {
+      const board = await window.office.readTasks()
+      close()
+      opts.openTasks?.(board)
+    } catch (err) {
+      vaultStatus.textContent = cleanError(err)
+      toast(cleanError(err), 'err')
+    }
+  } }, icon('list', 14), 'Abrir quadro Tarefas')
 
   const b = state.bridge
   const bridgeStatus = h(
@@ -158,6 +196,7 @@ export function openSettings(root: HTMLElement, state: State, toast: (t: string,
       meterField('Esforço padrão', brain.meter),
       h('label', { class: 'check' }, notify, 'Notificar quando um agente precisar de mim ou terminar'),
       video.el,
+      h('div', { class: 'bridge-box' }, h('div', { class: 'bridge-title' }, icon('list', 16), 'Tarefas do Obsidian'), h('div', { class: 'field-hint' }, 'A pasta é escolhida no diálogo do sistema; o Office valida tarefas.md e guarda essa seleção.'), field('Pasta do vault', vaultPath), vaultStatus, h('div', { class: 'bridge-row' }, chooseVault, verifyVault, openTasks)),
       h(
         'div',
         { class: 'bridge-box' },

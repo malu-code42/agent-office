@@ -68,6 +68,7 @@ export const idSchema = z.string().min(1).max(200)
 /** getSubagentLog(agentId, subId) */
 export const subagentLogArgsSchema = z.tuple([idSchema, idSchema])
 export const pathSchema = z.string().min(1).max(MAX_PATH)
+export const vaultPathSchema = pathSchema.refine(isAbsolute, 'O caminho do vault precisa ser absoluto.')
 export const permissionModeSchema = z.enum(PERMISSION_MODES as [OfficePermissionMode, ...OfficePermissionMode[]])
 export const ticketStatusSchema = z.enum(STATUS_VALUES)
 /** A message to an agent: long pastes are fine, megabytes of text are not. */
@@ -299,7 +300,6 @@ const settingsFields = {
     .pipe(z.number().finite().min(0).max(100_000))
     .transform((n) => Math.round(n * 100) / 100),
   updateChannel: z.enum(['stable', 'beta']),
-  vaultPath: pathSchema.optional(),
 } satisfies { [K in keyof Settings]?: z.ZodType<unknown> }
 
 /** Configurações → Vídeo, one schema per field: a bad one keeps its current value. */
