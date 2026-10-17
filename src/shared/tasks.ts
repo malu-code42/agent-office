@@ -24,6 +24,7 @@ const TASK_LINE = /^\s*[-*]\s+\[([ xX-])\]\s+(.+?)\s*$/
 const BLOCK_ID = /\s+(\^t\S+)$/i
 const VALID_BLOCK_ID = /^\^t[a-z0-9]{6}$/i
 const SCHEDULED_DATE = /\s+📅\s+(\d{4}-\d{2}-\d{2})$/
+const BOLD_DATE = /^\*\*(\d{2}\.\d{2}(?:\.\d{4})?)\*\*\s*(?:\|\s*)?/
 const COMPLETED_DATE = /\s+✅\s+(\d{4}-\d{2}-\d{2})$/
 const DISCARDED_DATE = /\s+❌\s+(\d{4}-\d{2}-\d{2})(?:\s+[—-]\s+descartada:\s*(.*))?$/i
 
@@ -123,6 +124,13 @@ export function parseTasksFile(content: string): ParsedBoard & { original: strin
     if (due) {
       task.dueDate = due[1]
       text = text.slice(0, due.index).trimEnd()
+    }
+
+    // The vault writes `**06.10.2026** | título`; the date is shown as written, never converted.
+    const bold = BOLD_DATE.exec(text)
+    if (bold) {
+      task.dueDate ??= bold[1]
+      text = text.slice(bold.index + bold[0].length).trimStart()
     }
 
     task.text = text
