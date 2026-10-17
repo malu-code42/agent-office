@@ -1,0 +1,53 @@
+/* Mover tarefas: destino destacado ao arrastar, e os menus "Mover para…" e "Reagendar" de cada cartão. */
+
+.tcard.task-readonly[draggable='true'] {
+  cursor: grab;
+}
+
+.tcol.tcol-over {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+
+.tcard-move,
+.tcard-reschedule {
+  margin-top: 6px;
+  font-size: 11.5px;
+}
+
+.tmenu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  margin-top: 4px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 10px;
+  background: #1c1d2e;
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.tmenu-item {
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 7px;
+  color: inherit;
+  font-size: 12.5px;
+}
+
+.tmenu-item:focus-visible,
+.tmenu:focus-visible {
+  outline: 2px solid var(--accent-hi);
+  outline-offset: 1px;
+}
+
+.tmenu-empty {
+  padding: 6px 8px;
+  color: var(--dim);
+  font-size: 12px;
+}

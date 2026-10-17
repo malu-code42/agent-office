@@ -23,6 +23,12 @@
   transition: opacity 0.4s, transform 0.4s;
 }
 
+/* The toasts are click-through (.toasts above); only the action button takes clicks. */
+.toast-action {
+  pointer-events: auto;
+  margin-left: 10px;
+}
+
 .toast-ok {
   border-left: 3px solid var(--green);
 }

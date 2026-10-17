@@ -1,5 +1,7 @@
 import type { Account, AccountStatus, AgentResult, AgentSummary, BridgeStatus, LedgerToday, LogEntry, MacJob, OfficeEvent, OfficeState, PermissionRequest, PlanUsage, Routine, Settings, SquadInfo, SystemStats, Ticket } from '@shared/types'
 
+import type { Proposal } from '@shared/proposals'
+
 type Listener = () => void
 
 /** Same cap as the main process keeps per subagent. */
@@ -30,6 +32,10 @@ export class State {
   routines: Routine[]
   /** The Mac's own scheduled jobs (launchd), beside the routines. */
   macJobs: MacJob[]
+  /** Proposals waiting for a confirmation: they count in the caixa de entrada. */
+  proposals: Proposal[]
+  /** A review of today was started and not confirmed: the caixa de entrada offers to resume it. */
+  reviewDraft: boolean
   private listeners = new Set<Listener>()
   private logListeners = new Set<(agentId: string, entry: LogEntry) => void>()
   private subLogListeners = new Set<(agentId: string, subId: string, entries: LogEntry[]) => void>()
@@ -50,6 +56,8 @@ export class State {
     this.onBattery = initial.onBattery ?? false
     this.routines = initial.routines ?? []
     this.macJobs = initial.macJobs ?? []
+    this.proposals = initial.proposals ?? []
+    this.reviewDraft = initial.reviewDraft ?? false
   }
 
   onChange(cb: Listener): () => void {
@@ -155,6 +163,12 @@ export class State {
       case 'macJobs':
         this.macJobs = e.jobs
         break
+      case 'proposals':
+        this.proposals = e.proposals
+        break
+      case 'review:draft':
+        this.reviewDraft = e.draft
+        break
     }
     this.changed()
   }
@@ -205,6 +219,6 @@ export class State {
   }
 
   get inboxCount(): number {
-    return this.permissions.size + this.results.size
+    return this.permissions.size + this.results.size + this.proposals.length
   }
 }

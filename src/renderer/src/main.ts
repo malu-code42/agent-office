@@ -5,7 +5,7 @@ import { State } from './state'
 import { Board } from './ui/board'
 import { AgentPanel } from './ui/panel'
 import { Dialog } from './ui/dialog'
-import { Hud } from './ui/hud'
+import { Hud, type ToastAction } from './ui/hud'
 import { Radio } from './ui/radio'
 import type { DataNotice, ProjectFloor } from '@shared/types'
 import { DEFAULT_VIDEO, effectiveVideo, frameInterval } from '@shared/video'
@@ -13,6 +13,10 @@ import { openAccounts } from './ui/accounts'
 import { openSkull } from './ui/skull'
 import { openRoutines } from './ui/routines'
 import { openTasksBoard } from './ui/tasks-board'
+import { openFocusPopup } from './ui/focus-popup'
+import { openIris } from './ui/iris'
+import { openProposalReview } from './ui/proposals'
+import { openReviewOffer, openReviewWizard } from './ui/review'
 import { openReports } from './ui/reports'
 import { copyReport, exportConversation } from './ui/export'
 import { showDataNotice } from './ui/data'
@@ -51,7 +55,7 @@ async function boot(): Promise<void> {
   const dismissed = new Set<string>()
   let nearId: string | null = null
 
-  const toast = (text: string, kind: 'info' | 'ok' | 'err' = 'info') => hud.toast(text, kind)
+  const toast = (text: string, kind: 'info' | 'ok' | 'err' = 'info', action?: ToastAction) => hud.toast(text, kind, action)
 
   /** Asks, then stops the claude process behind a terminal agent. Returns true if it closed. */
   const closeTerminal = async (id: string): Promise<boolean> => {
@@ -202,6 +206,9 @@ async function boot(): Promise<void> {
     newFloor: () => void newFloor(),
     accounts: () => openAccounts(ui, state, toast),
     reports: () => openReports(ui, state, { project: game.currentProject, toast }),
+    openProposal: (id) => void openProposalReview(ui, toast, id),
+    review: () => void openReviewWizard(ui, toast),
+    iris: () => openIris(ui, toast),
     board: (ticketId) => {
       if (ticketId) board.open(ticketId)
       else board.toggle()
@@ -258,6 +265,14 @@ async function boot(): Promise<void> {
       e.preventDefault()
       void newAgent()
     }
+  })
+
+  // F opens "Tarefas em foco", unless a text field has the focus or another dialog is open (the inbox does not count).
+  window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() !== 'f' || e.metaKey || e.ctrlKey || e.altKey || e.repeat || isTyping()) return
+    if (ui.querySelector('.backdrop, [aria-modal="true"]')) return
+    e.preventDefault()
+    void openFocusPopup(ui, state, toast)
   })
 
   // ? lists every shortcut. Capture phase: it works over the board and windows too, which stop the keys they use.
@@ -440,6 +455,21 @@ async function boot(): Promise<void> {
       else if (go === 'start') tour.start()
     }
     setTimeout(tryTour, 1500)
+  }
+
+  // The review offer (AO-12): once per local day, after the tour and with no card open. The main process
+  // marks the day when it answers, so a reopen the same day never asks again.
+  if (!headless) {
+    const tryReview = () => {
+      if (tour.showing || tourBlocked()) return setTimeout(tryReview, 1000)
+      void window.office
+        .reviewGate()
+        .then((due) => {
+          if (due) openReviewOffer(ui, toast)
+        })
+        .catch((err) => toast(cleanError(err), 'err'))
+    }
+    setTimeout(tryReview, 2500)
   }
 
   if (import.meta.env.DEV || new URLSearchParams(location.search).has('shots')) Object.assign(window, {

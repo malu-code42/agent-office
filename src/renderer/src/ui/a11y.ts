@@ -173,6 +173,30 @@ export function arrowList(list: HTMLElement, itemSelector: string): void {
   })
 }
 
+/**
+ * ←/→ (and Home/End) move the focus between the tabs of `list`; Enter or Space picks the
+ * one that has the focus (a button does that already). Only the current tab is in the Tab order.
+ */
+export function arrowTabs(list: HTMLElement, itemSelector: string): void {
+  list.addEventListener('keydown', (e) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key) || e.altKey || e.metaKey || e.ctrlKey) return
+    const items = [...list.querySelectorAll<HTMLElement>(itemSelector)]
+    const current = (e.target as HTMLElement).closest<HTMLElement>(itemSelector)
+    const i = current ? items.indexOf(current) : -1
+    if (i < 0) return
+    const next =
+      e.key === 'Home'
+        ? 0
+        : e.key === 'End'
+          ? items.length - 1
+          : Math.max(0, Math.min(items.length - 1, i + (e.key === 'ArrowRight' ? 1 : -1)))
+    e.preventDefault()
+    e.stopPropagation()
+    rove(items, next)
+    items[next].focus()
+  })
+}
+
 /** Only items[current] is reachable by Tab. */
 export function rove(items: HTMLElement[], current: number): void {
   items.forEach((el, i) => (el.tabIndex = i === current ? 0 : -1))

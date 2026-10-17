@@ -1,9 +1,10 @@
 import { PRIORITIES, TYPES } from '@shared/tickets'
 import type { ProjectFloor, Ticket, TicketStatus } from '@shared/types'
 import type { State } from '../../state'
-import { asDialog, FocusReturn } from '../a11y'
+import { arrowTabs, asDialog, FocusReturn } from '../a11y'
 import { h, icon } from '../dom'
-import { filterSelect, GROUND } from './helpers'
+import { filterSelect } from './helpers'
+import { ALL_FLOORS, defaultFloor } from './model'
 
 export interface BoardActions {
   openAgent(id: string): void
@@ -25,8 +26,11 @@ export abstract class BoardBase {
   protected typeFilter: HTMLSelectElement
   protected prioFilter: HTMLSelectElement
   protected whoFilter: HTMLSelectElement
-  /** '' = every floor, GROUND, or a project id. Set to the player's floor each time the board opens. */
-  protected floorFilter: HTMLSelectElement
+  /** '' = every floor, GROUND, or a project id. Chosen with the floor tabs; every open starts on every floor. */
+  protected floor = ALL_FLOORS
+  protected tabBar: HTMLDivElement
+  /** What the tabs were last drawn for; they are redrawn only when the floors change. */
+  protected tabKey = ''
   protected selected: string | null = null
   protected dragging: string | null = null
   /** Something changed while the user was dragging or typing; render when they stop. */
@@ -52,8 +56,9 @@ export abstract class BoardBase {
       { value: 'agents', label: 'Com agentes' },
       { value: 'none', label: 'Sem responsável' },
     ])
-    this.floorFilter = h('select', { class: 'input board-filter board-floor', title: 'Cada andar tem o seu quadro: os tickets cuja pasta fica no projeto do andar' })
-    for (const c of [this.search, this.typeFilter, this.prioFilter, this.whoFilter, this.floorFilter]) c.addEventListener('input', () => this.renderColumns())
+    for (const c of [this.search, this.typeFilter, this.prioFilter, this.whoFilter]) c.addEventListener('input', () => this.renderColumns())
+    this.tabBar = h('div', { class: 'board-tabs', role: 'tablist', 'aria-label': 'Andares' })
+    arrowTabs(this.tabBar, '[role="tab"]')
 
     this.cols = h('div', { class: 'board-cols' })
     this.detail = h('div', { class: 'tdetail hidden' })
@@ -73,7 +78,6 @@ export abstract class BoardBase {
         'div',
         { class: 'board-head' },
         title,
-        this.floorFilter,
         this.search,
         this.typeFilter,
         this.prioFilter,
@@ -83,6 +87,7 @@ export abstract class BoardBase {
         h('button', { class: 'btn btn-primary', onclick: () => this.create('todo') }, icon('plus', 16), 'Novo ticket'),
         h('button', { class: 'icon-btn', title: 'Fechar (Esc)', onclick: () => this.close() }, icon('x', 18)),
       ),
+      this.tabBar,
       h('div', { class: 'board-body' }, this.cols, this.detail),
     )
     asDialog(this.el, { title: heading })
@@ -104,12 +109,11 @@ export abstract class BoardBase {
   open(ticketId?: string): void {
     const wasOpen = this.isOpen
     this.el.classList.remove('hidden')
-    this.syncFloors()
-    // A linked ticket shows on its own floor; otherwise the board follows the player.
+    // Each open starts on every floor, so no ticket stays hidden after a restart.
+    if (!wasOpen) this.floor = defaultFloor(this.actions.currentProject())
+    // Creating a ticket while the board is open: show the floor it landed on.
     const linked = ticketId ? this.state.tickets.get(ticketId) : undefined
-    if (linked) {
-      if (this.floorFilter.value) this.floorFilter.value = this.floorOf(linked)
-    } else if (!wasOpen) this.floorFilter.value = this.actions.currentProject()?.id ?? GROUND
+    if (linked && wasOpen && this.floor !== ALL_FLOORS) this.floor = this.floorOf(linked)
     if (ticketId) this.selected = ticketId
     if (!wasOpen) this.focusBack.save(this.el)
     this.render()
@@ -159,7 +163,7 @@ export abstract class BoardBase {
 
   // ---------- implemented by the later parts ----------
   protected abstract floorOf(t: Ticket): string
-  protected abstract syncFloors(): void
+  protected abstract renderTabs(): void
   protected abstract renderColumns(): void
   protected abstract renderDetail(): void
   protected abstract autoCloseText(t: Ticket): string

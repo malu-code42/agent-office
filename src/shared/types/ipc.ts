@@ -8,7 +8,12 @@ import type { BridgeStatus, Settings, UpdateInstallResult, UpdateStatus } from '
 import type { SquadInfo } from './squads'
 import type { MacJob, Routine, RoutineDraft } from './routines'
 import type { ClaudeStats } from './stats'
-import type { ParsedBoard } from '../tasks'
+import type { AgendaView } from '../agenda'
+import type { FocusItem } from '../planning'
+import type { IrisPreview, IrisResult } from '../iris'
+import type { Proposal } from '../proposals'
+import type { ReviewChoices, ReviewPostpone, ReviewView } from '../review'
+import type { NewTaskDraft, ParsedBoard, TaskDiscard, TaskMove, TaskRef, TaskReopen, TaskReschedule } from '../tasks'
 import type { DelegateTarget, Ticket, TicketDraft, TicketPatch, TicketStatus } from './tickets'
 
 /** CPU (% of the whole machine) and memory (bytes), as in Activity Monitor. */
@@ -60,6 +65,10 @@ export interface OfficeState {
   routines: Routine[]
   /** Jobs the Mac schedules itself (launchd), shown beside the routines. Empty off macOS. */
   macJobs: MacJob[]
+  /** Proposals waiting for a confirmation (AO-10): they show in the caixa de entrada. */
+  proposals: Proposal[]
+  /** A review of today was started and not confirmed: it shows in the caixa de entrada to resume (AO-12). */
+  reviewDraft: boolean
   /** AGENT_OFFICE_TOUR=1: the guided tour opens even if the player has seen it. */
   forceTour?: boolean
 }
@@ -127,6 +136,20 @@ export type OfficeEvent =
   | { type: 'routines'; routines: Routine[] }
   /** The Mac's own scheduled jobs changed (read every minute). */
   | { type: 'macJobs'; jobs: MacJob[] }
+  /** The pending proposals changed: the whole list. */
+  | { type: 'proposals'; proposals: Proposal[] }
+  /** The review of today was saved or cleared: whether a draft to resume exists. */
+  | { type: 'review:draft'; draft: boolean }
+
+/** A reopen either put the task back (`list` is where it went) or waits for the user to choose one of `lists`. */
+export type ReopenResult = { status: 'done'; list: string; board: ParsedBoard; focus: FocusItem[] } | { status: 'choose'; lists: string[] }
+
+/** A proposal open for review: its operations, the titles of its tasks now in tarefas.md (by id), and whether agenda.md exists. */
+export interface ProposalReview {
+  proposal: Proposal
+  titles: Record<string, string>
+  agendaFound: boolean
+}
 
 /** window.onerror / unhandledrejection, as the page reports them to the log. */
 export interface RendererError {
@@ -142,6 +165,64 @@ export interface OfficeAPI {
   readTasks(): Promise<ParsedBoard>
   /** Abre o seletor nativo, valida tarefas.md e salva o vault escolhido. */
   selectTasksVault(): Promise<{ vaultPath: string; board: ParsedBoard } | null>
+  /** Cria uma tarefa no fim da lista escolhida do tarefas.md e devolve o id e o quadro lido de novo. */
+  createTask(draft: NewTaskDraft): Promise<{ id: string; board: ParsedBoard }>
+  /** Move a tarefa da linha dada para o fim da lista escolhida e devolve o quadro lido de novo. */
+  moveTask(move: TaskMove): Promise<{ board: ParsedBoard }>
+  /** Põe a tarefa da linha dada na data DD.MM.AAAA (só o campo data muda) e devolve o quadro lido de novo. */
+  rescheduleTask(change: TaskReschedule): Promise<{ board: ParsedBoard }>
+  /** Conclui a tarefa (pela linha ou pelo id): ela vai para o Archive com a data de hoje e sai do foco. Devolve o id, o quadro e o foco. */
+  completeTask(target: TaskRef): Promise<{ id: string; board: ParsedBoard; focus: FocusItem[] }>
+  /** Desfaz a conclusão feita há até 10 segundos: a tarefa volta à lista de origem e ao foco. Recusa se o tarefas.md mudou. */
+  undoCompleteTask(id: string): Promise<{ board: ParsedBoard; focus: FocusItem[] }>
+  /** Descarta a tarefa (pela linha ou pelo id) com motivo obrigatório: ela vai para o Archive com ❌, sem ✅, e sai do foco. */
+  discardTask(input: TaskDiscard): Promise<{ id: string; board: ParsedBoard; focus: FocusItem[] }>
+  /** Reabre a tarefa concluída ou descartada na lista de origem, sem as marcas. Sem origem, devolve as listas para escolher (status choose). */
+  reopenTask(input: TaskReopen): Promise<ReopenResult>
+  /** Lê o foco: cada tarefa com título e lista de origem, ou marcada como sumida do tarefas.md. */
+  readFocus(): Promise<FocusItem[]>
+  /** Abre a revisão de uma proposta pendente: as operações e os títulos das tarefas, lidos agora. Nada é escrito. */
+  openProposal(id: string): Promise<ProposalReview>
+  /** Aplica todas as operações da proposta ou nenhuma. Se uma falhar, nada é escrito e a mensagem diz qual foi. */
+  applyProposal(id: string): Promise<void>
+  /** Recusa a proposta: ela sai da lista de pendentes. Nenhum arquivo é alterado. */
+  rejectProposal(id: string): Promise<void>
+  /** Íris: monta o texto exato que seria enviado (pedido, compromissos da semana, tarefas citadas). Não envia nada. */
+  prepareIris(request: string): Promise<IrisPreview>
+  /** Íris: envia à Íris o texto da prévia (pelo token) e devolve a proposta criada ou a pergunta. Nada é aplicado. */
+  sendIris(token: string): Promise<IrisResult>
+  /** Íris: descarta a prévia sem enviar nada. */
+  cancelIris(token: string): Promise<void>
+  /** Starts the review offer for today, once per local day: true when it should be shown now. Without a vault, false. */
+  reviewGate(): Promise<boolean>
+  /** The review of today: the draft to resume (or the first step), the agenda of today and the focus as the files say now. Nothing is written. */
+  openReview(): Promise<ReviewView>
+  /** Keeps the review as it is (step and choices) in planning.json, so it can be resumed today. Nothing else changes. */
+  saveReviewDraft(step: number, choices: ReviewChoices): Promise<void>
+  /** "Dispensar hoje" (or adiar 1, 2, 3 days or 1 week). Returns the day the offer comes back. */
+  postponeReview(option: ReviewPostpone): Promise<{ next: string }>
+  /** Applies the review's choices as one proposal, all or none. Returns how many operations were applied. */
+  confirmReview(choices: ReviewChoices): Promise<{ applied: number }>
+  /** Lê o agenda.md do vault: o dia, a semana (segunda a domingo) e as linhas sem data. Só lê; não escreve em nenhum arquivo. */
+  readAgenda(): Promise<AgendaView>
+  /** Põe em foco a tarefa da linha dada (ganha um id no tarefas.md se não tiver) e devolve o quadro e o foco. */
+  focusTask(line: number): Promise<{ board: ParsedBoard; focus: FocusItem[] }>
+  /** Tira do foco a tarefa com esse id. Não escreve no tarefas.md e devolve o foco. */
+  unfocusTask(id: string): Promise<FocusItem[]>
+  /** Guarda o passo de hoje da tarefa em foco (um por tarefa, do dia de hoje) e devolve o foco. Não escreve no tarefas.md. */
+  saveStep(id: string, text: string): Promise<FocusItem[]>
+  /** Tira o passo de hoje da tarefa; o de outros dias fica no histórico. Devolve o foco. */
+  clearStep(id: string): Promise<FocusItem[]>
+  /** Começa o timer de 25 minutos da tarefa em foco. Recusa se já há uma sessão não confirmada. Não escreve no tarefas.md. */
+  startTimer(id: string): Promise<FocusItem[]>
+  /** Pausa o timer em andamento da tarefa em foco. */
+  pauseTimer(id: string): Promise<FocusItem[]>
+  /** Retoma o timer pausado da tarefa em foco. */
+  resumeTimer(id: string): Promise<FocusItem[]>
+  /** Para o timer da tarefa em foco antes do prazo: a sessão fica interrompida até o usuário confirmar os minutos. */
+  stopTimer(id: string): Promise<FocusItem[]>
+  /** Confirma os minutos feitos (0 a 25) de uma sessão interrompida. Só o usuário confirma. */
+  confirmTimer(id: string, minutes: number): Promise<FocusItem[]>
   getLog(agentId: string): Promise<LogEntry[]>
   /** The log of one subagent of the agent (running or recently ended); [] when unknown. */
   getSubagentLog(agentId: string, subId: string): Promise<LogEntry[]>

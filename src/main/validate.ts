@@ -3,8 +3,22 @@ import { basename, isAbsolute } from 'node:path'
 import { z } from 'zod'
 import { ATTACH_LIMITS } from '@shared/attachments'
 import { HAIR_STYLES } from '@shared/describe'
+import { IRIS_NOT_UNDERSTOOD, type IrisAnswer } from '@shared/iris'
+import { STEP_MAX, TIMER_MINUTES } from '@shared/planning'
+import { isIsoDay, REFUSED_KINDS, REFUSED_MESSAGE, type Proposal, type ProposalOperation } from '@shared/proposals'
 import { floorNameFor, MAX_PROJECT_FLOORS } from '@shared/projects'
+import { REVIEW_STEPS, type FocusChoice, type ReviewChoices, type ReviewDraft, type ReviewPostpone } from '@shared/review'
 import { scheduleError } from '@shared/schedule'
+import {
+  isDateDDMMAAAA,
+  type NewTaskDraft,
+  type TaskDiscard,
+  type TaskMove,
+  type TaskRef,
+  type TaskReopen,
+  type TaskReschedule,
+  TIME_FORMAT,
+} from '@shared/tasks'
 import { STATUSES } from '@shared/tickets'
 import { EFFORT_LEVELS, ROUTINE_LIMITS } from '@shared/types'
 import type { VideoSettings } from '@shared/video'
@@ -69,6 +83,164 @@ export const idSchema = z.string().min(1).max(200)
 export const subagentLogArgsSchema = z.tuple([idSchema, idSchema])
 export const pathSchema = z.string().min(1).max(MAX_PATH)
 export const vaultPathSchema = pathSchema.refine(isAbsolute, 'O caminho do vault precisa ser absoluto.')
+/** A task from the "Nova tarefa" form; the rules for each field are in shared/tasks.ts (taskDraftProblem). */
+export const newTaskSchema: z.ZodType<NewTaskDraft> = z.object({
+  title: z.string().max(300),
+  list: z.string().max(200),
+  date: z.string().max(10).optional(),
+  time: z.string().max(5).optional(),
+})
+/** A card moved on the board; the line must be a real line number, the list is checked against the file when written. */
+export const moveTaskSchema: z.ZodType<TaskMove> = z.object({
+  line: z.number().int().min(1).max(10_000_000),
+  list: z.string().max(200),
+})
+/** A task moved to another day: the line as the board read it, the date DD.MM.AAAA for a day that exists. */
+export const rescheduleTaskSchema: z.ZodType<TaskReschedule> = z.object({
+  line: z.number().int().min(1).max(10_000_000),
+  date: z.string().max(10).refine(isDateDDMMAAAA),
+})
+/** The line of a task put in focus, as the board read it. */
+export const taskLineSchema = z.number().int().min(1).max(10_000_000)
+/** A task id as tarefas.md writes it: ^t and six letters or digits. */
+export const taskIdSchema = z.string().regex(/^t[a-z0-9]{6}$/i)
+/** The task to act on: the line as the board read it, or the id of a task in focus. */
+export const taskRefSchema: z.ZodType<TaskRef> = z.union([z.object({ line: taskLineSchema }), z.object({ id: taskIdSchema })])
+/** The task to complete (see taskRefSchema). */
+export const completeTaskSchema = taskRefSchema
+/** A task to discard: the reason is checked by planDiscard, with the words the form shows. */
+export const discardTaskSchema: z.ZodType<TaskDiscard> = z.object({ target: taskRefSchema, reason: z.string().max(1000) })
+/** A task to reopen; the list is only sent when the origin list is gone and the user chose one. */
+export const reopenTaskSchema: z.ZodType<TaskReopen> = z.object({ target: taskRefSchema, list: z.string().max(200).optional() })
+
+const isoDaySchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine(isIsoDay, 'Dia inválido. Use AAAA-MM-DD.')
+const timeSchema = z.string().regex(TIME_FORMAT, 'Hora inválida. Use HH:MM.')
+/**
+ * One change of a proposal. The kinds are closed: "concluir" (or any other kind) is not in the union,
+ * so the schema refuses it. A proposal names tasks by id, never by line.
+ */
+const commitmentTitleSchema = z.string().trim().min(1).max(500)
+const commitmentFields = { day: isoDaySchema, time: timeSchema, title: commitmentTitleSchema }
+export const proposalOperationSchema: z.ZodType<ProposalOperation> = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('focus'), id: taskIdSchema }),
+  z.object({ kind: z.literal('unfocus'), id: taskIdSchema }),
+  z.object({ kind: z.literal('reschedule'), id: taskIdSchema, date: z.string().max(10).refine(isDateDDMMAAAA) }),
+  z.object({ kind: z.literal('discard'), id: taskIdSchema, reason: z.string().max(1000) }),
+  z.object({
+    kind: z.literal('step'),
+    id: taskIdSchema,
+    text: z
+      .string()
+      .trim()
+      .min(1)
+      .max(STEP_MAX * 4)
+      .refine((s) => [...s].length <= STEP_MAX, `O passo de hoje pode ter no máximo ${STEP_MAX} caracteres.`),
+  }),
+  z.object({
+    kind: z.literal('move-commitment'),
+    from: z.object(commitmentFields),
+    to: z.object({ day: isoDaySchema, time: timeSchema }),
+  }),
+  z.object({ kind: z.literal('add-commitment'), ...commitmentFields }),
+  z.object({ kind: z.literal('remove-commitment'), ...commitmentFields }),
+])
+export const proposalSchema: z.ZodType<Proposal> = z.object({
+  id: idSchema,
+  source: z.string().trim().min(1).max(80),
+  createdAt: z.number().finite(),
+  operations: z.array(proposalOperationSchema).min(1).max(50),
+  failure: z.object({ index: z.number().int().min(0), message: z.string().max(2000) }).optional(),
+})
+
+/**
+ * What the Íris answers (AO-13): operations to propose, or one question. The same operation kinds as a
+ * proposal, so "concluir" is refused here too (parseIrisAnswer says so before the schema does).
+ */
+export const irisAnswerSchema: z.ZodType<IrisAnswer> = z
+  .object({
+    operations: z.array(proposalOperationSchema).max(50),
+    question: z.string().trim().min(1).max(500).nullish(),
+  })
+  .refine((a) => !!a.question || a.operations.length > 0, 'Resposta sem operações nem pergunta.')
+
+/** The request box's text: the length the box allows is checked again by IrisDesk, in characters. */
+export const irisRequestSchema = z.string().max(20_000)
+
+/** The Íris's answer, parsed. A refused kind gets its own message; any other bad answer is IRIS_NOT_UNDERSTOOD. */
+export function parseIrisAnswer(raw: unknown): IrisAnswer {
+  const ops = (raw as { operations?: unknown } | null)?.operations
+  if (Array.isArray(ops) && ops.some((op) => REFUSED_KINDS.includes(String((op as { kind?: unknown } | null)?.kind)))) {
+    throw new Error(REFUSED_MESSAGE)
+  }
+  return parse(irisAnswerSchema, raw, IRIS_NOT_UNDERSTOOD)
+}
+
+/** A choice of the daily review (AO-12). There is no "concluir" kind: the schema refuses it, as proposals do. */
+export const focusChoiceSchema: z.ZodType<FocusChoice> = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('continuar') }),
+  z.object({ kind: z.literal('revisar') }),
+  z.object({ kind: z.literal('reagendar'), date: z.string().max(10).refine(isDateDDMMAAAA) }),
+  z.object({ kind: z.literal('descartar'), reason: z.string().max(1000) }),
+])
+export const reviewChoicesSchema: z.ZodType<ReviewChoices> = z
+  .record(taskIdSchema, focusChoiceSchema)
+  .refine((c) => Object.keys(c).length <= 500, 'Escolhas demais na revisão.')
+export const reviewStepSchema = z
+  .number()
+  .int()
+  .min(0)
+  .max(REVIEW_STEPS.length - 1)
+/** "Dispensar hoje" or adiar by 1, 2, 3 days or 1 week. */
+export const reviewPostponeSchema: z.ZodType<ReviewPostpone> = z.union([
+  z.literal('dispensar'),
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+  z.literal(7),
+])
+export const reviewDraftSchema: z.ZodType<ReviewDraft> = z.object({
+  day: isoDaySchema,
+  step: reviewStepSchema,
+  choices: reviewChoicesSchema,
+})
+
+/** A proposal from the caller (a ticket that proposes changes, or a test): a refused kind gets its own message, the rest the schema's. */
+export function parseProposal(raw: unknown): Proposal {
+  const ops = (raw as { operations?: unknown } | null)?.operations
+  if (Array.isArray(ops) && ops.some((op) => REFUSED_KINDS.includes(String((op as { kind?: unknown } | null)?.kind)))) {
+    throw new Error(REFUSED_MESSAGE)
+  }
+  return parse(proposalSchema, raw, 'Proposta inválida.')
+}
+/** The text of a "Passo de hoje": trimmed, never empty, at most STEP_MAX characters (counted as characters, not UTF-16 units). */
+export const stepTextSchema = z
+  .string('O passo de hoje precisa ser um texto.')
+  .transform((s) => s.trim())
+  .refine((s) => s.length > 0, 'Escreva o passo de hoje.')
+  .refine((s) => [...s].length <= STEP_MAX, `O passo de hoje pode ter no máximo ${STEP_MAX} caracteres.`)
+
+/** The step text from the renderer, or throws the message the popup shows. */
+export function parseStepText(raw: unknown): string {
+  const r = stepTextSchema.safeParse(raw)
+  if (!r.success) throw new Error(r.error.issues[0]!.message)
+  return r.data
+}
+/** The minutes done in an interrupted focus session: whole minutes, 0 to the session length (AO-08). */
+export const timerMinutesSchema = z
+  .number('Informe os minutos feitos.')
+  .int('Os minutos precisam ser um número inteiro.')
+  .min(0, 'Os minutos não podem ser negativos.')
+  .max(TIMER_MINUTES, `Uma sessão tem no máximo ${TIMER_MINUTES} minutos.`)
+
+/** The minutes from the renderer, or throws the message the popup shows. */
+export function parseTimerMinutes(raw: unknown): number {
+  const r = timerMinutesSchema.safeParse(raw)
+  if (!r.success) throw new Error(r.error.issues[0]!.message)
+  return r.data
+}
 export const permissionModeSchema = z.enum(PERMISSION_MODES as [OfficePermissionMode, ...OfficePermissionMode[]])
 export const ticketStatusSchema = z.enum(STATUS_VALUES)
 /** A message to an agent: long pastes are fine, megabytes of text are not. */

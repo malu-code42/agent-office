@@ -6,9 +6,6 @@ import { renderMarkdown } from '../markdown'
 
 export type Who = 'all' | 'me' | 'agents' | 'none'
 
-/** Floor filter value for tickets outside every project folder. */
-export const GROUND = 'ground'
-
 /** "Sem pedir nada" is left out on purpose: a ticket may come from someone else. */
 export const DELEGATE_MODES: { value: OfficePermissionMode; label: string }[] = [
   { value: 'default', label: 'Pedir permissão' },

@@ -81,6 +81,26 @@ describe('parseTasksFile', () => {
     ])
   })
 
+  it('reads the new format with and without date and time, and two-field lines', () => {
+    const parsed = parseTasksFile(
+      [
+        '## Estudo',
+        '- [ ] 16.10.2026 | 09:00 | Estudo | Revisar plano ^t7k2q1a',
+        '- [ ] Estudo | Revisar plano ^t7k2q1b',
+        '- [ ] 16.10 | Estudo | Ler artigo ^t7k2q1c',
+        '- [ ] 09:00 | Estudo | Tomar café ^t7k2q1d',
+      ].join('\n'),
+    )
+
+    expect(parsed.lists[0]?.tasks).toEqual([
+      { text: 'Revisar plano', line: 2, status: 'open', id: 't7k2q1a', date: '16.10.2026', time: '09:00' },
+      { text: 'Revisar plano', line: 3, status: 'open', id: 't7k2q1b' },
+      { text: 'Ler artigo', line: 4, status: 'open', id: 't7k2q1c', date: '16.10' },
+      { text: 'Tomar café', line: 5, status: 'open', id: 't7k2q1d', time: '09:00' },
+    ])
+    expect(parsed.warnings).toEqual([])
+  })
+
   it('reports unknown content outside task lists instead of silently dropping it', () => {
     const parsed = parseTasksFile(
       ['texto introdutório', '', '## Casa', '- [ ] Limpar mesa ^t123abc', '## Configurações', 'texto livre'].join('\n'),
@@ -93,5 +113,25 @@ describe('parseTasksFile', () => {
       'Linha 1: "texto introdutório" não é uma tarefa reconhecida.',
       'Linha 6: "texto livre" não é uma tarefa reconhecida.',
     ])
+  })
+
+  it('reads **DD.MM.AAAA** and **DD.MM** at the start of the title as written, without the asterisks', () => {
+    const parsed = parseTasksFile(['## Rotina', '- [ ] **06.10.2026** | criar o hábito', '- [ ] **09.10** | apresentação'].join('\n'))
+
+    expect(parsed.lists[0]?.tasks).toEqual([
+      { text: 'criar o hábito', line: 2, status: 'open', dueDate: '06.10.2026' },
+      { text: 'apresentação', line: 3, status: 'open', dueDate: '09.10' },
+    ])
+    expect(parsed.warnings).toEqual([])
+  })
+
+  it('keeps the 📅 AAAA-MM-DD form and reads titles without any date', () => {
+    const parsed = parseTasksFile(['## Casa', '- [ ] Lavar roupa 📅 2026-10-20', '- [ ] Sem data nenhuma'].join('\n'))
+
+    expect(parsed.lists[0]?.tasks).toEqual([
+      { text: 'Lavar roupa', line: 2, status: 'open', dueDate: '2026-10-20' },
+      { text: 'Sem data nenhuma', line: 3, status: 'open' },
+    ])
+    expect(parsed.lists[0]?.tasks[1]?.dueDate).toBeUndefined()
   })
 })
