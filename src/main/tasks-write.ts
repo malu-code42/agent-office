@@ -506,6 +506,15 @@ export function createTaskWriter(opts: TaskWriterOptions = {}) {
       if (plan.status === 'done' && plan.text !== text) save(vault, text, plan.text)
       return plan
     },
+    /** The file as the board or a review read it last. Refused when it changed since, so a proposal plans on what the user saw. */
+    current(vault: string): string {
+      return unchanged(vault)
+    },
+    /** Writes `after` in place of `before` (what `current` returned). Refused, with nothing written, when the file changed since. */
+    write(vault: string, before: string, after: string): void {
+      if (readTasks(vault) !== before) throw new Error(CHANGED)
+      save(vault, before, after)
+    },
     /** Gives back the text of tarefas.md from before `done`. Refused when the file is not the one `done` wrote. */
     undoComplete(vault: string, done: TaskCompletion): void {
       const text = readTasks(vault)

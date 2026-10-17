@@ -3,12 +3,16 @@ import { join } from 'node:path'
 import { dialog, ipcMain } from 'electron'
 import { focusItems, focusKey } from '@shared/planning'
 import { parseTasksFile, type TaskList, type TaskRef } from '@shared/tasks'
+import type { Proposal } from '@shared/proposals'
+import { createAgendaWriter } from '../agenda-write'
 import { dayKey } from '../backups'
+import { applyProposal } from '../proposals'
 import { createTaskWriter, type TaskWriter } from '../tasks-write'
 import { createCompletionUndo } from '../tasks-undo'
 import {
   completeTaskSchema,
   discardTaskSchema,
+  idSchema,
   moveTaskSchema,
   newTaskSchema,
   parse,
@@ -24,6 +28,8 @@ import type { IpcContext } from './context'
 
 export function registerTasksIpc(ctx: IpcContext): void {
   const writer = createTaskWriter()
+  // Shared with the proposals below: one read of tarefas.md is what the next confirmation checks against.
+  const agenda = createAgendaWriter()
   const undo = createCompletionUndo()
   const read = (vaultPath: unknown) => readTasksAt(writer, vaultPath)
   const requireVault = (): string => {
@@ -223,6 +229,41 @@ export function registerTasksIpc(ctx: IpcContext): void {
     ctx.planning.confirmTimer(taskId, count)
     return focusOf(path)
   })
+
+  // A proposal changes nothing until it is confirmed (AO-10). The page sends only the id: the operations
+  // come from planning.json, so a page can never add one. The review reads both files, which the
+  // confirmation then checks against.
+  ipcMain.handle('office:openProposal', async (_e, id: unknown) => {
+    const proposal = findProposal(ctx, id)
+    const path = requireVault()
+    const titles: Record<string, string> = {}
+    for (const list of read(path).lists) for (const task of list.tasks) if (task.id) titles[task.id.toLowerCase()] = task.text
+    return { proposal, titles, agendaFound: agenda.read(path) !== null }
+  })
+
+  ipcMain.handle('office:applyProposal', async (_e, id: unknown) => {
+    const proposal = findProposal(ctx, id)
+    const path = requireVault()
+    try {
+      applyProposal(path, proposal, { tasks: writer, agenda, planning: ctx.planning })
+    } finally {
+      ctx.broadcast({ type: 'proposals', proposals: ctx.planning.pendingProposals() })
+    }
+  })
+
+  // Refusing writes nothing in the files; it only takes the proposal off the pending list.
+  ipcMain.handle('office:rejectProposal', async (_e, id: unknown) => {
+    const proposalId = parse(idSchema, id, 'Proposta inválida.')
+    ctx.planning.removeProposal(proposalId)
+    ctx.broadcast({ type: 'proposals', proposals: ctx.planning.pendingProposals() })
+  })
+}
+
+function findProposal(ctx: IpcContext, id: unknown): Proposal {
+  const proposalId = parse(idSchema, id, 'Proposta inválida.')
+  const proposal = ctx.planning.proposal(proposalId)
+  if (!proposal) throw new Error('Essa proposta não existe mais.')
+  return proposal
 }
 
 function targetOf(ref: TaskRef): number | string {

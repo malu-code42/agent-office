@@ -8,8 +8,10 @@ import {
   type Step,
   type TimerState,
 } from '@shared/planning'
+import type { Proposal, ProposalFailure, ProposalOperation } from '@shared/proposals'
 import { backupCopies, shapeOf } from './backups'
 import { loadJson, reportLoad, writeJsonAtomic } from './fs-safe'
+import { parseProposal, proposalSchema } from './validate'
 
 /**
  * planning.json in userData: the focus set ("Tarefas em foco"), a list of task ids, the
@@ -18,7 +20,7 @@ import { loadJson, reportLoad, writeJsonAtomic } from './fs-safe'
  * Nothing here clears the focus by itself: it carries over from day to day
  * until the user takes a task out. A step of another day stays in the file as history. The
  * timer is never completed by the app: a session past its deadline is interrupted, and the
- * user confirms the minutes done. Review comes with its own ticket.
+ * user confirms the minutes done. Proposals (AO-10) wait here until they are applied or refused.
  */
 
 interface Planning {
@@ -26,6 +28,7 @@ interface Planning {
   steps: Record<string, Step>
   timer?: FocusTimer | undefined
   archived?: Record<string, ArchivedTask> | undefined
+  proposals?: Proposal[] | undefined
 }
 
 const isArchived = (v: unknown): v is ArchivedTask =>
@@ -77,6 +80,7 @@ export class PlanningStore {
   private steps: Map<string, Step>
   private timer: FocusTimer | undefined
   private archived: Map<string, ArchivedTask>
+  private proposals: Proposal[]
   private readonly now: () => number
 
   /** `now` is the clock: the app uses the system's, tests pass one they control. */
@@ -98,6 +102,11 @@ export class PlanningStore {
         .filter((entry): entry is [string, ArchivedTask] => isArchived(entry[1]))
         .map(([id, a]) => [focusKey(id), a]),
     )
+    // A proposal this version cannot read is dropped, never guessed at: nothing is applied from it.
+    this.proposals = (Array.isArray(raw.proposals) ? raw.proposals : []).flatMap((p) => {
+      const ok = proposalSchema.safeParse(p)
+      return ok.success ? [ok.data] : []
+    })
     this.settle()
   }
 
@@ -268,6 +277,48 @@ export class PlanningStore {
     this.save()
   }
 
+  /** The proposals waiting for a confirmation, oldest first. */
+  pendingProposals(): Proposal[] {
+    return [...this.proposals]
+  }
+
+  proposal(id: string): Proposal | undefined {
+    return this.proposals.find((p) => p.id === id)
+  }
+
+  /** Puts a proposal on the pending list. The input is checked first: a refused kind ("concluir") is never stored. */
+  addProposal(input: unknown): Proposal {
+    const p = parseProposal(input)
+    if (this.proposals.some((o) => o.id === p.id)) throw new Error('Já existe uma proposta com esse identificador.')
+    this.proposals.push(p)
+    this.save()
+    return p
+  }
+
+  /**
+   * Records what a confirmation did: the focus set, the tasks taken to the Archive, and the operations
+   * still waiting. With none left, the proposal is done and leaves the list.
+   */
+  settleProposal(
+    id: string,
+    change: { focus?: string[]; archived?: { id: string; record: ArchivedTask }[]; operations: ProposalOperation[]; failure?: ProposalFailure | undefined },
+  ): void {
+    const i = this.proposals.findIndex((p) => p.id === id)
+    if (i < 0) throw new Error('Essa proposta não existe mais.')
+    if (change.focus) this.focusIds = [...new Set(change.focus.map(focusKey))]
+    for (const a of change.archived ?? []) this.archived.set(focusKey(a.id), a.record)
+    if (change.operations.length) this.proposals[i] = { ...this.proposals[i]!, operations: change.operations, failure: change.failure }
+    else this.proposals.splice(i, 1)
+    this.save()
+  }
+
+  /** Takes a proposal off the pending list without applying anything. Nothing is saved when it is not there. */
+  removeProposal(id: string): void {
+    const before = this.proposals.length
+    this.proposals = this.proposals.filter((p) => p.id !== id)
+    if (this.proposals.length !== before) this.save()
+  }
+
   private save(): void {
     writeJsonAtomic(
       this.file,
@@ -276,6 +327,7 @@ export class PlanningStore {
         steps: Object.fromEntries(this.steps),
         timer: this.timer,
         archived: this.archived.size ? Object.fromEntries(this.archived) : undefined,
+        proposals: this.proposals.length ? this.proposals : undefined,
       } satisfies Planning,
       { space: 2, newline: true },
     )
