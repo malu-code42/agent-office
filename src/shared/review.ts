@@ -10,7 +10,7 @@ import { describeOperation, dayPt, type ProposalOperation } from './proposals'
  * A focused task with no step recorded in this many days (today is day 0) gets the suggestion to
  * reschedule, review or discard it. The user has to confirm this number.
  */
-export const REVIEW_STALE_DAYS = 7
+export const REVIEW_STALE_DAYS = 3
 
 export const REVIEW_STEPS = ['agenda', 'foco', 'estudos', 'confirmar'] as const
 export type ReviewStep = (typeof REVIEW_STEPS)[number]

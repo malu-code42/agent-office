@@ -369,26 +369,26 @@ describe('the focus and the day', () => {
   })
 })
 
-describe('the 7-day suggestion', () => {
-  it('the constant is 7 days', () => {
-    expect(REVIEW_STALE_DAYS).toBe(7)
-    expect(staleText()).toContain('7 dias')
+describe('the stale suggestion', () => {
+  it('the constant is 3 days', () => {
+    expect(REVIEW_STALE_DAYS).toBe(3)
+    expect(staleText()).toContain(`${REVIEW_STALE_DAYS} dias`)
   })
 
   it('counts whole days, today is day 0', () => {
-    expect(daysBetween('2026-10-11', '2026-10-17')).toBe(6)
-    expect(isStale('2026-10-11', '2026-10-17')).toBe(false)
-    expect(isStale('2026-10-10', '2026-10-17')).toBe(true)
+    expect(daysBetween('2026-10-14', '2026-10-17')).toBe(REVIEW_STALE_DAYS)
+    expect(isStale(addDays('2026-10-17', -(REVIEW_STALE_DAYS - 1)), '2026-10-17')).toBe(false)
+    expect(isStale(addDays('2026-10-17', -REVIEW_STALE_DAYS), '2026-10-17')).toBe(true)
     expect(isStale(undefined, '2026-10-17')).toBe(true)
   })
 
-  it('a focused task with a step in the last 7 days gets no suggestion; one without gets it', () => {
+  it('a focused task with a step in the last REVIEW_STALE_DAYS days gets no suggestion; one without gets it', () => {
     const clock = { t: MORNING }
     const d = deps(clock)
     d.planning.add('tabc123')
     d.planning.add('tdef456')
     d.planning.add('t1a2b3c')
-    d.planning.saveStep('tabc123', 'Separar as roupas', '2026-10-14')
+    d.planning.saveStep('tabc123', 'Separar as roupas', addDays('2026-10-17', -(REVIEW_STALE_DAYS - 1)))
     d.planning.saveStep('tdef456', 'Pano limpo', '2026-10-10')
     const rows = openReview(vault, d).focus
     expect(rows.find((r) => r.id === 'tabc123')?.stale).toBe(false)
