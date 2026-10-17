@@ -16,6 +16,7 @@ import { cleanError } from './modals'
 import { offerUndo, type Toast } from './tasks-complete'
 import { openMoveMenu, openTaskMenu } from './tasks-move'
 import { openNewTask } from './tasks-new'
+import { runDiscard, runReopen } from './tasks-discard'
 import './focus.css'
 
 /** `moved` is the card to focus after a move: the list it went to and its title. */
@@ -107,6 +108,18 @@ export async function openTasksBoard(
         toast(cleanError(err), 'err')
       }
     }
+    // Discarding asks for the reason first; the card leaves the board and its line goes to the Archive.
+    const discardCard = (task: Task) =>
+      void runDiscard(root, toast, { line: task.line }, task.text, (next) => {
+        board.remove()
+        void openTasksBoard(root, state, toast, next.board)
+      })
+    // A completed or discarded task goes back to its origin list, and its card is focused there.
+    const reopenRow = (task: Task) =>
+      void runReopen(root, toast, { line: task.line }, task.text, (next) => {
+        board.remove()
+        void openTasksBoard(root, state, toast, next.board, { list: next.list, text: task.text })
+      })
     /** Drag and keyboard for a card; the Archive is read-only. */
     const dragAndMove = (list: TaskList, task: Task): Record<string, string | EventListener | undefined> => {
       if (list.name === ARCHIVE_LIST) return {}
@@ -140,6 +153,9 @@ export async function openTasksBoard(
             key.preventDefault()
             key.stopPropagation()
             openReschedule(key.currentTarget as HTMLElement, list, task)
+          } else if (key.key.toLowerCase() === 'd' && !key.ctrlKey && !key.metaKey && !key.altKey && task.status === 'open') {
+            key.preventDefault()
+            discardCard(task)
           }
         },
       }
@@ -165,6 +181,17 @@ export async function openTasksBoard(
           onclick: (e: Event) => openReschedule((e.currentTarget as HTMLElement).closest<HTMLElement>('.tcard')!, list, task),
         },
         'Reagendar…',
+      )
+    const discardButton = (task: Task) =>
+      h(
+        'button',
+        {
+          class: 'btn btn-small tcard-discard',
+          type: 'button',
+          tabindex: '-1',
+          onclick: () => discardCard(task),
+        },
+        'Descartar…',
       )
     // Tab reaches it and Space toggles it. Only open tasks have one.
     const completeBox = (task: Task) =>
@@ -205,11 +232,22 @@ export async function openTasksBoard(
               h(
                 'li',
                 { class: 'tcompleted-row' },
-                h('span', { class: 'tcompleted-title' }, `✅ ${task.text}`),
+                h('span', { class: 'tcompleted-title' }, `${task.status === 'discarded' ? '❌' : '✅'} ${task.text}`),
                 h(
                   'span',
                   { class: 'tcompleted-foot' },
                   [task.completedDate, list === ARCHIVE_LIST ? '' : list].filter(Boolean).join(' · '),
+                ),
+                task.reason ? h('span', { class: 'tcompleted-foot' }, `Motivo: ${task.reason}`) : null,
+                h(
+                  'button',
+                  {
+                    class: 'btn btn-small tcompleted-reopen',
+                    type: 'button',
+                    'aria-label': `Reabrir “${task.text}”`,
+                    onclick: () => reopenRow(task),
+                  },
+                  'Reabrir',
                 ),
               ),
             ),
@@ -318,7 +356,7 @@ export async function openTasksBoard(
                             isFocused(task) ? 'Em foco' : '',
                             taskWhen(task) ? `Data ${taskWhen(task)}` : '',
                             task.completedDate ? `Descartada em ${task.completedDate}` : '',
-                            `Pressione Enter para mover para outra lista, F para pôr ou tirar do foco${task.status === 'open' ? ', R para reagendar' : ''}`,
+                            `Pressione Enter para mover para outra lista, F para pôr ou tirar do foco${task.status === 'open' ? ', R para reagendar, D para descartar' : ''}`,
                           ]
                             .filter(Boolean)
                             .join('. '),
@@ -336,6 +374,7 @@ export async function openTasksBoard(
                         task.reason ? h('div', { class: 'hint' }, task.reason) : null,
                         moveButton(list, task),
                         task.status === 'open' ? rescheduleButton(list, task) : null,
+                        task.status === 'open' ? discardButton(task) : null,
                         task.status === 'open' || isFocused(task) ? focusButton(list, task) : null,
                       ),
                     )),

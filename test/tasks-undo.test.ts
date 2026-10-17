@@ -80,18 +80,20 @@ describe('boardView', () => {
     expect(view.columns[1]!.tasks.map((t) => t.text)).toEqual(['Lavar roupa', 'Passar pano'])
   })
 
-  it('lists every completed task read-only, with its list and date, and no discarded one', () => {
+  it('lists every completed task and the discarded ones of the Archive, with their list and date, but not a discarded task of a column', () => {
     const view = boardView(board.lists)
 
     expect(view.completed.map(({ list, task }) => [list, task.text, task.completedDate])).toEqual([
       ['Estudo', 'Terminar exercício', '2026-10-12'],
       ['Archive', 'Lavar louça', '17.10.2026'],
+      ['Archive', 'Ler artigo antigo', '2026-10-10'],
     ])
   })
 
-  it('shows nothing of the Archive as a column even when it is the only list', () => {
+  it('shows nothing of the Archive as a column even when it is the only list, and lists its discarded task to reopen', () => {
     const only = parseTasksFile('## Archive\n- [-] Velho ^t7e8f9a\n').lists
 
-    expect(boardView(only)).toEqual({ columns: [], completed: [] })
+    expect(boardView(only).columns).toEqual([])
+    expect(boardView(only).completed.map(({ task }) => task.text)).toEqual(['Velho'])
   })
 })

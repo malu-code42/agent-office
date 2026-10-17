@@ -6,7 +6,15 @@ import { HAIR_STYLES } from '@shared/describe'
 import { STEP_MAX, TIMER_MINUTES } from '@shared/planning'
 import { floorNameFor, MAX_PROJECT_FLOORS } from '@shared/projects'
 import { scheduleError } from '@shared/schedule'
-import { isDateDDMMAAAA, type NewTaskDraft, type TaskMove, type TaskRef, type TaskReschedule } from '@shared/tasks'
+import {
+  isDateDDMMAAAA,
+  type NewTaskDraft,
+  type TaskDiscard,
+  type TaskMove,
+  type TaskRef,
+  type TaskReopen,
+  type TaskReschedule,
+} from '@shared/tasks'
 import { STATUSES } from '@shared/tickets'
 import { EFFORT_LEVELS, ROUTINE_LIMITS } from '@shared/types'
 import type { VideoSettings } from '@shared/video'
@@ -92,8 +100,14 @@ export const rescheduleTaskSchema: z.ZodType<TaskReschedule> = z.object({
 export const taskLineSchema = z.number().int().min(1).max(10_000_000)
 /** A task id as tarefas.md writes it: ^t and six letters or digits. */
 export const taskIdSchema = z.string().regex(/^t[a-z0-9]{6}$/i)
-/** The task to complete: the line as the board read it, or the id of a task in focus. */
-export const completeTaskSchema: z.ZodType<TaskRef> = z.union([z.object({ line: taskLineSchema }), z.object({ id: taskIdSchema })])
+/** The task to act on: the line as the board read it, or the id of a task in focus. */
+export const taskRefSchema: z.ZodType<TaskRef> = z.union([z.object({ line: taskLineSchema }), z.object({ id: taskIdSchema })])
+/** The task to complete (see taskRefSchema). */
+export const completeTaskSchema = taskRefSchema
+/** A task to discard: the reason is checked by planDiscard, with the words the form shows. */
+export const discardTaskSchema: z.ZodType<TaskDiscard> = z.object({ target: taskRefSchema, reason: z.string().max(1000) })
+/** A task to reopen; the list is only sent when the origin list is gone and the user chose one. */
+export const reopenTaskSchema: z.ZodType<TaskReopen> = z.object({ target: taskRefSchema, list: z.string().max(200).optional() })
 /** The text of a "Passo de hoje": trimmed, never empty, at most STEP_MAX characters (counted as characters, not UTF-16 units). */
 export const stepTextSchema = z
   .string('O passo de hoje precisa ser um texto.')

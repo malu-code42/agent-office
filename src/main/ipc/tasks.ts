@@ -2,17 +2,19 @@ import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { dialog, ipcMain } from 'electron'
 import { focusItems, focusKey } from '@shared/planning'
-import { parseTasksFile, type TaskList } from '@shared/tasks'
+import { parseTasksFile, type TaskList, type TaskRef } from '@shared/tasks'
 import { dayKey } from '../backups'
 import { createTaskWriter, type TaskWriter } from '../tasks-write'
 import { createCompletionUndo } from '../tasks-undo'
 import {
   completeTaskSchema,
+  discardTaskSchema,
   moveTaskSchema,
   newTaskSchema,
   parse,
   parseStepText,
   parseTimerMinutes,
+  reopenTaskSchema,
   rescheduleTaskSchema,
   taskIdSchema,
   taskLineSchema,
@@ -31,7 +33,12 @@ export function registerTasksIpc(ctx: IpcContext): void {
   }
   // Reads the file without remembering it: the board's line numbers come from its own read.
   const focusView = (lists: TaskList[]) => focusItems(lists, ctx.planning.focus(), ctx.planning.todaySteps(dayKey()), ctx.planning.timers())
-  const focusOf = (path: string) => focusView(parseTasksFile(readTasksFile(path)).lists)
+  // The popup can discard or complete without the board open, so what it reads is what the writer checks against.
+  const focusOf = (path: string) => {
+    const content = readTasksFile(path)
+    writer.remember(path, content)
+    return focusView(parseTasksFile(content).lists)
+  }
 
   ipcMain.handle('office:readTasks', async () => {
     const vaultPath = ctx.store.settings.vaultPath
@@ -104,6 +111,48 @@ export function registerTasksIpc(ctx: IpcContext): void {
     return { board, focus: focusView(board.lists) }
   })
 
+  // The reason is required: an empty one is refused before anything is written. tarefas.md goes first,
+  // then the origin is recorded; if that second step fails, the task is in the Archive with no origin,
+  // and reopening it asks for a list.
+  ipcMain.handle('office:discardTask', async (_e, raw: unknown) => {
+    const input = parse(discardTaskSchema, raw, 'Descarte inválido.')
+    const path = requireVault()
+    const done = writer.discard(path, targetOf(input.target), input.reason)
+    try {
+      ctx.planning.archive(done.id, { origin: done.origin, completedAt: done.completedAt, originalLine: done.originalLine })
+    } catch (err) {
+      throw new Error('A tarefa foi descartada no tarefas.md, mas não consegui atualizar o planning.json. Abra o quadro Tarefas de novo.', {
+        cause: err,
+      })
+    }
+    const board = read(path)
+    return { id: done.id, board, focus: focusView(board.lists) }
+  })
+
+  // tarefas.md is written first, then the record of the task is removed. If that second step fails, the
+  // task is already back in its list and the record stays; it is replaced by the next completion or discard.
+  ipcMain.handle('office:reopenTask', async (_e, raw: unknown) => {
+    const input = parse(reopenTaskSchema, raw, 'Reabertura inválida.')
+    const path = requireVault()
+    const plan = writer.reopen(path, targetOf(input.target), { list: input.list, archived: (id) => ctx.planning.archivedOf(id) })
+    if (plan.status === 'choose') return plan
+    if (plan.id) {
+      undo.forget(plan.id)
+      if (ctx.planning.archivedOf(plan.id)) {
+        try {
+          ctx.planning.unarchive(plan.id)
+        } catch (err) {
+          throw new Error(
+            'A tarefa voltou para a lista no tarefas.md, mas não consegui apagar o registro dela no planning.json. O registro fica lá e não atrapalha.',
+            { cause: err },
+          )
+        }
+      }
+    }
+    const board = read(path)
+    return { status: 'done' as const, list: plan.list, board, focus: focusView(board.lists) }
+  })
+
   ipcMain.handle('office:readFocus', async () => focusOf(requireVault()))
 
   ipcMain.handle('office:focusTask', async (_e, line: unknown) => {
@@ -174,6 +223,10 @@ export function registerTasksIpc(ctx: IpcContext): void {
     ctx.planning.confirmTimer(taskId, count)
     return focusOf(path)
   })
+}
+
+function targetOf(ref: TaskRef): number | string {
+  return 'line' in ref ? ref.line : ref.id
 }
 
 function checkedVault(rawPath: unknown): string {

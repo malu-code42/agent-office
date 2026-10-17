@@ -257,6 +257,17 @@ export class PlanningStore {
     this.save()
   }
 
+  /** The record of a completed or discarded task, when this store has it. */
+  archivedOf(id: string): ArchivedTask | undefined {
+    return this.archived.get(focusKey(id))
+  }
+
+  /** Removes the record of a reopened task. Nothing is saved when there is none. */
+  unarchive(id: string): void {
+    if (!this.archived.delete(focusKey(id))) return
+    this.save()
+  }
+
   private save(): void {
     writeJsonAtomic(
       this.file,

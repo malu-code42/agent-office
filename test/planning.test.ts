@@ -440,4 +440,24 @@ describe('timer helpers', () => {
     expect(() => parseTimerMinutes('18')).toThrow('Informe os minutos feitos.')
     expect(() => parseTimerMinutes(Number.NaN)).toThrow('Informe os minutos feitos.')
   })
+
+  it('loads a planning.json from before reopening existed: its records pass the shape check and can be let go of', () => {
+    const before = {
+      focus: ['tabc123'],
+      steps: {},
+      archived: {
+        tabc123: { origin: 'Casa', completedAt: '2026-10-16', originalLine: '- [ ] 16.10.2026 | 09:00 | Casa | Lavar roupa ^tabc123' },
+      },
+    }
+    writeFileSync(join(dir, 'planning.json'), JSON.stringify(before), 'utf8')
+
+    expect(shapeOf('planning.json')(before)).toBe(true)
+    const store = new PlanningStore(dir)
+    expect(store.archivedOf('TABC123')).toEqual(before.archived.tabc123)
+
+    store.unarchive('tabc123')
+    store.unarchive('tabc123')
+    expect(new PlanningStore(dir).archivedOf('tabc123')).toBeUndefined()
+    expect(new PlanningStore(dir).focus()).toEqual(['tabc123'])
+  })
 })

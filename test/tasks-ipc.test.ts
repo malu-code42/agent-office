@@ -419,3 +419,151 @@ describe('tasks focus timer IPC', () => {
     await expect(invoke('office:startTimer', 'tabc123')).rejects.toThrow('Configure a pasta do vault em Ajustes → Tarefas do Obsidian.')
   })
 })
+
+describe('discarding and reopening IPC', () => {
+  const file = () => join(vault, 'tarefas.md')
+
+  // A new session: the same registration again, so the writer starts with nothing read.
+  const registerAgain = () =>
+    registerTasksIpc({
+      win: () => ({}) as never,
+      store: {
+        get settings() {
+          return settings
+        },
+        set settings(value) {
+          settings = value
+        },
+      } as never,
+      planning,
+      broadcast,
+    } as never)
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 17, 10, 30))
+  })
+
+  afterEach(() => vi.useRealTimers())
+
+  it('discards a focused task: it leaves the focus, the Archive gets it with ❌ and no ✅, and the other focused task keeps its step and timer', async () => {
+    writeFileSync(file(), '## Casa\n- [ ] Lavar roupa ^tabc123\n- [ ] Passar pano ^tdef456\n## Archive\n', 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+    await invoke('office:focusTask', 2)
+    await invoke('office:focusTask', 3)
+    await invoke('office:saveStep', 'tdef456', 'Passar a pano')
+    await invoke('office:startTimer', 'tdef456')
+
+    const out = (await invoke('office:discardTask', { target: { id: 'tabc123' }, reason: 'Sem tempo' })) as {
+      id: string
+      focus: FocusItemView[]
+    }
+
+    expect(out.id).toBe('tabc123')
+    expect(readFileSync(file(), 'utf8')).toBe(
+      '## Casa\n- [ ] Passar pano ^tdef456\n## Archive\n- [-] Lavar roupa ❌ 17.10.2026 — Sem tempo ^tabc123\n',
+    )
+    expect(out.focus).toMatchObject([{ id: 'tdef456', missing: false, step: 'Passar a pano', timer: { state: 'em andamento' } }])
+    expect(planning.focus()).toEqual(['tdef456'])
+    expect(planning.archivedOf('tabc123')).toEqual({
+      origin: 'Casa',
+      completedAt: '2026-10-17',
+      originalLine: '- [ ] Lavar roupa ^tabc123',
+    })
+  })
+
+  it('refuses a discard with an empty reason or a reason of the wrong type, and writes nothing', async () => {
+    const source = '## Casa\n- [ ] Lavar roupa ^tabc123\n'
+    writeFileSync(file(), source, 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+    await invoke('office:focusTask', 2)
+
+    await expect(invoke('office:discardTask', { target: { id: 'tabc123' }, reason: '   ' })).rejects.toThrow(
+      'Escreva o motivo para descartar a tarefa.',
+    )
+    await expect(invoke('office:discardTask', { target: { id: 'tabc123' }, reason: 7 })).rejects.toThrow('Descarte inválido.')
+    expect(readFileSync(file(), 'utf8')).toBe(source)
+    expect(planning.focus()).toEqual(['tabc123'])
+  })
+
+  it('discards from the focus popup without the board open: reading the focus is enough', async () => {
+    writeFileSync(file(), '## Casa\n- [ ] Lavar roupa ^tabc123\n## Archive\n', 'utf8')
+    settings.vaultPath = vault
+    planning.add('tabc123')
+    registerAgain()
+    await invoke('office:readFocus')
+
+    await invoke('office:discardTask', { target: { id: 'tabc123' }, reason: 'Sem tempo' })
+
+    expect(readFileSync(file(), 'utf8')).toContain('- [-] Lavar roupa ❌ 17.10.2026 — Sem tempo ^tabc123')
+  })
+
+  it('reopens a discarded task to its origin list, and its record goes', async () => {
+    const source = '## Casa\n- [ ] Lavar roupa ^tabc123\n## Archive\n- [-] Velho ❌ 2026-10-10 — descartada: x ^t7e8f9a\n'
+    writeFileSync(file(), source, 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+    await invoke('office:discardTask', { target: { line: 2 }, reason: 'Sem tempo' })
+
+    const back = await invoke('office:reopenTask', { target: { id: 'tabc123' } })
+
+    expect(back).toMatchObject({ status: 'done', list: 'Casa', focus: [] })
+    expect(readFileSync(file(), 'utf8')).toBe(source)
+    expect(planning.archivedOf('tabc123')).toBeUndefined()
+    expect(new PlanningStore(data).archivedOf('tabc123')).toBeUndefined()
+  })
+
+  it('asks for a list when the origin list is gone, and writes nothing until one is sent', async () => {
+    writeFileSync(file(), '## Casa\n- [ ] Lavar roupa ^tabc123\n## Archive\n', 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+    await invoke('office:discardTask', { target: { id: 'tabc123' }, reason: 'Sem tempo' })
+    writeFileSync(file(), readFileSync(file(), 'utf8').replace('## Casa', '## Casa nova'), 'utf8')
+    await invoke('office:readTasks')
+    const edited = readFileSync(file(), 'utf8')
+
+    expect(await invoke('office:reopenTask', { target: { id: 'tabc123' } })).toEqual({ status: 'choose', lists: ['Casa nova'] })
+    expect(readFileSync(file(), 'utf8')).toBe(edited)
+    await expect(invoke('office:reopenTask', { target: { id: 'tabc123' }, list: 'Leitura' })).rejects.toThrow(
+      'Não encontrei a lista “Leitura”',
+    )
+
+    const done = await invoke('office:reopenTask', { target: { id: 'tabc123' }, list: 'Casa nova' })
+    expect(done).toMatchObject({ status: 'done', list: 'Casa nova' })
+    expect(readFileSync(file(), 'utf8')).toBe('## Casa nova\n- [ ] Lavar roupa ^tabc123\n## Archive\n')
+  })
+
+  it('refuses to reopen a task that is open, an unknown task, or a malformed request, and writes nothing', async () => {
+    const source = '## Casa\n- [ ] Lavar roupa ^tabc123\n'
+    writeFileSync(file(), source, 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+
+    await expect(invoke('office:reopenTask', { target: { line: 2 } })).rejects.toThrow('Essa tarefa não está concluída nem descartada')
+    await expect(invoke('office:reopenTask', { target: { id: 'tzzzzzz' } })).rejects.toThrow('Não encontrei essa tarefa no tarefas.md.')
+    await expect(invoke('office:reopenTask', { target: 'tabc123' })).rejects.toThrow('Reabertura inválida.')
+    expect(readFileSync(file(), 'utf8')).toBe(source)
+  })
+
+  it('keeps the record when planning.json fails after tarefas.md was written, and the next reopen lets it go', async () => {
+    writeFileSync(file(), '## Casa\n- [ ] Lavar roupa ^tabc123\n## Archive\n', 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+    await invoke('office:discardTask', { target: { line: 2 }, reason: 'Sem tempo' })
+    const failing = vi.spyOn(planning, 'unarchive').mockImplementationOnce(() => {
+      throw new Error('disco cheio')
+    })
+
+    await expect(invoke('office:reopenTask', { target: { id: 'tabc123' } })).rejects.toThrow(
+      'não consegui apagar o registro dela no planning.json',
+    )
+    expect(readFileSync(file(), 'utf8')).toBe('## Casa\n- [ ] Lavar roupa ^tabc123\n## Archive\n')
+    expect(planning.archivedOf('tabc123')).toBeDefined()
+
+    await invoke('office:reopenTask', { target: { id: 'tabc123' } })
+    expect(planning.archivedOf('tabc123')).toBeUndefined()
+    failing.mockRestore()
+  })
+})
