@@ -1,10 +1,22 @@
 import type { State } from '../state'
+import { parseEmphasis } from '@shared/emphasis'
 import type { ParsedBoard, TaskList } from '@shared/tasks'
 import { asDialog, FocusReturn, isTyping, rove } from './a11y'
 import { h, icon } from './dom'
 import { cleanError } from './modals'
 
 const ARROWS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
+
+/** Renders `**negrito**` and `*itálico*` as elements; everything else stays text. */
+function taskTitle(text: string): (Node | string)[] {
+  return parseEmphasis(text).map((segment) =>
+    segment.kind === 'bold'
+      ? h('strong', { class: 'tcard-bold' }, segment.text)
+      : segment.kind === 'italic'
+        ? h('em', { class: 'tcard-italic' }, segment.text)
+        : segment.text,
+  )
+}
 
 /** ↑/↓ move between the cards of a list, ←/→ between lists (same row when there is one). */
 function moveFocus(columns: HTMLElement[], key: string): void {
@@ -124,7 +136,9 @@ export async function openTasksBoard(
                           class: `tcard task-readonly${task.status === 'completed' ? ' task-completed' : task.status === 'discarded' ? ' task-discarded' : ''}`,
                           tabindex: '0',
                           'aria-label': [
-                            task.text,
+                            parseEmphasis(task.text)
+                              .map((segment) => segment.text)
+                              .join(''),
                             task.status === 'completed' ? 'Concluída' : task.status === 'discarded' ? 'Descartada' : '',
                             task.dueDate ? `Data ${task.dueDate}` : '',
                             task.completedDate
@@ -137,7 +151,7 @@ export async function openTasksBoard(
                         h(
                           'div',
                           { class: 'tcard-top' },
-                          h('span', { class: 'tcard-title' }, task.text),
+                          h('span', { class: 'tcard-title' }, ...taskTitle(task.text)),
                           task.status !== 'open'
                             ? h(
                                 'span',
