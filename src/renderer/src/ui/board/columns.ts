@@ -1,37 +1,53 @@
-import { projectFor } from '@shared/projects'
 import { labelOf, neighborStatus, PRIORITIES, STATUSES, TYPES } from '@shared/tickets'
 import type { Actor, Ticket, TicketStatus } from '@shared/types'
 import { announce, keepFocus, rove } from '../a11y'
 import { h, icon } from '../dom'
 import { cleanError } from '../modals'
 import { portrait } from '../portrait'
-import { beforeCard, clearDropMarks, DONE_SHOWN, EMPTY, GROUND, initials, overdue, shortDate, type Who } from './helpers'
+import { beforeCard, clearDropMarks, DONE_SHOWN, EMPTY, initials, overdue, shortDate, type Who } from './helpers'
+import { ALL_FLOORS, cardAgent, floorTabs, ticketFloor, ticketsOnFloor, type CardAgent } from './model'
 import { BoardBase } from './base'
 
 /** The kanban columns and cards: filters, drag and drop, moving by keyboard. */
 export abstract class BoardColumns extends BoardBase {
-  // ---------- columns ----------
+  // ---------- floors ----------
 
-  /** The floor a ticket belongs to: the project holding its folder, or the ground floor. */
   protected floorOf(t: Ticket): string {
-    return projectFor(this.state.settings.projects, t.cwd)?.id ?? GROUND
+    return ticketFloor(t, this.state.settings.projects)
   }
 
-  /** Floor options follow the projects; the choice survives when its floor still exists. */
-  protected syncFloors(): void {
-    const projects = this.state.settings.projects
-    const keep = this.floorFilter.value
-    const options = [{ value: '', label: 'Todos os andares' }, { value: GROUND, label: 'Térreo' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]
-    if (this.floorFilter.options.length !== options.length || options.some((o, i) => this.floorFilter.options[i].value !== o.value || this.floorFilter.options[i].text !== o.label)) {
-      this.floorFilter.replaceChildren(...options.map((o) => h('option', { value: o.value }, o.label)))
+  /** One tab per floor. The choice falls back to every floor when its floor is gone (a project was removed). */
+  protected renderTabs(): void {
+    const tabs = floorTabs(this.state.settings.projects)
+    if (!tabs.some((t) => t.value === this.floor)) this.floor = ALL_FLOORS
+    const key = tabs.map((t) => `${t.value}\u0000${t.label}`).join('\n')
+    if (key !== this.tabKey) {
+      this.tabKey = key
+      this.tabBar.replaceChildren(
+        ...tabs.map((t) => h('button', { class: 'board-tab', type: 'button', role: 'tab', tabindex: -1, 'data-floor': t.value, onclick: () => this.selectFloor(t.value) }, t.label)),
+      )
     }
-    this.floorFilter.value = options.some((o) => o.value === keep) ? keep : ''
+    const tabButtons = [...this.tabBar.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+    const on = tabs.findIndex((t) => t.value === this.floor)
+    tabButtons.forEach((b, i) => {
+      b.setAttribute('aria-selected', String(i === on))
+      b.classList.toggle('on', i === on)
+    })
+    // Keyboard focus stays on the tab it is on; otherwise the Tab stop goes to the chosen floor.
+    const at = tabButtons.indexOf(document.activeElement as HTMLButtonElement)
+    rove(tabButtons, at >= 0 ? at : Math.max(0, on))
+  }
+
+  protected selectFloor(value: string): void {
+    this.floor = value
+    this.renderColumns()
   }
 
   protected onFloor(): Ticket[] {
-    const floor = this.floorFilter.value
-    return [...this.state.tickets.values()].filter((t) => !floor || this.floorOf(t) === floor)
+    return ticketsOnFloor([...this.state.tickets.values()], this.floor, this.state.settings.projects)
   }
+
+  // ---------- columns ----------
 
   protected visible(): Ticket[] {
     const q = this.search.value.trim().toLowerCase()
@@ -49,7 +65,7 @@ export abstract class BoardColumns extends BoardBase {
   }
 
   protected renderColumns(): void {
-    this.syncFloors()
+    this.renderTabs()
     const shown = this.visible()
     const total = this.onFloor().length
     this.count.textContent = shown.length === total ? String(total) : `${shown.length} de ${total}`
@@ -148,6 +164,7 @@ export abstract class BoardColumns extends BoardBase {
   protected card(t: Ticket): HTMLElement {
     const ok = t.acceptance.filter((c) => c.done).length
     const agent = t.assignee?.id ? this.state.agents.get(t.assignee.id) : undefined
+    const who = cardAgent(t, this.state.agents)
     const el = h(
       'div',
       {
@@ -166,10 +183,11 @@ export abstract class BoardColumns extends BoardBase {
         { class: 'tcard-top' },
         h('span', { class: 'tkey' }, t.key),
         h('span', { class: `ttype ttype-${t.type}` }, labelOf(TYPES, t.type)),
-        this.floorFilter.value ? null : this.floorTag(t),
+        this.floor ? null : this.floorTag(t),
         h('span', { class: `tprio tprio-${t.priority}`, title: `Prioridade ${labelOf(PRIORITIES, t.priority).toLowerCase()}` }),
       ),
       h('div', { class: 'tcard-title' }, t.title),
+      who ? this.agentLine(who) : null,
       agent && t.status === 'doing' ? h('div', { class: 'tcard-live' }, h('span', { class: `dot dot-${agent.status}` }), agent.activity) : null,
       t.tags.length ? h('div', { class: 'tcard-tags' }, ...t.tags.slice(0, 4).map((tag) => h('span', { class: 'ttag' }, tag))) : null,
       h(
@@ -212,6 +230,34 @@ export abstract class BoardColumns extends BoardBase {
       if (this.stale) this.render()
     })
     return el
+  }
+
+  /**
+   * The agent of a card in progress. Clicking it opens the agent's conversation and keeps the card
+   * from being selected. Out of the Tab order on purpose: the card's drawer has the same link.
+   */
+  protected agentLine(who: CardAgent): HTMLElement {
+    const style = who.color ? `--agent:${who.color}` : undefined
+    const dot = h('span', { class: 'tcard-agent-dot' })
+    const name = h('span', { class: 'tcard-agent-name' }, who.name)
+    if (!who.id) return h('div', { class: 'tcard-agent', style, title: `${who.name} (saiu do escritório)` }, dot, name)
+    const id = who.id
+    return h(
+      'button',
+      {
+        class: 'tcard-agent tcard-agent-link',
+        type: 'button',
+        tabindex: -1,
+        style,
+        title: `Ver a conversa de ${who.name}`,
+        onclick: (e: Event) => {
+          e.stopPropagation()
+          this.actions.openAgent(id)
+        },
+      },
+      dot,
+      name,
+    )
   }
 
   protected markDrop(list: HTMLElement, before: HTMLElement | undefined): void {
