@@ -3,7 +3,8 @@ import { PRIORITIES, STATUSES, TYPES } from '@shared/tickets'
 import type { Ticket, TicketPriority, TicketStatus, TicketType } from '@shared/types'
 import { h, icon } from '../dom'
 import { cleanError, field, LAST_CWD, modal } from '../modals'
-import { GROUND, select } from './helpers'
+import { select } from './helpers'
+import { GROUND } from './model'
 import { BoardClosing } from './closing'
 
 export type { BoardActions } from './base'
@@ -28,10 +29,11 @@ export class Board extends BoardClosing {
       status === 'backlog' ? 'backlog' : 'todo',
       () => undefined,
     )
-    // New tickets land on the floor being shown: its project folder, or the last folder used outside the projects.
-    const floor = this.state.settings.projects.find((p) => p.id === this.floorFilter.value)
+    // New tickets land on the floor being shown (the player's own on every floor): its project folder, or the last folder used outside the projects.
+    const shown = this.floor || (this.actions.currentProject()?.id ?? GROUND)
+    const floor = this.state.settings.projects.find((p) => p.id === shown)
     const last = localStorage.getItem(LAST_CWD) ?? ''
-    let cwd = floor ? floor.cwd : this.floorFilter.value === GROUND && projectFor(this.state.settings.projects, last) ? '' : last
+    let cwd = floor ? floor.cwd : shown === GROUND && projectFor(this.state.settings.projects, last) ? '' : last
     const cwdLabel = h('span', { class: 'path-label' }, cwd || 'Nenhuma pasta')
     const pick = h('button', { class: 'btn', type: 'button' }, icon('folder', 15), 'Escolher…')
     pick.addEventListener('click', async () => {
