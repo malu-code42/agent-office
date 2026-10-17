@@ -40,6 +40,8 @@ export interface HudActions {
   reports(): void
   /** A pending proposal of the caixa de entrada: opens its review. Nothing is applied from here. */
   openProposal(id: string): void
+  /** The review of today, from its draft (AO-12). */
+  review(): void
 }
 
 const COMPACT_KEY = 'roster-compact'
@@ -431,6 +433,17 @@ export class Hud {
         ),
       )
     }
+    // The review of today, while its draft is not confirmed: it comes back from here (AO-12).
+    if (this.state.reviewDraft) {
+      rows.push(
+        h(
+          'button',
+          { class: 'inbox-row', 'data-focus-key': 'review-draft', onclick: () => this.pickReview() },
+          h('span', { class: 'inbox-mark', 'aria-hidden': 'true' }, icon('list', 18)),
+          h('div', { class: 'inbox-main' }, h('div', { class: 'inbox-name' }, 'Revisão do dia', h('span', { class: 'chip chip-wait' }, 'rascunho')), h('div', { class: 'inbox-text' }, 'Continue de onde parou.')),
+        ),
+      )
+    }
     keepFocus(this.inbox, () =>
       this.inbox.replaceChildren(
         h('div', { class: 'inbox-head' }, 'Caixa de entrada'),
@@ -453,6 +466,12 @@ export class Hud {
     if (this.inbox.contains(document.activeElement)) this.inboxBtn.focus()
     this.hideInbox()
     this.actions.openProposal(id)
+  }
+
+  private pickReview(): void {
+    if (this.inbox.contains(document.activeElement)) this.inboxBtn.focus()
+    this.hideInbox()
+    this.actions.review()
   }
 
   toast(text: string, kind: 'info' | 'ok' | 'err' = 'info', action?: ToastAction): void {

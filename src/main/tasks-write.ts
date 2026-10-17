@@ -406,7 +406,8 @@ function backupTasks(vault: string, text: string, at: Date): void {
   writeFileAtomic(dest, text)
 }
 
-function readTasks(vault: string): string {
+/** tarefas.md as it is on disk now. The review reads it to show the focus; the writer checks it again before any write. */
+export function readTasks(vault: string): string {
   const file = join(vault, TASKS_FILE)
   try {
     return readFileSync(file, 'utf8')

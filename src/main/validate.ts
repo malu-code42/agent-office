@@ -6,6 +6,7 @@ import { HAIR_STYLES } from '@shared/describe'
 import { STEP_MAX, TIMER_MINUTES } from '@shared/planning'
 import { isIsoDay, REFUSED_KINDS, REFUSED_MESSAGE, type Proposal, type ProposalOperation } from '@shared/proposals'
 import { floorNameFor, MAX_PROJECT_FLOORS } from '@shared/projects'
+import { REVIEW_STEPS, type FocusChoice, type ReviewChoices, type ReviewDraft, type ReviewPostpone } from '@shared/review'
 import { scheduleError } from '@shared/schedule'
 import {
   isDateDDMMAAAA,
@@ -137,6 +138,31 @@ export const proposalSchema: z.ZodType<Proposal> = z.object({
   createdAt: z.number().finite(),
   operations: z.array(proposalOperationSchema).min(1).max(50),
   failure: z.object({ index: z.number().int().min(0), message: z.string().max(2000) }).optional(),
+})
+
+/** A choice of the daily review (AO-12). There is no "concluir" kind: the schema refuses it, as proposals do. */
+export const focusChoiceSchema: z.ZodType<FocusChoice> = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('continuar') }),
+  z.object({ kind: z.literal('revisar') }),
+  z.object({ kind: z.literal('reagendar'), date: z.string().max(10).refine(isDateDDMMAAAA) }),
+  z.object({ kind: z.literal('descartar'), reason: z.string().max(1000) }),
+])
+export const reviewChoicesSchema: z.ZodType<ReviewChoices> = z
+  .record(taskIdSchema, focusChoiceSchema)
+  .refine((c) => Object.keys(c).length <= 500, 'Escolhas demais na revisão.')
+export const reviewStepSchema = z.number().int().min(0).max(REVIEW_STEPS.length - 1)
+/** "Dispensar hoje" or adiar by 1, 2, 3 days or 1 week. */
+export const reviewPostponeSchema: z.ZodType<ReviewPostpone> = z.union([
+  z.literal('dispensar'),
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+  z.literal(7),
+])
+export const reviewDraftSchema: z.ZodType<ReviewDraft> = z.object({
+  day: isoDaySchema,
+  step: reviewStepSchema,
+  choices: reviewChoicesSchema,
 })
 
 /** A proposal from the caller (a ticket that proposes changes, or a test): a refused kind gets its own message, the rest the schema's. */

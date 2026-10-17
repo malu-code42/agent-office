@@ -7,6 +7,7 @@ import type { Proposal } from '@shared/proposals'
 import { createAgendaWriter } from '../agenda-write'
 import { dayKey } from '../backups'
 import { applyProposal } from '../proposals'
+import { registerReviewIpc } from './review'
 import { createTaskWriter, type TaskWriter } from '../tasks-write'
 import { createCompletionUndo } from '../tasks-undo'
 import {
@@ -45,6 +46,8 @@ export function registerTasksIpc(ctx: IpcContext): void {
     writer.remember(path, content)
     return focusView(parseTasksFile(content).lists)
   }
+
+  registerReviewIpc(ctx, { tasks: writer, agenda, vault: requireVault })
 
   ipcMain.handle('office:readTasks', async () => {
     const vaultPath = ctx.store.settings.vaultPath

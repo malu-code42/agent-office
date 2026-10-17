@@ -10,6 +10,7 @@ import type { MacJob, Routine, RoutineDraft } from './routines'
 import type { ClaudeStats } from './stats'
 import type { FocusItem } from '../planning'
 import type { Proposal } from '../proposals'
+import type { ReviewChoices, ReviewPostpone, ReviewView } from '../review'
 import type { NewTaskDraft, ParsedBoard, TaskDiscard, TaskMove, TaskRef, TaskReopen, TaskReschedule } from '../tasks'
 import type { DelegateTarget, Ticket, TicketDraft, TicketPatch, TicketStatus } from './tickets'
 
@@ -64,6 +65,8 @@ export interface OfficeState {
   macJobs: MacJob[]
   /** Proposals waiting for a confirmation (AO-10): they show in the caixa de entrada. */
   proposals: Proposal[]
+  /** A review of today was started and not confirmed: it shows in the caixa de entrada to resume (AO-12). */
+  reviewDraft: boolean
   /** AGENT_OFFICE_TOUR=1: the guided tour opens even if the player has seen it. */
   forceTour?: boolean
 }
@@ -133,6 +136,8 @@ export type OfficeEvent =
   | { type: 'macJobs'; jobs: MacJob[] }
   /** The pending proposals changed: the whole list. */
   | { type: 'proposals'; proposals: Proposal[] }
+  /** The review of today was saved or cleared: whether a draft to resume exists. */
+  | { type: 'review:draft'; draft: boolean }
 
 /** A reopen either put the task back (`list` is where it went) or waits for the user to choose one of `lists`. */
 export type ReopenResult = { status: 'done'; list: string; board: ParsedBoard; focus: FocusItem[] } | { status: 'choose'; lists: string[] }
@@ -180,6 +185,16 @@ export interface OfficeAPI {
   applyProposal(id: string): Promise<void>
   /** Recusa a proposta: ela sai da lista de pendentes. Nenhum arquivo é alterado. */
   rejectProposal(id: string): Promise<void>
+  /** Starts the review offer for today, once per local day: true when it should be shown now. Without a vault, false. */
+  reviewGate(): Promise<boolean>
+  /** The review of today: the draft to resume (or the first step), the agenda of today and the focus as the files say now. Nothing is written. */
+  openReview(): Promise<ReviewView>
+  /** Keeps the review as it is (step and choices) in planning.json, so it can be resumed today. Nothing else changes. */
+  saveReviewDraft(step: number, choices: ReviewChoices): Promise<void>
+  /** "Dispensar hoje" (or adiar 1, 2, 3 days or 1 week). Returns the day the offer comes back. */
+  postponeReview(option: ReviewPostpone): Promise<{ next: string }>
+  /** Applies the review's choices as one proposal, all or none. Returns how many operations were applied. */
+  confirmReview(choices: ReviewChoices): Promise<{ applied: number }>
   /** Põe em foco a tarefa da linha dada (ganha um id no tarefas.md se não tiver) e devolve o quadro e o foco. */
   focusTask(line: number): Promise<{ board: ParsedBoard; focus: FocusItem[] }>
   /** Tira do foco a tarefa com esse id. Não escreve no tarefas.md e devolve o foco. */

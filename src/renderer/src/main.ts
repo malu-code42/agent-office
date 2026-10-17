@@ -15,6 +15,7 @@ import { openRoutines } from './ui/routines'
 import { openTasksBoard } from './ui/tasks-board'
 import { openFocusPopup } from './ui/focus-popup'
 import { openProposalReview } from './ui/proposals'
+import { openReviewOffer, openReviewWizard } from './ui/review'
 import { openReports } from './ui/reports'
 import { copyReport, exportConversation } from './ui/export'
 import { showDataNotice } from './ui/data'
@@ -205,6 +206,7 @@ async function boot(): Promise<void> {
     accounts: () => openAccounts(ui, state, toast),
     reports: () => openReports(ui, state, { project: game.currentProject, toast }),
     openProposal: (id) => void openProposalReview(ui, toast, id),
+    review: () => void openReviewWizard(ui, toast),
     board: (ticketId) => {
       if (ticketId) board.open(ticketId)
       else board.toggle()
@@ -451,6 +453,21 @@ async function boot(): Promise<void> {
       else if (go === 'start') tour.start()
     }
     setTimeout(tryTour, 1500)
+  }
+
+  // The review offer (AO-12): once per local day, after the tour and with no card open. The main process
+  // marks the day when it answers, so a reopen the same day never asks again.
+  if (!headless) {
+    const tryReview = () => {
+      if (tour.showing || tourBlocked()) return setTimeout(tryReview, 1000)
+      void window.office
+        .reviewGate()
+        .then((due) => {
+          if (due) openReviewOffer(ui, toast)
+        })
+        .catch((err) => toast(cleanError(err), 'err'))
+    }
+    setTimeout(tryReview, 2500)
   }
 
   if (import.meta.env.DEV || new URLSearchParams(location.search).has('shots')) Object.assign(window, {

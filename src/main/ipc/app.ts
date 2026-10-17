@@ -5,6 +5,7 @@ import type { OfficeState } from '@shared/types'
 import { dataNotices } from '../fs-safe'
 import { diagnostics, rendererError } from '../crash'
 import { logDir } from '../log'
+import { hasDraftToday } from '../review'
 import { cleanLedgerQuery, externalUrlSchema, parse, pathSchema, copyTextSchema, markdownFileName, saveMarkdownArgsSchema } from '../validate'
 import { type IpcContext } from './context'
 
@@ -56,6 +57,7 @@ export function registerAppIpc(ctx: IpcContext): void {
     routines: routines.list(),
     macJobs: macJobs.list(),
     proposals: ctx.planning.pendingProposals(),
+    reviewDraft: hasDraftToday(ctx.planning, new Date()),
     forceTour: process.env.AGENT_OFFICE_TOUR === '1',
   }))
   ipcMain.handle('office:getLedger', (_e, q: unknown) => book.query(cleanLedgerQuery(q)))
