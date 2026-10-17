@@ -242,6 +242,85 @@ describe('tasks focus IPC', () => {
     expect(planning.focus()).toEqual([])
   })
 
+  describe('completing a task', () => {
+    const file = () => join(vault, 'tarefas.md')
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date(2026, 9, 17, 10, 30))
+    })
+
+    afterEach(() => vi.useRealTimers())
+
+    it('completes a task from the focus, and undo within 10 s gives back the line and the focus', async () => {
+      const source = '## Casa\n- [ ] Lavar roupa ^tabc123\n'
+      writeFileSync(file(), source, 'utf8')
+      settings.vaultPath = vault
+      await invoke('office:readTasks')
+      await invoke('office:focusTask', 2)
+
+      const done = (await invoke('office:completeTask', { id: 'tabc123' })) as { id: string; focus: unknown[] }
+
+      expect(done.id).toBe('tabc123')
+      expect(done.focus).toEqual([])
+      expect(readFileSync(file(), 'utf8')).toBe('## Casa\n\n## Archive\n- [x] Lavar roupa ✅ 17.10.2026 ^tabc123\n')
+      expect(planning.focus()).toEqual([])
+      expect(new PlanningStore(data).focus()).toEqual([])
+
+      vi.setSystemTime(new Date(2026, 9, 17, 10, 30, 9))
+      await invoke('office:undoCompleteTask', 'tabc123')
+      expect(readFileSync(file(), 'utf8')).toBe(source)
+      expect(planning.focus()).toEqual(['tabc123'])
+    })
+
+    it('completes a task from the board by its line, and gives a task without an id one', async () => {
+      writeFileSync(file(), '## Casa\n- [ ] Lavar roupa\n', 'utf8')
+      settings.vaultPath = vault
+      await invoke('office:readTasks')
+
+      const done = (await invoke('office:completeTask', { line: 2 })) as { id: string; board: { lists: { name: string }[] } }
+
+      expect(done.id).toMatch(/^t[a-z0-9]{6}$/)
+      expect(readFileSync(file(), 'utf8')).toContain(`- [x] Lavar roupa ✅ 17.10.2026 ^${done.id}`)
+      expect(done.board.lists.map((l) => l.name)).toEqual(['Casa', 'Archive'])
+    })
+
+    it('does not offer the undo after 10 seconds, and the task stays completed', async () => {
+      writeFileSync(file(), '## Casa\n- [ ] Lavar roupa ^tabc123\n', 'utf8')
+      settings.vaultPath = vault
+      await invoke('office:readTasks')
+      await invoke('office:completeTask', { id: 'tabc123' })
+      const after = readFileSync(file(), 'utf8')
+
+      vi.setSystemTime(new Date(2026, 9, 17, 10, 30, 10))
+      await expect(invoke('office:undoCompleteTask', 'tabc123')).rejects.toThrow('Passaram os 10 segundos para desfazer.')
+      expect(readFileSync(file(), 'utf8')).toBe(after)
+    })
+
+    it('refuses the undo when tarefas.md changed since the completion, and writes nothing', async () => {
+      writeFileSync(file(), '## Casa\n- [ ] Lavar roupa ^tabc123\n', 'utf8')
+      settings.vaultPath = vault
+      await invoke('office:readTasks')
+      await invoke('office:completeTask', { id: 'tabc123' })
+      const edited = readFileSync(file(), 'utf8') + '- [ ] Outra coisa\n'
+      writeFileSync(file(), edited, 'utf8')
+
+      await expect(invoke('office:undoCompleteTask', 'tabc123')).rejects.toThrow('nada foi desfeito')
+      expect(readFileSync(file(), 'utf8')).toBe(edited)
+      expect(planning.focus()).toEqual([])
+    })
+
+    it('refuses a target that is neither a line nor an id, and writes nothing', async () => {
+      const source = '## Casa\n- [ ] Lavar roupa ^tabc123\n'
+      writeFileSync(file(), source, 'utf8')
+      settings.vaultPath = vault
+      await invoke('office:readTasks')
+
+      await expect(invoke('office:completeTask', { line: 'dois' })).rejects.toThrow('Tarefa inválida.')
+      expect(readFileSync(file(), 'utf8')).toBe(source)
+    })
+  })
+
   it('saves and clears the step of a focused task without writing tarefas.md', async () => {
     const source = '## Casa\n- [ ] Lavar roupa ^tabc123\n'
     const file = join(vault, 'tarefas.md')

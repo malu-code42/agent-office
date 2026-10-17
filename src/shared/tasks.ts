@@ -41,11 +41,17 @@ export interface TaskMove {
   list: string
 }
 
+/** The task to complete: its line as the board read it, or its id (the focus popup has no line). */
+export type TaskRef = { line: number } | { id: string }
+
+/** How long a completed task can be undone, in milliseconds. */
+export const UNDO_WINDOW_MS = 10_000
+
 const TASK_LINE = /^\s*[-*]\s+\[([ xX-])\]\s+(.+?)\s*$/
 const BLOCK_ID = /\s+(\^t\S+)$/i
 const VALID_BLOCK_ID = /^\^t[a-z0-9]{6}$/i
 const SCHEDULED_DATE = /\s+📅\s+(\d{4}-\d{2}-\d{2})$/
-const COMPLETED_DATE = /\s+✅\s+(\d{4}-\d{2}-\d{2})$/
+const COMPLETED_DATE = /\s+✅\s+(\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\.\d{4})$/
 const DISCARDED_DATE = /\s+❌\s+(\d{4}-\d{2}-\d{2})(?:\s+[—-]\s+descartada:\s*(.*))?$/i
 /** Fields of the new format: "data | hora | lista | tarefa"; a field that is absent is not written. */
 const FIELD_SEPARATOR = /\s+\|\s+/
@@ -238,8 +244,36 @@ export function taskWhen(task: Pick<Task, 'date' | 'dueDate' | 'time'>): string 
   return [task.date ?? task.dueDate, task.time].filter(Boolean).join(' ') || null
 }
 
-const dayLabel = (d: Date): string =>
+/** A local day as DD.MM.AAAA, the way the lines of tarefas.md write dates. */
+export const dayLabel = (d: Date): string =>
   `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`
+
+/** A card of the completed list: the list it sits in and the task. */
+export interface CompletedView {
+  list: string
+  task: Task
+}
+
+/** What the Tarefas board draws: one column per list but the Archive, without the completed tasks. */
+export interface BoardView {
+  columns: TaskList[]
+  completed: CompletedView[]
+}
+
+/**
+ * The columns and the completed tasks of the board. The Archive is not a column; a completed
+ * task, wherever it is, leaves its column and is listed read-only under "Mostrar concluídas".
+ */
+export function boardView(lists: readonly TaskList[]): BoardView {
+  const columns: TaskList[] = []
+  const completed: CompletedView[] = []
+  for (const list of lists) {
+    for (const task of list.tasks) if (task.status === 'completed') completed.push({ list: list.name, task })
+    if (list.name === ARCHIVE_LIST) continue
+    columns.push({ name: list.name, tasks: list.tasks.filter((task) => task.status !== 'completed') })
+  }
+  return { columns, completed }
+}
 
 /** The days the Reagendar menu offers, from the local "today": tomorrow, in three days, and the Monday of next week. */
 export function rescheduleTargets(today: Date): { label: string; date: string }[] {

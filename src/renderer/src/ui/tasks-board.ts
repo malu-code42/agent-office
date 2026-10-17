@@ -1,9 +1,19 @@
 import type { State } from '../state'
 import { focusKey } from '@shared/planning'
-import { ARCHIVE_LIST, type ParsedBoard, rescheduleTargets, type Task, taskWhen, type TaskList } from '@shared/tasks'
+import {
+  ARCHIVE_LIST,
+  boardView,
+  type ParsedBoard,
+  rescheduleTargets,
+  type Task,
+  taskWhen,
+  type TaskList,
+  type TaskRef,
+} from '@shared/tasks'
 import { arrowList, asDialog, FocusReturn, rove } from './a11y'
 import { h, icon } from './dom'
 import { cleanError } from './modals'
+import { offerUndo, type Toast } from './tasks-complete'
 import { openMoveMenu, openTaskMenu } from './tasks-move'
 import { openNewTask } from './tasks-new'
 import './focus.css'
@@ -12,7 +22,7 @@ import './focus.css'
 export async function openTasksBoard(
   root: HTMLElement,
   state: State,
-  toast: (msg: string, type?: 'info' | 'ok' | 'err') => void,
+  toast: Toast,
   initialBoard?: ParsedBoard,
   moved?: { list: string; text: string },
 ): Promise<void> {
@@ -26,6 +36,8 @@ export async function openTasksBoard(
     const data = initialBoard ?? (await window.office.readTasks())
     const focused = new Set((await window.office.readFocus()).map((item) => item.id))
     const isFocused = (task: Task) => !!task.id && focused.has(focusKey(task.id))
+    // The Archive is not a column, and completed tasks are listed apart: see boardView.
+    const { columns, completed } = boardView(data.lists)
     const focusBack = new FocusReturn()
     let dragging: { line: number; list: string; text: string } | null = null
     // The main process checks the file again; a refusal (the file changed) comes back as the toast.
@@ -81,6 +93,17 @@ export async function openTasksBoard(
         board.remove()
         void openTasksBoard(root, state, toast, next, { list: list.name, text: task.text })
       } catch (err) {
+        toast(cleanError(err), 'err')
+      }
+    }
+    // The checkbox completes the task at once: the card leaves the board, and the undo toast stays for 10 s.
+    const complete = async (box: HTMLInputElement, target: TaskRef, title: string) => {
+      try {
+        const next = await window.office.completeTask(target)
+        offerUndo(toast, title, next.id, (undone) => refreshTasksBoard(root, state, toast, undone.board))
+        refreshTasksBoard(root, state, toast, next.board)
+      } catch (err) {
+        box.checked = false
         toast(cleanError(err), 'err')
       }
     }
@@ -143,6 +166,14 @@ export async function openTasksBoard(
         },
         'Reagendar…',
       )
+    // Tab reaches it and Space toggles it. Only open tasks have one.
+    const completeBox = (task: Task) =>
+      h('input', {
+        class: 'tcard-done',
+        type: 'checkbox',
+        'aria-label': `Marcar “${task.text}” como concluída`,
+        onchange: (e: Event) => void complete(e.currentTarget as HTMLInputElement, { line: task.line }, task.text),
+      })
     const focusButton = (list: TaskList, task: Task) => {
       const wasFocused = isFocused(task)
       return h(
@@ -156,14 +187,42 @@ export async function openTasksBoard(
         wasFocused ? 'Tirar do foco' : 'Pôr em foco',
       )
     }
+    const toggleCompleted = (button: HTMLButtonElement) => {
+      const show = completedPanel.hidden
+      completedPanel.hidden = !show
+      button.textContent = show ? 'Ocultar concluídas' : 'Mostrar concluídas'
+      button.setAttribute('aria-pressed', String(show))
+    }
+    const completedPanel = h(
+      'section',
+      { class: 'tasks-completed', hidden: true, 'aria-label': 'Tarefas concluídas', tabindex: '0' },
+      completed.length === 0
+        ? h('div', { class: 'hint' }, 'Nenhuma tarefa concluída ainda.')
+        : h(
+            'ul',
+            { class: 'tcompleted-list', 'aria-label': 'Tarefas concluídas' },
+            ...completed.map(({ list, task }) =>
+              h(
+                'li',
+                { class: 'tcompleted-row' },
+                h('span', { class: 'tcompleted-title' }, `✅ ${task.text}`),
+                h(
+                  'span',
+                  { class: 'tcompleted-foot' },
+                  [task.completedDate, list === ARCHIVE_LIST ? '' : list].filter(Boolean).join(' · '),
+                ),
+              ),
+            ),
+          ),
+    )
     const board = h(
       'div',
-      { class: 'board', tabindex: '-1' },
+      { class: 'board', tabindex: '-1', 'data-tasks-board': 'true' },
       h(
         'div',
         { class: 'board-head' },
         h('div', { class: 'board-title' }, icon('list', 18), 'Tarefas'),
-        h('span', { class: 'board-count' }, `${data.lists.reduce((count, list) => count + list.tasks.length, 0)} tarefas`),
+        h('span', { class: 'board-count' }, `${columns.reduce((count, list) => count + list.tasks.length, 0)} tarefas`),
         h('span', { class: 'grow' }),
         h(
           'button',
@@ -173,7 +232,7 @@ export async function openTasksBoard(
             onclick: () =>
               openNewTask(
                 root,
-                data.lists.map((list) => list.name),
+                columns.map((list) => list.name),
                 (next) => {
                   board.remove()
                   void openTasksBoard(root, state, toast, next)
@@ -183,6 +242,16 @@ export async function openTasksBoard(
           },
           icon('plus', 14),
           'Nova tarefa',
+        ),
+        h(
+          'button',
+          {
+            class: 'btn btn-small',
+            type: 'button',
+            'aria-pressed': 'false',
+            onclick: (e: Event) => toggleCompleted(e.currentTarget as HTMLButtonElement),
+          },
+          'Mostrar concluídas',
         ),
         h(
           'button',
@@ -220,7 +289,7 @@ export async function openTasksBoard(
                 ),
               ]
             : []),
-          ...data.lists.map((list: TaskList) =>
+          ...columns.map((list: TaskList) =>
             h(
               'section',
               { class: 'tcol', tabindex: '0', 'aria-label': `Lista ${list.name}` },
@@ -240,20 +309,16 @@ export async function openTasksBoard(
                       h(
                         'li',
                         {
-                          class: `tcard task-readonly${task.status === 'completed' ? ' task-completed' : task.status === 'discarded' ? ' task-discarded' : ''}`,
+                          class: `tcard task-readonly${task.status === 'discarded' ? ' task-discarded' : ''}`,
                           tabindex: '0',
                           ...dragAndMove(list, task),
                           'aria-label': [
                             task.text,
-                            task.status === 'completed' ? 'Concluída' : task.status === 'discarded' ? 'Descartada' : '',
+                            task.status === 'discarded' ? 'Descartada' : '',
                             isFocused(task) ? 'Em foco' : '',
                             taskWhen(task) ? `Data ${taskWhen(task)}` : '',
-                            task.completedDate
-                              ? `${task.status === 'completed' ? 'Concluída em' : 'Descartada em'} ${task.completedDate}`
-                              : '',
-                            list.name !== ARCHIVE_LIST
-                              ? `Pressione Enter para mover para outra lista, F para pôr ou tirar do foco${task.status === 'open' ? ', R para reagendar' : ''}`
-                              : '',
+                            task.completedDate ? `Descartada em ${task.completedDate}` : '',
+                            `Pressione Enter para mover para outra lista, F para pôr ou tirar do foco${task.status === 'open' ? ', R para reagendar' : ''}`,
                           ]
                             .filter(Boolean)
                             .join('. '),
@@ -261,38 +326,32 @@ export async function openTasksBoard(
                         h(
                           'div',
                           { class: 'tcard-top' },
+                          task.status === 'open' ? completeBox(task) : null,
                           h('span', { class: 'tcard-title' }, task.text),
-                          task.status !== 'open'
-                            ? h(
-                                'span',
-                                { class: `chip ${task.status === 'completed' ? 'chip-done' : 'chip-err'}` },
-                                task.status === 'completed' ? 'Concluída' : 'Descartada',
-                              )
-                            : null,
+                          task.status !== 'open' ? h('span', { class: 'chip chip-err' }, 'Descartada') : null,
                           isFocused(task) ? h('span', { class: 'chip' }, 'Em foco') : null,
                         ),
                         taskWhen(task) ? h('div', { class: 'tcard-foot' }, taskWhen(task)) : null,
-                        task.completedDate
-                          ? h('div', { class: 'tcard-foot' }, `${task.status === 'completed' ? '✅' : '❌'} ${task.completedDate}`)
-                          : null,
+                        task.completedDate ? h('div', { class: 'tcard-foot' }, `❌ ${task.completedDate}`) : null,
                         task.reason ? h('div', { class: 'hint' }, task.reason) : null,
-                        list.name !== ARCHIVE_LIST ? moveButton(list, task) : null,
-                        list.name !== ARCHIVE_LIST && task.status === 'open' ? rescheduleButton(list, task) : null,
-                        list.name !== ARCHIVE_LIST && (task.status === 'open' || isFocused(task)) ? focusButton(list, task) : null,
+                        moveButton(list, task),
+                        task.status === 'open' ? rescheduleButton(list, task) : null,
+                        task.status === 'open' || isFocused(task) ? focusButton(list, task) : null,
                       ),
                     )),
               ),
             ),
           ),
         ),
+        completedPanel,
       ),
     ) as HTMLElement
 
     asDialog(board, { label: 'Quadro Tarefas' })
     arrowList(board, '.tcol')
-    const columns = [...board.querySelectorAll<HTMLElement>('.tcol')]
-    if (columns.length) rove(columns, 0)
-    for (const column of columns) {
+    const columnEls = [...board.querySelectorAll<HTMLElement>('.tcol')]
+    if (columnEls.length) rove(columnEls, 0)
+    for (const column of columnEls) {
       arrowList(column, '.task-readonly')
       const cards = [...column.querySelectorAll<HTMLElement>('.task-readonly')]
       if (cards.length) rove(cards, 0)
@@ -315,11 +374,7 @@ export async function openTasksBoard(
         if (drop && drop.list !== name) void move(drop.line, drop.text, name)
       })
     }
-    // The Archive takes no drops: its column has no drop zone.
-    columns.forEach((column, i) => {
-      const name = data.lists[i]!.name
-      if (name !== ARCHIVE_LIST) dropZone(column, name)
-    })
+    columnEls.forEach((column, i) => dropZone(column, columns[i]!.name))
     board.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return
       if (
@@ -354,4 +409,15 @@ export async function openTasksBoard(
   } catch (err) {
     toast(cleanError(err), 'err')
   }
+}
+
+/**
+ * Draws the Tarefas board again with `board` when it is open; a board the user closed stays
+ * closed. Used after a completion and after its undo, which can come from the focus popup.
+ */
+export function refreshTasksBoard(root: HTMLElement, state: State, toast: Toast, board: ParsedBoard): void {
+  const open = root.querySelector<HTMLElement>('[data-tasks-board]')
+  if (!open) return
+  open.remove()
+  void openTasksBoard(root, state, toast, board)
 }

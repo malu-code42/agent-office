@@ -47,7 +47,8 @@ export const DATA_SHAPES: Record<DataFile, (v: unknown) => boolean> = {
     isObj(v) &&
     (v.focus === undefined || (Array.isArray(v.focus) && v.focus.every((id) => typeof id === 'string'))) &&
     isMap(v.steps) &&
-    isMap(v.timer),
+    isMap(v.timer) &&
+    isMap(v.archived),
 }
 
 /** The `valid` option of loadJson for a data file. */
