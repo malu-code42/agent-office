@@ -14,6 +14,7 @@ import { openSkull } from './ui/skull'
 import { openRoutines } from './ui/routines'
 import { openTasksBoard } from './ui/tasks-board'
 import { openFocusPopup } from './ui/focus-popup'
+import { openProposalReview } from './ui/proposals'
 import { openReports } from './ui/reports'
 import { copyReport, exportConversation } from './ui/export'
 import { showDataNotice } from './ui/data'
@@ -203,6 +204,7 @@ async function boot(): Promise<void> {
     newFloor: () => void newFloor(),
     accounts: () => openAccounts(ui, state, toast),
     reports: () => openReports(ui, state, { project: game.currentProject, toast }),
+    openProposal: (id) => void openProposalReview(ui, toast, id),
     board: (ticketId) => {
       if (ticketId) board.open(ticketId)
       else board.toggle()

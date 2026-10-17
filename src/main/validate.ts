@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { ATTACH_LIMITS } from '@shared/attachments'
 import { HAIR_STYLES } from '@shared/describe'
 import { STEP_MAX, TIMER_MINUTES } from '@shared/planning'
+import { isIsoDay, REFUSED_KINDS, REFUSED_MESSAGE, type Proposal, type ProposalOperation } from '@shared/proposals'
 import { floorNameFor, MAX_PROJECT_FLOORS } from '@shared/projects'
 import { scheduleError } from '@shared/schedule'
 import {
@@ -14,6 +15,7 @@ import {
   type TaskRef,
   type TaskReopen,
   type TaskReschedule,
+  TIME_FORMAT,
 } from '@shared/tasks'
 import { STATUSES } from '@shared/tickets'
 import { EFFORT_LEVELS, ROUTINE_LIMITS } from '@shared/types'
@@ -108,6 +110,43 @@ export const completeTaskSchema = taskRefSchema
 export const discardTaskSchema: z.ZodType<TaskDiscard> = z.object({ target: taskRefSchema, reason: z.string().max(1000) })
 /** A task to reopen; the list is only sent when the origin list is gone and the user chose one. */
 export const reopenTaskSchema: z.ZodType<TaskReopen> = z.object({ target: taskRefSchema, list: z.string().max(200).optional() })
+
+const isoDaySchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine(isIsoDay, 'Dia inválido. Use AAAA-MM-DD.')
+const timeSchema = z.string().regex(TIME_FORMAT, 'Hora inválida. Use HH:MM.')
+/**
+ * One change of a proposal. The kinds are closed: "concluir" (or any other kind) is not in the union,
+ * so the schema refuses it. A proposal names tasks by id, never by line.
+ */
+export const proposalOperationSchema: z.ZodType<ProposalOperation> = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('focus'), id: taskIdSchema }),
+  z.object({ kind: z.literal('unfocus'), id: taskIdSchema }),
+  z.object({ kind: z.literal('reschedule'), id: taskIdSchema, date: z.string().max(10).refine(isDateDDMMAAAA) }),
+  z.object({ kind: z.literal('discard'), id: taskIdSchema, reason: z.string().max(1000) }),
+  z.object({
+    kind: z.literal('move-commitment'),
+    from: z.object({ day: isoDaySchema, time: timeSchema, title: z.string().trim().min(1).max(500) }),
+    to: z.object({ day: isoDaySchema, time: timeSchema }),
+  }),
+])
+export const proposalSchema: z.ZodType<Proposal> = z.object({
+  id: idSchema,
+  source: z.string().trim().min(1).max(80),
+  createdAt: z.number().finite(),
+  operations: z.array(proposalOperationSchema).min(1).max(50),
+  failure: z.object({ index: z.number().int().min(0), message: z.string().max(2000) }).optional(),
+})
+
+/** A proposal from the caller (a ticket that proposes changes, or a test): a refused kind gets its own message, the rest the schema's. */
+export function parseProposal(raw: unknown): Proposal {
+  const ops = (raw as { operations?: unknown } | null)?.operations
+  if (Array.isArray(ops) && ops.some((op) => REFUSED_KINDS.includes(String((op as { kind?: unknown } | null)?.kind)))) {
+    throw new Error(REFUSED_MESSAGE)
+  }
+  return parse(proposalSchema, raw, 'Proposta inválida.')
+}
 /** The text of a "Passo de hoje": trimmed, never empty, at most STEP_MAX characters (counted as characters, not UTF-16 units). */
 export const stepTextSchema = z
   .string('O passo de hoje precisa ser um texto.')

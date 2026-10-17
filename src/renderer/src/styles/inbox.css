@@ -57,6 +57,23 @@
   font-size: 11px;
 }
 
+/* A proposal has no portrait: its row shows this mark where one would be. */
+.inbox-mark {
+  display: inline-flex;
+  flex: 0 0 30px;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  color: var(--muted);
+}
+
+/* The operations of a proposal, in the order they run. */
+.proposal-ops {
+  margin: 0;
+  padding-left: 22px;
+  line-height: 1.5;
+}
+
 .inbox-empty {
   padding: 14px 10px 16px;
   color: var(--muted);

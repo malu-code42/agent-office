@@ -9,6 +9,7 @@ import type { SquadInfo } from './squads'
 import type { MacJob, Routine, RoutineDraft } from './routines'
 import type { ClaudeStats } from './stats'
 import type { FocusItem } from '../planning'
+import type { Proposal } from '../proposals'
 import type { NewTaskDraft, ParsedBoard, TaskDiscard, TaskMove, TaskRef, TaskReopen, TaskReschedule } from '../tasks'
 import type { DelegateTarget, Ticket, TicketDraft, TicketPatch, TicketStatus } from './tickets'
 
@@ -61,6 +62,8 @@ export interface OfficeState {
   routines: Routine[]
   /** Jobs the Mac schedules itself (launchd), shown beside the routines. Empty off macOS. */
   macJobs: MacJob[]
+  /** Proposals waiting for a confirmation (AO-10): they show in the caixa de entrada. */
+  proposals: Proposal[]
   /** AGENT_OFFICE_TOUR=1: the guided tour opens even if the player has seen it. */
   forceTour?: boolean
 }
@@ -128,9 +131,18 @@ export type OfficeEvent =
   | { type: 'routines'; routines: Routine[] }
   /** The Mac's own scheduled jobs changed (read every minute). */
   | { type: 'macJobs'; jobs: MacJob[] }
+  /** The pending proposals changed: the whole list. */
+  | { type: 'proposals'; proposals: Proposal[] }
 
 /** A reopen either put the task back (`list` is where it went) or waits for the user to choose one of `lists`. */
 export type ReopenResult = { status: 'done'; list: string; board: ParsedBoard; focus: FocusItem[] } | { status: 'choose'; lists: string[] }
+
+/** A proposal open for review: its operations, the titles of its tasks now in tarefas.md (by id), and whether agenda.md exists. */
+export interface ProposalReview {
+  proposal: Proposal
+  titles: Record<string, string>
+  agendaFound: boolean
+}
 
 /** window.onerror / unhandledrejection, as the page reports them to the log. */
 export interface RendererError {
@@ -162,6 +174,12 @@ export interface OfficeAPI {
   reopenTask(input: TaskReopen): Promise<ReopenResult>
   /** Lê o foco: cada tarefa com título e lista de origem, ou marcada como sumida do tarefas.md. */
   readFocus(): Promise<FocusItem[]>
+  /** Abre a revisão de uma proposta pendente: as operações e os títulos das tarefas, lidos agora. Nada é escrito. */
+  openProposal(id: string): Promise<ProposalReview>
+  /** Aplica todas as operações da proposta ou nenhuma. Se uma falhar, nada é escrito e a mensagem diz qual foi. */
+  applyProposal(id: string): Promise<void>
+  /** Recusa a proposta: ela sai da lista de pendentes. Nenhum arquivo é alterado. */
+  rejectProposal(id: string): Promise<void>
   /** Põe em foco a tarefa da linha dada (ganha um id no tarefas.md se não tiver) e devolve o quadro e o foco. */
   focusTask(line: number): Promise<{ board: ParsedBoard; focus: FocusItem[] }>
   /** Tira do foco a tarefa com esse id. Não escreve no tarefas.md e devolve o foco. */

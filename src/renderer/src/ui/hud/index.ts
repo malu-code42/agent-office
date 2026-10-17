@@ -1,3 +1,4 @@
+import { proposalRow } from '@shared/proposals'
 import { MAX_PROJECT_FLOORS } from '@shared/projects'
 import type { AgentStatus, AgentSummary } from '@shared/types'
 import type { State } from '../../state'
@@ -37,6 +38,8 @@ export interface HudActions {
   accounts(): void
   /** Relatórios: spend by project, from the cost book. */
   reports(): void
+  /** A pending proposal of the caixa de entrada: opens its review. Nothing is applied from here. */
+  openProposal(id: string): void
 }
 
 const COMPACT_KEY = 'roster-compact'
@@ -415,6 +418,19 @@ export class Hud {
         ),
       )
     }
+    // Proposals come after the permission and result entries, with the same row shape but no portrait.
+    for (const p of this.state.proposals) {
+      const row = proposalRow(p)
+      rows.push(
+        h(
+          'button',
+          { class: 'inbox-row', 'data-focus-key': row.id, onclick: () => this.pickProposal(row.id) },
+          h('span', { class: 'inbox-mark', 'aria-hidden': 'true' }, icon('list', 18)),
+          h('div', { class: 'inbox-main' }, h('div', { class: 'inbox-name' }, row.name, h('span', { class: 'chip chip-wait' }, row.chip)), h('div', { class: 'inbox-text' }, row.text)),
+          h('span', { class: 'inbox-time' }, timeAgo(row.createdAt)),
+        ),
+      )
+    }
     keepFocus(this.inbox, () =>
       this.inbox.replaceChildren(
         h('div', { class: 'inbox-head' }, 'Caixa de entrada'),
@@ -431,6 +447,12 @@ export class Hud {
     if (this.inbox.contains(document.activeElement)) this.inboxBtn.focus()
     this.hideInbox()
     this.actions.openItem(agentId, itemId)
+  }
+
+  private pickProposal(id: string): void {
+    if (this.inbox.contains(document.activeElement)) this.inboxBtn.focus()
+    this.hideInbox()
+    this.actions.openProposal(id)
   }
 
   toast(text: string, kind: 'info' | 'ok' | 'err' = 'info', action?: ToastAction): void {
