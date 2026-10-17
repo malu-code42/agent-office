@@ -1,0 +1,93 @@
+/* The daily review (AO-12): the offer and the four steps. Colors come from tokens.css. */
+
+.review-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.review-step {
+  padding: 4px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.review-step[aria-current='step'] {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.review-step[data-done='true'] {
+  color: var(--dim);
+}
+
+.review-hint {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.review-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.review-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.review-task {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.review-task-title {
+  font-weight: 600;
+}
+
+.review-task-list {
+  margin-left: 8px;
+  color: var(--dim);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.review-suggest {
+  color: var(--amber-text);
+  font-size: 12px;
+}
+
+.review-choices,
+.review-postpone {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.review-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.review-problems {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--red-text);
+}
+
+/* The footer's buttons sit directly in the modal footer. */
+.review-actions {
+  display: contents;
+}

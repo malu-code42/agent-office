@@ -165,6 +165,7 @@ const LABELS: Record<string, string> = {
   'tickets.json': 'quadro de tickets',
   'tickets-closed.json': 'arquivo de tickets fechados',
   'routines.json': 'rotinas',
+  'planning.json': 'tarefas em foco',
 }
 
 /** The warning the renderer shows for a restored or lost file; null when there is nothing to say. */

@@ -1,3 +1,4 @@
+import { proposalRow } from '@shared/proposals'
 import { MAX_PROJECT_FLOORS } from '@shared/projects'
 import type { AgentStatus, AgentSummary } from '@shared/types'
 import type { State } from '../../state'
@@ -9,6 +10,13 @@ import { contextLevel, helpersChip } from '../panel'
 import { portrait } from '../portrait'
 import type { Radio } from '../radio'
 import { InfoCard } from './info'
+
+/** A button on a toast. It stays `lifetimeMs` (3.8 s by default) and runs `run` when clicked. */
+export interface ToastAction {
+  label: string
+  run: () => void
+  lifetimeMs?: number
+}
 
 export interface HudActions {
   openAgent(id: string): void
@@ -30,6 +38,12 @@ export interface HudActions {
   accounts(): void
   /** Relatórios: spend by project, from the cost book. */
   reports(): void
+  /** A pending proposal of the caixa de entrada: opens its review. Nothing is applied from here. */
+  openProposal(id: string): void
+  /** The review of today, from its draft (AO-12). */
+  review(): void
+  /** Pedir à Íris (AO-13): a request in words, sent only after the user reads it. */
+  iris(): void
 }
 
 const COMPACT_KEY = 'roster-compact'
@@ -408,9 +422,38 @@ export class Hud {
         ),
       )
     }
+    // Proposals come after the permission and result entries, with the same row shape but no portrait.
+    for (const p of this.state.proposals) {
+      const row = proposalRow(p)
+      rows.push(
+        h(
+          'button',
+          { class: 'inbox-row', 'data-focus-key': row.id, onclick: () => this.pickProposal(row.id) },
+          h('span', { class: 'inbox-mark', 'aria-hidden': 'true' }, icon('list', 18)),
+          h('div', { class: 'inbox-main' }, h('div', { class: 'inbox-name' }, row.name, h('span', { class: 'chip chip-wait' }, row.chip)), h('div', { class: 'inbox-text' }, row.text)),
+          h('span', { class: 'inbox-time' }, timeAgo(row.createdAt)),
+        ),
+      )
+    }
+    // The review of today, while its draft is not confirmed: it comes back from here (AO-12).
+    if (this.state.reviewDraft) {
+      rows.push(
+        h(
+          'button',
+          { class: 'inbox-row', 'data-focus-key': 'review-draft', onclick: () => this.pickReview() },
+          h('span', { class: 'inbox-mark', 'aria-hidden': 'true' }, icon('list', 18)),
+          h('div', { class: 'inbox-main' }, h('div', { class: 'inbox-name' }, 'Revisão do dia', h('span', { class: 'chip chip-wait' }, 'rascunho')), h('div', { class: 'inbox-text' }, 'Continue de onde parou.')),
+        ),
+      )
+    }
     keepFocus(this.inbox, () =>
       this.inbox.replaceChildren(
-        h('div', { class: 'inbox-head' }, 'Caixa de entrada'),
+        h(
+          'div',
+          { class: 'inbox-head' },
+          h('span', {}, 'Caixa de entrada'),
+          h('button', { class: 'btn btn-small inbox-iris', type: 'button', onclick: () => this.actions.iris() }, 'Pedir à Íris'),
+        ),
         ...(rows.length ? rows : [h('div', { class: 'inbox-empty' }, 'Nada pendente. Seus agentes estão trabalhando.')]),
       ),
     )
@@ -426,10 +469,39 @@ export class Hud {
     this.actions.openItem(agentId, itemId)
   }
 
-  toast(text: string, kind: 'info' | 'ok' | 'err' = 'info'): void {
+  private pickProposal(id: string): void {
+    if (this.inbox.contains(document.activeElement)) this.inboxBtn.focus()
+    this.hideInbox()
+    this.actions.openProposal(id)
+  }
+
+  private pickReview(): void {
+    if (this.inbox.contains(document.activeElement)) this.inboxBtn.focus()
+    this.hideInbox()
+    this.actions.review()
+  }
+
+  toast(text: string, kind: 'info' | 'ok' | 'err' = 'info', action?: ToastAction): void {
     const el = h('div', { class: `toast toast-${kind}` }, text)
+    if (action) {
+      el.append(
+        h(
+          'button',
+          {
+            class: 'btn btn-small toast-action',
+            type: 'button',
+            onclick: () => {
+              el.remove()
+              action.run()
+            },
+          },
+          action.label,
+        ),
+      )
+    }
     this.toasts.append(el)
-    setTimeout(() => el.classList.add('out'), 3800)
-    setTimeout(() => el.remove(), 4300)
+    const life = action?.lifetimeMs ?? 3800
+    setTimeout(() => el.classList.add('out'), life)
+    setTimeout(() => el.remove(), life + 500)
   }
 }
