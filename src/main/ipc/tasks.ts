@@ -1,11 +1,13 @@
 import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { dialog, ipcMain } from 'electron'
-import { focusItems } from '@shared/planning'
+import { focusItems, focusKey } from '@shared/planning'
 import { parseTasksFile, type TaskList } from '@shared/tasks'
 import { dayKey } from '../backups'
 import { createTaskWriter, type TaskWriter } from '../tasks-write'
+import { createCompletionUndo } from '../tasks-undo'
 import {
+  completeTaskSchema,
   moveTaskSchema,
   newTaskSchema,
   parse,
@@ -20,6 +22,7 @@ import type { IpcContext } from './context'
 
 export function registerTasksIpc(ctx: IpcContext): void {
   const writer = createTaskWriter()
+  const undo = createCompletionUndo()
   const read = (vaultPath: unknown) => readTasksAt(writer, vaultPath)
   const requireVault = (): string => {
     const vaultPath = ctx.store.settings.vaultPath
@@ -76,6 +79,29 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const path = checkedVault(vaultPath)
     writer.reschedule(path, input.line, input.date)
     return { board: read(path) }
+  })
+
+  // The task leaves the focus and goes to the Archive in tarefas.md; the undo window starts now (AO-05).
+  ipcMain.handle('office:completeTask', async (_e, target: unknown) => {
+    const input = parse(completeTaskSchema, target, 'Tarefa inválida.')
+    const path = requireVault()
+    const done = writer.complete(path, 'line' in input ? input.line : input.id)
+    const wasFocused = ctx.planning.focus().includes(focusKey(done.id))
+    ctx.planning.archive(done.id, { origin: done.origin, completedAt: done.completedAt, originalLine: done.originalLine })
+    undo.remember({ ...done, vault: path, wasFocused })
+    const board = read(path)
+    return { id: done.id, board, focus: focusView(board.lists) }
+  })
+
+  ipcMain.handle('office:undoCompleteTask', async (_e, id: unknown) => {
+    const taskId = parse(taskIdSchema, id, 'Identificador inválido.')
+    const path = requireVault()
+    const done = undo.peek(taskId, path)
+    writer.undoComplete(path, done)
+    undo.forget(taskId)
+    ctx.planning.restore(done.id, done.wasFocused)
+    const board = read(path)
+    return { board, focus: focusView(board.lists) }
   })
 
   ipcMain.handle('office:readFocus', async () => focusOf(requireVault()))

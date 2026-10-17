@@ -10,6 +10,13 @@ import { portrait } from '../portrait'
 import type { Radio } from '../radio'
 import { InfoCard } from './info'
 
+/** A button on a toast. It stays `lifetimeMs` (3.8 s by default) and runs `run` when clicked. */
+export interface ToastAction {
+  label: string
+  run: () => void
+  lifetimeMs?: number
+}
+
 export interface HudActions {
   openAgent(id: string): void
   focusAgent(id: string): void
@@ -426,10 +433,27 @@ export class Hud {
     this.actions.openItem(agentId, itemId)
   }
 
-  toast(text: string, kind: 'info' | 'ok' | 'err' = 'info'): void {
+  toast(text: string, kind: 'info' | 'ok' | 'err' = 'info', action?: ToastAction): void {
     const el = h('div', { class: `toast toast-${kind}` }, text)
+    if (action) {
+      el.append(
+        h(
+          'button',
+          {
+            class: 'btn btn-small toast-action',
+            type: 'button',
+            onclick: () => {
+              el.remove()
+              action.run()
+            },
+          },
+          action.label,
+        ),
+      )
+    }
     this.toasts.append(el)
-    setTimeout(() => el.classList.add('out'), 3800)
-    setTimeout(() => el.remove(), 4300)
+    const life = action?.lifetimeMs ?? 3800
+    setTimeout(() => el.classList.add('out'), life)
+    setTimeout(() => el.remove(), life + 500)
   }
 }

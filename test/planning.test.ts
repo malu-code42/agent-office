@@ -357,6 +357,70 @@ describe('PlanningStore timer', () => {
   })
 })
 
+describe('PlanningStore archive', () => {
+  const record = { origin: 'Casa', completedAt: '2026-10-17', originalLine: '- [ ] Lavar roupa ^tabc123' }
+  const archived = (): Record<string, unknown> | undefined => JSON.parse(readFileSync(join(dir, 'planning.json'), 'utf8')).archived
+
+  it('takes a completed task out of the focus and keeps its record by id', () => {
+    const store = new PlanningStore(dir)
+    store.add('tabc123')
+    store.add('tdef456')
+    store.archive('TABC123', record)
+
+    expect(new PlanningStore(dir).focus()).toEqual(['tdef456'])
+    expect(archived()).toEqual({ tabc123: record })
+  })
+
+  it('restore gives the record back out, and the focus back when the task had it', () => {
+    const store = new PlanningStore(dir)
+    store.add('tabc123')
+    store.archive('tabc123', record)
+    store.restore('tabc123', true)
+
+    expect(new PlanningStore(dir).focus()).toEqual(['tabc123'])
+    expect(archived()).toBeUndefined()
+  })
+
+  it('restore leaves a task that was not focused out of the focus', () => {
+    const store = new PlanningStore(dir)
+    store.archive('tabc123', record)
+    store.restore('tabc123', false)
+
+    expect(store.focus()).toEqual([])
+    expect(archived()).toBeUndefined()
+  })
+
+  it('a completed task with a session still open does not block the next session', () => {
+    let now = T0
+    const store = new PlanningStore(dir, () => now)
+    store.add('tabc123')
+    store.add('tdef456')
+    store.startTimer('tabc123')
+    store.archive('tabc123', record)
+
+    now = T0 + MIN
+    store.add('tdef456')
+    expect(() => store.startTimer('tdef456')).not.toThrow()
+    expect(store.timers().get('tdef456')).toEqual({ state: 'em andamento', remainingMs: 25 * MIN })
+  })
+
+  it('a planning.json from before the archive loads, and an archive record it cannot use is dropped', () => {
+    writeFileSync(join(dir, 'planning.json'), JSON.stringify({ focus: ['tabc123'], steps: {} }), 'utf8')
+    expect(new PlanningStore(dir).focus()).toEqual(['tabc123'])
+    expect(shapeOf('planning.json')({ focus: ['tabc123'], steps: {} })).toBe(true)
+
+    writeFileSync(
+      join(dir, 'planning.json'),
+      JSON.stringify({ focus: [], archived: { tabc123: record, tdef456: { origin: 'Casa' } } }),
+      'utf8',
+    )
+    const store = new PlanningStore(dir)
+    store.restore('tabc123', false)
+    expect(archived()).toBeUndefined()
+    expect(shapeOf('planning.json')({ focus: [], archived: 'nao' })).toBe(false)
+  })
+})
+
 describe('timer helpers', () => {
   it('shows the time left as mm:ss, rounding a part second up', () => {
     expect(clockText(25 * MIN)).toBe('25:00')

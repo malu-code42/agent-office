@@ -9,7 +9,7 @@ import type { SquadInfo } from './squads'
 import type { MacJob, Routine, RoutineDraft } from './routines'
 import type { ClaudeStats } from './stats'
 import type { FocusItem } from '../planning'
-import type { NewTaskDraft, ParsedBoard, TaskMove, TaskReschedule } from '../tasks'
+import type { NewTaskDraft, ParsedBoard, TaskMove, TaskRef, TaskReschedule } from '../tasks'
 import type { DelegateTarget, Ticket, TicketDraft, TicketPatch, TicketStatus } from './tickets'
 
 /** CPU (% of the whole machine) and memory (bytes), as in Activity Monitor. */
@@ -149,6 +149,10 @@ export interface OfficeAPI {
   moveTask(move: TaskMove): Promise<{ board: ParsedBoard }>
   /** Põe a tarefa da linha dada na data DD.MM.AAAA (só o campo data muda) e devolve o quadro lido de novo. */
   rescheduleTask(change: TaskReschedule): Promise<{ board: ParsedBoard }>
+  /** Conclui a tarefa (pela linha ou pelo id): ela vai para o Archive com a data de hoje e sai do foco. Devolve o id, o quadro e o foco. */
+  completeTask(target: TaskRef): Promise<{ id: string; board: ParsedBoard; focus: FocusItem[] }>
+  /** Desfaz a conclusão feita há até 10 segundos: a tarefa volta à lista de origem e ao foco. Recusa se o tarefas.md mudou. */
+  undoCompleteTask(id: string): Promise<{ board: ParsedBoard; focus: FocusItem[] }>
   /** Lê o foco: cada tarefa com título e lista de origem, ou marcada como sumida do tarefas.md. */
   readFocus(): Promise<FocusItem[]>
   /** Põe em foco a tarefa da linha dada (ganha um id no tarefas.md se não tiver) e devolve o quadro e o foco. */

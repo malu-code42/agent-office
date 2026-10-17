@@ -11,6 +11,16 @@ export interface Step {
   text: string
 }
 
+/**
+ * A completed task, by its id in planning.json. `origin` is the list it came from, `completedAt`
+ * the local day as AAAA-MM-DD, `originalLine` the line as it was before. Reopening (AO-06) needs them.
+ */
+export interface ArchivedTask {
+  origin: string
+  completedAt: string
+  originalLine: string
+}
+
 /** Longest text of a "Passo de hoje", in characters. */
 export const STEP_MAX = 200
 

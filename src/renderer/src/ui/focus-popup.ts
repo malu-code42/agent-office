@@ -3,7 +3,8 @@ import type { State } from '../state'
 import { arrowList, keepFocus, rove } from './a11y'
 import { h } from './dom'
 import { cleanError, modal } from './modals/common'
-import { openTasksBoard } from './tasks-board'
+import { openTasksBoard, refreshTasksBoard } from './tasks-board'
+import { offerUndo, type Toast } from './tasks-complete'
 import './focus.css'
 
 /**
@@ -16,11 +17,7 @@ import './focus.css'
 
 type TaskItem = Extract<FocusItem, { missing: false }>
 
-export async function openFocusPopup(
-  root: HTMLElement,
-  state: State,
-  toast: (msg: string, type?: 'info' | 'ok' | 'err') => void,
-): Promise<void> {
+export async function openFocusPopup(root: HTMLElement, state: State, toast: Toast): Promise<void> {
   if (!state.settings.vaultPath) {
     toast('Configure a pasta do vault em Ajustes → Tarefas do Obsidian.', 'err')
     return
@@ -65,7 +62,21 @@ export async function openFocusPopup(
         h('div', { class: 'focus-card-origin' }, `Identificador ${item.id}`),
       )
     } else {
-      el.append(h('div', { class: 'focus-card-title' }, item.text), h('div', { class: 'focus-card-origin' }, `Lista: ${item.list}`))
+      el.append(
+        h(
+          'label',
+          { class: 'focus-card-done-label' },
+          h('input', {
+            class: 'focus-card-done',
+            type: 'checkbox',
+            'aria-label': `Marcar “${item.text}” como concluída`,
+            onchange: (e: Event) => void complete(e.currentTarget as HTMLInputElement, item),
+          }),
+          h('span', {}, 'Concluir'),
+        ),
+        h('div', { class: 'focus-card-title' }, item.text),
+        h('div', { class: 'focus-card-origin' }, `Lista: ${item.list}`),
+      )
       if (item.step) el.append(h('div', { class: 'focus-card-step' }, `Passo de hoje: ${item.step}`))
       el.append(timerBlock(item))
       actions.append(
@@ -283,6 +294,22 @@ export async function openFocusPopup(
       toast(done, 'ok')
       focusCard(id)
     } catch (err) {
+      toast(cleanError(err), 'err')
+    }
+  }
+
+  // The checkbox completes the task at once: it leaves the focus and the Archive gets it. Undo stays for 10 s.
+  const complete = async (box: HTMLInputElement, item: TaskItem): Promise<void> => {
+    try {
+      const next = await window.office.completeTask({ id: item.id })
+      paint(next.focus)
+      offerUndo(toast, item.text, next.id, (undone) => {
+        if (backdrop.isConnected) paint(undone.focus)
+        refreshTasksBoard(root, state, toast, undone.board)
+      })
+      refreshTasksBoard(root, state, toast, next.board)
+    } catch (err) {
+      box.checked = false
       toast(cleanError(err), 'err')
     }
   }

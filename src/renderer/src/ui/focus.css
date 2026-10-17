@@ -112,6 +112,66 @@
   outline-offset: 1px;
 }
 
+/* Concluir tarefa: a caixa de cada cartão do popup e do quadro. */
+.focus-card-done-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  color: var(--dim);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.focus-card-done,
+.tcard-done {
+  width: 15px;
+  height: 15px;
+  margin: 2px 6px 0 0;
+  flex: none;
+  cursor: pointer;
+  accent-color: var(--accent-hi);
+}
+
+.focus-card-done:focus-visible,
+.tcard-done:focus-visible {
+  outline: 2px solid var(--accent-hi);
+  outline-offset: 2px;
+}
+
+/* Tarefas concluídas (só leitura), abertas pelo botão "Mostrar concluídas" do quadro. */
+.tasks-completed {
+  margin: 0 14px 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #23243a;
+  border: 1px solid var(--line-strong);
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.tcompleted-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tcompleted-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.tcompleted-foot {
+  color: var(--dim);
+  font-size: 11.5px;
+}
+
 .focus-empty {
   display: flex;
   flex-direction: column;

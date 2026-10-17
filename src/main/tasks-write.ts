@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   ARCHIVE_LIST,
+  dayLabel,
   isDateDDMMAAAA,
   parseTasksFile,
   rescheduleLine,
@@ -10,12 +11,14 @@ import {
   taskDraftProblem,
   type NewTaskDraft,
 } from '@shared/tasks'
+import { dayKey } from './backups'
 import { writeFileAtomic } from './fs-safe'
 
 /**
  * Creates a task in tarefas.md: one new line at the end of its list, nothing else changes.
  * Moves a task to the end of another list: its line goes, the same text comes back under the
- * target heading. planNewTask and planMoveTask are pure (text in, text out). createTaskWriter
+ * target heading. Completes a task: its line goes to the Archive with the day it was done.
+ * planNewTask, planMoveTask and planComplete are pure (text in, text out). createTaskWriter
  * does the file: it checks the file still matches what the board read, backs it up once per
  * session, then writes it atomically. No Electron here, so it runs in unit tests against a temporary vault.
  */
@@ -24,7 +27,10 @@ export const TASKS_FILE = 'tarefas.md'
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'
 const ID_ATTEMPTS = 100
 const CHANGED = 'O tarefas.md mudou desde que você abriu o quadro, então nada foi escrito. Abra o quadro Tarefas de novo e tente outra vez.'
+const UNDO_CHANGED = 'O tarefas.md mudou desde a conclusão, então nada foi desfeito. Abra o quadro Tarefas para ver o estado atual.'
 const NOT_FOUND = 'Não encontrei essa tarefa no tarefas.md. Abra o quadro Tarefas de novo.'
+const BROKEN_ID = 'Essa tarefa tem um identificador repetido ou inválido no tarefas.md. Corrija a linha e tente de novo.'
+const CHECKBOX_OPEN = /^(\s*[-*]\s+)\[ \]/
 
 /** A new id: ^t and six lowercase letters or digits, from the system's secure random source. */
 export function randomTaskId(): string {
@@ -114,6 +120,85 @@ export function planMoveTask(
   const eol = lines[at - 1]!.endsWith('\r') ? '\r' : ''
   lines.splice(at, 0, moved + eol)
   return { text: lines.join('\n'), id }
+}
+
+/** What completing a task left behind: the file as it was and as it is now, and what the record keeps. */
+export interface TaskCompletion {
+  id: string
+  origin: string
+  completedAt: string
+  originalLine: string
+  before: string
+  after: string
+}
+
+/** The line of the task with this id, as the board reads it. */
+export function lineOfId(text: string, id: string): number {
+  const key = id.toLowerCase()
+  for (const list of parseTasksFile(text).lists) {
+    for (const task of list.tasks) if (task.id?.toLowerCase() === key) return task.line
+  }
+  throw new Error(NOT_FOUND)
+}
+
+/**
+ * The text of tarefas.md with the open task on `line` completed. Its line gets [x] and " ✅ DD.MM.AAAA"
+ * before its id, and goes to the end of the Archive section (the Archive is made at the end of the
+ * file when there is none). Its fields stay as they are; a task without an id gets one now.
+ * Nothing else changes.
+ */
+export function planComplete(
+  text: string,
+  line: number,
+  day: Date,
+  newId: () => string = randomTaskId,
+): { text: string; id: string; origin: string; originalLine: string; completedAt: string } {
+  const board = parseTasksFile(text)
+  const from = board.lists.findIndex((l) => l.tasks.some((t) => t.line === line))
+  const task = from < 0 ? undefined : board.lists[from]!.tasks.find((t) => t.line === line)
+  if (!task) throw new Error(NOT_FOUND)
+  const origin = board.lists[from]!.name
+  if (origin === ARCHIVE_LIST) throw new Error('As tarefas do Archive já estão concluídas.')
+  if (task.status !== 'open') throw new Error('Só tarefas abertas podem ser concluídas.')
+
+  const lines = text.split('\n')
+  const raw = lines[line - 1]!
+  const eol = raw.endsWith('\r') ? '\r' : ''
+  const content = raw.slice(0, raw.length - eol.length)
+  // A second id token would make the line read as a task with two ids: refuse it instead.
+  if (!task.id && /\s\^t\S*\s*$/i.test(content)) throw new Error(BROKEN_ID)
+  const id = task.id ?? pickId(taskIdsIn(text), newId)
+  const body = content.trimEnd()
+  const block = /\s+\^t\S+$/i.exec(body)
+  const head = (block ? body.slice(0, block.index) : body).replace(CHECKBOX_OPEN, '$1[x]')
+  const completed = `${head} ✅ ${dayLabel(day)} ^${id}`
+
+  lines.splice(line - 1, 1)
+  const rest = parseTasksFile(lines.join('\n'))
+  const archive = rest.lists.findIndex((l) => l.name === ARCHIVE_LIST)
+  if (archive >= 0) {
+    // After the section's last task; with no task yet, right under its heading.
+    const last = rest.lists[archive]!.tasks.at(-1)
+    const at = last ? last.line : rest.headings[archive]! + 1
+    const eolAt = lines[at - 1]!.endsWith('\r') ? '\r' : ''
+    lines.splice(at, 0, completed + eolAt)
+  } else {
+    // A new section at the end, after one blank line; the file keeps its last line break.
+    const crlf = text.includes('\r\n') ? '\r' : ''
+    const trailing = lines.at(-1) === ''
+    const out = trailing ? lines.slice(0, -1) : lines
+    if (out.length && out.at(-1)!.trim() !== '') out.push(crlf)
+    out.push(`## ${ARCHIVE_LIST}${crlf}`, completed + crlf)
+    if (trailing) out.push('')
+    return { text: out.join('\n'), id, origin, originalLine: content, completedAt: dayKey(day) }
+  }
+  return { text: lines.join('\n'), id, origin, originalLine: content, completedAt: dayKey(day) }
+}
+
+/** The text of tarefas.md as it was before a completion. Refused, with nothing written, when the file has changed since. */
+export function planUndoComplete(text: string, done: Pick<TaskCompletion, 'before' | 'after'>): string {
+  if (text !== done.after) throw new Error(UNDO_CHANGED)
+  return done.before
 }
 
 /**
@@ -250,6 +335,25 @@ export function createTaskWriter(opts: TaskWriterOptions = {}) {
       const text = unchanged(vault)
       const next = planReschedule(text, line, date)
       if (next !== text) save(vault, text, next)
+    },
+    /** Completes the task at `line` (as the board read it) or with this id, and returns what undo needs. */
+    complete(vault: string, target: number | string): TaskCompletion {
+      const text = unchanged(vault)
+      const plan = planComplete(text, typeof target === 'number' ? target : lineOfId(text, target), now(), opts.newId)
+      save(vault, text, plan.text)
+      return {
+        id: plan.id,
+        origin: plan.origin,
+        completedAt: plan.completedAt,
+        originalLine: plan.originalLine,
+        before: text,
+        after: plan.text,
+      }
+    },
+    /** Gives back the text of tarefas.md from before `done`. Refused when the file is not the one `done` wrote. */
+    undoComplete(vault: string, done: TaskCompletion): void {
+      const text = readTasks(vault)
+      save(vault, text, planUndoComplete(text, done))
     },
   }
 }

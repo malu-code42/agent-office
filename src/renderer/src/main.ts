@@ -5,7 +5,7 @@ import { State } from './state'
 import { Board } from './ui/board'
 import { AgentPanel } from './ui/panel'
 import { Dialog } from './ui/dialog'
-import { Hud } from './ui/hud'
+import { Hud, type ToastAction } from './ui/hud'
 import { Radio } from './ui/radio'
 import type { DataNotice, ProjectFloor } from '@shared/types'
 import { DEFAULT_VIDEO, effectiveVideo, frameInterval } from '@shared/video'
@@ -52,7 +52,7 @@ async function boot(): Promise<void> {
   const dismissed = new Set<string>()
   let nearId: string | null = null
 
-  const toast = (text: string, kind: 'info' | 'ok' | 'err' = 'info') => hud.toast(text, kind)
+  const toast = (text: string, kind: 'info' | 'ok' | 'err' = 'info', action?: ToastAction) => hud.toast(text, kind, action)
 
   /** Asks, then stops the claude process behind a terminal agent. Returns true if it closed. */
   const closeTerminal = async (id: string): Promise<boolean> => {

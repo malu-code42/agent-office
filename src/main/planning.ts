@@ -1,12 +1,21 @@
 import { join } from 'node:path'
-import { focusKey, TIMER_DURATION_MS, type FocusTimer, type FocusTimerView, type Step, type TimerState } from '@shared/planning'
+import {
+  focusKey,
+  TIMER_DURATION_MS,
+  type ArchivedTask,
+  type FocusTimer,
+  type FocusTimerView,
+  type Step,
+  type TimerState,
+} from '@shared/planning'
 import { backupCopies, shapeOf } from './backups'
 import { loadJson, reportLoad, writeJsonAtomic } from './fs-safe'
 
 /**
  * planning.json in userData: the focus set ("Tarefas em foco"), a list of task ids, the
- * "Passo de hoje" of each task (one per task: the last one saved, with its day), and the one
- * focus timer (AO-08). Nothing here clears the focus by itself: it carries over from day to day
+ * "Passo de hoje" of each task (one per task: the last one saved, with its day), the one
+ * focus timer (AO-08), and the completed tasks by id (AO-05: origin list, day, line as it was).
+ * Nothing here clears the focus by itself: it carries over from day to day
  * until the user takes a task out. A step of another day stays in the file as history. The
  * timer is never completed by the app: a session past its deadline is interrupted, and the
  * user confirms the minutes done. Review comes with its own ticket.
@@ -16,7 +25,15 @@ interface Planning {
   focus: string[]
   steps: Record<string, Step>
   timer?: FocusTimer | undefined
+  archived?: Record<string, ArchivedTask> | undefined
 }
+
+const isArchived = (v: unknown): v is ArchivedTask =>
+  !!v &&
+  typeof v === 'object' &&
+  typeof (v as ArchivedTask).origin === 'string' &&
+  typeof (v as ArchivedTask).completedAt === 'string' &&
+  typeof (v as ArchivedTask).originalLine === 'string'
 
 const isStep = (v: unknown): v is Step =>
   !!v && typeof v === 'object' && typeof (v as Step).date === 'string' && typeof (v as Step).text === 'string'
@@ -59,6 +76,7 @@ export class PlanningStore {
   private focusIds: string[]
   private steps: Map<string, Step>
   private timer: FocusTimer | undefined
+  private archived: Map<string, ArchivedTask>
   private readonly now: () => number
 
   /** `now` is the clock: the app uses the system's, tests pass one they control. */
@@ -75,6 +93,11 @@ export class PlanningStore {
         .map(([id, s]) => [focusKey(id), s]),
     )
     this.timer = parseTimer(raw.timer)
+    this.archived = new Map(
+      Object.entries(raw.archived ?? {})
+        .filter((entry): entry is [string, ArchivedTask] => isArchived(entry[1]))
+        .map(([id, a]) => [focusKey(id), a]),
+    )
     this.settle()
   }
 
@@ -130,7 +153,8 @@ export class PlanningStore {
   startTimer(id: string): void {
     const key = this.focusedKey(id, TIMER_REFUSAL)
     this.settle()
-    if (this.timer && this.timer.state !== 'confirmada') throw new Error(TIMER_BUSY)
+    // A session of a completed task cannot be confirmed from the focus popup: it does not block the next one.
+    if (this.timer && this.timer.state !== 'confirmada' && !this.archived.has(this.timer.taskId)) throw new Error(TIMER_BUSY)
     const now = this.now()
     this.timer = {
       taskId: key,
@@ -217,10 +241,32 @@ export class PlanningStore {
     this.save()
   }
 
+  /** A task completed in tarefas.md: it leaves the focus, and its origin and line are kept by id. */
+  archive(id: string, record: ArchivedTask): void {
+    const key = focusKey(id)
+    this.focusIds = this.focusIds.filter((f) => f !== key)
+    this.archived.set(key, record)
+    this.save()
+  }
+
+  /** Undoes archive(): the record goes, and the task is focused again when it was focused before. */
+  restore(id: string, focused: boolean): void {
+    const key = focusKey(id)
+    this.archived.delete(key)
+    if (focused && !this.focusIds.includes(key)) this.focusIds.push(key)
+    this.save()
+  }
+
   private save(): void {
-    writeJsonAtomic(this.file, { focus: this.focusIds, steps: Object.fromEntries(this.steps), timer: this.timer } satisfies Planning, {
-      space: 2,
-      newline: true,
-    })
+    writeJsonAtomic(
+      this.file,
+      {
+        focus: this.focusIds,
+        steps: Object.fromEntries(this.steps),
+        timer: this.timer,
+        archived: this.archived.size ? Object.fromEntries(this.archived) : undefined,
+      } satisfies Planning,
+      { space: 2, newline: true },
+    )
   }
 }
