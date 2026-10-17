@@ -2,7 +2,7 @@ import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { dialog, ipcMain } from 'electron'
 import { focusItems } from '@shared/planning'
-import { parseTasksFile } from '@shared/tasks'
+import { parseTasksFile, type TaskList } from '@shared/tasks'
 import { dayKey } from '../backups'
 import { createTaskWriter, type TaskWriter } from '../tasks-write'
 import {
@@ -10,6 +10,7 @@ import {
   newTaskSchema,
   parse,
   parseStepText,
+  parseTimerMinutes,
   rescheduleTaskSchema,
   taskIdSchema,
   taskLineSchema,
@@ -26,8 +27,8 @@ export function registerTasksIpc(ctx: IpcContext): void {
     return checkedVault(vaultPath)
   }
   // Reads the file without remembering it: the board's line numbers come from its own read.
-  const focusOf = (path: string) =>
-    focusItems(parseTasksFile(readTasksFile(path)).lists, ctx.planning.focus(), ctx.planning.todaySteps(dayKey()))
+  const focusView = (lists: TaskList[]) => focusItems(lists, ctx.planning.focus(), ctx.planning.todaySteps(dayKey()), ctx.planning.timers())
+  const focusOf = (path: string) => focusView(parseTasksFile(readTasksFile(path)).lists)
 
   ipcMain.handle('office:readTasks', async () => {
     const vaultPath = ctx.store.settings.vaultPath
@@ -85,7 +86,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
     // The id is written into tarefas.md first: a refused write leaves the focus set as it was.
     ctx.planning.add(writer.assignId(path, input))
     const board = read(path)
-    return { board, focus: focusItems(board.lists, ctx.planning.focus(), ctx.planning.todaySteps(dayKey())) }
+    return { board, focus: focusView(board.lists) }
   })
 
   ipcMain.handle('office:unfocusTask', async (_e, id: unknown) => {
@@ -108,6 +109,43 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const taskId = parse(taskIdSchema, id, 'Identificador inválido.')
     const path = requireVault()
     ctx.planning.clearStep(taskId, dayKey())
+    return focusOf(path)
+  })
+
+  // The focus timer lives in planning.json too: tarefas.md is only read, as for the steps (AO-08).
+  ipcMain.handle('office:startTimer', async (_e, id: unknown) => {
+    const taskId = parse(taskIdSchema, id, 'Identificador inválido.')
+    const path = requireVault()
+    ctx.planning.startTimer(taskId)
+    return focusOf(path)
+  })
+
+  ipcMain.handle('office:pauseTimer', async (_e, id: unknown) => {
+    const taskId = parse(taskIdSchema, id, 'Identificador inválido.')
+    const path = requireVault()
+    ctx.planning.pauseTimer(taskId)
+    return focusOf(path)
+  })
+
+  ipcMain.handle('office:resumeTimer', async (_e, id: unknown) => {
+    const taskId = parse(taskIdSchema, id, 'Identificador inválido.')
+    const path = requireVault()
+    ctx.planning.resumeTimer(taskId)
+    return focusOf(path)
+  })
+
+  ipcMain.handle('office:stopTimer', async (_e, id: unknown) => {
+    const taskId = parse(taskIdSchema, id, 'Identificador inválido.')
+    const path = requireVault()
+    ctx.planning.stopTimer(taskId)
+    return focusOf(path)
+  })
+
+  ipcMain.handle('office:confirmTimer', async (_e, id: unknown, minutes: unknown) => {
+    const taskId = parse(taskIdSchema, id, 'Identificador inválido.')
+    const count = parseTimerMinutes(minutes)
+    const path = requireVault()
+    ctx.planning.confirmTimer(taskId, count)
     return focusOf(path)
   })
 }

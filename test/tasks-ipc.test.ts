@@ -291,3 +291,52 @@ describe('tasks focus IPC', () => {
     await expect(invoke('office:readFocus')).rejects.toThrow('Configure a pasta do vault em Ajustes → Tarefas do Obsidian.')
   })
 })
+
+describe('tasks focus timer IPC', () => {
+  it('runs the timer of a focused task through its actions, and tarefas.md stays byte-identical', async () => {
+    const source = '## Casa\n- [ ] Lavar roupa ^tabc123\n- [ ] Passar pano ^tdef456\n'
+    const file = join(vault, 'tarefas.md')
+    writeFileSync(file, source, 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+    await invoke('office:focusTask', 2)
+    await invoke('office:focusTask', 3)
+
+    const started = (await invoke('office:startTimer', 'tabc123')) as FocusItemView[]
+    expect(started[0]).toMatchObject({ id: 'tabc123', timer: { state: 'em andamento' } })
+    expect(started[1]).not.toHaveProperty('timer')
+
+    await expect(invoke('office:startTimer', 'tdef456')).rejects.toThrow(
+      'Já há uma sessão de foco em andamento, pausada ou por confirmar. Pare ou confirme essa sessão antes de começar outra.',
+    )
+    expect(await invoke('office:pauseTimer', 'tabc123')).toMatchObject([{ timer: { state: 'pausada' } }, {}])
+    expect(await invoke('office:resumeTimer', 'tabc123')).toMatchObject([{ timer: { state: 'em andamento' } }, {}])
+    expect(await invoke('office:stopTimer', 'tabc123')).toMatchObject([{ timer: { state: 'interrompida' } }, {}])
+
+    await expect(invoke('office:confirmTimer', 'tabc123', 26)).rejects.toThrow('Uma sessão tem no máximo 25 minutos.')
+    await expect(invoke('office:confirmTimer', 'tabc123', 2.5)).rejects.toThrow('Os minutos precisam ser um número inteiro.')
+    await expect(invoke('office:confirmTimer', 'tabc123', '18')).rejects.toThrow('Informe os minutos feitos.')
+    await expect(invoke('office:confirmTimer', 'tabc123', -1)).rejects.toThrow('Os minutos não podem ser negativos.')
+    await expect(invoke('office:confirmTimer', '../tarefas', 5)).rejects.toThrow('Identificador inválido.')
+
+    const confirmed = (await invoke('office:confirmTimer', 'tabc123', 18)) as FocusItemView[]
+    expect(confirmed[0]).toMatchObject({ id: 'tabc123', timer: { state: 'confirmada', confirmedMinutes: 18 } })
+    expect(JSON.parse(readFileSync(join(data, 'planning.json'), 'utf8')).timer).toMatchObject({ state: 'confirmada', confirmedMinutes: 18 })
+    expect(readFileSync(file, 'utf8')).toBe(source)
+  })
+
+  it('refuses the timer of a task that is not in focus, and the timer actions with no vault', async () => {
+    const source = '## Casa\n- [ ] Lavar roupa ^tabc123\n'
+    writeFileSync(join(vault, 'tarefas.md'), source, 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+    await invoke('office:focusTask', 2)
+
+    await expect(invoke('office:startTimer', 'tzzzzzz')).rejects.toThrow('Só tarefas em foco podem ter timer de foco.')
+    await expect(invoke('office:confirmTimer', 'tzzzzzz', 5)).rejects.toThrow('Só tarefas em foco podem ter timer de foco.')
+    expect(readFileSync(join(vault, 'tarefas.md'), 'utf8')).toBe(source)
+
+    settings.vaultPath = undefined
+    await expect(invoke('office:startTimer', 'tabc123')).rejects.toThrow('Configure a pasta do vault em Ajustes → Tarefas do Obsidian.')
+  })
+})

@@ -159,6 +159,16 @@ export interface OfficeAPI {
   saveStep(id: string, text: string): Promise<FocusItem[]>
   /** Tira o passo de hoje da tarefa; o de outros dias fica no histórico. Devolve o foco. */
   clearStep(id: string): Promise<FocusItem[]>
+  /** Começa o timer de 25 minutos da tarefa em foco. Recusa se já há uma sessão não confirmada. Não escreve no tarefas.md. */
+  startTimer(id: string): Promise<FocusItem[]>
+  /** Pausa o timer em andamento da tarefa em foco. */
+  pauseTimer(id: string): Promise<FocusItem[]>
+  /** Retoma o timer pausado da tarefa em foco. */
+  resumeTimer(id: string): Promise<FocusItem[]>
+  /** Para o timer da tarefa em foco antes do prazo: a sessão fica interrompida até o usuário confirmar os minutos. */
+  stopTimer(id: string): Promise<FocusItem[]>
+  /** Confirma os minutos feitos (0 a 25) de uma sessão interrompida. Só o usuário confirma. */
+  confirmTimer(id: string, minutes: number): Promise<FocusItem[]>
   getLog(agentId: string): Promise<LogEntry[]>
   /** The log of one subagent of the agent (running or recently ended); [] when unknown. */
   getSubagentLog(agentId: string, subId: string): Promise<LogEntry[]>

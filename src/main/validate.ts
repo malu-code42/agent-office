@@ -3,7 +3,7 @@ import { basename, isAbsolute } from 'node:path'
 import { z } from 'zod'
 import { ATTACH_LIMITS } from '@shared/attachments'
 import { HAIR_STYLES } from '@shared/describe'
-import { STEP_MAX } from '@shared/planning'
+import { STEP_MAX, TIMER_MINUTES } from '@shared/planning'
 import { floorNameFor, MAX_PROJECT_FLOORS } from '@shared/projects'
 import { scheduleError } from '@shared/schedule'
 import { isDateDDMMAAAA, type NewTaskDraft, type TaskMove, type TaskReschedule } from '@shared/tasks'
@@ -102,6 +102,19 @@ export const stepTextSchema = z
 /** The step text from the renderer, or throws the message the popup shows. */
 export function parseStepText(raw: unknown): string {
   const r = stepTextSchema.safeParse(raw)
+  if (!r.success) throw new Error(r.error.issues[0]!.message)
+  return r.data
+}
+/** The minutes done in an interrupted focus session: whole minutes, 0 to the session length (AO-08). */
+export const timerMinutesSchema = z
+  .number('Informe os minutos feitos.')
+  .int('Os minutos precisam ser um número inteiro.')
+  .min(0, 'Os minutos não podem ser negativos.')
+  .max(TIMER_MINUTES, `Uma sessão tem no máximo ${TIMER_MINUTES} minutos.`)
+
+/** The minutes from the renderer, or throws the message the popup shows. */
+export function parseTimerMinutes(raw: unknown): number {
+  const r = timerMinutesSchema.safeParse(raw)
   if (!r.success) throw new Error(r.error.issues[0]!.message)
   return r.data
 }
