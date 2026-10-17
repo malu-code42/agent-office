@@ -42,6 +42,8 @@ export interface HudActions {
   openProposal(id: string): void
   /** The review of today, from its draft (AO-12). */
   review(): void
+  /** Pedir à Íris (AO-13): a request in words, sent only after the user reads it. */
+  iris(): void
 }
 
 const COMPACT_KEY = 'roster-compact'
@@ -446,7 +448,12 @@ export class Hud {
     }
     keepFocus(this.inbox, () =>
       this.inbox.replaceChildren(
-        h('div', { class: 'inbox-head' }, 'Caixa de entrada'),
+        h(
+          'div',
+          { class: 'inbox-head' },
+          h('span', {}, 'Caixa de entrada'),
+          h('button', { class: 'btn btn-small inbox-iris', type: 'button', onclick: () => this.actions.iris() }, 'Pedir à Íris'),
+        ),
         ...(rows.length ? rows : [h('div', { class: 'inbox-empty' }, 'Nada pendente. Seus agentes estão trabalhando.')]),
       ),
     )

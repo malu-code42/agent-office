@@ -3,6 +3,7 @@ import { basename, isAbsolute } from 'node:path'
 import { z } from 'zod'
 import { ATTACH_LIMITS } from '@shared/attachments'
 import { HAIR_STYLES } from '@shared/describe'
+import { IRIS_NOT_UNDERSTOOD, type IrisAnswer } from '@shared/iris'
 import { STEP_MAX, TIMER_MINUTES } from '@shared/planning'
 import { isIsoDay, REFUSED_KINDS, REFUSED_MESSAGE, type Proposal, type ProposalOperation } from '@shared/proposals'
 import { floorNameFor, MAX_PROJECT_FLOORS } from '@shared/projects'
@@ -121,16 +122,30 @@ const timeSchema = z.string().regex(TIME_FORMAT, 'Hora inválida. Use HH:MM.')
  * One change of a proposal. The kinds are closed: "concluir" (or any other kind) is not in the union,
  * so the schema refuses it. A proposal names tasks by id, never by line.
  */
+const commitmentTitleSchema = z.string().trim().min(1).max(500)
+const commitmentFields = { day: isoDaySchema, time: timeSchema, title: commitmentTitleSchema }
 export const proposalOperationSchema: z.ZodType<ProposalOperation> = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('focus'), id: taskIdSchema }),
   z.object({ kind: z.literal('unfocus'), id: taskIdSchema }),
   z.object({ kind: z.literal('reschedule'), id: taskIdSchema, date: z.string().max(10).refine(isDateDDMMAAAA) }),
   z.object({ kind: z.literal('discard'), id: taskIdSchema, reason: z.string().max(1000) }),
   z.object({
+    kind: z.literal('step'),
+    id: taskIdSchema,
+    text: z
+      .string()
+      .trim()
+      .min(1)
+      .max(STEP_MAX * 4)
+      .refine((s) => [...s].length <= STEP_MAX, `O passo de hoje pode ter no máximo ${STEP_MAX} caracteres.`),
+  }),
+  z.object({
     kind: z.literal('move-commitment'),
-    from: z.object({ day: isoDaySchema, time: timeSchema, title: z.string().trim().min(1).max(500) }),
+    from: z.object(commitmentFields),
     to: z.object({ day: isoDaySchema, time: timeSchema }),
   }),
+  z.object({ kind: z.literal('add-commitment'), ...commitmentFields }),
+  z.object({ kind: z.literal('remove-commitment'), ...commitmentFields }),
 ])
 export const proposalSchema: z.ZodType<Proposal> = z.object({
   id: idSchema,
@@ -139,6 +154,29 @@ export const proposalSchema: z.ZodType<Proposal> = z.object({
   operations: z.array(proposalOperationSchema).min(1).max(50),
   failure: z.object({ index: z.number().int().min(0), message: z.string().max(2000) }).optional(),
 })
+
+/**
+ * What the Íris answers (AO-13): operations to propose, or one question. The same operation kinds as a
+ * proposal, so "concluir" is refused here too (parseIrisAnswer says so before the schema does).
+ */
+export const irisAnswerSchema: z.ZodType<IrisAnswer> = z
+  .object({
+    operations: z.array(proposalOperationSchema).max(50),
+    question: z.string().trim().min(1).max(500).nullish(),
+  })
+  .refine((a) => !!a.question || a.operations.length > 0, 'Resposta sem operações nem pergunta.')
+
+/** The request box's text: the length the box allows is checked again by IrisDesk, in characters. */
+export const irisRequestSchema = z.string().max(20_000)
+
+/** The Íris's answer, parsed. A refused kind gets its own message; any other bad answer is IRIS_NOT_UNDERSTOOD. */
+export function parseIrisAnswer(raw: unknown): IrisAnswer {
+  const ops = (raw as { operations?: unknown } | null)?.operations
+  if (Array.isArray(ops) && ops.some((op) => REFUSED_KINDS.includes(String((op as { kind?: unknown } | null)?.kind)))) {
+    throw new Error(REFUSED_MESSAGE)
+  }
+  return parse(irisAnswerSchema, raw, IRIS_NOT_UNDERSTOOD)
+}
 
 /** A choice of the daily review (AO-12). There is no "concluir" kind: the schema refuses it, as proposals do. */
 export const focusChoiceSchema: z.ZodType<FocusChoice> = z.discriminatedUnion('kind', [

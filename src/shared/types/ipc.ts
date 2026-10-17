@@ -9,6 +9,7 @@ import type { SquadInfo } from './squads'
 import type { MacJob, Routine, RoutineDraft } from './routines'
 import type { ClaudeStats } from './stats'
 import type { FocusItem } from '../planning'
+import type { IrisPreview, IrisResult } from '../iris'
 import type { Proposal } from '../proposals'
 import type { ReviewChoices, ReviewPostpone, ReviewView } from '../review'
 import type { NewTaskDraft, ParsedBoard, TaskDiscard, TaskMove, TaskRef, TaskReopen, TaskReschedule } from '../tasks'
@@ -185,6 +186,12 @@ export interface OfficeAPI {
   applyProposal(id: string): Promise<void>
   /** Recusa a proposta: ela sai da lista de pendentes. Nenhum arquivo é alterado. */
   rejectProposal(id: string): Promise<void>
+  /** Íris: monta o texto exato que seria enviado (pedido, compromissos da semana, tarefas citadas). Não envia nada. */
+  prepareIris(request: string): Promise<IrisPreview>
+  /** Íris: envia à Íris o texto da prévia (pelo token) e devolve a proposta criada ou a pergunta. Nada é aplicado. */
+  sendIris(token: string): Promise<IrisResult>
+  /** Íris: descarta a prévia sem enviar nada. */
+  cancelIris(token: string): Promise<void>
   /** Starts the review offer for today, once per local day: true when it should be shown now. Without a vault, false. */
   reviewGate(): Promise<boolean>
   /** The review of today: the draft to resume (or the first step), the agenda of today and the focus as the files say now. Nothing is written. */

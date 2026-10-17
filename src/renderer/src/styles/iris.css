@@ -1,0 +1,39 @@
+/* ---------- Íris: pedido em linguagem natural (AO-13) ---------- */
+
+.iris-text {
+  width: 100%;
+  min-height: 84px;
+  resize: vertical;
+  font: inherit;
+  color: var(--text);
+}
+
+.iris-question {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  color: var(--text);
+}
+
+.iris-preview {
+  margin-top: 12px;
+}
+
+.iris-context {
+  max-height: 40vh;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--bg);
+  white-space: pre-wrap;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.inbox-iris {
+  margin-left: 8px;
+  float: right;
+}

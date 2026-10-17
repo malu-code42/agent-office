@@ -69,6 +69,24 @@ const matches = (raw: string, from: CommitmentRef): boolean => {
   return !!c && c.time === from.time && c.title === from.title
 }
 
+/** The one line of `ref` in the file: its index, or the message the proposal shows when there is none or more than one. */
+function findCommitment(lines: string[], ref: CommitmentRef, verb: string): number {
+  const found = sectionsOf(lines)
+    .filter((s) => s.day === ref.day)
+    .flatMap((s) => bodyOf(s).filter((i) => matches(lines[i]!, ref)))
+  if (found.length === 0) {
+    throw new Error(
+      `Não encontrei o compromisso “${ref.title}” às ${ref.time} em ${dayPt(ref.day)} no agenda.md. Confira o agenda.md e tente de novo.`,
+    )
+  }
+  if (found.length > 1) {
+    throw new Error(
+      `Há mais de um compromisso “${ref.title}” às ${ref.time} em ${dayPt(ref.day)} no agenda.md, e não sei qual deles ${verb}. Diferencie-os no agenda.md.`,
+    )
+  }
+  return found[0]!
+}
+
 /**
  * The text of agenda.md with the commitment moved. The same day: only its time changes. Another day: the
  * line is taken out of its section and put after the last filled line of the target day, so the blank
@@ -80,20 +98,7 @@ export function planMoveCommitment(text: string, move: CommitmentMove): string {
     throw new Error('Data ou hora inválida no compromisso. Use AAAA-MM-DD e HH:MM.')
   }
   const lines = text.split('\n')
-  const found = sectionsOf(lines)
-    .filter((s) => s.day === from.day)
-    .flatMap((s) => bodyOf(s).filter((i) => matches(lines[i]!, from)))
-  if (found.length === 0) {
-    throw new Error(
-      `Não encontrei o compromisso “${from.title}” às ${from.time} em ${dayPt(from.day)} no agenda.md. Abra a proposta de novo.`,
-    )
-  }
-  if (found.length > 1) {
-    throw new Error(
-      `Há mais de um compromisso “${from.title}” às ${from.time} em ${dayPt(from.day)} no agenda.md, e não sei qual deles mover. Diferencie-os no agenda.md.`,
-    )
-  }
-  const at = found[0]!
+  const at = findCommitment(lines, from, 'mover')
 
   if (to.day === from.day) {
     if (to.time === from.time) throw new Error('O compromisso já está nessa data e hora.')
@@ -126,6 +131,48 @@ export function commitmentsOn(text: string, day: string): { time: string; title:
         return c ? [{ time: c.time, title: c.title }] : []
       }),
     )
+}
+
+/** Every commitment of agenda.md, with the day of its heading. The Íris reads them to build its context. */
+export function allCommitments(text: string): CommitmentRef[] {
+  const lines = text.split('\n')
+  return sectionsOf(lines).flatMap((s) =>
+    bodyOf(s).flatMap((i) => {
+      const c = commitmentOf(lines[i]!)
+      return c ? [{ day: s.day, time: c.time, title: c.title }] : []
+    }),
+  )
+}
+
+/**
+ * The text of agenda.md with a commitment added at the end of its day, after the last filled line. The day
+ * must already have its heading. A commitment already there at the same time and title is refused.
+ */
+export function planAddCommitment(text: string, c: CommitmentRef): string {
+  if (!isIsoDay(c.day) || !TIME_FORMAT.test(c.time)) throw new Error('Data ou hora inválida no compromisso. Use AAAA-MM-DD e HH:MM.')
+  const title = c.title.trim()
+  if (!title || /[\r\n]/.test(title) || title.includes(TASK_REFERENCE)) {
+    throw new Error('O título do compromisso precisa caber em uma linha e não pode ter “↦”.')
+  }
+  const lines = text.split('\n')
+  const target = sectionsOf(lines).find((s) => s.day === c.day)
+  if (!target) throw new Error(`Não encontrei o dia ${dayPt(c.day)} no agenda.md. Crie o dia (## ${c.day}) e tente de novo.`)
+  if (bodyOf(target).some((i) => matches(lines[i]!, { ...c, title }))) {
+    throw new Error(`O compromisso “${title}” às ${c.time} já existe em ${dayPt(c.day)}.`)
+  }
+  let insertAt = target.heading + 1
+  for (const i of bodyOf(target)) if (lines[i]!.trim() !== '') insertAt = i + 1
+  const eol = lines[target.heading]!.endsWith('\r') ? '\r' : ''
+  lines.splice(insertAt, 0, `- ${c.time} ${title}${eol}`)
+  return lines.join('\n')
+}
+
+/** The text of agenda.md with one commitment taken out. Its line goes; the rest of the day stays as it is. */
+export function planRemoveCommitment(text: string, c: CommitmentRef): string {
+  if (!isIsoDay(c.day) || !TIME_FORMAT.test(c.time)) throw new Error('Data ou hora inválida no compromisso. Use AAAA-MM-DD e HH:MM.')
+  const lines = text.split('\n')
+  lines.splice(findCommitment(lines, c, 'tirar'), 1)
+  return lines.join('\n')
 }
 
 const stampOf = (d: Date): string => {
