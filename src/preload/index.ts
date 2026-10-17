@@ -3,6 +3,8 @@ import type { OfficeAPI, OfficeEvent } from '@shared/types'
 
 const api: OfficeAPI = {
   getState: () => ipcRenderer.invoke('office:getState'),
+  readTasks: () => ipcRenderer.invoke('office:readTasks'),
+  selectTasksVault: () => ipcRenderer.invoke('office:selectTasksVault'),
   getLog: (id) => ipcRenderer.invoke('office:getLog', id),
   getSubagentLog: (agentId, subId) => ipcRenderer.invoke('office:getSubagentLog', agentId, subId),
   hire: (req) => ipcRenderer.invoke('office:hire', req),
