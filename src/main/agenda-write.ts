@@ -112,6 +112,22 @@ export function planMoveCommitment(text: string, move: CommitmentMove): string {
   return lines.join('\n')
 }
 
+/**
+ * The commitments of one day, in file order, for the review's Agenda step. Read only: it uses the same
+ * line rules as the writer, so a task reference or a note is not a commitment and is not listed.
+ */
+export function commitmentsOn(text: string, day: string): { time: string; title: string }[] {
+  const lines = text.split('\n')
+  return sectionsOf(lines)
+    .filter((s) => s.day === day)
+    .flatMap((s) =>
+      bodyOf(s).flatMap((i) => {
+        const c = commitmentOf(lines[i]!)
+        return c ? [{ time: c.time, title: c.title }] : []
+      }),
+    )
+}
+
 const stampOf = (d: Date): string => {
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`

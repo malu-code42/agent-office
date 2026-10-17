@@ -9,9 +9,10 @@ import {
   type TimerState,
 } from '@shared/planning'
 import type { Proposal, ProposalFailure, ProposalOperation } from '@shared/proposals'
+import type { ReviewDraft } from '@shared/review'
 import { backupCopies, shapeOf } from './backups'
 import { loadJson, reportLoad, writeJsonAtomic } from './fs-safe'
-import { parseProposal, proposalSchema } from './validate'
+import { parseProposal, proposalSchema, reviewDraftSchema } from './validate'
 
 /**
  * planning.json in userData: the focus set ("Tarefas em foco"), a list of task ids, the
@@ -21,6 +22,7 @@ import { parseProposal, proposalSchema } from './validate'
  * until the user takes a task out. A step of another day stays in the file as history. The
  * timer is never completed by the app: a session past its deadline is interrupted, and the
  * user confirms the minutes done. Proposals (AO-10) wait here until they are applied or refused.
+ * The daily review (AO-12) keeps here the first day its offer comes back and the draft of today's review.
  */
 
 interface Planning {
@@ -29,6 +31,7 @@ interface Planning {
   timer?: FocusTimer | undefined
   archived?: Record<string, ArchivedTask> | undefined
   proposals?: Proposal[] | undefined
+  review?: { next?: string | undefined; draft?: ReviewDraft | undefined } | undefined
 }
 
 const isArchived = (v: unknown): v is ArchivedTask =>
@@ -81,6 +84,8 @@ export class PlanningStore {
   private timer: FocusTimer | undefined
   private archived: Map<string, ArchivedTask>
   private proposals: Proposal[]
+  private reviewNext: string | undefined
+  private draft: ReviewDraft | undefined
   private readonly now: () => number
 
   /** `now` is the clock: the app uses the system's, tests pass one they control. */
@@ -107,6 +112,11 @@ export class PlanningStore {
       const ok = proposalSchema.safeParse(p)
       return ok.success ? [ok.data] : []
     })
+    // A review draft or day this version cannot read is dropped: the review starts over, nothing is applied from it.
+    const review = raw.review && typeof raw.review === 'object' ? raw.review : {}
+    this.reviewNext = typeof review.next === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(review.next) ? review.next : undefined
+    const draft = reviewDraftSchema.safeParse(review.draft)
+    this.draft = draft.success ? draft.data : undefined
     this.settle()
   }
 
@@ -319,6 +329,38 @@ export class PlanningStore {
     if (this.proposals.length !== before) this.save()
   }
 
+  /** The first local day the review offer may come back (AAAA-MM-DD), or undefined when it never was offered. */
+  reviewNextDay(): string | undefined {
+    return this.reviewNext
+  }
+
+  setReviewNextDay(day: string): void {
+    this.reviewNext = day
+    this.save()
+  }
+
+  /** The draft of a review, of any day: the caller checks the day. */
+  reviewDraft(): ReviewDraft | undefined {
+    return this.draft
+  }
+
+  saveReviewDraft(draft: ReviewDraft): void {
+    this.draft = draft
+    this.save()
+  }
+
+  /** Drops the draft of the review (after a confirmation, or a draft of an earlier day). Nothing is saved when there is none. */
+  clearReviewDraft(): void {
+    if (!this.draft) return
+    this.draft = undefined
+    this.save()
+  }
+
+  /** The day of the step a focused task has (its last saved step), or undefined when it has none. */
+  lastStepDay(id: string): string | undefined {
+    return this.steps.get(focusKey(id))?.date
+  }
+
   private save(): void {
     writeJsonAtomic(
       this.file,
@@ -328,6 +370,7 @@ export class PlanningStore {
         timer: this.timer,
         archived: this.archived.size ? Object.fromEntries(this.archived) : undefined,
         proposals: this.proposals.length ? this.proposals : undefined,
+        review: this.reviewNext || this.draft ? { next: this.reviewNext, draft: this.draft } : undefined,
       } satisfies Planning,
       { space: 2, newline: true },
     )
