@@ -8,6 +8,7 @@ import type { BridgeStatus, Settings, UpdateInstallResult, UpdateStatus } from '
 import type { SquadInfo } from './squads'
 import type { MacJob, Routine, RoutineDraft } from './routines'
 import type { ClaudeStats } from './stats'
+import type { FocusItem } from '../planning'
 import type { NewTaskDraft, ParsedBoard, TaskMove } from '../tasks'
 import type { DelegateTarget, Ticket, TicketDraft, TicketPatch, TicketStatus } from './tickets'
 
@@ -146,6 +147,12 @@ export interface OfficeAPI {
   createTask(draft: NewTaskDraft): Promise<{ id: string; board: ParsedBoard }>
   /** Move a tarefa da linha dada para o fim da lista escolhida e devolve o quadro lido de novo. */
   moveTask(move: TaskMove): Promise<{ board: ParsedBoard }>
+  /** Lê o foco: cada tarefa com título e lista de origem, ou marcada como sumida do tarefas.md. */
+  readFocus(): Promise<FocusItem[]>
+  /** Põe em foco a tarefa da linha dada (ganha um id no tarefas.md se não tiver) e devolve o quadro e o foco. */
+  focusTask(line: number): Promise<{ board: ParsedBoard; focus: FocusItem[] }>
+  /** Tira do foco a tarefa com esse id. Não escreve no tarefas.md e devolve o foco. */
+  unfocusTask(id: string): Promise<FocusItem[]>
   getLog(agentId: string): Promise<LogEntry[]>
   /** The log of one subagent of the agent (running or recently ended); [] when unknown. */
   getSubagentLog(agentId: string, subId: string): Promise<LogEntry[]>

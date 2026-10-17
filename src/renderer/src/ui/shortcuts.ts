@@ -15,6 +15,7 @@ export function openShortcuts(root: HTMLElement, platform: string, opts: { tour?
         ['T', 'Quadro de tickets'],
         ['R', 'Relatórios'],
         ['I', 'Caixa de entrada: pedidos e resultados esperando você'],
+        ['F', 'Tarefas em foco'],
         ['W A S D ou ← ↑ → ↓', 'Andar pelo escritório'],
         ['F3', 'Painel de desempenho (fps, draw calls, memória)'],
         ['?', 'Esta lista e o botão Rever o tour'],

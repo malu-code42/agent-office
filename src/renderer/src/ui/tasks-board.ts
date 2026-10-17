@@ -1,10 +1,12 @@
 import type { State } from '../state'
+import { focusKey } from '@shared/planning'
 import { ARCHIVE_LIST, type ParsedBoard, type Task, type TaskList } from '@shared/tasks'
 import { arrowList, asDialog, FocusReturn, rove } from './a11y'
 import { h, icon } from './dom'
 import { cleanError } from './modals'
 import { openMoveMenu } from './tasks-move'
 import { openNewTask } from './tasks-new'
+import './focus.css'
 
 /** The date and time of a task as written in the file, e.g. "16.10.2026 09:00". */
 function when(task: Task): string {
@@ -27,6 +29,8 @@ export async function openTasksBoard(
 
   try {
     const data = initialBoard ?? (await window.office.readTasks())
+    const focused = new Set((await window.office.readFocus()).map((item) => item.id))
+    const isFocused = (task: Task) => !!task.id && focused.has(focusKey(task.id))
     const focusBack = new FocusReturn()
     let dragging: { line: number; list: string; text: string } | null = null
     // The main process checks the file again; a refusal (the file changed) comes back as the toast.
@@ -46,6 +50,24 @@ export async function openTasksBoard(
         data.lists.map((l) => l.name).filter((name) => name !== list.name && name !== ARCHIVE_LIST),
         (to) => void move(task.line, task.text, to),
       )
+    // A task with no id gets one in tarefas.md when it is put in focus; the card is focused again after the redraw.
+    const toggleFocus = async (list: TaskList, task: Task, wasFocused: boolean) => {
+      try {
+        let next: ParsedBoard
+        if (wasFocused) {
+          await window.office.unfocusTask(task.id!)
+          next = await window.office.readTasks()
+          toast('Tarefa tirada do foco.', 'ok')
+        } else {
+          next = (await window.office.focusTask(task.line)).board
+          toast('Tarefa posta em foco.', 'ok')
+        }
+        board.remove()
+        void openTasksBoard(root, state, toast, next, { list: list.name, text: task.text })
+      } catch (err) {
+        toast(cleanError(err), 'err')
+      }
+    }
     /** Drag and keyboard for a card; the Archive is read-only. */
     const dragAndMove = (list: TaskList, task: Task): Record<string, string | EventListener | undefined> => {
       if (list.name === ARCHIVE_LIST) return {}
@@ -67,9 +89,14 @@ export async function openTasksBoard(
         },
         onkeydown: (e: Event) => {
           const key = e as KeyboardEvent
-          if (key.target !== key.currentTarget || (key.key !== 'Enter' && key.key !== ' ')) return
-          key.preventDefault()
-          openMove(key.currentTarget as HTMLElement, list, task)
+          if (key.target !== key.currentTarget) return
+          if (key.key === 'Enter' || key.key === ' ') {
+            key.preventDefault()
+            openMove(key.currentTarget as HTMLElement, list, task)
+          } else if (key.key.toLowerCase() === 'f' && !key.ctrlKey && !key.metaKey && !key.altKey) {
+            key.preventDefault()
+            void toggleFocus(list, task, isFocused(task))
+          }
         },
       }
     }
@@ -84,6 +111,19 @@ export async function openTasksBoard(
         },
         'Mover para…',
       )
+    const focusButton = (list: TaskList, task: Task) => {
+      const wasFocused = isFocused(task)
+      return h(
+        'button',
+        {
+          class: 'btn btn-small tcard-focus',
+          type: 'button',
+          tabindex: '-1',
+          onclick: () => void toggleFocus(list, task, wasFocused),
+        },
+        wasFocused ? 'Tirar do foco' : 'Pôr em foco',
+      )
+    }
     const board = h(
       'div',
       { class: 'board', tabindex: '-1' },
@@ -174,11 +214,12 @@ export async function openTasksBoard(
                           'aria-label': [
                             task.text,
                             task.status === 'completed' ? 'Concluída' : task.status === 'discarded' ? 'Descartada' : '',
+                            isFocused(task) ? 'Em foco' : '',
                             when(task) ? `Data ${when(task)}` : '',
                             task.completedDate
                               ? `${task.status === 'completed' ? 'Concluída em' : 'Descartada em'} ${task.completedDate}`
                               : '',
-                            list.name !== ARCHIVE_LIST ? 'Pressione Enter para mover para outra lista' : '',
+                            list.name !== ARCHIVE_LIST ? 'Pressione Enter para mover para outra lista, F para pôr ou tirar do foco' : '',
                           ]
                             .filter(Boolean)
                             .join('. '),
@@ -194,6 +235,7 @@ export async function openTasksBoard(
                                 task.status === 'completed' ? 'Concluída' : 'Descartada',
                               )
                             : null,
+                          isFocused(task) ? h('span', { class: 'chip' }, 'Em foco') : null,
                         ),
                         when(task) ? h('div', { class: 'tcard-foot' }, `📅 ${when(task)}`) : null,
                         task.completedDate
@@ -201,6 +243,7 @@ export async function openTasksBoard(
                           : null,
                         task.reason ? h('div', { class: 'hint' }, task.reason) : null,
                         list.name !== ARCHIVE_LIST ? moveButton(list, task) : null,
+                        list.name !== ARCHIVE_LIST && (task.status === 'open' || isFocused(task)) ? focusButton(list, task) : null,
                       ),
                     )),
               ),

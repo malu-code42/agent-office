@@ -11,6 +11,7 @@ import { Bridge } from './bridge'
 import { TicketDesk } from './delegate'
 import { prepareStress, startDemo, startRoutineDemo, startStress } from './demo'
 import { CostBook } from './ledger'
+import { PlanningStore } from './planning'
 import { flushOnExit, setupData } from './data'
 import { guardWindow, installFatalHandlers, onFatalFlush } from './crash'
 import { captureConsole, initLog, log, secret } from './log'
@@ -198,6 +199,7 @@ app.whenReady().then(async () => {
   const book = new CostBook(store)
   manager.book = book
   const board = new TicketBoard(app.getPath('userData'))
+  const planning = new PlanningStore(app.getPath('userData'))
   const routineStore = new RoutineStore(app.getPath('userData'))
   // A fatal error saves what is in memory before asking what to do.
   onFatalFlush(() => {
@@ -388,6 +390,7 @@ app.whenReady().then(async () => {
     store,
     manager,
     board,
+    planning,
     book,
     desk,
     routines,

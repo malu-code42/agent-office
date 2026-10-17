@@ -13,6 +13,7 @@ import { openAccounts } from './ui/accounts'
 import { openSkull } from './ui/skull'
 import { openRoutines } from './ui/routines'
 import { openTasksBoard } from './ui/tasks-board'
+import { openFocusPopup } from './ui/focus-popup'
 import { openReports } from './ui/reports'
 import { copyReport, exportConversation } from './ui/export'
 import { showDataNotice } from './ui/data'
@@ -258,6 +259,14 @@ async function boot(): Promise<void> {
       e.preventDefault()
       void newAgent()
     }
+  })
+
+  // F opens "Tarefas em foco", unless a text field has the focus or another dialog is open (the inbox does not count).
+  window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() !== 'f' || e.metaKey || e.ctrlKey || e.altKey || e.repeat || isTyping()) return
+    if (ui.querySelector('.backdrop, [aria-modal="true"]')) return
+    e.preventDefault()
+    void openFocusPopup(ui, state, toast)
   })
 
   // ? lists every shortcut. Capture phase: it works over the board and windows too, which stop the keys they use.
