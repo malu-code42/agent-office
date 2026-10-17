@@ -32,6 +32,15 @@ export interface NewTaskDraft {
   time?: string
 }
 
+/** The list whose tasks are read-only on the board: they cannot be moved, and nothing moves into it. */
+export const ARCHIVE_LIST = 'Archive'
+
+/** A card dragged or sent to another list: its line in tarefas.md as the board read it, and the list. */
+export interface TaskMove {
+  line: number
+  list: string
+}
+
 const TASK_LINE = /^\s*[-*]\s+\[([ xX-])\]\s+(.+?)\s*$/
 const BLOCK_ID = /\s+(\^t\S+)$/i
 const VALID_BLOCK_ID = /^\^t[a-z0-9]{6}$/i
@@ -168,6 +177,24 @@ export function parseTasksFile(content: string): ParsedBoard & { original: strin
   }
 
   return { lists, headings, warnings, original: content }
+}
+
+/**
+ * The line with its list field set to `list`, when it is in the new format with an id
+ * ("data | hora | lista | tarefa ^ID"). Any other line, and a line without an id, comes back as it was.
+ */
+export function retargetListField(line: string, list: string): string {
+  const head = /^\s*[-*]\s+\[[ xX-]\]\s+/.exec(line)
+  if (!head) return line
+  const rest = line.slice(head[0].length)
+  const body = rest.trimEnd()
+  const id = BLOCK_ID.exec(body)
+  if (!id || !VALID_BLOCK_ID.test(id[1])) return line
+  const parts = body.slice(0, id.index).split(/(\s+\|\s+)/)
+  const fields = parts.filter((_, i) => i % 2 === 0)
+  if (fields.length < 2 || !fields.slice(0, -2).every((f) => READ_DATE.test(f) || READ_TIME.test(f))) return line
+  parts[2 * (fields.length - 2)] = list
+  return head[0] + parts.join('') + body.slice(id.index) + rest.slice(body.length)
 }
 
 const isRealDate = (date: string): boolean => {

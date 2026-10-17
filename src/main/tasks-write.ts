@@ -1,20 +1,22 @@
 import { randomInt } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { parseTasksFile, taskDraftProblem, type NewTaskDraft } from '@shared/tasks'
+import { ARCHIVE_LIST, parseTasksFile, retargetListField, taskDraftProblem, type NewTaskDraft } from '@shared/tasks'
 import { writeFileAtomic } from './fs-safe'
 
 /**
  * Creates a task in tarefas.md: one new line at the end of its list, nothing else changes.
- * planNewTask is pure (text in, text out). createTaskWriter does the file: it checks the
- * file still matches what the board read, backs it up once per session, then writes it
- * atomically. No Electron here, so it runs in unit tests against a temporary vault.
+ * Moves a task to the end of another list: its line goes, the same text comes back under the
+ * target heading. planNewTask and planMoveTask are pure (text in, text out). createTaskWriter
+ * does the file: it checks the file still matches what the board read, backs it up once per
+ * session, then writes it atomically. No Electron here, so it runs in unit tests against a temporary vault.
  */
 
 export const TASKS_FILE = 'tarefas.md'
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'
 const ID_ATTEMPTS = 100
 const CHANGED = 'O tarefas.md mudou desde que você abriu o quadro, então nada foi escrito. Abra o quadro Tarefas de novo e tente outra vez.'
+const NOT_FOUND = 'Não encontrei essa tarefa no tarefas.md. Abra o quadro Tarefas de novo.'
 
 /** A new id: ^t and six lowercase letters or digits, from the system's secure random source. */
 export function randomTaskId(): string {
@@ -64,6 +66,48 @@ export function planNewTask(text: string, draft: NewTaskDraft, newId: () => stri
   return { text: lines.join('\n'), id }
 }
 
+/**
+ * The text of tarefas.md with the task on `line` moved to the end of the `target` list, and the
+ * task's id. The line keeps its text; a new-format line gets its list field changed, and a task
+ * without an id gets one now. Its children (indented lines) stay where they are. Same list: the text comes back as it was.
+ */
+export function planMoveTask(
+  text: string,
+  line: number,
+  target: string,
+  newId: () => string = randomTaskId,
+): { text: string; id?: string } {
+  const board = parseTasksFile(text)
+  const from = board.lists.findIndex((l) => l.tasks.some((t) => t.line === line))
+  const task = from < 0 ? undefined : board.lists[from]!.tasks.find((t) => t.line === line)
+  if (!task) throw new Error(NOT_FOUND)
+  if (board.lists[from]!.name === ARCHIVE_LIST) throw new Error('As tarefas do Archive não podem ser movidas pelo quadro.')
+  if (target === ARCHIVE_LIST) throw new Error('Não é possível mover tarefas para o Archive pelo quadro.')
+  const to = board.lists.findIndex((l) => l.name === target)
+  if (to < 0) throw new Error(`Não encontrei a lista “${target}” no tarefas.md. Escolha uma lista que exista.`)
+  if (target.includes('|')) throw new Error('Essa lista tem o caractere “|” no nome. Renomeie a lista no tarefas.md.')
+  if (from === to) return { text, id: task.id }
+
+  const lines = text.split('\n')
+  let moved = lines[line - 1]!.replace(/\r$/, '')
+  let id = task.id
+  if (id) moved = retargetListField(moved, target)
+  else {
+    id = pickId(taskIdsIn(text), newId)
+    moved = `${moved} ^${id}`
+  }
+
+  lines.splice(line - 1, 1)
+  const rest = parseTasksFile(lines.join('\n'))
+  const section = rest.lists[to]!
+  const last = section.tasks.at(-1)
+  // After the section's last task; with no task yet, right under its heading.
+  const at = last ? last.line : rest.headings[to]! + 1
+  const eol = lines[at - 1]!.endsWith('\r') ? '\r' : ''
+  lines.splice(at, 0, moved + eol)
+  return { text: lines.join('\n'), id }
+}
+
 const stampOf = (d: Date): string => {
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
@@ -103,24 +147,40 @@ export function createTaskWriter(opts: TaskWriterOptions = {}) {
   const backedUp = new Set<string>()
   const now = opts.now ?? (() => new Date())
 
+  /** The file as the board read it last; throws when there was no read or the file changed since. */
+  const unchanged = (vault: string): string => {
+    const known = lastRead.get(vault)
+    if (known === undefined) throw new Error('Abra o quadro Tarefas de novo antes de alterar o tarefas.md.')
+    const text = readTasks(vault)
+    if (text !== known) throw new Error(CHANGED)
+    return text
+  }
+
+  const save = (vault: string, before: string, after: string): void => {
+    if (!backedUp.has(vault)) {
+      backupTasks(vault, before, now())
+      backedUp.add(vault)
+    }
+    writeFileAtomic(join(vault, TASKS_FILE), after)
+    lastRead.set(vault, after)
+  }
+
   return {
     remember(vault: string, text: string): void {
       lastRead.set(vault, text)
     },
     /** Writes the task and returns its id. Nothing is written when a check fails. */
     create(vault: string, draft: NewTaskDraft): string {
-      const known = lastRead.get(vault)
-      if (known === undefined) throw new Error('Abra o quadro Tarefas de novo antes de criar uma tarefa.')
-      const text = readTasks(vault)
-      if (text !== known) throw new Error(CHANGED)
+      const text = unchanged(vault)
       const plan = planNewTask(text, draft, opts.newId)
-      if (!backedUp.has(vault)) {
-        backupTasks(vault, text, now())
-        backedUp.add(vault)
-      }
-      writeFileAtomic(join(vault, TASKS_FILE), plan.text)
-      lastRead.set(vault, plan.text)
+      save(vault, text, plan.text)
       return plan.id
+    },
+    /** Moves the task on `line` (as the board read it) to `list`. Nothing is written when it is already there. */
+    move(vault: string, line: number, list: string): void {
+      const text = unchanged(vault)
+      const plan = planMoveTask(text, line, list, opts.newId)
+      if (plan.text !== text) save(vault, text, plan.text)
     },
   }
 }

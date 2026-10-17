@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createTaskWriter, planNewTask, randomTaskId, taskIdsIn } from '../src/main/tasks-write'
+import { createTaskWriter, planMoveTask, planNewTask, randomTaskId, taskIdsIn } from '../src/main/tasks-write'
 import { parseTasksFile } from '../src/shared/tasks'
 
 const SOURCE = [
@@ -204,5 +204,169 @@ describe('createTaskWriter', () => {
     expect(() => writer.create(vault, { ...NOVA, title: '' })).toThrow('Escreva o título da tarefa.')
     expect(readFileSync(file, 'utf8')).toBe(SOURCE)
     expect(existsSync(join(vault, 'backups'))).toBe(false)
+  })
+})
+
+/** Two lists: a new-format line (with date and time) and a task with an id, no date. */
+const MIXED = [
+  '## Estudo',
+  '- [ ] 16.10.2026 | 09:00 | Estudo | Revisar plano ^t9z8y7x',
+  '- [ ] Estudo | Ler capítulo 3 ^t1a2b3c',
+  '',
+  '## Casa',
+  '- [ ] Casa | Lavar roupa ^t4d5e6f',
+  '',
+].join('\n')
+
+const LEGACY = [
+  '## Estudo',
+  '- [ ] **06.10.2026** | Hera | criar relatório ^t2b3c4d',
+  '- [ ] Estudo | IRA 9.0',
+  '',
+  '## Casa',
+  '- [ ] Lavar roupa',
+  '',
+].join('\n')
+
+describe('planMoveTask', () => {
+  it('moves a new-format line: only that line changes, its lista field is updated and the id is kept', () => {
+    const out = planMoveTask(MIXED, 2, 'Casa', () => {
+      throw new Error('no id is needed: the task already has one')
+    })
+
+    expect(out.id).toBe('t9z8y7x')
+    expect(out.text.split('\n')).toEqual([
+      '## Estudo',
+      '- [ ] Estudo | Ler capítulo 3 ^t1a2b3c',
+      '',
+      '## Casa',
+      '- [ ] Casa | Lavar roupa ^t4d5e6f',
+      '- [ ] 16.10.2026 | 09:00 | Casa | Revisar plano ^t9z8y7x',
+      '',
+    ])
+  })
+
+  it('moves a legacy line verbatim, without changing any of its fields', () => {
+    const out = planMoveTask(LEGACY, 2, 'Casa', ids('tnovo01'))
+
+    expect(out.id).toBe('t2b3c4d')
+    expect(out.text.split('\n')).toEqual([
+      '## Estudo',
+      '- [ ] Estudo | IRA 9.0',
+      '',
+      '## Casa',
+      '- [ ] Lavar roupa',
+      '- [ ] **06.10.2026** | Hera | criar relatório ^t2b3c4d',
+      '',
+    ])
+  })
+
+  it('gives a task with no id one, unique in the file, and leaves its line otherwise as it was', () => {
+    const out = planMoveTask(LEGACY, 3, 'Casa', ids('t2b3c4d', 'tnovo01'))
+
+    expect(out.id).toBe('tnovo01')
+    expect(out.text.split('\n')).toEqual([
+      '## Estudo',
+      '- [ ] **06.10.2026** | Hera | criar relatório ^t2b3c4d',
+      '',
+      '## Casa',
+      '- [ ] Lavar roupa',
+      '- [ ] Estudo | IRA 9.0 ^tnovo01',
+      '',
+    ])
+  })
+
+  it('does nothing when the task is already in that list', () => {
+    expect(planMoveTask(MIXED, 2, 'Estudo').text).toBe(MIXED)
+  })
+
+  it('refuses to move from the Archive or to it, and a line that is not a task', () => {
+    expect(() => planMoveTask(SOURCE, 13, 'Casa')).toThrow('As tarefas do Archive não podem ser movidas pelo quadro.')
+    expect(() => planMoveTask(SOURCE, 6, 'Archive')).toThrow('Não é possível mover tarefas para o Archive pelo quadro.')
+    expect(() => planMoveTask(SOURCE, 4, 'Casa')).toThrow('Não encontrei essa tarefa')
+    expect(() => planMoveTask(SOURCE, 6, 'Trabalho')).toThrow('Não encontrei a lista “Trabalho” no tarefas.md.')
+  })
+
+  it('puts the task under the heading when the target list has no task yet', () => {
+    const text = '## Rotina\n- [ ] Rotina | Caminhar ^t1a2b3c\n\n## Casa\n'
+    const out = planMoveTask(text, 2, 'Casa')
+
+    expect(out.text).toBe('## Rotina\n\n## Casa\n- [ ] Casa | Caminhar ^t1a2b3c\n')
+  })
+})
+
+describe('move in createTaskWriter', () => {
+  let vault: string
+  let file: string
+
+  beforeEach(() => {
+    vault = mkdtempSync(join(tmpdir(), 'ao-tasks-move-'))
+    file = join(vault, 'tarefas.md')
+    writeFileSync(file, MIXED, 'utf8')
+  })
+
+  afterEach(() => rmSync(vault, { recursive: true, force: true }))
+
+  it('writes the move atomically and the reader reads the task back in the new list', () => {
+    const writer = createTaskWriter({ newId: ids('tnovo01') })
+    writer.remember(vault, readFileSync(file, 'utf8'))
+
+    writer.move(vault, 2, 'Casa')
+
+    expect(existsSync(join(vault, 'tarefas.md.tmp'))).toBe(false)
+    const after = readFileSync(file, 'utf8')
+    expect(after).toBe(planMoveTask(MIXED, 2, 'Casa').text)
+    const casa = parseTasksFile(after).lists[1]!.tasks
+    expect(casa.at(-1)).toEqual({
+      text: 'Revisar plano',
+      line: 6,
+      status: 'open',
+      id: 't9z8y7x',
+      date: '16.10.2026',
+      time: '09:00',
+    })
+  })
+
+  it('cancels the move when the file changed after the board read it', () => {
+    const writer = createTaskWriter({ newId: ids('tnovo01') })
+    writer.remember(vault, readFileSync(file, 'utf8'))
+    const changed = MIXED.replace('Lavar roupa', 'Lavar louça')
+    writeFileSync(file, changed, 'utf8')
+
+    expect(() => writer.move(vault, 2, 'Casa')).toThrow('mudou desde que você abriu o quadro')
+    expect(readFileSync(file, 'utf8')).toBe(changed)
+    expect(existsSync(join(vault, 'backups'))).toBe(false)
+  })
+
+  it('makes no write and no backup for a move to the same list', () => {
+    const writer = createTaskWriter({ newId: ids('tnovo01') })
+    writer.remember(vault, readFileSync(file, 'utf8'))
+
+    writer.move(vault, 2, 'Estudo')
+
+    expect(readFileSync(file, 'utf8')).toBe(MIXED)
+    expect(existsSync(join(vault, 'backups'))).toBe(false)
+  })
+
+  it('backs up the file once per session, before the first move, and never deletes a backup', () => {
+    const at = () => new Date(2026, 9, 16, 9, 5, 7)
+    const folder = join(vault, 'backups', 'tarefas')
+    const writer = createTaskWriter({ now: at, newId: ids('tnovo01') })
+    writer.remember(vault, readFileSync(file, 'utf8'))
+    writer.move(vault, 2, 'Casa')
+
+    expect(readdirSync(folder)).toEqual(['tarefas-2026-10-16-090507.md'])
+    expect(readFileSync(join(folder, 'tarefas-2026-10-16-090507.md'), 'utf8')).toBe(MIXED)
+
+    writer.remember(vault, readFileSync(file, 'utf8'))
+    writer.move(vault, 2, 'Casa')
+    expect(readdirSync(folder)).toHaveLength(1)
+
+    const nextSession = createTaskWriter({ now: at, newId: ids('tnovo02') })
+    nextSession.remember(vault, readFileSync(file, 'utf8'))
+    nextSession.move(vault, 6, 'Estudo')
+
+    expect(readdirSync(folder).sort()).toEqual(['tarefas-2026-10-16-090507-2.md', 'tarefas-2026-10-16-090507.md'])
+    expect(readFileSync(join(folder, 'tarefas-2026-10-16-090507.md'), 'utf8')).toBe(MIXED)
   })
 })

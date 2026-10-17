@@ -1,8 +1,9 @@
 import type { State } from '../state'
-import type { ParsedBoard, Task, TaskList } from '@shared/tasks'
+import { ARCHIVE_LIST, type ParsedBoard, type Task, type TaskList } from '@shared/tasks'
 import { arrowList, asDialog, FocusReturn, rove } from './a11y'
 import { h, icon } from './dom'
 import { cleanError } from './modals'
+import { openMoveMenu } from './tasks-move'
 import { openNewTask } from './tasks-new'
 
 /** The date and time of a task as written in the file, e.g. "16.10.2026 09:00". */
@@ -10,11 +11,13 @@ function when(task: Task): string {
   return [task.date ?? task.dueDate, task.time].filter(Boolean).join(' ')
 }
 
+/** `moved` is the card to focus after a move: the list it went to and its title. */
 export async function openTasksBoard(
   root: HTMLElement,
   state: State,
   toast: (msg: string, type?: 'info' | 'ok' | 'err') => void,
   initialBoard?: ParsedBoard,
+  moved?: { list: string; text: string },
 ): Promise<void> {
   const vaultPath = state.settings.vaultPath
   if (!vaultPath && !initialBoard) {
@@ -25,6 +28,62 @@ export async function openTasksBoard(
   try {
     const data = initialBoard ?? (await window.office.readTasks())
     const focusBack = new FocusReturn()
+    let dragging: { line: number; list: string; text: string } | null = null
+    // The main process checks the file again; a refusal (the file changed) comes back as the toast.
+    const move = async (line: number, text: string, list: string) => {
+      try {
+        const next = await window.office.moveTask({ line, list })
+        board.remove()
+        toast(`Tarefa movida para ${list}.`, 'ok')
+        void openTasksBoard(root, state, toast, next.board, { list, text })
+      } catch (err) {
+        toast(cleanError(err), 'err')
+      }
+    }
+    const openMove = (card: HTMLElement, list: TaskList, task: Task) =>
+      openMoveMenu(
+        card,
+        data.lists.map((l) => l.name).filter((name) => name !== list.name && name !== ARCHIVE_LIST),
+        (to) => void move(task.line, task.text, to),
+      )
+    /** Drag and keyboard for a card; the Archive is read-only. */
+    const dragAndMove = (list: TaskList, task: Task): Record<string, string | EventListener | undefined> => {
+      if (list.name === ARCHIVE_LIST) return {}
+      return {
+        draggable: 'true',
+        ondragstart: (e: Event) => {
+          const drag = e as DragEvent
+          dragging = { line: task.line, list: list.name, text: task.text }
+          if (drag.dataTransfer) {
+            drag.dataTransfer.effectAllowed = 'move'
+            drag.dataTransfer.setData('text/plain', task.text)
+          }
+          const card = drag.currentTarget as HTMLElement
+          card.classList.add('dragging')
+        },
+        ondragend: () => {
+          dragging = null
+          board.querySelectorAll('.dragging, .tcol-over').forEach((n) => n.classList.remove('dragging', 'tcol-over'))
+        },
+        onkeydown: (e: Event) => {
+          const key = e as KeyboardEvent
+          if (key.target !== key.currentTarget || (key.key !== 'Enter' && key.key !== ' ')) return
+          key.preventDefault()
+          openMove(key.currentTarget as HTMLElement, list, task)
+        },
+      }
+    }
+    const moveButton = (list: TaskList, task: Task) =>
+      h(
+        'button',
+        {
+          class: 'btn btn-small tcard-move',
+          type: 'button',
+          tabindex: '-1',
+          onclick: (e: Event) => openMove((e.currentTarget as HTMLElement).closest<HTMLElement>('.tcard')!, list, task),
+        },
+        'Mover para…',
+      )
     const board = h(
       'div',
       { class: 'board', tabindex: '-1' },
@@ -111,6 +170,7 @@ export async function openTasksBoard(
                         {
                           class: `tcard task-readonly${task.status === 'completed' ? ' task-completed' : task.status === 'discarded' ? ' task-discarded' : ''}`,
                           tabindex: '0',
+                          ...dragAndMove(list, task),
                           'aria-label': [
                             task.text,
                             task.status === 'completed' ? 'Concluída' : task.status === 'discarded' ? 'Descartada' : '',
@@ -118,6 +178,7 @@ export async function openTasksBoard(
                             task.completedDate
                               ? `${task.status === 'completed' ? 'Concluída em' : 'Descartada em'} ${task.completedDate}`
                               : '',
+                            list.name !== ARCHIVE_LIST ? 'Pressione Enter para mover para outra lista' : '',
                           ]
                             .filter(Boolean)
                             .join('. '),
@@ -139,6 +200,7 @@ export async function openTasksBoard(
                           ? h('div', { class: 'tcard-foot' }, `${task.status === 'completed' ? '✅' : '❌'} ${task.completedDate}`)
                           : null,
                         task.reason ? h('div', { class: 'hint' }, task.reason) : null,
+                        list.name !== ARCHIVE_LIST ? moveButton(list, task) : null,
                       ),
                     )),
               ),
@@ -157,6 +219,29 @@ export async function openTasksBoard(
       const cards = [...column.querySelectorAll<HTMLElement>('.task-readonly')]
       if (cards.length) rove(cards, 0)
     }
+    const dropZone = (column: HTMLElement, name: string) => {
+      column.addEventListener('dragover', (e) => {
+        if (!dragging || dragging.list === name) return
+        e.preventDefault()
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+        column.classList.add('tcol-over')
+      })
+      column.addEventListener('dragleave', (e) => {
+        if (!column.contains(e.relatedTarget as Node | null)) column.classList.remove('tcol-over')
+      })
+      column.addEventListener('drop', (e) => {
+        e.preventDefault()
+        column.classList.remove('tcol-over')
+        const drop = dragging
+        dragging = null
+        if (drop && drop.list !== name) void move(drop.line, drop.text, name)
+      })
+    }
+    // The Archive takes no drops: its column has no drop zone.
+    columns.forEach((column, i) => {
+      const name = data.lists[i]!.name
+      if (name !== ARCHIVE_LIST) dropZone(column, name)
+    })
     board.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return
       if (
@@ -179,7 +264,15 @@ export async function openTasksBoard(
     })
     observer.observe(root, { childList: true })
     root.append(board)
-    board.focus({ preventScroll: true })
+    const landing = moved
+      ? [...board.querySelectorAll<HTMLElement>('.task-readonly')].find(
+          (card) =>
+            card.closest('.tcol')?.getAttribute('aria-label') === `Lista ${moved.list}` &&
+            card.querySelector('.tcard-title')?.textContent === moved.text,
+        )
+      : undefined
+    const target: HTMLElement = landing ?? board
+    target.focus({ preventScroll: true })
   } catch (err) {
     toast(cleanError(err), 'err')
   }
