@@ -5,6 +5,7 @@ import { ATTACH_LIMITS } from '@shared/attachments'
 import { HAIR_STYLES } from '@shared/describe'
 import { floorNameFor, MAX_PROJECT_FLOORS } from '@shared/projects'
 import { scheduleError } from '@shared/schedule'
+import type { NewTaskDraft } from '@shared/tasks'
 import { STATUSES } from '@shared/tickets'
 import { EFFORT_LEVELS, ROUTINE_LIMITS } from '@shared/types'
 import type { VideoSettings } from '@shared/video'
@@ -69,6 +70,13 @@ export const idSchema = z.string().min(1).max(200)
 export const subagentLogArgsSchema = z.tuple([idSchema, idSchema])
 export const pathSchema = z.string().min(1).max(MAX_PATH)
 export const vaultPathSchema = pathSchema.refine(isAbsolute, 'O caminho do vault precisa ser absoluto.')
+/** A task from the "Nova tarefa" form; the rules for each field are in shared/tasks.ts (taskDraftProblem). */
+export const newTaskSchema: z.ZodType<NewTaskDraft> = z.object({
+  title: z.string().max(300),
+  list: z.string().max(200),
+  date: z.string().max(10).optional(),
+  time: z.string().max(5).optional(),
+})
 export const permissionModeSchema = z.enum(PERMISSION_MODES as [OfficePermissionMode, ...OfficePermissionMode[]])
 export const ticketStatusSchema = z.enum(STATUS_VALUES)
 /** A message to an agent: long pastes are fine, megabytes of text are not. */

@@ -81,6 +81,26 @@ describe('parseTasksFile', () => {
     ])
   })
 
+  it('reads the new format with and without date and time, and two-field lines', () => {
+    const parsed = parseTasksFile(
+      [
+        '## Estudo',
+        '- [ ] 16.10.2026 | 09:00 | Estudo | Revisar plano ^t7k2q1a',
+        '- [ ] Estudo | Revisar plano ^t7k2q1b',
+        '- [ ] 16.10 | Estudo | Ler artigo ^t7k2q1c',
+        '- [ ] 09:00 | Estudo | Tomar café ^t7k2q1d',
+      ].join('\n'),
+    )
+
+    expect(parsed.lists[0]?.tasks).toEqual([
+      { text: 'Revisar plano', line: 2, status: 'open', id: 't7k2q1a', date: '16.10.2026', time: '09:00' },
+      { text: 'Revisar plano', line: 3, status: 'open', id: 't7k2q1b' },
+      { text: 'Ler artigo', line: 4, status: 'open', id: 't7k2q1c', date: '16.10' },
+      { text: 'Tomar café', line: 5, status: 'open', id: 't7k2q1d', time: '09:00' },
+    ])
+    expect(parsed.warnings).toEqual([])
+  })
+
   it('reports unknown content outside task lists instead of silently dropping it', () => {
     const parsed = parseTasksFile(
       ['texto introdutório', '', '## Casa', '- [ ] Limpar mesa ^t123abc', '## Configurações', 'texto livre'].join('\n'),
