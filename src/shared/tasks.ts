@@ -63,6 +63,7 @@ const TASK_LINE = /^\s*[-*]\s+\[([ xX-])\]\s+(.+?)\s*$/
 const BLOCK_ID = /\s+(\^t\S+)$/i
 const VALID_BLOCK_ID = /^\^t[a-z0-9]{6}$/i
 const SCHEDULED_DATE = /\s+📅\s+(\d{4}-\d{2}-\d{2})$/
+const BOLD_DATE = /^\*\*(\d{2}\.\d{2}(?:\.\d{4})?)\*\*\s*(?:\|\s*)?/
 const COMPLETED_DATE = /\s+✅\s+(\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\.\d{4})$/
 // The date is DD.MM.AAAA (AO-06); the ISO day and "descartada: motivo" of the first lines are still read.
 const DISCARDED_DATE = /\s+❌\s+(\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\.\d{4})(?:\s+[—-]\s+(?:descartada:\s*)?(.*))?$/i
@@ -152,6 +153,13 @@ export function parseTasksFile(content: string): ParsedBoard & { original: strin
         seenIds.add(blockId.toLowerCase())
       }
       text = text.slice(0, id.index).trimEnd()
+    }
+
+    // The vault writes `**06.10.2026** | título`; the date is shown as written, never converted.
+    const bold = BOLD_DATE.exec(text)
+    if (bold) {
+      task.dueDate ??= bold[1]
+      text = text.slice(bold.index + bold[0].length).trimStart()
     }
 
     // The new format: the last field is the task, the one before it the list; the fields before

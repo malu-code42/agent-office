@@ -10,7 +10,7 @@ import {
   type TaskList,
   type TaskRef,
 } from '@shared/tasks'
-import { arrowList, asDialog, FocusReturn, rove } from './a11y'
+import { asDialog, FocusReturn, isTyping, rove } from './a11y'
 import { h, icon } from './dom'
 import { cleanError } from './modals'
 import { offerUndo, type Toast } from './tasks-complete'
@@ -19,6 +19,43 @@ import { openIris } from './iris'
 import { openNewTask } from './tasks-new'
 import { runDiscard, runReopen } from './tasks-discard'
 import './focus.css'
+
+const ARROWS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
+
+/** ↑/↓ move between the cards of a list, ←/→ between lists (same row when there is one). */
+function moveFocus(columns: HTMLElement[], key: string): void {
+  const focused = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  const column = focused?.closest<HTMLElement>('.tcol') ?? columns[0]
+  if (!column) return
+  const cards = [...column.querySelectorAll<HTMLElement>('.task-readonly')]
+  const card = focused?.closest<HTMLElement>('.task-readonly') ?? null
+  const row = card ? cards.indexOf(card) : -1
+
+  if (key === 'ArrowUp' || key === 'ArrowDown') {
+    if (!cards.length) return
+    if (row < 0) {
+      const current = cards.find((c) => c.tabIndex === 0) ?? cards[0]
+      current.focus()
+      return
+    }
+    const next = Math.max(0, Math.min(cards.length - 1, row + (key === 'ArrowDown' ? 1 : -1)))
+    rove(cards, next)
+    cards[next].focus()
+    return
+  }
+
+  const col = columns.indexOf(column)
+  const target = columns[Math.max(0, Math.min(columns.length - 1, col + (key === 'ArrowRight' ? 1 : -1)))]
+  if (!target || target === column) return
+  const targetCards = [...target.querySelectorAll<HTMLElement>('.task-readonly')]
+  if (!targetCards.length || row < 0) {
+    target.focus()
+    return
+  }
+  const at = Math.min(row, targetCards.length - 1)
+  rove(targetCards, at)
+  targetCards[at].focus()
+}
 
 /** `moved` is the card to focus after a move: the list it went to and its title. */
 export async function openTasksBoard(
@@ -342,7 +379,7 @@ export async function openTasksBoard(
               ),
               h(
                 'ul',
-                { class: 'tcol-list', style: 'list-style:none;margin:0', tabindex: '0', 'aria-label': `Tarefas de ${list.name}` },
+                { class: 'tcol-list', style: 'list-style:none;margin:0', 'aria-label': `Tarefas de ${list.name}` },
                 ...(list.tasks.length === 0
                   ? [h('li', { class: 'tcol-empty' }, 'Nenhuma tarefa')]
                   : list.tasks.map((task) =>
@@ -389,14 +426,17 @@ export async function openTasksBoard(
     ) as HTMLElement
 
     asDialog(board, { label: 'Quadro Tarefas' })
-    arrowList(board, '.tcol')
     const columnEls = [...board.querySelectorAll<HTMLElement>('.tcol')]
-    if (columnEls.length) rove(columnEls, 0)
+    const cardsOf = (column: HTMLElement) => [...column.querySelectorAll<HTMLElement>('.task-readonly')]
     for (const column of columnEls) {
-      arrowList(column, '.task-readonly')
-      const cards = [...column.querySelectorAll<HTMLElement>('.task-readonly')]
+      const cards = cardsOf(column)
       if (cards.length) rove(cards, 0)
     }
+    board.addEventListener('focusin', (event) => {
+      const card = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>('.task-readonly') : null
+      const column = card?.closest<HTMLElement>('.tcol')
+      if (card && column) rove(cardsOf(column), cardsOf(column).indexOf(card))
+    })
     const dropZone = (column: HTMLElement, name: string) => {
       column.addEventListener('dragover', (e) => {
         if (!dragging || dragging.list === name) return
@@ -416,17 +456,21 @@ export async function openTasksBoard(
       })
     }
     columnEls.forEach((column, i) => dropZone(column, columns[i]!.name))
-    board.addEventListener('keydown', (event) => {
-      if (event.key !== 'Escape') return
-      if (
-        event.target instanceof HTMLInputElement ||
-        event.target instanceof HTMLTextAreaElement ||
-        event.target instanceof HTMLSelectElement
-      )
+    // Capture on window, like the "?" shortcut: the game listens on window and would move the player.
+    const onKey = (event: KeyboardEvent) => {
+      if (!board.isConnected || isTyping() || event.altKey || event.metaKey || event.ctrlKey) return
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
+        board.remove()
         return
+      }
+      if (!ARROWS.includes(event.key)) return
+      event.preventDefault()
       event.stopPropagation()
-      board.remove()
-    })
+      moveFocus(columnEls, event.key)
+    }
+    window.addEventListener('keydown', onKey, true)
     board.addEventListener('click', (event) => {
       if (event.target === board) board.remove()
     })
@@ -434,6 +478,7 @@ export async function openTasksBoard(
     const observer = new MutationObserver(() => {
       if (board.isConnected) return
       observer.disconnect()
+      window.removeEventListener('keydown', onKey, true)
       focusBack.restore(board)
     })
     observer.observe(root, { childList: true })
@@ -445,7 +490,7 @@ export async function openTasksBoard(
             card.querySelector('.tcard-title')?.textContent === moved.text,
         )
       : undefined
-    const target: HTMLElement = landing ?? board
+    const target: HTMLElement = landing ?? columnEls[0] ?? board
     target.focus({ preventScroll: true })
   } catch (err) {
     toast(cleanError(err), 'err')

@@ -114,4 +114,24 @@ describe('parseTasksFile', () => {
       'Linha 6: "texto livre" não é uma tarefa reconhecida.',
     ])
   })
+
+  it('reads **DD.MM.AAAA** and **DD.MM** at the start of the title as written, without the asterisks', () => {
+    const parsed = parseTasksFile(['## Rotina', '- [ ] **06.10.2026** | criar o hábito', '- [ ] **09.10** | apresentação'].join('\n'))
+
+    expect(parsed.lists[0]?.tasks).toEqual([
+      { text: 'criar o hábito', line: 2, status: 'open', dueDate: '06.10.2026' },
+      { text: 'apresentação', line: 3, status: 'open', dueDate: '09.10' },
+    ])
+    expect(parsed.warnings).toEqual([])
+  })
+
+  it('keeps the 📅 AAAA-MM-DD form and reads titles without any date', () => {
+    const parsed = parseTasksFile(['## Casa', '- [ ] Lavar roupa 📅 2026-10-20', '- [ ] Sem data nenhuma'].join('\n'))
+
+    expect(parsed.lists[0]?.tasks).toEqual([
+      { text: 'Lavar roupa', line: 2, status: 'open', dueDate: '2026-10-20' },
+      { text: 'Sem data nenhuma', line: 3, status: 'open' },
+    ])
+    expect(parsed.lists[0]?.tasks[1]?.dueDate).toBeUndefined()
+  })
 })
