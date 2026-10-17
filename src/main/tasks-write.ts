@@ -1,0 +1,128 @@
+import { randomInt } from 'node:crypto'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { parseTasksFile, taskDraftProblem, type NewTaskDraft } from '@shared/tasks'
+import { writeFileAtomic } from './fs-safe'
+
+/**
+ * Creates a task in tarefas.md: one new line at the end of its list, nothing else changes.
+ * planNewTask is pure (text in, text out). createTaskWriter does the file: it checks the
+ * file still matches what the board read, backs it up once per session, then writes it
+ * atomically. No Electron here, so it runs in unit tests against a temporary vault.
+ */
+
+export const TASKS_FILE = 'tarefas.md'
+const ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'
+const ID_ATTEMPTS = 100
+const CHANGED = 'O tarefas.md mudou desde que você abriu o quadro, então nada foi escrito. Abra o quadro Tarefas de novo e tente outra vez.'
+
+/** A new id: ^t and six lowercase letters or digits, from the system's secure random source. */
+export function randomTaskId(): string {
+  let id = 't'
+  for (let i = 0; i < 6; i++) id += ALPHABET[randomInt(ALPHABET.length)]
+  return id
+}
+
+/** Every id token in the file (the Archive too), lowercased, as the reader stores them: t + chars. */
+export function taskIdsIn(text: string): Set<string> {
+  return new Set([...text.matchAll(/\^t[a-z0-9]+/gi)].map((m) => m[0].slice(1).toLowerCase()))
+}
+
+function pickId(taken: Set<string>, newId: () => string): string {
+  for (let i = 0; i < ID_ATTEMPTS; i++) {
+    const id = newId()
+    if (!taken.has(id.toLowerCase())) return id
+  }
+  throw new Error('Não consegui gerar um identificador único para a tarefa. Tente de novo.')
+}
+
+/**
+ * The text of tarefas.md with the new task at the end of its list, and the task's id.
+ * Throws the message the form shows when the draft cannot be written.
+ */
+export function planNewTask(text: string, draft: NewTaskDraft, newId: () => string = randomTaskId): { text: string; id: string } {
+  const board = parseTasksFile(text)
+  const problem = taskDraftProblem(
+    draft,
+    board.lists.map((l) => l.name),
+  )
+  if (problem) throw new Error(problem)
+
+  const list = draft.list.trim()
+  const index = board.lists.findIndex((l) => l.name === list)
+  const section = board.lists[index]
+  const id = pickId(taskIdsIn(text), newId)
+  const fields = [draft.date?.trim(), draft.time?.trim(), list, draft.title.trim()].filter((f): f is string => !!f)
+  const line = `- [ ] ${fields.join(' | ')} ^${id}`
+
+  // After the section's last task; with no task yet, right under its heading.
+  const lines = text.split('\n')
+  const last = section.tasks.at(-1)
+  const after = last ? last.line - 1 : board.headings[index]
+  const eol = lines[after].endsWith('\r') ? '\r' : ''
+  lines.splice(after + 1, 0, line + eol)
+  return { text: lines.join('\n'), id }
+}
+
+const stampOf = (d: Date): string => {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
+}
+
+/** A copy of tarefas.md in <vault>/backups/tarefas/. Never overwrites an older copy. */
+function backupTasks(vault: string, text: string, at: Date): void {
+  const dir = join(vault, 'backups', 'tarefas')
+  mkdirSync(dir, { recursive: true })
+  const stamp = stampOf(at)
+  let dest = join(dir, `tarefas-${stamp}.md`)
+  for (let n = 2; existsSync(dest); n++) dest = join(dir, `tarefas-${stamp}-${n}.md`)
+  writeFileAtomic(dest, text)
+}
+
+function readTasks(vault: string): string {
+  const file = join(vault, TASKS_FILE)
+  try {
+    return readFileSync(file, 'utf8')
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') throw new Error(`tarefas.md não encontrado em ${vault}`, { cause: err })
+    throw err
+  }
+}
+
+export interface TaskWriterOptions {
+  now?: () => Date
+  newId?: () => string
+}
+
+/**
+ * One writer per app session. `remember` is called with every text the board reads; a
+ * create is refused unless the file on disk still has that same text.
+ */
+export function createTaskWriter(opts: TaskWriterOptions = {}) {
+  const lastRead = new Map<string, string>()
+  const backedUp = new Set<string>()
+  const now = opts.now ?? (() => new Date())
+
+  return {
+    remember(vault: string, text: string): void {
+      lastRead.set(vault, text)
+    },
+    /** Writes the task and returns its id. Nothing is written when a check fails. */
+    create(vault: string, draft: NewTaskDraft): string {
+      const known = lastRead.get(vault)
+      if (known === undefined) throw new Error('Abra o quadro Tarefas de novo antes de criar uma tarefa.')
+      const text = readTasks(vault)
+      if (text !== known) throw new Error(CHANGED)
+      const plan = planNewTask(text, draft, opts.newId)
+      if (!backedUp.has(vault)) {
+        backupTasks(vault, text, now())
+        backedUp.add(vault)
+      }
+      writeFileAtomic(join(vault, TASKS_FILE), plan.text)
+      lastRead.set(vault, plan.text)
+      return plan.id
+    },
+  }
+}
+
+export type TaskWriter = ReturnType<typeof createTaskWriter>

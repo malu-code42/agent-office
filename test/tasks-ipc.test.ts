@@ -86,6 +86,33 @@ describe('tasks IPC', () => {
     expect(broadcast).not.toHaveBeenCalled()
   })
 
+  it('creates a task in the saved vault and returns the board read again', async () => {
+    const file = join(vault, 'tarefas.md')
+    writeFileSync(file, '## Casa\n- [ ] Lavar roupa ^t1a2b3c\n', 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+
+    const created = (await invoke('office:createTask', { title: 'Passar pano', list: 'Casa' })) as {
+      id: string
+      board: { lists: { name: string; tasks: { text: string }[] }[] }
+    }
+
+    expect(created.id).toMatch(/^t[a-z0-9]{6}$/)
+    expect(readFileSync(file, 'utf8')).toBe(`## Casa\n- [ ] Lavar roupa ^t1a2b3c\n- [ ] Casa | Passar pano ^${created.id}\n`)
+    expect(created.board.lists[0]!.tasks.map((task) => task.text)).toEqual(['Lavar roupa', 'Passar pano'])
+  })
+
+  it('refuses a task with an empty title and writes nothing', async () => {
+    const source = '## Casa\n- [ ] Lavar roupa ^t1a2b3c\n'
+    const file = join(vault, 'tarefas.md')
+    writeFileSync(file, source, 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+
+    await expect(invoke('office:createTask', { title: '  ', list: 'Casa' })).rejects.toThrow('Escreva o título da tarefa.')
+    expect(readFileSync(file, 'utf8')).toBe(source)
+  })
+
   it('requires a previously selected vault to read tasks', async () => {
     await expect(invoke('office:readTasks')).rejects.toThrow('Configure a pasta do vault em Ajustes → Tarefas do Obsidian.')
   })

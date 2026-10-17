@@ -1,8 +1,14 @@
 import type { State } from '../state'
-import type { ParsedBoard, TaskList } from '@shared/tasks'
+import type { ParsedBoard, Task, TaskList } from '@shared/tasks'
 import { arrowList, asDialog, FocusReturn, rove } from './a11y'
 import { h, icon } from './dom'
 import { cleanError } from './modals'
+import { openNewTask } from './tasks-new'
+
+/** The date and time of a task as written in the file, e.g. "16.10.2026 09:00". */
+function when(task: Task): string {
+  return [task.date ?? task.dueDate, task.time].filter(Boolean).join(' ')
+}
 
 export async function openTasksBoard(
   root: HTMLElement,
@@ -28,6 +34,25 @@ export async function openTasksBoard(
         h('div', { class: 'board-title' }, icon('list', 18), 'Tarefas'),
         h('span', { class: 'board-count' }, `${data.lists.reduce((count, list) => count + list.tasks.length, 0)} tarefas`),
         h('span', { class: 'grow' }),
+        h(
+          'button',
+          {
+            class: 'btn btn-small btn-primary',
+            type: 'button',
+            onclick: () =>
+              openNewTask(
+                root,
+                data.lists.map((list) => list.name),
+                (next) => {
+                  board.remove()
+                  void openTasksBoard(root, state, toast, next)
+                },
+                toast,
+              ),
+          },
+          icon('plus', 14),
+          'Nova tarefa',
+        ),
         h(
           'button',
           {
@@ -89,7 +114,7 @@ export async function openTasksBoard(
                           'aria-label': [
                             task.text,
                             task.status === 'completed' ? 'Concluída' : task.status === 'discarded' ? 'Descartada' : '',
-                            task.dueDate ? `Data ${task.dueDate}` : '',
+                            when(task) ? `Data ${when(task)}` : '',
                             task.completedDate
                               ? `${task.status === 'completed' ? 'Concluída em' : 'Descartada em'} ${task.completedDate}`
                               : '',
@@ -109,7 +134,7 @@ export async function openTasksBoard(
                               )
                             : null,
                         ),
-                        task.dueDate ? h('div', { class: 'tcard-foot' }, `📅 ${task.dueDate}`) : null,
+                        when(task) ? h('div', { class: 'tcard-foot' }, `📅 ${when(task)}`) : null,
                         task.completedDate
                           ? h('div', { class: 'tcard-foot' }, `${task.status === 'completed' ? '✅' : '❌'} ${task.completedDate}`)
                           : null,

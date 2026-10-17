@@ -8,7 +8,7 @@ import type { BridgeStatus, Settings, UpdateInstallResult, UpdateStatus } from '
 import type { SquadInfo } from './squads'
 import type { MacJob, Routine, RoutineDraft } from './routines'
 import type { ClaudeStats } from './stats'
-import type { ParsedBoard } from '../tasks'
+import type { NewTaskDraft, ParsedBoard } from '../tasks'
 import type { DelegateTarget, Ticket, TicketDraft, TicketPatch, TicketStatus } from './tickets'
 
 /** CPU (% of the whole machine) and memory (bytes), as in Activity Monitor. */
@@ -142,6 +142,8 @@ export interface OfficeAPI {
   readTasks(): Promise<ParsedBoard>
   /** Abre o seletor nativo, valida tarefas.md e salva o vault escolhido. */
   selectTasksVault(): Promise<{ vaultPath: string; board: ParsedBoard } | null>
+  /** Cria uma tarefa no fim da lista escolhida do tarefas.md e devolve o id e o quadro lido de novo. */
+  createTask(draft: NewTaskDraft): Promise<{ id: string; board: ParsedBoard }>
   getLog(agentId: string): Promise<LogEntry[]>
   /** The log of one subagent of the agent (running or recently ended); [] when unknown. */
   getSubagentLog(agentId: string, subId: string): Promise<LogEntry[]>
