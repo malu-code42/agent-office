@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { dialog, ipcMain } from 'electron'
 import { parseTasksFile } from '@shared/tasks'
 import { createTaskWriter, type TaskWriter } from '../tasks-write'
-import { newTaskSchema, parse, vaultPathSchema } from '../validate'
+import { moveTaskSchema, newTaskSchema, parse, vaultPathSchema } from '../validate'
 import type { IpcContext } from './context'
 
 export function registerTasksIpc(ctx: IpcContext): void {
@@ -38,6 +38,15 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const path = checkedVault(vaultPath)
     const id = writer.create(path, input)
     return { id, board: read(path) }
+  })
+
+  ipcMain.handle('office:moveTask', async (_e, move: unknown) => {
+    const vaultPath = ctx.store.settings.vaultPath
+    if (!vaultPath) throw new Error('Configure a pasta do vault em Ajustes → Tarefas do Obsidian.')
+    const input = parse(moveTaskSchema, move, 'Movimento inválido.')
+    const path = checkedVault(vaultPath)
+    writer.move(path, input.line, input.list)
+    return { board: read(path) }
   })
 }
 

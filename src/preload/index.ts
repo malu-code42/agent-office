@@ -6,6 +6,7 @@ const api: OfficeAPI = {
   readTasks: () => ipcRenderer.invoke('office:readTasks'),
   selectTasksVault: () => ipcRenderer.invoke('office:selectTasksVault'),
   createTask: (draft) => ipcRenderer.invoke('office:createTask', draft),
+  moveTask: (move) => ipcRenderer.invoke('office:moveTask', move),
   getLog: (id) => ipcRenderer.invoke('office:getLog', id),
   getSubagentLog: (agentId, subId) => ipcRenderer.invoke('office:getSubagentLog', agentId, subId),
   hire: (req) => ipcRenderer.invoke('office:hire', req),

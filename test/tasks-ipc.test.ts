@@ -113,6 +113,32 @@ describe('tasks IPC', () => {
     expect(readFileSync(file, 'utf8')).toBe(source)
   })
 
+  it('moves a task in the saved vault and returns the board read again', async () => {
+    const file = join(vault, 'tarefas.md')
+    writeFileSync(file, '## Estudo\n- [ ] Ler capítulo ^t1a2b3c\n## Casa\n- [ ] Lavar roupa ^t4d5e6f\n', 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+
+    const moved = (await invoke('office:moveTask', { line: 2, list: 'Casa' })) as {
+      board: { lists: { name: string; tasks: { text: string }[] }[] }
+    }
+
+    expect(readFileSync(file, 'utf8')).toBe('## Estudo\n## Casa\n- [ ] Lavar roupa ^t4d5e6f\n- [ ] Ler capítulo ^t1a2b3c\n')
+    expect(moved.board.lists.map((list) => list.tasks.map((task) => task.text))).toEqual([[], ['Lavar roupa', 'Ler capítulo']])
+  })
+
+  it('refuses a move to the Archive or from a line that is not a number, and writes nothing', async () => {
+    const source = '## Estudo\n- [ ] Ler capítulo ^t1a2b3c\n## Archive\n'
+    const file = join(vault, 'tarefas.md')
+    writeFileSync(file, source, 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+
+    await expect(invoke('office:moveTask', { line: 2, list: 'Archive' })).rejects.toThrow('Não é possível mover tarefas para o Archive')
+    await expect(invoke('office:moveTask', { line: 0, list: 'Estudo' })).rejects.toThrow('Movimento inválido.')
+    expect(readFileSync(file, 'utf8')).toBe(source)
+  })
+
   it('requires a previously selected vault to read tasks', async () => {
     await expect(invoke('office:readTasks')).rejects.toThrow('Configure a pasta do vault em Ajustes → Tarefas do Obsidian.')
   })

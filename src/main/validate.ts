@@ -5,7 +5,7 @@ import { ATTACH_LIMITS } from '@shared/attachments'
 import { HAIR_STYLES } from '@shared/describe'
 import { floorNameFor, MAX_PROJECT_FLOORS } from '@shared/projects'
 import { scheduleError } from '@shared/schedule'
-import type { NewTaskDraft } from '@shared/tasks'
+import type { NewTaskDraft, TaskMove } from '@shared/tasks'
 import { STATUSES } from '@shared/tickets'
 import { EFFORT_LEVELS, ROUTINE_LIMITS } from '@shared/types'
 import type { VideoSettings } from '@shared/video'
@@ -76,6 +76,11 @@ export const newTaskSchema: z.ZodType<NewTaskDraft> = z.object({
   list: z.string().max(200),
   date: z.string().max(10).optional(),
   time: z.string().max(5).optional(),
+})
+/** A card moved on the board; the line must be a real line number, the list is checked against the file when written. */
+export const moveTaskSchema: z.ZodType<TaskMove> = z.object({
+  line: z.number().int().min(1).max(10_000_000),
+  list: z.string().max(200),
 })
 export const permissionModeSchema = z.enum(PERMISSION_MODES as [OfficePermissionMode, ...OfficePermissionMode[]])
 export const ticketStatusSchema = z.enum(STATUS_VALUES)
