@@ -16,7 +16,8 @@ export abstract class AgentRotation extends AgentSdk {
     const renews = hit.resetsAt ? ` (renova às ${clock(hit.resetsAt)})` : ''
     const next = accounts.next(agent.summary, from)
     if (!next) {
-      if (accounts.poolFor(agent.summary).length > 1) this.addLog(agent, 'system', `${accounts.name(from)} bateu o limite${renews}, e as outras contas também estão sem espaço.`)
+      if (accounts.poolFor(agent.summary).length > 1)
+        this.addLog(agent, 'system', `${accounts.name(from)} bateu o limite${renews}, e as outras contas também estão sem espaço.`)
       return false
     }
     this.addLog(agent, 'system', `${accounts.name(from)} bateu o limite${renews}. Continuando em ${next.name}.`)

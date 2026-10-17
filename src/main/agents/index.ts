@@ -26,7 +26,13 @@ export class AgentManager extends AgentDecisions {
 
   /** A terminal session messaged another session (SendMessage): show them talking. */
   terminalChat(fromId: string, input: Record<string, unknown>): void {
-    const text = typeof input.message === 'string' ? input.message.split('\n').find((l) => l.trim())?.trim() : undefined
+    const text =
+      typeof input.message === 'string'
+        ? input.message
+            .split('\n')
+            .find((l) => l.trim())
+            ?.trim()
+        : undefined
     if (!text || typeof input.to !== 'string') return
     const sessionId = sessionIdForName(input.to)
     const to = sessionId ? this.findTerminal(sessionId) : undefined
@@ -68,7 +74,12 @@ export class AgentManager extends AgentDecisions {
     return summary
   }
 
-  terminalUpdate(agentId: string, status: AgentStatus | null, activity: string | null, log?: { kind: LogEntry['kind']; text: string; tool?: string }): void {
+  terminalUpdate(
+    agentId: string,
+    status: AgentStatus | null,
+    activity: string | null,
+    log?: { kind: LogEntry['kind']; text: string; tool?: string },
+  ): void {
     const agent = this.agents.get(agentId)
     if (!agent) return
     if (log) this.addLog(agent, log.kind, log.text, log.tool)

@@ -95,7 +95,15 @@ export abstract class BoardColumns extends BoardBase {
     )
     const cards = [...this.cols.querySelectorAll<HTMLElement>('.tcard')]
     const at = cards.findIndex((c) => c.dataset.id === this.cardActive)
-    rove(cards, at >= 0 ? at : Math.max(0, cards.findIndex((c) => c.dataset.id === this.selected)))
+    rove(
+      cards,
+      at >= 0
+        ? at
+        : Math.max(
+            0,
+            cards.findIndex((c) => c.dataset.id === this.selected),
+          ),
+    )
   }
 
   /** ⌥←/⌥→ on a card: the column next door, at the end, like a drop on its blank space. */
@@ -167,7 +175,11 @@ export abstract class BoardColumns extends BoardBase {
           ? h('button', { class: 'icon-btn', title: `Novo ticket em ${label}`, onclick: () => this.create(status) }, icon('plus', 15))
           : null,
         status === 'done' && tickets.length + hidden
-          ? h('button', { class: 'icon-btn', title: 'Fechar todos: saem do quadro e ficam em Fechados', onclick: () => void this.closeAll() }, icon('archive', 15))
+          ? h(
+              'button',
+              { class: 'icon-btn', title: 'Fechar todos: saem do quadro e ficam em Fechados', onclick: () => void this.closeAll() },
+              icon('archive', 15),
+            )
           : null,
       ),
       list,
@@ -201,12 +213,21 @@ export abstract class BoardColumns extends BoardBase {
       ),
       h('div', { class: 'tcard-title' }, t.title),
       who ? this.agentLine(who) : null,
-      agent && t.status === 'doing' ? h('div', { class: 'tcard-live' }, h('span', { class: `dot dot-${agent.status}` }), agent.activity) : null,
+      agent && t.status === 'doing'
+        ? h('div', { class: 'tcard-live' }, h('span', { class: `dot dot-${agent.status}` }), agent.activity)
+        : null,
       t.tags.length ? h('div', { class: 'tcard-tags' }, ...t.tags.slice(0, 4).map((tag) => h('span', { class: 'ttag' }, tag))) : null,
       h(
         'div',
         { class: 'tcard-foot' },
-        t.acceptance.length ? h('span', { class: 'tmeta' + (ok === t.acceptance.length ? ' tmeta-ok' : ''), title: 'Critérios de aceite' }, icon('check', 12), `${ok}/${t.acceptance.length}`) : null,
+        t.acceptance.length
+          ? h(
+              'span',
+              { class: 'tmeta' + (ok === t.acceptance.length ? ' tmeta-ok' : ''), title: 'Critérios de aceite' },
+              icon('check', 12),
+              `${ok}/${t.acceptance.length}`,
+            )
+          : null,
         t.comments.length ? h('span', { class: 'tmeta', title: 'Comentários' }, icon('message', 12), String(t.comments.length)) : null,
         t.estimate ? h('span', { class: 'tmeta', title: 'Pontos' }, `${t.estimate} pts`) : null,
         t.dueDate ? h('span', { class: 'tmeta' + (overdue(t) ? ' tmeta-late' : ''), title: 'Prazo' }, shortDate(t.dueDate)) : null,
@@ -282,8 +303,15 @@ export abstract class BoardColumns extends BoardBase {
   /** Portrait of who it is: the agent if still in the office, the player, or a stand-in. */
   protected avatar(who: Actor, size: number): HTMLElement {
     const agent = who.id ? this.state.agents.get(who.id) : undefined
-    const look = agent?.look ?? (who.kind === 'player' && who.name === this.state.settings.playerName ? this.state.settings.playerLook : null)
-    const face = look ? portrait(look, size) : h('span', { class: 'avatar-stub', style: `width:${size}px;height:${size}px` }, who.kind === 'agent' ? icon('bot', size * 0.6) : initials(who.name))
+    const look =
+      agent?.look ?? (who.kind === 'player' && who.name === this.state.settings.playerName ? this.state.settings.playerLook : null)
+    const face = look
+      ? portrait(look, size)
+      : h(
+          'span',
+          { class: 'avatar-stub', style: `width:${size}px;height:${size}px` },
+          who.kind === 'agent' ? icon('bot', size * 0.6) : initials(who.name),
+        )
     return h('span', { class: 'tavatar', title: who.name + (who.kind === 'agent' && !agent ? ' (saiu do escritório)' : '') }, face)
   }
 }

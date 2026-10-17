@@ -26,7 +26,13 @@ function folderField(
     return {
       el: field(
         'Projeto',
-        h('div', { class: 'path-row path-fixed', title: project.cwd }, icon('folder', 15), h('span', { class: 'path-name' }, project.name), h('span', { class: 'path-label' }, project.cwd)),
+        h(
+          'div',
+          { class: 'path-row path-fixed', title: project.cwd },
+          icon('folder', 15),
+          h('span', { class: 'path-name' }, project.name),
+          h('span', { class: 'path-label' }, project.cwd),
+        ),
         `Andar ${project.name}: quem você chama aqui trabalha nesta pasta.`,
       ),
       cwd: () => project.cwd,
@@ -71,7 +77,11 @@ export function worktreeToggle(): { el: HTMLElement; set(cwd: string | undefined
   box.checked = true
   const el = h(
     'label',
-    { class: 'check worktree-check hidden', title: 'O agente ganha um branch agent/… numa pasta própria em .agent-office/worktrees. Outros agentes no mesmo repo não mexem nos arquivos dele.' },
+    {
+      class: 'check worktree-check hidden',
+      title:
+        'O agente ganha um branch agent/… numa pasta própria em .agent-office/worktrees. Outros agentes no mesmo repo não mexem nos arquivos dele.',
+    },
     box,
     'Trabalhar numa cópia isolada (worktree)',
   )
@@ -98,7 +108,8 @@ const LAST_NEW_AGENT_TAB = 'agent-office:new-agent-tab'
 
 type NewAgentTab = 'summon' | 'hire' | 'templates'
 
-export type NewAgentChoice = { kind: 'summon'; cwd: string; permissionMode: OfficePermissionMode; brain: AgentBrain; worktree?: boolean } | { kind: 'hire' }
+export type NewAgentChoice =
+  { kind: 'summon'; cwd: string; permissionMode: OfficePermissionMode; brain: AgentBrain; worktree?: boolean } | { kind: 'hire' }
 
 /**
  * "Novo agente": one dialog for every way of getting an agent.
@@ -124,7 +135,11 @@ export function openNewAgent(
     const isolated = worktreeToggle()
     const folder = folderField(state, project, (p) => isolated.set(p))
     isolated.set(folder.cwd())
-    const task = h('textarea', { class: 'input', rows: 5, placeholder: 'Ex.: Adicione testes para o módulo de pagamentos e corrija o que quebrar.' })
+    const task = h('textarea', {
+      class: 'input',
+      rows: 5,
+      placeholder: 'Ex.: Adicione testes para o módulo de pagamentos e corrija o que quebrar.',
+    })
     const brain = brainFields({ model: state.settings.defaultModel, effort: state.settings.defaultEffort })
     const account = accountField(state, () => folder.cwd())
     const mode = h('select', { class: 'input' }, ...MODES.map((m) => h('option', { value: m.value }, m.label)))
@@ -149,14 +164,21 @@ export function openNewAgent(
 
     const savedTab = localStorage.getItem(LAST_NEW_AGENT_TAB)
     let tab: NewAgentTab = opts.tab ?? (savedTab === 'hire' || savedTab === 'templates' ? savedTab : 'summon')
-    const templates = templatesTab(root, state, project, { toast, cwd: () => folder.cwd(), ensureFolder: () => folder.ensure(), accounts: () => account.value(), worktree: () => isolated.value() })
+    const templates = templatesTab(root, state, project, {
+      toast,
+      cwd: () => folder.cwd(),
+      ensureFolder: () => folder.ensure(),
+      accounts: () => account.value(),
+      worktree: () => isolated.value(),
+    })
     const go = h('button', { class: 'btn btn-primary' })
     const nameField = field('Nome', name)
     const taskField = field('Tarefa', task)
     const tabHint = h('div', { class: 'field-hint' })
     const send = state.platform === 'darwin' ? '⌘↩' : 'Ctrl+Enter'
 
-    const segBtn = (label: string, title: string, onclick: () => void) => h('button', { class: 'seg-btn', type: 'button', title, onclick }, label)
+    const segBtn = (label: string, title: string, onclick: () => void) =>
+      h('button', { class: 'seg-btn', type: 'button', title, onclick }, label)
     const talkBtn = segBtn('Conversar', 'Sem tarefa: ele chega e o painel abre para você digitar', () => setTab('summon', true))
     const taskBtn = segBtn('Com tarefa', 'Nome, tarefa e modelo: ele já chega trabalhando', () => setTab('hire', true))
     const templatesBtn = segBtn('Modelos', 'Contrate com as escolhas salvas num modelo', () => setTab('templates', true))
@@ -204,7 +226,13 @@ export function openNewAgent(
       if (mode.value === 'bypassPermissions' && !confirm('Esse agente vai rodar qualquer comando sem perguntar. Continuar?')) return
       if (!project) localStorage.setItem(LAST_CWD, folder.cwd())
       localStorage.setItem(LAST_SUMMON_MODE, mode.value)
-      finish({ kind: 'summon', cwd: folder.cwd(), permissionMode: mode.value as OfficePermissionMode, brain: { ...brain.value(), accounts: account.value() }, worktree: isolated.value() })
+      finish({
+        kind: 'summon',
+        cwd: folder.cwd(),
+        permissionMode: mode.value as OfficePermissionMode,
+        brain: { ...brain.value(), accounts: account.value() },
+        worktree: isolated.value(),
+      })
     }
     const hire = async () => {
       const cwd = folder.cwd()

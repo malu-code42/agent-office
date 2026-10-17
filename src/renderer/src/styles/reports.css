@@ -46,7 +46,10 @@
   background: transparent;
   color: var(--muted);
   font-weight: 600;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .rep-pill:hover {
@@ -83,7 +86,9 @@
   border: 3px solid #1b1d27;
   border-radius: 10px;
   background: #0e1018;
-  box-shadow: inset 0 0 0 1px rgba(255, 179, 71, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 179, 71, 0.08),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
   overflow: hidden;
 }
 
@@ -129,7 +134,11 @@
 }
 
 .rep-delta small {
-  font: 600 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font:
+    600 11px -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   color: #7d8299;
 }
 
@@ -312,7 +321,9 @@
 }
 
 .rep-col.record .rep-col-bar {
-  box-shadow: 0 0 0 2px var(--board-amber), 0 0 12px rgba(255, 179, 71, 0.5);
+  box-shadow:
+    0 0 0 2px var(--board-amber),
+    0 0 12px rgba(255, 179, 71, 0.5);
 }
 
 .rep-col-day {

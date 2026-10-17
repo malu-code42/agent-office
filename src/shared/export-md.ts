@@ -27,7 +27,12 @@ export function conversationMarkdown(head: ExportHeader, log: LogEntry[]): strin
     if (block) out.push(block, '')
   }
   if (!log.length) out.push('_(conversa vazia)_', '')
-  return out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n'
+  return (
+    out
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trimEnd() + '\n'
+  )
 }
 
 function headerLines(head: ExportHeader, log: LogEntry[]): string[] {
@@ -60,7 +65,10 @@ function entryMarkdown(e: LogEntry, agent: string): string {
       return `- **${oneLine(e.tool ?? 'ferramenta')}** · ${at}: ${inlineCode(oneLine(e.text))}`
     case 'tool_result': {
       const lines = e.text.split('\n')
-      const cut = lines.length > TOOL_RESULT_LINES ? `${lines.slice(0, TOOL_RESULT_LINES).join('\n')}\n… (${lines.length - TOOL_RESULT_LINES} linhas a mais)` : e.text
+      const cut =
+        lines.length > TOOL_RESULT_LINES
+          ? `${lines.slice(0, TOOL_RESULT_LINES).join('\n')}\n… (${lines.length - TOOL_RESULT_LINES} linhas a mais)`
+          : e.text
       return `${e.isError ? '**Erro da ferramenta:**\n\n' : ''}${fence(cut)}`
     }
     case 'decision':
@@ -115,7 +123,11 @@ function inlineCode(text: string): string {
 }
 
 function quote(text: string): string {
-  return text.trim().split('\n').map((l) => `> ${l}`.trimEnd()).join('\n')
+  return text
+    .trim()
+    .split('\n')
+    .map((l) => `> ${l}`.trimEnd())
+    .join('\n')
 }
 
 const oneLine = (s: string) => s.replace(/\s+/g, ' ').trim()

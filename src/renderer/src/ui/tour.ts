@@ -62,7 +62,14 @@ export class Tour {
     this.skipBtn = h('button', { class: 'btn tour-skip', type: 'button', onclick: () => this.end('skipped') }, 'Pular tour')
     this.backBtn = h('button', { class: 'btn', type: 'button', onclick: () => this.back() }, 'Voltar')
     this.nextBtn = h('button', { class: 'btn btn-primary', type: 'button', onclick: () => this.next() }, 'Próximo')
-    this.balloon = h('div', { class: 'tour-balloon card' }, this.count, this.title, this.text, h('div', { class: 'tour-foot' }, this.skipBtn, this.backBtn, this.nextBtn))
+    this.balloon = h(
+      'div',
+      { class: 'tour-balloon card' },
+      this.count,
+      this.title,
+      this.text,
+      h('div', { class: 'tour-foot' }, this.skipBtn, this.backBtn, this.nextBtn),
+    )
     asDialog(this.balloon, { title: [this.count, this.title], description: this.text })
     this.dim = h('div', { class: 'tour-dim' })
     this.ring = h('div', { class: 'tour-ring hidden' })
@@ -81,7 +88,10 @@ export class Tour {
   /** Opens the tour on its first step, whether or not the player has seen it. */
   start(): void {
     if (this.flow) return
-    this.flow = new TourFlow(resolveSteps(tourSteps(this.platform), (t) => this.exists(t)), this.store)
+    this.flow = new TourFlow(
+      resolveSteps(tourSteps(this.platform), (t) => this.exists(t)),
+      this.store,
+    )
     this.paused = this.hooks.blocked()
     this.focus.save(this.balloon)
     this.ui.append(this.root)
@@ -126,7 +136,8 @@ export class Tour {
     this.balloon.classList.add('tour-in')
     const a = document.activeElement
     const entering = !this.balloon.contains(a)
-    if (entering || (a instanceof HTMLButtonElement && (a.disabled || a.classList.contains('hidden')))) this.nextBtn.focus({ preventScroll: true })
+    if (entering || (a instanceof HTMLButtonElement && (a.disabled || a.classList.contains('hidden'))))
+      this.nextBtn.focus({ preventScroll: true })
     // Entering the dialog reads its title and text; afterwards the focus stays put, so say it.
     if (!entering) announce(`${flow.label}. ${step.title}. ${step.text}`)
   }
@@ -170,7 +181,10 @@ export class Tour {
     if (e.key === 'Escape') {
       e.preventDefault()
       this.end('skipped')
-    } else if (e.key === 'ArrowRight' || (e.key === 'Enter' && !(a instanceof HTMLButtonElement && a !== this.nextBtn && this.balloon.contains(a)))) {
+    } else if (
+      e.key === 'ArrowRight' ||
+      (e.key === 'Enter' && !(a instanceof HTMLButtonElement && a !== this.nextBtn && this.balloon.contains(a)))
+    ) {
       // Enter on Voltar or Pular tour clicks that button instead.
       e.preventDefault()
       if (!e.repeat) this.next()
@@ -216,7 +230,14 @@ export class Tour {
     const radius = step.target && 'world' in step.target ? SPOT / 2 : 12
     this.dim.style.clipPath = r ? holePath(view, r, radius) : ''
     this.ring.classList.toggle('hidden', !r)
-    if (r) Object.assign(this.ring.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px`, borderRadius: `${Math.min(radius, r.w / 2, r.h / 2)}px` })
+    if (r)
+      Object.assign(this.ring.style, {
+        left: `${r.x}px`,
+        top: `${r.y}px`,
+        width: `${r.w}px`,
+        height: `${r.h}px`,
+        borderRadius: `${Math.min(radius, r.w / 2, r.h / 2)}px`,
+      })
     const at = placeBalloon(r, { w: this.balloon.offsetWidth, h: this.balloon.offsetHeight }, step.place, view)
     this.balloon.style.left = `${at.x}px`
     this.balloon.style.top = `${at.y}px`

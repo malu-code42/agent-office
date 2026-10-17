@@ -238,7 +238,9 @@ export function writeRisk(rels: string[]): string {
 
 /** Extensões de código e texto que dá para escrever pela notificação. */
 const WRITE_EXTENSIONS = new Set(
-  'ts tsx js jsx mjs cjs css scss sass less html htm md mdx txt json yml yaml svg py go rs java kt swift c h cc cpp hpp rb php sql vue svelte ipynb csv'.split(' '),
+  'ts tsx js jsx mjs cjs css scss sass less html htm md mdx txt json yml yaml svg py go rs java kt swift c h cc cpp hpp rb php sql vue svelte ipynb csv'.split(
+    ' ',
+  ),
 )
 
 /** Pastas de scripts e dependências (pasta oculta já fica de fora pela regra do ponto). */
@@ -285,7 +287,6 @@ const EXEC_FILES: readonly RegExp[] = [
   // scripts
   /\.(sh|bash|zsh|fish|ksh|csh|command|ps1|psm1|bat|cmd|vbs|applescript|scpt)$/i,
 ]
-
 
 // ---------- comandos ----------
 
@@ -350,13 +351,23 @@ function matches(spec: CommandSpec, words: string[], scope: NoticeScope): boolea
     }
     // Caminho relativo à pasta do agente, e que continua lá dentro depois dos symlinks.
     // Nada absoluto (`ls /`, `cat /tmp/x`): `${cwd}/${w}` normalizaria para dentro da pasta.
-    if (spec.paths && !w.startsWith('/') && REL_PATH.test(w) && !w.split('/').includes('..') && !sensitivePath(w) && scope.cwd && !pathRisk(`${scope.cwd}/${w}`, scope)) continue
+    if (
+      spec.paths &&
+      !w.startsWith('/') &&
+      REL_PATH.test(w) &&
+      !w.split('/').includes('..') &&
+      !sensitivePath(w) &&
+      scope.cwd &&
+      !pathRisk(`${scope.cwd}/${w}`, scope)
+    )
+      continue
     return false
   }
   return true
 }
 
-const SENSITIVE_WORDS = /(^|[\s"'=/~])(\.env\b|\.ssh\b|\.aws\b|\.gnupg\b|\.netrc\b|\.npmrc\b|\.pypirc\b|\.git-credentials\b|\.kube\b|id_rsa|id_ed25519|\.pem\b|\.p12\b|keychain|credentials)/i
+const SENSITIVE_WORDS =
+  /(^|[\s"'=/~])(\.env\b|\.ssh\b|\.aws\b|\.gnupg\b|\.netrc\b|\.npmrc\b|\.pypirc\b|\.git-credentials\b|\.kube\b|id_rsa|id_ed25519|\.pem\b|\.p12\b|keychain|credentials)/i
 
 /** Arquivos de configuração, chaves e pastas do sistema. */
 export function sensitivePath(p: string): boolean {
@@ -383,11 +394,17 @@ export function redactSecrets(text: string): string {
       // usuário:senha@ em URLs
       .replace(/([a-z][\w+.-]*:\/\/)[^\s/:@]+:[^\s/@]+@/gi, '$1***@')
       // chaves com prefixo conhecido
-      .replace(/\b(sk-ant-[\w-]{8,}|sk-[\w-]{16,}|gh[posur]_[A-Za-z0-9]{20,}|github_pat_\w{20,}|glpat-[\w-]{16,}|xox[abprs]-[\w-]{10,}|AKIA[0-9A-Z]{16}|AIza[\w-]{30,}|npm_[A-Za-z0-9]{30,}|eyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,})/g, '***')
+      .replace(
+        /\b(sk-ant-[\w-]{8,}|sk-[\w-]{16,}|gh[posur]_[A-Za-z0-9]{20,}|github_pat_\w{20,}|glpat-[\w-]{16,}|xox[abprs]-[\w-]{10,}|AKIA[0-9A-Z]{16}|AIza[\w-]{30,}|npm_[A-Za-z0-9]{30,}|eyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,})/g,
+        '***',
+      )
       // Authorization: Bearer xyz
       .replace(/\b(bearer|basic)\s+[\w.~+/=-]{8,}/gi, '$1 ***')
       // VAR_COM_TOKEN=valor
-      .replace(/\b([A-Za-z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PASS|PWD|AUTH|CREDENTIALS?)[A-Za-z0-9_]*)=("[^"]*"|'[^']*'|\S+)/gi, '$1=***')
+      .replace(
+        /\b([A-Za-z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PASS|PWD|AUTH|CREDENTIALS?)[A-Za-z0-9_]*)=("[^"]*"|'[^']*'|\S+)/gi,
+        '$1=***',
+      )
       // --password x, --token=x
       .replace(/(--?(?:password|passwd|token|api[-_]?key|secret|auth|access[-_]?key)\b)(=|\s+)("[^"]*"|'[^']*'|\S+)/gi, '$1$2***')
       // -H "x-api-key: y"

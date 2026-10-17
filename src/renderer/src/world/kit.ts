@@ -50,7 +50,17 @@ export function blob(parent: THREE.Object3D, r: number, color: string, x: number
   return m
 }
 
-export function cylinder(parent: THREE.Object3D, rTop: number, rBottom: number, h: number, color: string | THREE.Material, x: number, y: number, z: number, seg = 10): THREE.Mesh {
+export function cylinder(
+  parent: THREE.Object3D,
+  rTop: number,
+  rBottom: number,
+  h: number,
+  color: string | THREE.Material,
+  x: number,
+  y: number,
+  z: number,
+  seg = 10,
+): THREE.Mesh {
   const g = new THREE.CylinderGeometry(rTop, rBottom, h, seg)
   g.translate(0, h / 2, 0)
   const m = new THREE.Mesh(g, typeof color === 'string' ? mat(color) : color)
@@ -62,7 +72,16 @@ export function cylinder(parent: THREE.Object3D, rTop: number, rBottom: number, 
 }
 
 /** Unlit textured plane (screens, windows, art) facing +z. */
-export function panel(parent: THREE.Object3D, w: number, h: number, map: THREE.Texture, x: number, y: number, z: number, lit = false): THREE.Mesh {
+export function panel(
+  parent: THREE.Object3D,
+  w: number,
+  h: number,
+  map: THREE.Texture,
+  x: number,
+  y: number,
+  z: number,
+  lit = false,
+): THREE.Mesh {
   const material = lit ? new THREE.MeshLambertMaterial({ map }) : new THREE.MeshBasicMaterial({ map, toneMapped: false })
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), material)
   m.position.set(x, y, z)

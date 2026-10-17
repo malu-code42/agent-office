@@ -131,7 +131,10 @@ export class Updater {
     // Keep the first line: electron-updater appends whole HTTP bodies and stacks.
     const first = text.split('\n')[0].trim()
     // The releases feed answers 404 when the repo is private or has no release yet.
-    const message = /^(?:HttpError:\s*)?404\b/.test(first) || /No published versions/i.test(first) ? 'nenhuma versão publicada no GitHub.' : first.slice(0, 200)
+    const message =
+      /^(?:HttpError:\s*)?404\b/.test(first) || /No published versions/i.test(first)
+        ? 'nenhuma versão publicada no GitHub.'
+        : first.slice(0, 200)
     this.set({ state: 'error', message, checkedAt: Date.now() })
   }
 

@@ -160,7 +160,9 @@ export async function changesSince(snap: Snapshot, extra?: { branch?: string }):
   const untracked = new Set(zsplit(await git(root, ['ls-files', '--others', '--exclude-standard', '-z'])))
   // Empty repo at the start: everything staged since then is new too.
   const staged = head ? [] : zsplit(await git(root, ['ls-files', '-z']))
-  const inHead = head ? new Set(zsplit(await chunked(root, ['ls-tree', '-r', '-z', '--name-only', head], [...tracked.keys()]))) : new Set<string>()
+  const inHead = head
+    ? new Set(zsplit(await chunked(root, ['ls-tree', '-r', '-z', '--name-only', head], [...tracked.keys()])))
+    : new Set<string>()
 
   const files: ChangedFile[] = []
   // Files that already had changes at the start: compare with the copy taken then.
@@ -211,7 +213,6 @@ function listed(c: ResultChanges, path: unknown): ChangedFile {
   return f
 }
 
-
 /** A diff read up to MAX_DIFF_BYTES: git is stopped there, so a huge file never fills memory. */
 async function cappedDiff(root: string, args: string[], ok?: number[]): Promise<{ text: string; cut: boolean }> {
   const { out, cut } = await runGit(root, ['diff', ...args], { ok, maxBytes: MAX_DIFF_BYTES, cut: true })
@@ -244,7 +245,10 @@ export async function fileDiff(c: ResultChanges, path: unknown): Promise<string>
     const cur = exists ? ((await currentBlobs(c.root, [f.path], true)).get(f.path) ?? empty) : empty
     d = await cappedDiff(c.root, [f.start, cur])
     // Blob diffs are headed by the two ids: show the file name instead.
-    d.text = d.text.replace(/^(diff --git a\/|--- a\/|\+\+\+ b\/)[0-9a-f]{40}( b\/[0-9a-f]{40})?$/gm, (_m, lead: string, two?: string) => `${lead}${f.path}${two ? ` b/${f.path}` : ''}`)
+    d.text = d.text.replace(
+      /^(diff --git a\/|--- a\/|\+\+\+ b\/)[0-9a-f]{40}( b\/[0-9a-f]{40})?$/gm,
+      (_m, lead: string, two?: string) => `${lead}${f.path}${two ? ` b/${f.path}` : ''}`,
+    )
   }
   let out = d.text
   if (!out.trim()) return f.binary ? '(arquivo binário)' : '(sem diferenças agora)'

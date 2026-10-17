@@ -27,19 +27,22 @@ export abstract class GameFloors extends GameBase {
       if (actor.trip !== trip || actor.goal === 'leave') return
       this.ding(av.floor)
       actor.riding = true
-      setTimeout(() => {
-        av.floor = floor
-        av.placeAt(SPAWN_POINT.x, SPAWN_POINT.z)
-        av.face(0)
-        this.ding(floor)
-        actor.riding = false
-        if (!this.actors.has(actor.id) || actor.goal === 'leave') return
-        if (actor.trip === trip) then()
-        else {
-          actor.goal = null
-          this.reconcile(actor)
-        }
-      }, RIDE_S * 1000 + 600)
+      setTimeout(
+        () => {
+          av.floor = floor
+          av.placeAt(SPAWN_POINT.x, SPAWN_POINT.z)
+          av.face(0)
+          this.ding(floor)
+          actor.riding = false
+          if (!this.actors.has(actor.id) || actor.goal === 'leave') return
+          if (actor.trip === trip) then()
+          else {
+            actor.goal = null
+            this.reconcile(actor)
+          }
+        },
+        RIDE_S * 1000 + 600,
+      )
     })
   }
 
@@ -50,7 +53,17 @@ export abstract class GameFloors extends GameBase {
     const squadsOf = (p: ProjectFloor) => squads.filter((q) => q.cwd === p.cwd)
     const plans = projects.map((p) => L.projectPlan(squadsOf(p)))
     const logoKey = (p: ProjectFloor) => (p.logo ? `${p.logo.length}:${p.logo.slice(-48)}` : '')
-    const key = JSON.stringify(projects.map((p, i) => [p.id, p.name, squadsOf(p).length, plans[i].sectors.map((r) => [r.name, r.desks.length]), logoKey(p), p.brandColor, !!p.uniform]))
+    const key = JSON.stringify(
+      projects.map((p, i) => [
+        p.id,
+        p.name,
+        squadsOf(p).length,
+        plans[i].sectors.map((r) => [r.name, r.desks.length]),
+        logoKey(p),
+        p.brandColor,
+        !!p.uniform,
+      ]),
+    )
     if (key === this.uppersKey) return
     this.uppersKey = key
     const playerOn = this.upperOf(this.player.floor)?.project.id
@@ -73,7 +86,8 @@ export abstract class GameFloors extends GameBase {
       scene.reducedMotion = this.reducedEffects
       this.engine.scene.add(scene.group)
       this.overlays.label('Diretoria', (L.DIRECTOR_RECT[0] + L.DIRECTOR_RECT[2]) / 2, 9.4, n)
-      for (const r of [...plan.team, ...plan.sectors]) this.overlays.label(r.name, (r.rect[0] + r.rect[2]) / 2, r.top ? 9.4 : r.rect[3] - 0.6, n)
+      for (const r of [...plan.team, ...plan.sectors])
+        this.overlays.label(r.name, (r.rect[0] + r.rect[2]) / 2, r.top ? 9.4 : r.rect[3] - 0.6, n)
       let boardTag: Tag | null = null
       if (squadsOf(project).length) {
         boardTag = this.overlays.add(new Tag(scene.board, '▶ Contratar squad', false, () => this.hooks.onRunSquad(project)))

@@ -34,7 +34,13 @@ export function qualityOf(v: VideoSettings): Quality | null {
   for (const q of Object.keys(QUALITY_PRESETS) as Quality[]) {
     const p = QUALITY_PRESETS[q]
     // with shadows off their resolution does not matter
-    if (p.shadows === v.shadows && (!v.shadows || p.shadowMapSize === v.shadowMapSize) && p.fpsLimit === v.fpsLimit && p.effects === v.effects) return q
+    if (
+      p.shadows === v.shadows &&
+      (!v.shadows || p.shadowMapSize === v.shadowMapSize) &&
+      p.fpsLimit === v.fpsLimit &&
+      p.effects === v.effects
+    )
+      return q
   }
   return null
 }

@@ -71,7 +71,9 @@
   cursor: pointer;
   /* Status border drawn inside the row, so it never changes its size. */
   box-shadow: inset 0 0 0 1.5px transparent;
-  transition: background 0.15s, box-shadow 0.15s;
+  transition:
+    background 0.15s,
+    box-shadow 0.15s;
 }
 
 .roster-row:hover {

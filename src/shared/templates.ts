@@ -22,5 +22,10 @@ export function ticketRef(t: Pick<Ticket, 'key' | 'title'>): string {
 
 /** The brief with its variables filled in. */
 export function renderInstruction(instruction: string, vars: { folder: string; ticket?: string }): string {
-  return instruction.split(TEMPLATE_VARS.folder).join(vars.folder).split(TEMPLATE_VARS.ticket).join(vars.ticket ?? '').trim()
+  return instruction
+    .split(TEMPLATE_VARS.folder)
+    .join(vars.folder)
+    .split(TEMPLATE_VARS.ticket)
+    .join(vars.ticket ?? '')
+    .trim()
 }

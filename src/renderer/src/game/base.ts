@@ -9,7 +9,18 @@ import { Overlays, Tag } from '../world/overlays'
 import { Effects } from '../world/effects'
 import { FACE_CAMERA, skeleton } from '../world/skull'
 import { totem, type Totem } from '../world/totem'
-import { center, OVERFLOW_TILES, SKULL_HOME, TOTEM_TILE, tileOf, type Actor, type GameHooks, type Helper, type Member, type Upper } from './types'
+import {
+  center,
+  OVERFLOW_TILES,
+  SKULL_HOME,
+  TOTEM_TILE,
+  tileOf,
+  type Actor,
+  type GameHooks,
+  type Helper,
+  type Member,
+  type Upper,
+} from './types'
 
 /**
  * State shared by every part of the office (game/*.ts), the floor lookups and the
@@ -92,7 +103,16 @@ export abstract class GameBase {
 
     // hovered tile outline, Habbo style
     const g = new THREE.BufferGeometry().setFromPoints(
-      [[0, 0], [1, 0], [1, 0], [1, 1], [1, 1], [0, 1], [0, 1], [0, 0]].map(([x, z]) => new THREE.Vector3(x, 0.03, z)),
+      [
+        [0, 0],
+        [1, 0],
+        [1, 0],
+        [1, 1],
+        [1, 1],
+        [0, 1],
+        [0, 1],
+        [0, 0],
+      ].map(([x, z]) => new THREE.Vector3(x, 0.03, z)),
     )
     this.hover = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.85 }))
     this.hover.visible = false

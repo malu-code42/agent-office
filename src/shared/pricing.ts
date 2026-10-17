@@ -16,7 +16,12 @@ export interface ModelPrice {
   estimate?: boolean
 }
 
-const p = (input: number, output: number, cacheRead: number, extra: Partial<ModelPrice> = {}): ModelPrice => ({ input, output, cacheRead, ...extra })
+const p = (input: number, output: number, cacheRead: number, extra: Partial<ModelPrice> = {}): ModelPrice => ({
+  input,
+  output,
+  cacheRead,
+  ...extra,
+})
 
 /** Longest prefix wins, so dated ids ("claude-haiku-4-5-20251001") find their family. */
 const PRICES: Record<string, ModelPrice> = {

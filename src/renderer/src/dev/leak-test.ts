@@ -55,7 +55,8 @@ function fakeAgent(i: number, project?: string): AgentSummary {
     createdAt: Date.now(),
     project,
     // two helpers on every third agent, so subagents come and go too
-    subagents: i % 3 ? [] : [0, 1].map((k) => ({ id: `${id}-sub-${k}`, description: 'Contar linhas', startedAt: Date.now(), background: true })),
+    subagents:
+      i % 3 ? [] : [0, 1].map((k) => ({ id: `${id}-sub-${k}`, description: 'Contar linhas', startedAt: Date.now(), background: true })),
   }
 }
 
@@ -92,7 +93,10 @@ export async function leakTest(game: Game, state: State): Promise<{ snapshots: S
 
   // ---------- 1. a floor added and removed 20 times (new logo each time) ----------
   for (let i = 0; i < 20; i++) {
-    setFloors([...original.projects, { id: FLOOR_ID, name: `Teste ${i}`, cwd: '/tmp/leak-floor', logo: logo(i), brandColor: '#2f8f83', uniform: true }])
+    setFloors([
+      ...original.projects,
+      { id: FLOOR_ID, name: `Teste ${i}`, cwd: '/tmp/leak-floor', logo: logo(i), brandColor: '#2f8f83', uniform: true },
+    ])
     game.goFloor(original.projects.length + 1)
     await sleep(300)
     game.goFloor(0)
@@ -102,12 +106,18 @@ export async function leakTest(game: Game, state: State): Promise<{ snapshots: S
   const afterFloors = snapshots.at(-1)!
 
   // ---------- 2. 30 agents hired and dismissed, half of them on a uniformed floor ----------
-  const floorWith = (i: number) => [...original.projects, { id: FLOOR_ID, name: 'Uniforme', cwd: '/tmp/leak-floor', logo: logo(100 + i), brandColor: '#6c5ce7', uniform: true }]
+  const floorWith = (i: number) => [
+    ...original.projects,
+    { id: FLOOR_ID, name: 'Uniforme', cwd: '/tmp/leak-floor', logo: logo(100 + i), brandColor: '#6c5ce7', uniform: true },
+  ]
   let id = 0
   for (let round = 0; round < 3; round++) {
     setFloors(floorWith(round))
     const upstairs = original.projects.length + 1
-    for (const [floor, project] of [[0, undefined], [upstairs, FLOOR_ID]] as const) {
+    for (const [floor, project] of [
+      [0, undefined],
+      [upstairs, FLOOR_ID],
+    ] as const) {
       game.goFloor(floor)
       const batch = Array.from({ length: 5 }, () => fakeAgent(id++, project))
       for (const a of batch) state.apply({ type: 'agent:upsert', agent: a })

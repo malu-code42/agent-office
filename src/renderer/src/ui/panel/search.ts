@@ -14,13 +14,33 @@ export abstract class PanelSearch extends PanelBase {
         'div',
         { class: 'panel-filters' },
         ...FILTERS.map((f) =>
-          h('button', { class: `panel-filter${this.filter === f.value ? ' on' : ''}`, title: f.title, onclick: () => this.setFilter(f.value) }, f.label),
+          h(
+            'button',
+            { class: `panel-filter${this.filter === f.value ? ' on' : ''}`, title: f.title, onclick: () => this.setFilter(f.value) },
+            f.label,
+          ),
         ),
       ),
       h('div', { class: 'grow' }),
       h('button', { class: 'icon-btn', title: `Buscar no log (${MOD}F)`, onclick: () => this.openSearch() }, icon('search', 15)),
-      h('button', { class: 'icon-btn', title: 'Copiar relatório (o resultado final do agente)', onclick: () => id() && this.actions.copyReport(id()!) }, icon('copy', 15)),
-      h('button', { class: 'icon-btn', title: 'Exportar a conversa em Markdown (.md)', onclick: () => id() && this.actions.exportConversation(id()!) }, icon('file', 15)),
+      h(
+        'button',
+        {
+          class: 'icon-btn',
+          title: 'Copiar relatório (o resultado final do agente)',
+          onclick: () => id() && this.actions.copyReport(id()!),
+        },
+        icon('copy', 15),
+      ),
+      h(
+        'button',
+        {
+          class: 'icon-btn',
+          title: 'Exportar a conversa em Markdown (.md)',
+          onclick: () => id() && this.actions.exportConversation(id()!),
+        },
+        icon('file', 15),
+      ),
     )
   }
 

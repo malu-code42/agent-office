@@ -39,7 +39,8 @@ export function startDemo(manager: AgentManager, squads: SquadDefinition[] = [])
     const tick = () => {
       const [tool, input] = tools[Math.floor(Math.random() * tools.length)]
       const summary = manager.list().find((a) => a.id === id)
-      if (summary?.status === 'working') manager.terminalUpdate(id, 'working', null, { kind: 'tool', text: `${tool} ${JSON.stringify(input)}`, tool })
+      if (summary?.status === 'working')
+        manager.terminalUpdate(id, 'working', null, { kind: 'tool', text: `${tool} ${JSON.stringify(input)}`, tool })
       if (summary?.status === 'working') manager.terminalUpdate(id, 'working', describe(tool, input))
       setTimeout(tick, 1800 + Math.random() * 2500)
     }
@@ -50,9 +51,13 @@ export function startDemo(manager: AgentManager, squads: SquadDefinition[] = [])
   manager.terminalUpdate(ids[4], 'idle', 'Esperando no terminal')
 
   setTimeout(() => {
-    manager.requestDecision(ids[1], permissionFromTool('Bash', { command: 'npm install three@latest', description: 'Atualiza o three.js' }, undefined, true), () => {
-      manager.terminalUpdate(ids[1], 'working', 'Voltando ao trabalho')
-    })
+    manager.requestDecision(
+      ids[1],
+      permissionFromTool('Bash', { command: 'npm install three@latest', description: 'Atualiza o three.js' }, undefined, true),
+      () => {
+        manager.terminalUpdate(ids[1], 'working', 'Voltando ao trabalho')
+      },
+    )
   }, 3000)
 
   // Linus keeps calling subagents (3 at a time), so the helpers show up next to his desk,
@@ -62,7 +67,15 @@ export function startDemo(manager: AgentManager, squads: SquadDefinition[] = [])
     const files = ['agents.ts', 'bridge.ts', 'tickets.ts', 'store.ts', 'usage.ts']
     for (let k = 0; k < 3; k++) {
       const file = files[(round + k) % files.length]
-      simulateSubagent(manager, ids[3], { taskId: `demo-sub-${round}-${k}`, description: `Revisar ${file}`, type: k === 2 ? 'general-purpose' : 'Explore', steps: 5 + k * 2, everyMs: 1400, seed: k, fail: round % 4 === 3 && k === 1 })
+      simulateSubagent(manager, ids[3], {
+        taskId: `demo-sub-${round}-${k}`,
+        description: `Revisar ${file}`,
+        type: k === 2 ? 'general-purpose' : 'Explore',
+        steps: 5 + k * 2,
+        everyMs: 1400,
+        seed: k,
+        fail: round % 4 === 3 && k === 1,
+      })
     }
     round++
     setTimeout(helpers, 26000)
@@ -87,16 +100,35 @@ function simulateRun(manager: AgentManager, id: string, prompt: string): void {
     manager.terminalUpdate(id, 'working', 'Lendo src/app.tsx', { kind: 'tool', text: 'Read {"file_path":"src/app.tsx"}', tool: 'Read' })
   }, 1200)
   setTimeout(() => {
-    manager.requestDecision(id, permissionFromTool('Bash', { command: 'npm test -- --watch=false', description: 'Roda os testes' }, undefined, true), (d) => {
-      if (d.behavior === 'deny') return manager.terminalResult(id, `Não rodei os testes, como você pediu.${d.message ? `
+    manager.requestDecision(
+      id,
+      permissionFromTool('Bash', { command: 'npm test -- --watch=false', description: 'Roda os testes' }, undefined, true),
+      (d) => {
+        if (d.behavior === 'deny')
+          return manager.terminalResult(
+            id,
+            `Não rodei os testes, como você pediu.${
+              d.message
+                ? `
 
-Sua orientação: ${d.message}` : ''}`)
-      manager.terminalUpdate(id, 'working', 'Rodando os testes')
-      setTimeout(() => manager.terminalResult(id, `Feito (demonstração): ${prompt.slice(0, 120)}
+Sua orientação: ${d.message}`
+                : ''
+            }`,
+          )
+        manager.terminalUpdate(id, 'working', 'Rodando os testes')
+        setTimeout(
+          () =>
+            manager.terminalResult(
+              id,
+              `Feito (demonstração): ${prompt.slice(0, 120)}
 
 - Li o código.
-- Rodei os testes: 42 passaram.`), 2500)
-    })
+- Rodei os testes: 42 passaram.`,
+            ),
+          2500,
+        )
+      },
+    )
   }, 2500)
 }
 
@@ -113,16 +145,33 @@ export function startRoutineDemo(manager: AgentManager, routines: RoutineSchedul
   const now = Date.now()
   const DAY = 86_400_000
   // days back to the last Monday before today
-  const lastMonday = ((new Date(now).getDay() + 6) % 7) || 7
+  const lastMonday = (new Date(now).getDay() + 6) % 7 || 7
   const rita = manager.demoAgent('Rita', '/Users/demo/relatorios')
   const otto = manager.demoAgent('Otto', '/Users/demo/loja')
   const vera = manager.demoAgent('Vera', '/Users/demo/suporte')
   /** A past run at hh:mm, `daysAgo` days back (0 = today, a few minutes back when that time has not come yet). */
-  const ran = (daysAgo: number, hhmm: string, agent: { id: string; name: string }, status: RoutineRun['status'], costUsd: number, error?: string): RoutineRun => {
+  const ran = (
+    daysAgo: number,
+    hhmm: string,
+    agent: { id: string; name: string },
+    status: RoutineRun['status'],
+    costUsd: number,
+    error?: string,
+  ): RoutineRun => {
     const [h, m] = hhmm.split(':').map(Number)
     const d = new Date(now - daysAgo * DAY)
     const startedAt = Math.min(now - 10 * 60_000, new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m).getTime())
-    return { id: randomUUID(), scheduledFor: startedAt, startedAt, endedAt: startedAt + 4 * 60_000, status, costUsd, agentId: agent.id, agentName: agent.name, ...(error ? { error } : {}) }
+    return {
+      id: randomUUID(),
+      scheduledFor: startedAt,
+      startedAt,
+      endedAt: startedAt + 4 * 60_000,
+      status,
+      costUsd,
+      agentId: agent.id,
+      agentName: agent.name,
+      ...(error ? { error } : {}),
+    }
   }
   const routine = (name: string, prompt: string, agent: { id: string }, schedule: Schedule, history: RoutineRun[]): Routine => ({
     id: randomUUID(),
@@ -158,7 +207,10 @@ export function startRoutineDemo(manager: AgentManager, routines: RoutineSchedul
       'Liste as dependências desatualizadas ou com falhas de segurança conhecidas (npm outdated, npm audit) e diga quais atualizar primeiro. Não altere arquivos.',
       otto,
       { kind: 'weekly', days: [1], time: '10:00' },
-      [ran(lastMonday, '10:00', otto, 'failed', 0.07, 'npm audit não conseguiu falar com o registro: sem rede (falha simulada).'), ran(lastMonday + 7, '10:00', otto, 'ok', 0.21)],
+      [
+        ran(lastMonday, '10:00', otto, 'failed', 0.07, 'npm audit não conseguiu falar com o registro: sem rede (falha simulada).'),
+        ran(lastMonday + 7, '10:00', otto, 'ok', 0.21),
+      ],
     ),
     triage,
   ])
@@ -178,14 +230,22 @@ const STRESS_ROOT = '/Users/demo/stress'
  */
 export function prepareStress(store: Store): boolean {
   if (!process.env.AGENT_OFFICE_DATA_DIR) {
-    console.error('AGENT_OFFICE_DEMO=stress precisa de AGENT_OFFICE_DATA_DIR (ex.: AGENT_OFFICE_DATA_DIR=$(mktemp -d)) para não tocar nos seus dados.')
+    console.error(
+      'AGENT_OFFICE_DEMO=stress precisa de AGENT_OFFICE_DATA_DIR (ex.: AGENT_OFFICE_DATA_DIR=$(mktemp -d)) para não tocar nos seus dados.',
+    )
     return false
   }
   const colors = ['#2f8f83', '#6c5ce7', '#e17055']
   const s = store.settings
   // Mutated in place: no save is scheduled for it (and the data dir is a throwaway anyway).
   s.notifications = false
-  s.projects = Array.from({ length: STRESS_FLOORS }, (_, i) => ({ id: `stress-${i + 1}`, name: `Carga ${i + 1}`, cwd: `${STRESS_ROOT}/andar-${i + 1}`, brandColor: colors[i], uniform: i === 1 }))
+  s.projects = Array.from({ length: STRESS_FLOORS }, (_, i) => ({
+    id: `stress-${i + 1}`,
+    name: `Carga ${i + 1}`,
+    cwd: `${STRESS_ROOT}/andar-${i + 1}`,
+    brandColor: colors[i],
+    uniform: i === 1,
+  }))
   return true
 }
 
@@ -209,7 +269,11 @@ export function startStress(manager: AgentManager): void {
       if (!a) return
       if (a.status === 'working' || a.status === 'idle') {
         const busy = Math.random() < 0.75
-        manager.terminalUpdate(id, busy ? 'working' : 'idle', busy ? tools[Math.floor(Math.random() * tools.length)] : 'Esperando no terminal')
+        manager.terminalUpdate(
+          id,
+          busy ? 'working' : 'idle',
+          busy ? tools[Math.floor(Math.random() * tools.length)] : 'Esperando no terminal',
+        )
       }
       setTimeout(tick, 2000 + Math.random() * 4000)
     }
@@ -236,12 +300,24 @@ export function startStress(manager: AgentManager): void {
   const boss = ids[0]
   let wave = 0
   const crowd = () => {
-    for (let k = 0; k < 20; k++) simulateSubagent(manager, boss, { taskId: `stress-sub-${wave}-${k}`, description: `Carga ${wave + 1}.${k + 1}`, type: 'Explore', steps: 120, everyMs: 300, seed: k })
+    for (let k = 0; k < 20; k++)
+      simulateSubagent(manager, boss, {
+        taskId: `stress-sub-${wave}-${k}`,
+        description: `Carga ${wave + 1}.${k + 1}`,
+        type: 'Explore',
+        steps: 120,
+        everyMs: 300,
+        seed: k,
+      })
     wave++
     setTimeout(crowd, 120 * 300 + 4000)
   }
   setTimeout(crowd, 1500)
-  setInterval(() => console.log(`[stress] subagentes: ${simulated.messages} mensagens simuladas, ${manager.subagentMemory(boss)} entradas na memória`), 10_000)
+  setInterval(
+    () =>
+      console.log(`[stress] subagentes: ${simulated.messages} mensagens simuladas, ${manager.subagentMemory(boss)} entradas na memória`),
+    10_000,
+  )
 }
 
 /** How many subagent messages the demo produced, for the load numbers. */
@@ -269,29 +345,64 @@ function simulateSubagent(
   const toolUseId = `toolu_${o.taskId}`
   const base = { type: 'system', uuid: o.taskId, session_id: 'demo', task_id: o.taskId, tool_use_id: toolUseId } as const
   const started = Date.now()
-  manager.demoTask(agentId, { ...base, subtype: 'task_started', description: o.description, subagent_type: o.type, task_type: 'local_agent', is_backgrounded: false, prompt: `${o.description} e diga o que achou (demonstração).` } as never)
+  manager.demoTask(agentId, {
+    ...base,
+    subtype: 'task_started',
+    description: o.description,
+    subagent_type: o.type,
+    task_type: 'local_agent',
+    is_backgrounded: false,
+    prompt: `${o.description} e diga o que achou (demonstração).`,
+  } as never)
   let i = 0
   let tokens = 0
   const step = () => {
     if (i >= o.steps) {
       const status = o.fail ? 'failed' : 'completed'
-      const summary = o.fail ? 'Não consegui rodar os testes: faltou o node_modules (falha simulada).' : `Pronto: ${o.description.toLowerCase()} sem problemas (demonstração).`
-      manager.demoTask(agentId, { ...base, subtype: 'task_notification', status, output_file: '', summary, usage: { total_tokens: tokens, tool_uses: o.steps, duration_ms: Date.now() - started } } as never)
+      const summary = o.fail
+        ? 'Não consegui rodar os testes: faltou o node_modules (falha simulada).'
+        : `Pronto: ${o.description.toLowerCase()} sem problemas (demonstração).`
+      manager.demoTask(agentId, {
+        ...base,
+        subtype: 'task_notification',
+        status,
+        output_file: '',
+        summary,
+        usage: { total_tokens: tokens, tool_uses: o.steps, duration_ms: Date.now() - started },
+      } as never)
       return
     }
     const [tool, input] = SUB_TOOLS[(i + o.seed) % SUB_TOOLS.length]
     const id = `${toolUseId}-${i}`
     const blocks: unknown[] = [{ type: 'tool_use', id, name: tool, input }]
-    if (i % 3 === 0) blocks.unshift({ type: 'text', text: i ? `Seguindo: agora ${tool === 'Bash' ? 'os testes' : 'o próximo arquivo'}.` : 'Vou começar lendo o código.' })
+    if (i % 3 === 0)
+      blocks.unshift({
+        type: 'text',
+        text: i ? `Seguindo: agora ${tool === 'Bash' ? 'os testes' : 'o próximo arquivo'}.` : 'Vou começar lendo o código.',
+      })
     manager.demoSubagentMessage(agentId, toolUseId, 'assistant', blocks)
     simulated.messages++
     const n = i
     setTimeout(() => {
-      manager.demoSubagentMessage(agentId, toolUseId, 'user', [{ type: 'tool_result', tool_use_id: id, content: `saída simulada de ${tool} (passo ${n + 1})`, is_error: o.fail && n === o.steps - 1 }])
+      manager.demoSubagentMessage(agentId, toolUseId, 'user', [
+        {
+          type: 'tool_result',
+          tool_use_id: id,
+          content: `saída simulada de ${tool} (passo ${n + 1})`,
+          is_error: o.fail && n === o.steps - 1,
+        },
+      ])
       simulated.messages++
     }, o.everyMs / 2)
     tokens += 1200 + o.seed * 100
-    if (i % 2) manager.demoTask(agentId, { ...base, subtype: 'task_progress', description: o.description, usage: { total_tokens: tokens, tool_uses: i + 1, duration_ms: Date.now() - started }, last_tool_name: tool } as never)
+    if (i % 2)
+      manager.demoTask(agentId, {
+        ...base,
+        subtype: 'task_progress',
+        description: o.description,
+        usage: { total_tokens: tokens, tool_uses: i + 1, duration_ms: Date.now() - started },
+        last_tool_name: tool,
+      } as never)
     i++
     setTimeout(step, o.everyMs * (0.7 + Math.random() * 0.6))
   }
@@ -315,7 +426,14 @@ function startSquadDemo(manager: AgentManager, squad: SquadDefinition): void {
   const total = steps.length
   const member = (mid?: string) => squad.members.find((m) => m.id === mid)
   const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
-  const progress = (i: number, status = 'running'): SquadProgress => ({ current: i + 1, total, label: steps[i].name, status, type: steps[i].type, agent: steps[i].agent })
+  const progress = (i: number, status = 'running'): SquadProgress => ({
+    current: i + 1,
+    total,
+    label: steps[i].name,
+    status,
+    type: steps[i].type,
+    agent: steps[i].agent,
+  })
   let tasks = 0
   let failed = false
 
@@ -331,7 +449,17 @@ function startSquadDemo(manager: AgentManager, squad: SquadDefinition): void {
           title: 'Tenho uma pergunta',
           detail: '',
           input: {},
-          questions: [{ question, header: 'Checkpoint', multiSelect: false, options: [{ label: 'Seguir', description: 'Aprova e continua o ciclo' }, { label: 'Seguir com ajustes', description: 'Continua e anota o pedido' }] }],
+          questions: [
+            {
+              question,
+              header: 'Checkpoint',
+              multiSelect: false,
+              options: [
+                { label: 'Seguir', description: 'Aprova e continua o ciclo' },
+                { label: 'Seguir com ajustes', description: 'Continua e anota o pedido' },
+              ],
+            },
+          ],
           canAlwaysAllow: false,
           context: `${squad.name} · Passo ${i + 1}/${total} · ${steps[i].name}`,
         },
@@ -343,13 +471,35 @@ function startSquadDemo(manager: AgentManager, squad: SquadDefinition): void {
     new Promise<void>((resolve) => {
       const task = `demo-squad-${tasks++}`
       const base = { type: 'system', uuid: task, session_id: 'demo' } as const
-      manager.demoTask(id, { ...base, subtype: 'task_started', task_id: task, description: steps[i].name, subagent_type: steps[i].agent, task_type: 'local_agent' } as never)
+      manager.demoTask(id, {
+        ...base,
+        subtype: 'task_started',
+        task_id: task,
+        description: steps[i].name,
+        subagent_type: steps[i].agent,
+        task_type: 'local_agent',
+      } as never)
       setTimeout(() => {
-        manager.demoTask(id, { ...base, subtype: 'task_progress', task_id: task, description: steps[i].name, usage: { total_tokens: 8000 + Math.round(Math.random() * 20000), tool_uses: 3, duration_ms: ms / 2 }, last_tool_name: 'Read' } as never)
+        manager.demoTask(id, {
+          ...base,
+          subtype: 'task_progress',
+          task_id: task,
+          description: steps[i].name,
+          usage: { total_tokens: 8000 + Math.round(Math.random() * 20000), tool_uses: 3, duration_ms: ms / 2 },
+          last_tool_name: 'Read',
+        } as never)
       }, ms / 2)
       setTimeout(() => {
         const status = fail ? 'failed' : 'completed'
-        manager.demoTask(id, { ...base, subtype: 'task_notification', task_id: task, status, output_file: '', summary: fail ? 'Não achei o arquivo de entrada do passo (falha simulada).' : '', usage: { total_tokens: 24000, tool_uses: 6, duration_ms: ms } } as never)
+        manager.demoTask(id, {
+          ...base,
+          subtype: 'task_notification',
+          task_id: task,
+          status,
+          output_file: '',
+          summary: fail ? 'Não achei o arquivo de entrada do passo (falha simulada).' : '',
+          usage: { total_tokens: 24000, tool_uses: 6, duration_ms: ms },
+        } as never)
         resolve()
       }, ms)
     })
@@ -370,8 +520,18 @@ function startSquadDemo(manager: AgentManager, squad: SquadDefinition): void {
       }
       // consecutive subagent steps run in parallel, as the runner does with the lentes
       const group = [i]
-      while (group.length < 7 && steps[group.at(-1)! + 1]?.type === 'agent' && member(steps[group.at(-1)! + 1].agent)?.execution === 'subagent') group.push(group.at(-1)! + 1)
-      manager.demoStep(id, progress(i), 'working', group.length > 1 ? `Chamando ${group.length} membros em paralelo` : `Chamando ${m.icon} ${m.name}`)
+      while (
+        group.length < 7 &&
+        steps[group.at(-1)! + 1]?.type === 'agent' &&
+        member(steps[group.at(-1)! + 1].agent)?.execution === 'subagent'
+      )
+        group.push(group.at(-1)! + 1)
+      manager.demoStep(
+        id,
+        progress(i),
+        'working',
+        group.length > 1 ? `Chamando ${group.length} membros em paralelo` : `Chamando ${m.icon} ${m.name}`,
+      )
       const failAt = !failed && group.length >= 3 ? group[2] : -1
       if (failAt >= 0) failed = true
       await Promise.all(group.map((k) => work(k, 7000 + Math.random() * 9000, k === failAt)))

@@ -73,7 +73,11 @@ export const copyTextSchema = z.string().max(2_000_000)
 
 /** Nome sugerido no diálogo de salvar: sem pastas, sem caracteres estranhos, sempre .md. */
 export function markdownFileName(raw: string): string {
-  const name = basename(raw.replace(/\\/g, '/')).replace(/[^\p{L}\p{N}._ -]+/gu, '-').replace(/^[.\s-]+/, '').slice(0, 100) || 'agent-office'
+  const name =
+    basename(raw.replace(/\\/g, '/'))
+      .replace(/[^\p{L}\p{N}._ -]+/gu, '-')
+      .replace(/^[.\s-]+/, '')
+      .slice(0, 100) || 'agent-office'
   return name.toLowerCase().endsWith('.md') ? name : `${name}.md`
 }
 
@@ -252,7 +256,10 @@ export const ticketIdsSchema = z.array(idSchema).max(10_000).optional()
 /** 'me' = the player; null or missing = nobody. */
 export const assigneeSchema = z.literal('me').nullish()
 /** Web links only: file:// or custom schemes could run things. */
-export const externalUrlSchema = z.string().max(8192).regex(/^https?:\/\//i)
+export const externalUrlSchema = z
+  .string()
+  .max(8192)
+  .regex(/^https?:\/\//i)
 /** Floor id of setAccountPool; null = folders outside every floor. */
 export const floorIdSchema = z.string().min(1).max(40).nullable()
 /** A squad code as squads.ts accepts it. */
@@ -267,7 +274,10 @@ export const attachmentsSchema: z.ZodType<AttachmentInput[]> = z
       name: z.string().max(1000),
       mime: z.string().max(200).optional(),
       path: z.string().max(MAX_PATH).optional(),
-      dataBase64: z.string().max(Math.ceil((ATTACH_LIMITS.total * 4) / 3) + 16).optional(),
+      dataBase64: z
+        .string()
+        .max(Math.ceil((ATTACH_LIMITS.total * 4) / 3) + 16)
+        .optional(),
     }),
   )
   .max(100)
@@ -361,7 +371,8 @@ export function cleanProjects(raw: unknown, previous: ProjectFloor[]): ProjectFl
     const p = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>
     const cwd = typeof p.cwd === 'string' ? p.cwd : ''
     if (!isAbsolute(cwd) || !isDir(cwd) || out.some((o) => o.cwd === cwd)) continue
-    const id = typeof p.id === 'string' && /^[\w-]{1,40}$/.test(p.id) && !out.some((o) => o.id === p.id) ? p.id : `p-${randomUUID().slice(0, 8)}`
+    const id =
+      typeof p.id === 'string' && /^[\w-]{1,40}$/.test(p.id) && !out.some((o) => o.id === p.id) ? p.id : `p-${randomUUID().slice(0, 8)}`
     const name = (typeof p.name === 'string' ? p.name.trim().slice(0, 32) : '') || floorNameFor(cwd)
     // A floor's accounts change only through setAccountPool: the settings form may hold an old copy.
     const accounts = previous.find((o) => o.id === id)?.accounts
@@ -412,10 +423,17 @@ export const worktreeFlagSchema = z.boolean().optional().catch(undefined)
 /** Agent and result ids are randomUUID()s. */
 export const uuidSchema = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
 /** A file of a result card: git.ts still checks it is listed and inside the repo. */
-export const changedPathSchema = z.string().min(1).max(MAX_PATH).refine((p) => !p.includes('\0'))
+export const changedPathSchema = z
+  .string()
+  .min(1)
+  .max(MAX_PATH)
+  .refine((p) => !p.includes('\0'))
 export const commitMessageSchema = z.string().trim().min(1).max(2000)
 /** First line only, short enough for a PR title. */
-export const prTitleSchema = z.string().transform((s) => s.trim().split('\n')[0].slice(0, 200)).pipe(z.string().min(1))
+export const prTitleSchema = z
+  .string()
+  .transform((s) => s.trim().split('\n')[0].slice(0, 200))
+  .pipe(z.string().min(1))
 
 /** Who takes a ticket: an agent already here, or a new hire that never runs with "bypass". */
 export function cleanDelegateTarget(raw: unknown, accounts: Account[]): DelegateTarget {
@@ -441,7 +459,11 @@ export function delegateMode(raw: unknown): OfficePermissionMode {
 const lookSchema = z.object({
   skin: z.string().regex(HEX),
   hair: z.string().regex(HEX),
-  hairStyle: z.number().int().min(0).max(HAIR_STYLES - 1),
+  hairStyle: z
+    .number()
+    .int()
+    .min(0)
+    .max(HAIR_STYLES - 1),
   shirt: z.string().regex(HEX),
   pants: z.string().regex(HEX),
   shoes: z.string().regex(HEX),
@@ -452,7 +474,14 @@ const lookSchema = z.object({
  * false would become 0 and true 1, and saving {ticketAutoCloseDays: null} would turn
  * auto-close off. Anything else keeps the current value (AO-44).
  */
-const numberField = z.union([z.number(), z.string().trim().regex(/^\d+(\.\d+)?$/).transform(Number)])
+const numberField = z.union([
+  z.number(),
+  z
+    .string()
+    .trim()
+    .regex(/^\d+(\.\d+)?$/)
+    .transform(Number),
+])
 
 /**
  * One schema per field the settings form may change. bridgePort and the lists
@@ -468,9 +497,7 @@ const settingsFields = {
   notifications: z.boolean(),
   ticketAutoCloseDays: numberField.pipe(z.number().int().min(0).max(365)),
   maxSubagents: numberField.pipe(z.number().int().min(0).max(100)),
-  agentBudgetUsd: numberField
-    .pipe(z.number().finite().min(0).max(100_000))
-    .transform((n) => Math.round(n * 100) / 100),
+  agentBudgetUsd: numberField.pipe(z.number().finite().min(0).max(100_000)).transform((n) => Math.round(n * 100) / 100),
   updateChannel: z.enum(['stable', 'beta']),
 } satisfies { [K in keyof Settings]?: z.ZodType<unknown> }
 
@@ -545,7 +572,10 @@ const routineWhoSchema: z.ZodType<RoutineWho> = z.discriminatedUnion('kind', [
 ])
 
 export const routineDraftSchema = z.object({
-  id: z.string().regex(/^[\w-]{1,64}$/).optional(),
+  id: z
+    .string()
+    .regex(/^[\w-]{1,64}$/)
+    .optional(),
   name: z.string().max(2000),
   prompt: z.string().max(ROUTINE_LIMITS.prompt),
   who: routineWhoSchema,
@@ -558,14 +588,20 @@ export const routineDraftSchema = z.object({
 })
 
 /** A routine draft that passed every check: one place to run (cwd, or the floor's), defaults filled. */
-export type CleanRoutineDraft = Required<Pick<RoutineDraft, 'name' | 'prompt' | 'who' | 'permissionMode' | 'schedule' | 'enabled' | 'missed'>> & Pick<RoutineDraft, 'id' | 'cwd' | 'floor'>
+export type CleanRoutineDraft = Required<
+  Pick<RoutineDraft, 'name' | 'prompt' | 'who' | 'permissionMode' | 'schedule' | 'enabled' | 'missed'>
+> &
+  Pick<RoutineDraft, 'id' | 'cwd' | 'floor'>
 
 /**
  * A routine from the renderer. Throws a message the form can show: a name, a task, a
  * schedule that runs, a runner that exists and a folder or floor for agents it hires.
  * Nothing says "Sem pedir nada" unless the form sent it (the default is "Pedir permissão").
  */
-export function cleanRoutineDraft(raw: unknown, ctx: { settings: Pick<Settings, 'projects' | 'templates'>; agents: AgentSummary[]; now?: number }): CleanRoutineDraft {
+export function cleanRoutineDraft(
+  raw: unknown,
+  ctx: { settings: Pick<Settings, 'projects' | 'templates'>; agents: AgentSummary[]; now?: number },
+): CleanRoutineDraft {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   const name = typeof r.name === 'string' ? r.name.trim() : ''
   if (!name || name.length > ROUTINE_LIMITS.name) throw new Error(`Dê um nome à rotina (até ${ROUTINE_LIMITS.name} letras).`)
@@ -577,7 +613,10 @@ export function cleanRoutineDraft(raw: unknown, ctx: { settings: Pick<Settings, 
   if (!prompt && !template?.instruction) throw new Error('Descreva a tarefa da rotina.')
   const problem = scheduleError(d.schedule)
   if (problem) throw new Error(problem)
-  const schedule: Schedule = d.schedule.kind === 'interval' ? { ...d.schedule, anchor: d.schedule.anchor ?? Math.floor((ctx.now ?? Date.now()) / 60_000) * 60_000 } : d.schedule
+  const schedule: Schedule =
+    d.schedule.kind === 'interval'
+      ? { ...d.schedule, anchor: d.schedule.anchor ?? Math.floor((ctx.now ?? Date.now()) / 60_000) * 60_000 }
+      : d.schedule
   if (schedule.kind === 'weekly') schedule.days = [...new Set(schedule.days)].sort((a, b) => a - b)
   if (schedule.kind === 'cron') schedule.expr = schedule.expr.trim().replace(/\s+/g, ' ')
 
@@ -585,7 +624,15 @@ export function cleanRoutineDraft(raw: unknown, ctx: { settings: Pick<Settings, 
     ...(d.id ? { id: d.id } : {}),
     name,
     prompt,
-    who: who.kind === 'new' ? { kind: 'new', ...(who.name?.trim() ? { name: who.name.trim() } : {}), ...(who.model ? { model: who.model } : {}), ...(who.effort ? { effort: who.effort } : {}) } : who,
+    who:
+      who.kind === 'new'
+        ? {
+            kind: 'new',
+            ...(who.name?.trim() ? { name: who.name.trim() } : {}),
+            ...(who.model ? { model: who.model } : {}),
+            ...(who.effort ? { effort: who.effort } : {}),
+          }
+        : who,
     permissionMode: d.permissionMode ?? 'default',
     schedule,
     enabled: d.enabled ?? true,

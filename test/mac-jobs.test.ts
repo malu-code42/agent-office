@@ -15,7 +15,9 @@ const manha = {
 
 describe('launchctl list', () => {
   it('reads PID and last exit, "-" as none', () => {
-    const map = parseLaunchctlList('PID\tStatus\tLabel\n-\t0\tcom.mochilinho.agente.manha\n812\t0\tcom.allef.kindle-dados\n-\t-9\tcom.balanca.copia-do-pi\n-\t-\tcom.nunca.rodou\n')
+    const map = parseLaunchctlList(
+      'PID\tStatus\tLabel\n-\t0\tcom.mochilinho.agente.manha\n812\t0\tcom.allef.kindle-dados\n-\t-9\tcom.balanca.copia-do-pi\n-\t-\tcom.nunca.rodou\n',
+    )
     expect(map.get('com.mochilinho.agente.manha')).toEqual({ pid: null, lastExit: 0 })
     expect(map.get('com.allef.kindle-dados')).toEqual({ pid: 812, lastExit: 0 })
     expect(map.get('com.balanca.copia-do-pi')).toEqual({ pid: null, lastExit: -9 })
@@ -26,7 +28,12 @@ describe('launchctl list', () => {
 describe('plists', () => {
   it('turns calendar slots into cron, a missing key meaning every value', () => {
     expect(calendarSchedules({ Hour: 10, Minute: 0 })).toEqual([{ kind: 'cron', expr: '0 10 * * *' }])
-    expect(calendarSchedules([{ Weekday: 1, Hour: 9, Minute: 30 }, { Day: 1, Hour: 0, Minute: 0 }])).toEqual([
+    expect(
+      calendarSchedules([
+        { Weekday: 1, Hour: 9, Minute: 30 },
+        { Day: 1, Hour: 0, Minute: 0 },
+      ]),
+    ).toEqual([
       { kind: 'cron', expr: '30 9 * * 1' },
       { kind: 'cron', expr: '0 0 1 * *' },
     ])
@@ -61,7 +68,9 @@ describe('plists', () => {
 
   it('skips vendor agents, unscheduled daemons and disabled jobs', () => {
     expect(macJobFromPlist({ Label: 'com.google.keystone.agent', StartInterval: 3600 }, undefined, undefined)).toBeNull()
-    expect(macJobFromPlist({ Label: 'homebrew.mxcl.redis', KeepAlive: true, ProgramArguments: ['redis-server'] }, undefined, undefined)).toBeNull()
+    expect(
+      macJobFromPlist({ Label: 'homebrew.mxcl.redis', KeepAlive: true, ProgramArguments: ['redis-server'] }, undefined, undefined),
+    ).toBeNull()
     expect(macJobFromPlist({ ...manha, Disabled: true }, undefined, undefined)).toBeNull()
     expect(macJobFromPlist({ StartInterval: 60 }, undefined, undefined)).toBeNull()
   })
@@ -84,7 +93,12 @@ describe('totem with the Mac jobs', () => {
 
   it('counts down to the next Mac job when there is no routine', () => {
     const v = totemView([], now, [job({ name: 'mochilinho · agente · antecipa', nextAt: at(2026, 10, 14, 13, 0) })])
-    expect(v).toMatchObject({ title: 'mochilinho · agente · antecipa', detail: 'em 1h00', led: 'ok', screen: { kind: 'count', text: '1H00' } })
+    expect(v).toMatchObject({
+      title: 'mochilinho · agente · antecipa',
+      detail: 'em 1h00',
+      led: 'ok',
+      screen: { kind: 'count', text: '1H00' },
+    })
   })
 
   it('shows a running job and turns red on a failed one', () => {

@@ -205,7 +205,9 @@ export function reportLoad(file: string, r: LoadResult<unknown>): void {
     if (r.status === 'ok') log.debug(`Dados: ${basename(file)} carregado; .bak atualizado`)
     return
   }
-  log.warn(`Dados: ${basename(file)} corrompido, guardado em ${n.path}; ${r.status === 'restored' ? `carreguei ${r.from}` : 'sem cópia válida, começando do zero'}`)
+  log.warn(
+    `Dados: ${basename(file)} corrompido, guardado em ${n.path}; ${r.status === 'restored' ? `carreguei ${r.from}` : 'sem cópia válida, começando do zero'}`,
+  )
   notices.push(n)
   for (const l of listeners) l(n)
 }

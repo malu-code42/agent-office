@@ -67,7 +67,12 @@ export function subagentStep(role: 'assistant' | 'user', content: unknown, newId
       step.tool = b.name
       step.toolUses++
     } else if (b.type === 'tool_result') {
-      const text = typeof b.content === 'string' ? b.content : asBlocks(b.content).map((c) => (typeof c.text === 'string' ? c.text : '')).join('\n')
+      const text =
+        typeof b.content === 'string'
+          ? b.content
+          : asBlocks(b.content)
+              .map((c) => (typeof c.text === 'string' ? c.text : ''))
+              .join('\n')
       if (text.trim()) add('tool_result', text.slice(0, 1200), undefined, b.is_error === true)
     }
   }
@@ -252,7 +257,9 @@ export class Coalescer {
  * The tool_result of an Agent call ends with "agentId: <id>"; the call itself has the
  * description and the type. Pure over the parent's transcript messages.
  */
-export function agentCallsFromTranscript(messages: { type: string; message: unknown; parent_tool_use_id: string | null }[]): Map<string, { toolUseId: string; description: string; type?: string; isError: boolean }> {
+export function agentCallsFromTranscript(
+  messages: { type: string; message: unknown; parent_tool_use_id: string | null }[],
+): Map<string, { toolUseId: string; description: string; type?: string; isError: boolean }> {
   const calls = new Map<string, { description: string; type?: string }>()
   const out = new Map<string, { toolUseId: string; description: string; type?: string; isError: boolean }>()
   for (const m of messages) {
@@ -261,9 +268,17 @@ export function agentCallsFromTranscript(messages: { type: string; message: unkn
     for (const b of asBlocks(content) as (Block & { id?: unknown; tool_use_id?: unknown })[]) {
       if (b.type === 'tool_use' && (b.name === 'Agent' || b.name === 'Task') && typeof b.id === 'string') {
         const input = (b.input ?? {}) as Record<string, unknown>
-        calls.set(b.id, { description: typeof input.description === 'string' ? input.description : 'Ajudante', type: typeof input.subagent_type === 'string' ? input.subagent_type : undefined })
+        calls.set(b.id, {
+          description: typeof input.description === 'string' ? input.description : 'Ajudante',
+          type: typeof input.subagent_type === 'string' ? input.subagent_type : undefined,
+        })
       } else if (b.type === 'tool_result' && typeof b.tool_use_id === 'string' && calls.has(b.tool_use_id)) {
-        const text = typeof b.content === 'string' ? b.content : asBlocks(b.content).map((c) => (typeof c.text === 'string' ? c.text : '')).join('\n')
+        const text =
+          typeof b.content === 'string'
+            ? b.content
+            : asBlocks(b.content)
+                .map((c) => (typeof c.text === 'string' ? c.text : ''))
+                .join('\n')
         const id = /agentId:\s*([\w-]+)/.exec(text)?.[1]
         if (id) out.set(id, { toolUseId: b.tool_use_id, ...calls.get(b.tool_use_id)!, isError: b.is_error === true })
       }

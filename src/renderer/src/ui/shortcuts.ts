@@ -54,20 +54,36 @@ export function openShortcuts(root: HTMLElement, platform: string, opts: { tour?
       'section',
       { class: 'keys-group' },
       h('h3', { class: 'keys-title' }, title),
-      h('dl', { class: 'keys-list' }, ...rows.flatMap(([keys, what]) => [h('dt', {}, ...keys.split(' ').map((k) => (/^[a-z]+$/.test(k) ? ` ${k} ` : h('kbd', {}, k)))), h('dd', {}, what)])),
+      h(
+        'dl',
+        { class: 'keys-list' },
+        ...rows.flatMap(([keys, what]) => [
+          h('dt', {}, ...keys.split(' ').map((k) => (/^[a-z]+$/.test(k) ? ` ${k} ` : h('kbd', {}, k)))),
+          h('dd', {}, what),
+        ]),
+      ),
     ),
   )
   const close = () => el.remove()
   const tour = opts.tour
-    ? h('button', {
-        class: 'btn',
-        onclick: () => {
-          close()
-          opts.tour?.()
+    ? h(
+        'button',
+        {
+          class: 'btn',
+          onclick: () => {
+            close()
+            opts.tour?.()
+          },
         },
-      }, 'Rever o tour')
+        'Rever o tour',
+      )
     : null
-  const el = modal('Atalhos do teclado', body, [tour, h('button', { class: 'btn btn-primary', onclick: close }, 'Fechar')].filter((b) => b !== null), close)
+  const el = modal(
+    'Atalhos do teclado',
+    body,
+    [tour, h('button', { class: 'btn btn-primary', onclick: close }, 'Fechar')].filter((b) => b !== null),
+    close,
+  )
   el.classList.add('backdrop-shortcuts')
   root.append(el)
 }

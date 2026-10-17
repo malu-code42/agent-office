@@ -84,16 +84,26 @@ export class InfoCard {
     const chips = rows.map((r) => {
       const top = Math.max(0, ...r.u.windows.map((w) => w.percent))
       const lvl = r.loggedOut ? 'warn' : contextLevel(top)
-      const title = [r.name, ...r.u.windows.map((w) => `${w.label} ${w.percent}%`), r.loggedOut ? 'sem login' : ''].filter(Boolean).join(' · ')
-      return h('span', { class: `info-chip ctx-${lvl}`, title }, h('span', { class: 'info-px', style: `background:${r.color}` }), r.loggedOut ? '!' : `${top}%`)
+      const title = [r.name, ...r.u.windows.map((w) => `${w.label} ${w.percent}%`), r.loggedOut ? 'sem login' : '']
+        .filter(Boolean)
+        .join(' · ')
+      return h(
+        'span',
+        { class: `info-chip ctx-${lvl}`, title },
+        h('span', { class: 'info-px', style: `background:${r.color}` }),
+        r.loggedOut ? '!' : `${top}%`,
+      )
     })
-    if (st) chips.push(h('span', { class: `info-chip ctx-${contextLevel(macPct)}`, title: `CPU ${st.cpu}% · RAM ${memPct}%` }, `MAC ${macPct}%`))
+    if (st)
+      chips.push(h('span', { class: `info-chip ctx-${contextLevel(macPct)}`, title: `CPU ${st.cpu}% · RAM ${memPct}%` }, `MAC ${macPct}%`))
 
     const strip = h(
       'button',
       { class: 'info-strip', title: this.infoOpen ? 'Recolher' : 'Limites do plano e uso do Mac', onclick: () => this.toggleInfo() },
       h('span', { class: 'info-chips' }, ...chips),
-      failed.length ? h('span', { class: 'info-stale', title: `Não consegui atualizar: ${failed.map((u) => u.error).join(' · ')}` }, '!') : null,
+      failed.length
+        ? h('span', { class: 'info-stale', title: `Não consegui atualizar: ${failed.map((u) => u.error).join(' · ')}` }, '!')
+        : null,
       icon('chevron', 14),
     )
     if (!this.infoOpen) {
@@ -102,15 +112,25 @@ export class InfoCard {
     }
 
     const newest = Math.max(0, ...list.map((u) => u.updatedAt))
-    const refresh = h('button', {
-      class: 'icon-btn info-tool',
-      title: failed.length ? `Não consegui atualizar: ${failed.map((u) => u.error).join(' · ')}` : `Atualizado ${timeAgo(newest)}. Clique para atualizar.`,
-      onclick: async () => {
-        refresh.classList.add('spin')
-        await window.office.refreshUsage().catch(() => undefined)
+    const refresh = h(
+      'button',
+      {
+        class: 'icon-btn info-tool',
+        title: failed.length
+          ? `Não consegui atualizar: ${failed.map((u) => u.error).join(' · ')}`
+          : `Atualizado ${timeAgo(newest)}. Clique para atualizar.`,
+        onclick: async () => {
+          refresh.classList.add('spin')
+          await window.office.refreshUsage().catch(() => undefined)
+        },
       },
-    }, icon('history', 13))
-    const manage = h('button', { class: 'icon-btn info-tool', title: 'Contas do Claude', onclick: () => this.actions.accounts() }, icon('users', 13))
+      icon('history', 13),
+    )
+    const manage = h(
+      'button',
+      { class: 'icon-btn info-tool', title: 'Contas do Claude', onclick: () => this.actions.accounts() },
+      icon('users', 13),
+    )
 
     // One column per window any account has, in the order they first appear.
     const cols = new Map<string, string>()
@@ -133,14 +153,25 @@ export class InfoCard {
                   { class: 'info-name', title: [r.name, r.email].filter(Boolean).join(' · ') },
                   h('span', { class: 'info-px', style: `background:${r.color}` }),
                   h('span', { class: 'info-name-text' }, r.name),
-                  r.agents ? h('span', { class: 'info-agents', title: r.agents === 1 ? '1 agente nesta conta' : `${r.agents} agentes nesta conta` }, String(r.agents)) : null,
+                  r.agents
+                    ? h(
+                        'span',
+                        { class: 'info-agents', title: r.agents === 1 ? '1 agente nesta conta' : `${r.agents} agentes nesta conta` },
+                        String(r.agents),
+                      )
+                    : null,
                 ),
               ),
               ...(r.loggedOut || (r.u.error && !r.u.windows.length)
                 ? [h('td', { colspan: cols.size }, h('span', { class: 'info-flag' }, r.loggedOut ? 'sem login' : 'sem dados'))]
                 : [...cols.keys()].map((key) => {
                     const w = r.u.windows.find((x) => x.key === key)
-                    if (!w || !w.percent) return h('td', {}, h('span', { class: 'info-zero', title: w ? `${w.label}: nada usado` : 'Esta conta não tem esta janela' }, '—'))
+                    if (!w || !w.percent)
+                      return h(
+                        'td',
+                        {},
+                        h('span', { class: 'info-zero', title: w ? `${w.label}: nada usado` : 'Esta conta não tem esta janela' }, '—'),
+                      )
                     const lvl = contextLevel(w.percent)
                     const full = r.limitedUntil && w.percent >= 100
                     return h(
@@ -161,7 +192,12 @@ export class InfoCard {
           h(
             'div',
             { class: 'info-sys' },
-            h('div', { class: `ctx-${contextLevel(st.cpu)}`, title: text.cpuTitle }, h('div', { class: 'info-sys-k' }, h('span', {}, 'CPU'), h('span', { class: 'ctx-num' }, `${st.cpu}%`)), blocks(st.cpu, 10)),
+            h(
+              'div',
+              { class: `ctx-${contextLevel(st.cpu)}`, title: text.cpuTitle },
+              h('div', { class: 'info-sys-k' }, h('span', {}, 'CPU'), h('span', { class: 'ctx-num' }, `${st.cpu}%`)),
+              blocks(st.cpu, 10),
+            ),
             h(
               'div',
               { class: `ctx-${contextLevel(memPct)}`, title: `Memória em uso: ${bytes(st.memUsed)} de ${bytes(st.memTotal, 0)}` },
@@ -186,9 +222,22 @@ export class InfoCard {
       h(
         'div',
         { class: 'info-body' },
-        h('div', { class: `info-led ctx-${urgent.level}` }, h('span', { class: 'info-led-dot' }), h('span', { class: 'info-led-text' }, urgent.text)),
+        h(
+          'div',
+          { class: `info-led ctx-${urgent.level}` },
+          h('span', { class: 'info-led-dot' }),
+          h('span', { class: 'info-led-text' }, urgent.text),
+        ),
         list.length
-          ? h('div', { class: 'info-head' }, h('span', {}, 'Limites do plano'), failed.length ? h('span', { class: 'info-stale-tag' }, 'desatualizado') : null, h('span', { class: 'info-sp' }), manage, refresh)
+          ? h(
+              'div',
+              { class: 'info-head' },
+              h('span', {}, 'Limites do plano'),
+              failed.length ? h('span', { class: 'info-stale-tag' }, 'desatualizado') : null,
+              h('span', { class: 'info-sp' }),
+              manage,
+              refresh,
+            )
           : null,
         table,
         ...sys,
@@ -219,7 +268,11 @@ export class InfoCard {
   }
 
   /** The one thing to know, in order: an account out of room, logged out, close to a limit, the Mac struggling. */
-  private infoUrgent(rows: InfoRow[], sys: { cpu: number; mem: number } | null, now: number): { level: 'ok' | 'warn' | 'full'; text: string } {
+  private infoUrgent(
+    rows: InfoRow[],
+    sys: { cpu: number; mem: number } | null,
+    now: number,
+  ): { level: 'ok' | 'warn' | 'full'; text: string } {
     const out = rows.find((r) => r.limitedUntil)
     if (out) return { level: 'full', text: `${out.name} cheia · volta ${resetText(out.limitedUntil!)}` }
     const loggedOut = rows.find((r) => r.loggedOut)
@@ -232,7 +285,8 @@ export class InfoCard {
     }
     if (sys) {
       const top = Math.max(sys.cpu, sys.mem)
-      if (contextLevel(top) !== 'ok') return { level: contextLevel(top), text: sys.mem >= sys.cpu ? `Mac apertado · RAM ${sys.mem}%` : `Mac apertado · CPU ${sys.cpu}%` }
+      if (contextLevel(top) !== 'ok')
+        return { level: contextLevel(top), text: sys.mem >= sys.cpu ? `Mac apertado · RAM ${sys.mem}%` : `Mac apertado · CPU ${sys.cpu}%` }
     }
     return { level: 'ok', text: 'Tudo tranquilo' }
   }

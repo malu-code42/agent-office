@@ -109,15 +109,15 @@ Conectar adiciona hooks em `~/.claude/settings.json` e faz backup em `settings.j
 
 ### Controles
 
-| Ação | Como |
-| --- | --- |
-| Andar | Clique no chão, ou WASD / setas |
-| Mover a câmera | Arraste com o botão direito |
-| Zoom | Roda do mouse ou botões no canto |
-| Voltar para a sua cadeira | Botão da casinha |
-| Ver pendências | Botão da caixa de entrada |
-| Fechar cartão ou painel | Esc |
-| Dispensar um agente | Clique na caveira (armário ao lado da sua sala) |
+| Ação                      | Como                                            |
+| ------------------------- | ----------------------------------------------- |
+| Andar                     | Clique no chão, ou WASD / setas                 |
+| Mover a câmera            | Arraste com o botão direito                     |
+| Zoom                      | Roda do mouse ou botões no canto                |
+| Voltar para a sua cadeira | Botão da casinha                                |
+| Ver pendências            | Botão da caixa de entrada                       |
+| Fechar cartão ou painel   | Esc                                             |
+| Dispensar um agente       | Clique na caveira (armário ao lado da sua sala) |
 
 ### Caveira
 
@@ -166,20 +166,20 @@ O AppImage sai em `dist/`. Dê permissão de execução (`chmod +x`) e rode.
 
 ## 6. Problemas comuns
 
-| Problema | Solução |
-| --- | --- |
-| `Error: Electron uninstall` | `node node_modules/electron/install.js` |
-| Agente diz "Não encontrei o Claude Code" | Instale o Claude Code (passo 1) e contrate de novo. Se ele estiver num lugar incomum (por exemplo, um prefixo do npm diferente do padrão), aponte o caminho. zsh: `AGENT_OFFICE_CLAUDE=/caminho/para/claude npm run dev`. PowerShell: `$env:AGENT_OFFICE_CLAUDE="C:\caminho\para\claude.exe"; npm run dev` (no Windows, precisa ser o `claude.exe`, não o `claude.cmd`) |
+| Problema                                                                                    | Solução                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Error: Electron uninstall`                                                                 | `node node_modules/electron/install.js`                                                                                                                                                                                                                                                                                                                                           |
+| Agente diz "Não encontrei o Claude Code"                                                    | Instale o Claude Code (passo 1) e contrate de novo. Se ele estiver num lugar incomum (por exemplo, um prefixo do npm diferente do padrão), aponte o caminho. zsh: `AGENT_OFFICE_CLAUDE=/caminho/para/claude npm run dev`. PowerShell: `$env:AGENT_OFFICE_CLAUDE="C:\caminho\para\claude.exe"; npm run dev` (no Windows, precisa ser o `claude.exe`, não o `claude.cmd`)           |
 | Windows: o comando copiado falha com "a execução de scripts foi desabilitada neste sistema" | Acontece com o Claude Code instalado pelo npm: no PowerShell, `claude` vira o script `claude.ps1`, bloqueado pela política `Restricted`. Escolha uma saída: use o botão **Abrir no terminal**, que roda o `claude.exe` direto; libere scripts locais só para o seu usuário com `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`; ou instale pelo instalador nativo (passo 1) |
-| Windows: o comando copiado não funciona no CMD | Ele é para o PowerShell (o shell padrão do Windows Terminal). No CMD, use `cd /d "<pasta>"` e depois `claude --resume <id>` |
-| Windows: "Abrir no terminal" abriu uma janela de console em vez do Windows Terminal | Normal sem o Windows Terminal (comum no Windows 10), com o alias `wt.exe` desligado em Configurações › Aplicativos › Aliases de execução, ou com `;` no nome da pasta |
-| "Já estou abrindo um terminal." | Você clicou duas vezes seguidas. Espere um segundo e meio e tente de novo, se o terminal não abriu |
-| Windows: o SmartScreen bloqueia o instalador | O instalador não é assinado. Clique em **Mais informações** › **Executar assim mesmo** (veja [Windows](#windows) acima) |
-| Windows: não aparece o número no ícone da barra de tarefas | Com "ícones pequenos" na barra de tarefas, o Windows 10 não mostra o número; o ícone continua piscando quando chega pedido |
-| Windows: a CPU dos agentes fica vazia no card Sistema | Nos primeiros 15–60 segundos é normal. Se não aparecer nunca, o PowerShell está bloqueado por política da empresa: o card conta todo `claude.exe`, inclusive o app Claude Desktop |
-| Sessão do terminal não aparece | Conecte em Configurações, deixe o app aberto e abra um `claude` **novo** |
-| "A porta 47821 já está em uso" | Feche a outra cópia do app que está aberta |
-| Quero zerar o escritório | Feche o app e apague `office.json` na pasta de dados (abaixo) |
+| Windows: o comando copiado não funciona no CMD                                              | Ele é para o PowerShell (o shell padrão do Windows Terminal). No CMD, use `cd /d "<pasta>"` e depois `claude --resume <id>`                                                                                                                                                                                                                                                       |
+| Windows: "Abrir no terminal" abriu uma janela de console em vez do Windows Terminal         | Normal sem o Windows Terminal (comum no Windows 10), com o alias `wt.exe` desligado em Configurações › Aplicativos › Aliases de execução, ou com `;` no nome da pasta                                                                                                                                                                                                             |
+| "Já estou abrindo um terminal."                                                             | Você clicou duas vezes seguidas. Espere um segundo e meio e tente de novo, se o terminal não abriu                                                                                                                                                                                                                                                                                |
+| Windows: o SmartScreen bloqueia o instalador                                                | O instalador não é assinado. Clique em **Mais informações** › **Executar assim mesmo** (veja [Windows](#windows) acima)                                                                                                                                                                                                                                                           |
+| Windows: não aparece o número no ícone da barra de tarefas                                  | Com "ícones pequenos" na barra de tarefas, o Windows 10 não mostra o número; o ícone continua piscando quando chega pedido                                                                                                                                                                                                                                                        |
+| Windows: a CPU dos agentes fica vazia no card Sistema                                       | Nos primeiros 15–60 segundos é normal. Se não aparecer nunca, o PowerShell está bloqueado por política da empresa: o card conta todo `claude.exe`, inclusive o app Claude Desktop                                                                                                                                                                                                 |
+| Sessão do terminal não aparece                                                              | Conecte em Configurações, deixe o app aberto e abra um `claude` **novo**                                                                                                                                                                                                                                                                                                          |
+| "A porta 47821 já está em uso"                                                              | Feche a outra cópia do app que está aberta                                                                                                                                                                                                                                                                                                                                        |
+| Quero zerar o escritório                                                                    | Feche o app e apague `office.json` na pasta de dados (abaixo)                                                                                                                                                                                                                                                                                                                     |
 
 Pasta de dados do app:
 

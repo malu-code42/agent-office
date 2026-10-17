@@ -4,7 +4,16 @@ import type { ModelTokens } from '@shared/types'
 
 export type Tokens = Omit<ModelTokens, 'costUsd'> & { costUsd: number }
 
-export const zeroTokens = (): Tokens => ({ input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0, webSearch: 0, messages: 0, costUsd: 0 })
+export const zeroTokens = (): Tokens => ({
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite5m: 0,
+  cacheWrite1h: 0,
+  webSearch: 0,
+  messages: 0,
+  costUsd: 0,
+})
 export const tokenSum = (t: Omit<ModelTokens, 'messages' | 'costUsd'>) => t.input + t.output + t.cacheRead + t.cacheWrite5m + t.cacheWrite1h
 export const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0)
 
@@ -49,7 +58,8 @@ export function parseLine(raw: string): Line | null {
   const u = (msg.usage ?? {}) as Record<string, unknown>
   const cc = (u.cache_creation ?? {}) as Record<string, unknown>
   const w1h = num(cc.ephemeral_1h_input_tokens)
-  const w5m = cc.ephemeral_5m_input_tokens !== undefined ? num(cc.ephemeral_5m_input_tokens) : Math.max(0, num(u.cache_creation_input_tokens) - w1h)
+  const w5m =
+    cc.ephemeral_5m_input_tokens !== undefined ? num(cc.ephemeral_5m_input_tokens) : Math.max(0, num(u.cache_creation_input_tokens) - w1h)
   const stu = (u.server_tool_use ?? {}) as Record<string, unknown>
   const tokens: Tokens = {
     input: num(u.input_tokens),

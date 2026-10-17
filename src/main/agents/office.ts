@@ -1,7 +1,19 @@
 import { randomUUID } from 'node:crypto'
 import { watch } from 'node:fs'
 import { basename } from 'node:path'
-import type { AgentBrain, AgentStatus, AgentSummary, AttachmentInput, HireRequest, LogEntry, OfficePermissionMode, SquadInfo, SquadProgress, SubagentInfo, WorktreeInfo } from '@shared/types'
+import type {
+  AgentBrain,
+  AgentStatus,
+  AgentSummary,
+  AttachmentInput,
+  HireRequest,
+  LogEntry,
+  OfficePermissionMode,
+  SquadInfo,
+  SquadProgress,
+  SubagentInfo,
+  WorktreeInfo,
+} from '@shared/types'
 import { lookFromSeed } from '@shared/describe'
 import { buildMessage } from '../attachments'
 import { findSquad, readProgress, squadDir, type SquadDefinition } from '../squads'
@@ -54,13 +66,20 @@ export abstract class AgentOffice extends AgentBase {
    * when `cwd` is in a git repo. A folder without git just works as before; a repo where
    * the worktree can't be made (no commit yet…) also falls back, with a note in the log.
    */
-  protected async isolate(cwd: string, name: string, id: string, wanted: boolean | undefined): Promise<{ worktree?: WorktreeInfo; note?: string }> {
+  protected async isolate(
+    cwd: string,
+    name: string,
+    id: string,
+    wanted: boolean | undefined,
+  ): Promise<{ worktree?: WorktreeInfo; note?: string }> {
     if (wanted === false) return {}
     try {
       const worktree = await createWorktree(cwd, name, id)
       return worktree ? { worktree, note: `Trabalhando numa cópia isolada (worktree) no branch ${worktree.branch}: ${worktree.root}` } : {}
     } catch (err) {
-      return { note: `Não deu para criar a cópia isolada (${err instanceof Error ? err.message : String(err)}). Trabalhando direto na pasta do projeto.` }
+      return {
+        note: `Não deu para criar a cópia isolada (${err instanceof Error ? err.message : String(err)}). Trabalhando direto na pasta do projeto.`,
+      }
     }
   }
 
@@ -92,7 +111,11 @@ export abstract class AgentOffice extends AgentBase {
   }
 
   /** A new agent with no task yet, like typing `claude` in a folder: it waits for your first message. */
-  async summon(cwd: string, defaults: AgentBrain & { permissionMode: OfficePermissionMode }, wantWorktree?: boolean): Promise<AgentSummary> {
+  async summon(
+    cwd: string,
+    defaults: AgentBrain & { permissionMode: OfficePermissionMode },
+    wantWorktree?: boolean,
+  ): Promise<AgentSummary> {
     const sessionId = randomUUID()
     const name = this.freeName(basename(cwd) || 'Agente')
     const { worktree, note } = await this.isolate(cwd, name, sessionId, wantWorktree)
@@ -107,7 +130,9 @@ export abstract class AgentOffice extends AgentBase {
    * and can only call its own members. It lives on the squad floor.
    */
   runSquad(squad: SquadInfo, task: string, display: string, defaults: AgentBrain & { permissionMode: OfficePermissionMode }): AgentSummary {
-    const same = [...this.agents.values()].find((a) => a.summary.role === 'orchestrator' && a.summary.squad === squad.code && a.summary.cwd === squad.cwd)
+    const same = [...this.agents.values()].find(
+      (a) => a.summary.role === 'orchestrator' && a.summary.squad === squad.code && a.summary.cwd === squad.cwd,
+    )
     if (same) {
       if (this.busy(same)) throw new Error(`${same.summary.name} já está rodando um ciclo. Espere terminar ou interrompa pelo painel.`)
       same.summary.permissionMode = defaults.permissionMode

@@ -10,7 +10,10 @@ export async function exportConversation(state: State, agentId: string, toast: T
   if (!a) return
   try {
     const log = await state.log(agentId)
-    const md = conversationMarkdown({ agent: a.name, cwd: a.cwd, model: a.model, costUsd: a.costUsd, startedAt: a.createdAt, sessionId: a.sessionId }, log)
+    const md = conversationMarkdown(
+      { agent: a.name, cwd: a.cwd, model: a.model, costUsd: a.costUsd, startedAt: a.createdAt, sessionId: a.sessionId },
+      log,
+    )
     const path = await window.office.saveMarkdown(exportFileName(a.name, a.cwd), md)
     if (path) toast(`Conversa de ${a.name} salva em ${path}`, 'ok')
   } catch (err) {

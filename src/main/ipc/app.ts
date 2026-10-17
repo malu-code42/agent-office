@@ -6,7 +6,15 @@ import { dataNotices } from '../fs-safe'
 import { diagnostics, rendererError } from '../crash'
 import { logDir } from '../log'
 import { hasDraftToday } from '../review'
-import { cleanLedgerQuery, externalUrlSchema, parse, pathSchema, copyTextSchema, markdownFileName, saveMarkdownArgsSchema } from '../validate'
+import {
+  cleanLedgerQuery,
+  externalUrlSchema,
+  parse,
+  pathSchema,
+  copyTextSchema,
+  markdownFileName,
+  saveMarkdownArgsSchema,
+} from '../validate'
 import { type IpcContext } from './context'
 
 // Claude FM's live restarts now and then under a new video ID; clau.de/radio always points at the current one.
@@ -31,7 +39,8 @@ export function registerAppIpc(ctx: IpcContext): void {
   ipcMain.handle('office:openLogs', async () => {
     const dir = logDir()
     // openPath('') would open nothing useful (AO-27).
-    if (!dir) throw new Error('A pasta de logs não pôde ser criada, então não há log para abrir. Confira a permissão da pasta de dados do app.')
+    if (!dir)
+      throw new Error('A pasta de logs não pôde ser criada, então não há log para abrir. Confira a permissão da pasta de dados do app.')
     const err = await shell.openPath(dir)
     if (err) throw new Error(`Não consegui abrir a pasta de logs: ${err}`)
   })

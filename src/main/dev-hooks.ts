@@ -103,7 +103,9 @@ export function runBench(w: BrowserWindow, file: string): void {
           ...report,
         }
         writeFileSync(file, JSON.stringify(out, null, 2) + '\n')
-        console.log(`bench: ${out.frames} frames, ${out.frameMs.mean} ms/frame (p95 ${out.frameMs.p95}), ${out.drawCalls.mean} draw calls -> ${file}`)
+        console.log(
+          `bench: ${out.frames} frames, ${out.frameMs.mean} ms/frame (p95 ${out.frameMs.p95}), ${out.drawCalls.mean} draw calls -> ${file}`,
+        )
       } catch (err) {
         console.error('bench failed:', err)
         process.exitCode = 1
@@ -126,10 +128,13 @@ export function seedAgents(manager: AgentManager, file: string): void {
     return
   }
   list.forEach((req, i) =>
-    setTimeout(() => {
-      if (!existsSync(req.cwd)) return console.error('seed: missing folder', req.cwd)
-      manager.hire({ ...req, permissionMode: req.permissionMode ?? 'default' }).catch((err) => console.error('seed:', err))
-    }, 2500 + i * 1500),
+    setTimeout(
+      () => {
+        if (!existsSync(req.cwd)) return console.error('seed: missing folder', req.cwd)
+        manager.hire({ ...req, permissionMode: req.permissionMode ?? 'default' }).catch((err) => console.error('seed:', err))
+      },
+      2500 + i * 1500,
+    ),
   )
 }
 
@@ -146,9 +151,15 @@ export function forceCrash(w: BrowserWindow, what: string): void {
     if (what === 'hang') {
       void w.webContents.executeJavaScript('for (;;) {}')
       // "unresponsive" comes from input the page does not answer: poke it like a mouse would.
-      const poke = setInterval(() => (w.isDestroyed() ? clearInterval(poke) : w.webContents.sendInputEvent({ type: 'mouseMove', x: 100, y: 100 })), 500)
+      const poke = setInterval(
+        () => (w.isDestroyed() ? clearInterval(poke) : w.webContents.sendInputEvent({ type: 'mouseMove', x: 100, y: 100 })),
+        500,
+      )
       setTimeout(() => clearInterval(poke), 30_000)
     }
-    if (what === 'page-error') void w.webContents.executeJavaScript("setTimeout(() => { throw new Error('Erro de teste na janela') }); Promise.reject(new Error('Rejeição de teste na janela')); 1")
+    if (what === 'page-error')
+      void w.webContents.executeJavaScript(
+        "setTimeout(() => { throw new Error('Erro de teste na janela') }); Promise.reject(new Error('Rejeição de teste na janela')); 1",
+      )
   }, 6000)
 }

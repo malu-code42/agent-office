@@ -195,11 +195,15 @@ export class Bridge {
     const toolInput = input.tool_input ?? {}
     const suggestions = input.permission_suggestions ?? []
     let done = false
-    const requestId = this.manager.requestDecision(agentId, permissionFromTool(tool, toolInput, undefined, suggestions.length > 0), (d: PermissionDecision) => {
-      if (done) return
-      done = true
-      reply(200, hookDecision(tool, toolInput, suggestions, d))
-    })
+    const requestId = this.manager.requestDecision(
+      agentId,
+      permissionFromTool(tool, toolInput, undefined, suggestions.length > 0),
+      (d: PermissionDecision) => {
+        if (done) return
+        done = true
+        reply(200, hookDecision(tool, toolInput, suggestions, d))
+      },
+    )
     // Claude Code hung up before we answered (timeout, Esc, session killed): drop the request.
     // (Listen on the response: the request's own 'close' fires as soon as its body is read.)
     res.on('close', () => {

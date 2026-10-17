@@ -2,7 +2,18 @@ import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { findSquad, isDir, loadSquads, memberAgents, orchestratorPrompt, outsideTeam, readProgress, squadDir, squadInfo, teamGuard } from '../src/main/squads'
+import {
+  findSquad,
+  isDir,
+  loadSquads,
+  memberAgents,
+  orchestratorPrompt,
+  outsideTeam,
+  readProgress,
+  squadDir,
+  squadInfo,
+  teamGuard,
+} from '../src/main/squads'
 
 // Creating symlinks needs special rights on Windows (the CI runners lack them).
 const itWithSymlinks = it.skipIf(process.platform === 'win32')
@@ -206,7 +217,8 @@ describe('equipe fechada', () => {
   it('teamGuard nega fora da equipe e força primeiro plano', async () => {
     const s = findSquad(cwd, 'produto')!
     const hook = teamGuard(s)[0].hooks[0]
-    const call = (tool_input: unknown, hook_event_name = 'PreToolUse') => hook({ hook_event_name, tool_name: 'Agent', tool_input } as never, undefined, { signal: new AbortController().signal })
+    const call = (tool_input: unknown, hook_event_name = 'PreToolUse') =>
+      hook({ hook_event_name, tool_name: 'Agent', tool_input } as never, undefined, { signal: new AbortController().signal })
     expect(await call({ subagent_type: 'Explore' })).toMatchObject({ hookSpecificOutput: { permissionDecision: 'deny' } })
     expect(await call({ subagent_type: 'pm', run_in_background: true })).toMatchObject({
       hookSpecificOutput: { permissionDecision: 'allow', updatedInput: { subagent_type: 'pm', run_in_background: false } },

@@ -49,7 +49,9 @@ export abstract class BoardClosing extends BoardDetail {
     const auto = h(
       'select',
       { class: 'input closed-auto' },
-      ...AUTO_CLOSE.map((d) => h('option', { value: d }, d === 0 ? 'Só quando eu fechar' : d === 1 ? 'Depois de 1 dia em Feito' : `Depois de ${d} dias em Feito`)),
+      ...AUTO_CLOSE.map((d) =>
+        h('option', { value: d }, d === 0 ? 'Só quando eu fechar' : d === 1 ? 'Depois de 1 dia em Feito' : `Depois de ${d} dias em Feito`),
+      ),
     ) as HTMLSelectElement
     auto.value = String(this.state.settings.ticketAutoCloseDays)
     auto.addEventListener('change', async () => {
@@ -86,7 +88,11 @@ export abstract class BoardClosing extends BoardDetail {
                   { class: 'closed-head' },
                   h('span', { class: 'tkey' }, t.key),
                   h('span', { class: 'closed-title' }, t.title),
-                  h('span', { class: 'closed-when', title: t.closedAt ? new Date(t.closedAt).toLocaleString('pt-BR') : '' }, t.closedAt ? timeAgo(t.closedAt) : ''),
+                  h(
+                    'span',
+                    { class: 'closed-when', title: t.closedAt ? new Date(t.closedAt).toLocaleString('pt-BR') : '' },
+                    t.closedAt ? timeAgo(t.closedAt) : '',
+                  ),
                   reopen,
                 ),
                 open === t.id ? closedBody(t) : null,
@@ -97,7 +103,13 @@ export abstract class BoardClosing extends BoardDetail {
               })
               return row
             })
-          : [h('div', { class: 'field-hint' }, search.value.trim() ? 'Nenhum ticket fechado com essa busca.' : 'Nenhum ticket fechado ainda.')]),
+          : [
+              h(
+                'div',
+                { class: 'field-hint' },
+                search.value.trim() ? 'Nenhum ticket fechado com essa busca.' : 'Nenhum ticket fechado ainda.',
+              ),
+            ]),
       )
     let seq = 0
     const load = async () => {

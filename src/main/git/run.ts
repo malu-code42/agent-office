@@ -39,7 +39,16 @@ interface Output {
 function cleanEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {}
   for (const [k, v] of Object.entries(process.env)) if (!k.startsWith('GIT_')) env[k] = v
-  return { ...env, GIT_CONFIG_NOSYSTEM: '1', GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0', GIT_PAGER: 'cat', PAGER: 'cat', GH_PROMPT_DISABLED: '1', ...extra }
+  return {
+    ...env,
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_TERMINAL_PROMPT: '0',
+    GIT_OPTIONAL_LOCKS: '0',
+    GIT_PAGER: 'cat',
+    PAGER: 'cat',
+    GH_PROMPT_DISABLED: '1',
+    ...extra,
+  }
 }
 
 function runFile(cmd: string, args: string[], cwd: string, opts: GitOptions, env: NodeJS.ProcessEnv = cleanEnv()): Promise<Output> {
@@ -105,7 +114,14 @@ async function filterOff(cwd: string): Promise<[string, string][]> {
   let names: string[] = []
   try {
     const raw = (await runFile('git', ['config', '--name-only', '--get-regexp', '^filter\\.'], cwd, { ok: [1] })).out.toString('utf8')
-    names = [...new Set(raw.split('\n').map((k) => /^filter\.(.+)\.(clean|smudge|process|required)$/i.exec(k.trim())?.[1]).filter((n): n is string => !!n))]
+    names = [
+      ...new Set(
+        raw
+          .split('\n')
+          .map((k) => /^filter\.(.+)\.(clean|smudge|process|required)$/i.exec(k.trim())?.[1])
+          .filter((n): n is string => !!n),
+      ),
+    ]
   } catch {
     // not a repo: nothing to switch off
   }
@@ -149,7 +165,6 @@ export const run = async (cmd: string, args: string[], cwd: string, opts: GitOpt
 export const git = async (cwd: string, args: string[], opts?: GitOptions) => (await runGit(cwd, args, opts)).out.toString('utf8')
 /** Raw bytes of a blob (binary files survive "Descartar"). */
 export const blobBytes = async (cwd: string, blob: string) => (await runGit(cwd, ['cat-file', 'blob', blob])).out
-
 
 /** NUL-separated output, without the trailing empty item. */
 export const zsplit = (s: string) => s.split('\0').filter(Boolean)

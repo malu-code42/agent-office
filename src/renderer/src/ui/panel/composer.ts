@@ -12,12 +12,18 @@ export abstract class PanelComposer extends PanelHead {
     if (this.terminal) return
     for (const file of list) {
       if (this.files.length >= ATTACH_LIMITS.count) {
-        this.actions.toast(`Dá para mandar até ${ATTACH_LIMITS.count} anexos por vez. Envie estes e anexe o resto na próxima mensagem.`, 'err')
+        this.actions.toast(
+          `Dá para mandar até ${ATTACH_LIMITS.count} anexos por vez. Envie estes e anexe o resto na próxima mensagem.`,
+          'err',
+        )
         break
       }
       const path = window.office.pathForFile(file)
       // Pasted screenshots all arrive as "image.png".
-      const name = path || file.name !== 'image.png' ? file.name || 'anexo' : `imagem-colada-${new Date().toTimeString().slice(0, 8).replace(/:/g, '')}.png`
+      const name =
+        path || file.name !== 'image.png'
+          ? file.name || 'anexo'
+          : `imagem-colada-${new Date().toTimeString().slice(0, 8).replace(/:/g, '')}.png`
       // One paste can list the same screenshot twice; a file can also be dropped again by mistake.
       const key = path || `${file.type}:${file.size}:${file.lastModified}`
       if (this.files.some((f) => f.key === key)) continue
@@ -50,7 +56,11 @@ export abstract class PanelComposer extends PanelHead {
                   h('span', { class: 'file-chip-size' }, formatBytes(f.file.size)),
                 ),
               ]
-            : [icon('file', 13), h('span', { class: 'file-chip-name' }, f.name), h('span', { class: 'file-chip-size' }, formatBytes(f.file.size))]),
+            : [
+                icon('file', 13),
+                h('span', { class: 'file-chip-name' }, f.name),
+                h('span', { class: 'file-chip-size' }, formatBytes(f.file.size)),
+              ]),
           h('button', { class: 'file-chip-x', title: 'Remover anexo', onclick: () => this.removeFile(f.id) }, icon('x', 12)),
         ),
       ),
@@ -90,7 +100,11 @@ export abstract class PanelComposer extends PanelHead {
     this.sending = true
     try {
       const attachments: AttachmentInput[] = await Promise.all(
-        files.map(async (f) => (f.path ? { name: f.name, mime: f.file.type, path: f.path } : { name: f.name, mime: f.file.type, dataBase64: await toBase64(f.file) })),
+        files.map(async (f) =>
+          f.path
+            ? { name: f.name, mime: f.file.type, path: f.path }
+            : { name: f.name, mime: f.file.type, dataBase64: await toBase64(f.file) },
+        ),
       )
       await window.office.send(this.agentId, text, attachments)
       // Cleared only once it went, so a rejected file can be removed and the rest sent again.
@@ -111,7 +125,13 @@ export abstract class PanelComposer extends PanelHead {
     const agentId = this.agentId
     if (e.limit && agentId && !this.helper && this.state.agents.get(agentId)?.source === 'office') {
       const limit = e.limit
-      view.append(h('button', { class: 'btn btn-small limit-open', onclick: () => this.actions.chooseAccount(agentId, limit) }, 'Continuar em outra conta'))
+      view.append(
+        h(
+          'button',
+          { class: 'btn btn-small limit-open', onclick: () => this.actions.chooseAccount(agentId, limit) },
+          'Continuar em outra conta',
+        ),
+      )
     }
     if (e.kind === 'tool') this.lastTool = view
     else if (e.kind === 'tool_result' && e.isError && this.lastTool) this.lastTool.dataset.cat += ' err'

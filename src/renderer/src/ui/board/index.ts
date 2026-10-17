@@ -17,11 +17,19 @@ export class Board extends BoardClosing {
   /** On "Todos os andares": which floor a card belongs to. */
   protected floorTag(t: Ticket): HTMLElement {
     const p = projectFor(this.state.settings.projects, t.cwd)
-    return h('span', { class: 'tfloor', style: p?.brandColor ? `--floor:${p.brandColor}` : '', title: p ? `Andar ${p.name}` : 'Térreo' }, p?.name ?? 'Térreo')
+    return h(
+      'span',
+      { class: 'tfloor', style: p?.brandColor ? `--floor:${p.brandColor}` : '', title: p ? `Andar ${p.name}` : 'Térreo' },
+      p?.name ?? 'Térreo',
+    )
   }
 
   create(status: TicketStatus = 'todo'): void {
-    const title = h('input', { class: 'input', maxlength: 160, placeholder: 'Ex.: Corrigir FITID duplicado na importação OFX' }) as HTMLInputElement
+    const title = h('input', {
+      class: 'input',
+      maxlength: 160,
+      placeholder: 'Ex.: Corrigir FITID duplicado na importação OFX',
+    }) as HTMLInputElement
     const type = select(TYPES, 'task', () => undefined)
     const prio = select(PRIORITIES, 'medium', () => undefined)
     const column = select(
@@ -43,8 +51,16 @@ export class Board extends BoardClosing {
         cwdLabel.textContent = p
       }
     })
-    const desc = h('textarea', { class: 'input', rows: 5, placeholder: 'Contexto: o que está errado ou o que falta, onde olhar (arquivos, telas), como reproduzir. Markdown funciona.' })
-    const crit = h('textarea', { class: 'input', rows: 3, placeholder: 'Um critério por linha. Ex.:\nImportar o mesmo OFX duas vezes não duplica lançamentos\nTestes do importador passam' })
+    const desc = h('textarea', {
+      class: 'input',
+      rows: 5,
+      placeholder: 'Contexto: o que está errado ou o que falta, onde olhar (arquivos, telas), como reproduzir. Markdown funciona.',
+    })
+    const crit = h('textarea', {
+      class: 'input',
+      rows: 3,
+      placeholder: 'Um critério por linha. Ex.:\nImportar o mesmo OFX duas vezes não duplica lançamentos\nTestes do importador passam',
+    })
     const tags = h('input', { class: 'input', placeholder: 'backend, ofx' }) as HTMLInputElement
 
     const close = () => el.remove()

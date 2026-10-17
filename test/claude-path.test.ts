@@ -43,16 +43,19 @@ test('claudeCandidates win32: never offers claude.cmd or claude.ps1 (they need a
 })
 
 test('claudeCandidates darwin: same list as v0.2.0', () => {
-  assert.deepEqual(claudeCandidates({ PATH: '/usr/bin:/bin::/Users/ana/.npm/bin/', AGENT_OFFICE_CLAUDE: '/x/claude' }, 'darwin', '/Users/ana'), [
-    '/x/claude',
-    '/usr/bin/claude',
-    '/bin/claude',
-    '/Users/ana/.npm/bin/claude',
-    '/Users/ana/.local/bin/claude',
-    '/Users/ana/.claude/local/claude',
-    '/opt/homebrew/bin/claude',
-    '/usr/local/bin/claude',
-  ])
+  assert.deepEqual(
+    claudeCandidates({ PATH: '/usr/bin:/bin::/Users/ana/.npm/bin/', AGENT_OFFICE_CLAUDE: '/x/claude' }, 'darwin', '/Users/ana'),
+    [
+      '/x/claude',
+      '/usr/bin/claude',
+      '/bin/claude',
+      '/Users/ana/.npm/bin/claude',
+      '/Users/ana/.local/bin/claude',
+      '/Users/ana/.claude/local/claude',
+      '/opt/homebrew/bin/claude',
+      '/usr/local/bin/claude',
+    ],
+  )
   assert.deepEqual(claudeCandidates({}, 'darwin', '/Users/ana'), [
     '/Users/ana/.local/bin/claude',
     '/Users/ana/.claude/local/claude',
@@ -63,7 +66,13 @@ test('claudeCandidates darwin: same list as v0.2.0', () => {
 
 test('claudeCandidates linux: same rules as darwin, no Windows folders', () => {
   const list = claudeCandidates({ ...WIN_ENV, PATH: '/usr/bin' }, 'linux', '/home/ana')
-  assert.deepEqual(list, ['/usr/bin/claude', '/home/ana/.local/bin/claude', '/home/ana/.claude/local/claude', '/opt/homebrew/bin/claude', '/usr/local/bin/claude'])
+  assert.deepEqual(list, [
+    '/usr/bin/claude',
+    '/home/ana/.local/bin/claude',
+    '/home/ana/.claude/local/claude',
+    '/opt/homebrew/bin/claude',
+    '/usr/local/bin/claude',
+  ])
 })
 
 test('createFinder: "not found" is not remembered, a hit is (S-1 AC 4)', () => {

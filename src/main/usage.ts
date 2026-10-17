@@ -78,7 +78,12 @@ async function read(account: Account): Promise<UsageWindow[]> {
   }
   const q = query({
     prompt: silent,
-    options: { cwd: homedir(), pathToClaudeCodeExecutable: claude, persistSession: false, env: { ...accountEnv(account), AGENT_OFFICE_MANAGED: '1' } },
+    options: {
+      cwd: homedir(),
+      pathToClaudeCodeExecutable: claude,
+      persistSession: false,
+      env: { ...accountEnv(account), AGENT_OFFICE_MANAGED: '1' },
+    },
   })
   try {
     // Experimental in the SDK: if it goes away, say so instead of crashing.
@@ -90,7 +95,8 @@ async function read(account: Account): Promise<UsageWindow[]> {
     const rl = u.rate_limits
     const out: UsageWindow[] = []
     const add = (key: string, label: string, w?: Window | null) => {
-      if (w && typeof w.utilization === 'number') out.push({ key, label, percent: Math.round(w.utilization), resetsAt: w.resets_at ? Date.parse(w.resets_at) : undefined })
+      if (w && typeof w.utilization === 'number')
+        out.push({ key, label, percent: Math.round(w.utilization), resetsAt: w.resets_at ? Date.parse(w.resets_at) : undefined })
     }
     add('five_hour', '5h', rl.five_hour)
     add('seven_day', 'Semana', rl.seven_day)

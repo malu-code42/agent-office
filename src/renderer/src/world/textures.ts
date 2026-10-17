@@ -265,7 +265,8 @@ export class WindowSky {
       ctx.fillStyle = r() < 0.5 ? p.buildings[0] : p.buildings[1]
       ctx.fillRect(x, 32 - bh, bw, bh)
       ctx.fillStyle = p.lit
-      for (let wy = 32 - bh + 2; wy < 31; wy += 3) for (let wx = x + 1; wx < x + bw - 1; wx += 2) if (r() < p.litChance) ctx.fillRect(wx, wy, 1, 1)
+      for (let wy = 32 - bh + 2; wy < 31; wy += 3)
+        for (let wx = x + 1; wx < x + bw - 1; wx += 2) if (r() < p.litChance) ctx.fillRect(wx, wy, 1, 1)
       x += bw + 1
     }
   }

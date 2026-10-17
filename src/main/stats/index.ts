@@ -206,10 +206,18 @@ export class StatsReader extends EventEmitter {
         dailyActivity?: { date: string; messageCount?: number; sessionCount?: number; toolCallCount?: number }[]
         dailyModelTokens?: { date: string; tokensByModel?: Record<string, number> }[]
       }
-      const tokens = new Map((raw.dailyModelTokens ?? []).map((d) => [d.date, Object.values(d.tokensByModel ?? {}).reduce((a, b) => a + num(b), 0)]))
+      const tokens = new Map(
+        (raw.dailyModelTokens ?? []).map((d) => [d.date, Object.values(d.tokensByModel ?? {}).reduce((a, b) => a + num(b), 0)]),
+      )
       this.legacy = (raw.dailyActivity ?? [])
         .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d.date))
-        .map((d) => ({ date: d.date, messages: num(d.messageCount), sessions: num(d.sessionCount), toolCalls: num(d.toolCallCount), tokens: tokens.get(d.date) ?? 0 }))
+        .map((d) => ({
+          date: d.date,
+          messages: num(d.messageCount),
+          sessions: num(d.sessionCount),
+          toolCalls: num(d.toolCallCount),
+          tokens: tokens.get(d.date) ?? 0,
+        }))
     } catch {
       this.legacy = []
     }
@@ -291,7 +299,9 @@ export class StatsReader extends EventEmitter {
           this.data.files[path] = { size: st.size, mtimeMs: st.mtimeMs, offset: from }
           continue
         }
-        const offset = await this.readFile(path, from, st.size, (line) => this.count(line, accountAt(line.sessionId, line.t, root.fallback)))
+        const offset = await this.readFile(path, from, st.size, (line) =>
+          this.count(line, accountAt(line.sessionId, line.t, root.fallback)),
+        )
         this.data.files[path] = { size: st.size, mtimeMs: st.mtimeMs, offset }
         files++
         bytes += offset - from
@@ -405,7 +415,8 @@ export class StatsReader extends EventEmitter {
         pruned = true
       }
     }
-    if (pruned || this.data.checkedSince) this.data.checkedSince = Math.max(this.data.checkedSince, new Date(`${cutDate}T00:00:00`).getTime())
+    if (pruned || this.data.checkedSince)
+      this.data.checkedSince = Math.max(this.data.checkedSince, new Date(`${cutDate}T00:00:00`).getTime())
     for (const [id, s] of Object.entries(this.data.sessions)) {
       if (s.last >= cut) continue
       this.foldLongest(id, s)
@@ -482,7 +493,15 @@ export class StatsReader extends EventEmitter {
         if (!priced) m.costUsd = undefined
       }
       for (const s of d.sessions) allSessions.add(s)
-      days.push({ date, messages: d.messages, sessions: d.sessions.size, toolCalls: d.toolCalls, tokens, byModel: dayModels, costUsd: d.costUsd })
+      days.push({
+        date,
+        messages: d.messages,
+        sessions: d.sessions.size,
+        toolCalls: d.toolCalls,
+        tokens,
+        byModel: dayModels,
+        costUsd: d.costUsd,
+      })
       totals.messages += d.messages
       totals.toolCalls += d.toolCalls
       totals.tokens += tokens
@@ -507,7 +526,17 @@ export class StatsReader extends EventEmitter {
       if (!longest || durationMs > longest.durationMs) longest = { sessionId: sid, durationMs, messages: s.messages }
     }
 
-    return { accountId: id, label, color, days, byModel, totals, streak: streaks(days.map((d) => d.date)), hourCounts, longestSession: longest }
+    return {
+      accountId: id,
+      label,
+      color,
+      days,
+      byModel,
+      totals,
+      streak: streaks(days.map((d) => d.date)),
+      hourCounts,
+      longestSession: longest,
+    }
   }
 
   private sumHours(): number[] {

@@ -23,7 +23,12 @@ export const isDirOnDisk: IsDir = (p) => existsSync(p) && statSync(p).isDirector
  * runs (a .cmd/.ps1 would need a shell). Checked in this order, so the message
  * names the first problem.
  */
-export function checkResumeTarget(cwd: string, platform: NodeJS.Platform, exe: string | undefined, isDir: IsDir = isDirOnDisk): GuardResult {
+export function checkResumeTarget(
+  cwd: string,
+  platform: NodeJS.Platform,
+  exe: string | undefined,
+  isDir: IsDir = isDirOnDisk,
+): GuardResult {
   const path = platform === 'win32' ? win32 : posix
   if (!path.isAbsolute(cwd) || CONTROL.test(cwd)) return { ok: false, message: INVALID_CWD_MESSAGE }
   if (!isDir(cwd)) return { ok: false, message: `A pasta ${cwd} não existe mais.` }

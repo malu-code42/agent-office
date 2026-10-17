@@ -15,7 +15,8 @@ const SNIFF_BYTES = 8192
  * Throws with a message for the player when a file can't go.
  */
 export function buildMessage(text: string, inputs: AttachmentInput[]): { content: Content; infos: AttachmentInfo[] } {
-  if (inputs.length > ATTACH_LIMITS.count) throw new Error(`Dá para mandar até ${ATTACH_LIMITS.count} anexos por vez. Tire alguns e envie o resto na próxima mensagem.`)
+  if (inputs.length > ATTACH_LIMITS.count)
+    throw new Error(`Dá para mandar até ${ATTACH_LIMITS.count} anexos por vez. Tire alguns e envie o resto na próxima mensagem.`)
   const content: Content = []
   const infos: AttachmentInfo[] = []
   let total = 0
@@ -43,7 +44,10 @@ interface Loaded {
 
 function load(input: AttachmentInput): Loaded {
   // No quotes or brackets: the name goes inside an <attachment name="…"> tag.
-  const name = basename(String(input?.name ?? '')).replace(/["<>]/g, '_').slice(0, 120) || 'anexo'
+  const name =
+    basename(String(input?.name ?? ''))
+      .replace(/["<>]/g, '_')
+      .slice(0, 120) || 'anexo'
   const path = typeof input?.path === 'string' && input.path ? input.path : undefined
 
   let head: Buffer
@@ -80,10 +84,22 @@ function load(input: AttachmentInput): Loaded {
 
   const data = readAll()
   if (kind === 'image') {
-    return { name, kind, size, inlineBytes: size, block: { type: 'image', source: { type: 'base64', media_type: imageMime(head)!, data: data.toString('base64') } } }
+    return {
+      name,
+      kind,
+      size,
+      inlineBytes: size,
+      block: { type: 'image', source: { type: 'base64', media_type: imageMime(head)!, data: data.toString('base64') } },
+    }
   }
   if (kind === 'pdf') {
-    return { name, kind, size, inlineBytes: size, block: { type: 'document', title: name, source: { type: 'base64', media_type: 'application/pdf', data: data.toString('base64') } } }
+    return {
+      name,
+      kind,
+      size,
+      inlineBytes: size,
+      block: { type: 'document', title: name, source: { type: 'base64', media_type: 'application/pdf', data: data.toString('base64') } },
+    }
   }
   const body = utf8(data)
   if (body === null) {
@@ -92,7 +108,13 @@ function load(input: AttachmentInput): Loaded {
     return { name, kind: 'file', size, inlineBytes: 0, block: { type: 'text', text: pathNote(name, path, size) } }
   }
   const where = path ? ` path="${path}"` : ''
-  return { name, kind, size, inlineBytes: size, block: { type: 'text', text: `<attachment name="${name}"${where}>\n${body}\n</attachment>` } }
+  return {
+    name,
+    kind,
+    size,
+    inlineBytes: size,
+    block: { type: 'text', text: `<attachment name="${name}"${where}>\n${body}\n</attachment>` },
+  }
 }
 
 function readHead(path: string): Buffer {

@@ -133,7 +133,14 @@ export const MEMBER_MIN_S = 5
 /** Whatever happens, a member leaves the floor this long after its work ends. */
 export const MEMBER_EXIT_S = 40
 export const OVERFLOW_TILES: [number, number][] = [
-  [29, 9], [30, 9], [29, 10], [30, 10], [28, 9], [28, 10], [31, 9], [31, 10],
+  [29, 9],
+  [30, 9],
+  [29, 10],
+  [30, 10],
+  [28, 9],
+  [28, 10],
+  [31, 9],
+  [31, 10],
 ]
 export const center = ([x, z]: [number, number]) => ({ x: x + 0.5, z: z + 0.5 })
 export const clip = (text: string, n: number) => (text.length > n ? text.slice(0, n - 1) + '…' : text)

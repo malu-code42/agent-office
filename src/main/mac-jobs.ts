@@ -50,8 +50,18 @@ export class MacJobs extends EventEmitter {
       for (const file of files.filter((f) => f.endsWith('.plist')).sort()) {
         const plist = await this.readPlist(join(this.dir, file))
         if (!plist) continue
-        const logPath = typeof plist.StandardOutPath === 'string' ? plist.StandardOutPath : typeof plist.StandardErrorPath === 'string' ? plist.StandardErrorPath : undefined
-        const lastLogAt = logPath ? await stat(logPath).then((s) => s.mtimeMs, () => undefined) : undefined
+        const logPath =
+          typeof plist.StandardOutPath === 'string'
+            ? plist.StandardOutPath
+            : typeof plist.StandardErrorPath === 'string'
+              ? plist.StandardErrorPath
+              : undefined
+        const lastLogAt = logPath
+          ? await stat(logPath).then(
+              (s) => s.mtimeMs,
+              () => undefined,
+            )
+          : undefined
         const job = macJobFromPlist(plist, typeof plist.Label === 'string' ? statuses.get(plist.Label) : undefined, lastLogAt, now)
         if (job) jobs.push(job)
       }

@@ -23,7 +23,12 @@ export function helpersSection(a: AgentSummary, viewing: string | null, pick: (s
   const done = [...(a.subagentsDone ?? [])].reverse()
   if (!running.length && !done.length) return null
   const open = viewing !== null || localStorage.getItem(OPEN_KEY) !== '0'
-  const count = [running.length ? `${running.length} rodando` : '', done.length ? `${done.length} ${done.length === 1 ? 'terminou' : 'terminaram'}` : ''].filter(Boolean).join(' · ')
+  const count = [
+    running.length ? `${running.length} rodando` : '',
+    done.length ? `${done.length} ${done.length === 1 ? 'terminou' : 'terminaram'}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
   const toggle = h(
     'button',
     {
@@ -41,13 +46,24 @@ export function helpersSection(a: AgentSummary, viewing: string | null, pick: (s
     h('span', { class: 'helpers-count' }, count),
   )
   const back = viewing
-    ? h('button', { class: 'btn btn-small helpers-back', title: `Voltar ao log de ${a.name}`, onclick: () => pick(null) }, h('span', { class: 'arrow-back' }, icon('chevron', 13)), `Log de ${a.name}`)
+    ? h(
+        'button',
+        { class: 'btn btn-small helpers-back', title: `Voltar ao log de ${a.name}`, onclick: () => pick(null) },
+        h('span', { class: 'arrow-back' }, icon('chevron', 13)),
+        `Log de ${a.name}`,
+      )
     : null
   return h(
     'div',
     { class: 'panel-helpers' },
     h('div', { class: 'helpers-bar' }, toggle, back),
-    open ? h('div', { class: 'helpers-list', role: 'list' }, ...[...running, ...done].map((s) => helperRow(s, s.id === viewing, () => pick(s.id === viewing ? null : s.id)))) : null,
+    open
+      ? h(
+          'div',
+          { class: 'helpers-list', role: 'list' },
+          ...[...running, ...done].map((s) => helperRow(s, s.id === viewing, () => pick(s.id === viewing ? null : s.id))),
+        )
+      : null,
   )
 }
 

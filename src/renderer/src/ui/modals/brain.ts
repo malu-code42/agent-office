@@ -8,7 +8,11 @@ export const MODES: { value: OfficePermissionMode; label: string; hint: string }
   { value: 'acceptEdits', label: 'Editar livremente', hint: 'Edita arquivos sozinho; pede antes de rodar comandos.' },
   { value: 'auto', label: 'Automático', hint: 'Um classificador aprova o que é seguro e só traz o resto para você.' },
   { value: 'plan', label: 'Planejar primeiro', hint: 'Só lê o projeto e traz um plano para você aprovar.' },
-  { value: 'bypassPermissions', label: 'Sem pedir nada', hint: 'PERIGOSO: roda qualquer comando sem perguntar. Use só em pastas descartáveis.' },
+  {
+    value: 'bypassPermissions',
+    label: 'Sem pedir nada',
+    hint: 'PERIGOSO: roda qualquer comando sem perguntar. Use só em pastas descartáveis.',
+  },
 ]
 
 export const MODELS = [
@@ -19,13 +23,37 @@ export const MODELS = [
   { value: 'haiku', label: 'Haiku', hint: 'Rápido e barato, para tarefas simples.' },
 ]
 
-export const EFFORTS: { value: EffortLevel | ''; label: string; title: string; hint: string; stats?: [depth: number, speed: number, cost: number] }[] = [
+export const EFFORTS: {
+  value: EffortLevel | ''
+  label: string
+  title: string
+  hint: string
+  stats?: [depth: number, speed: number, cost: number]
+}[] = [
   { value: '', label: 'Padrão do modelo', title: 'Auto', hint: 'O modelo usa o esforço padrão dele.' },
   { value: 'low', label: 'Baixo', title: 'Passeio', hint: 'Pensa pouco. Bom para perguntas rápidas e ajustes pequenos.', stats: [1, 5, 1] },
   { value: 'medium', label: 'Médio', title: 'Trote', hint: 'Pensa o suficiente para o trabalho do dia a dia.', stats: [2, 4, 2] },
-  { value: 'high', label: 'Alto', title: 'Foco', hint: 'Pensa com cuidado antes de agir. Bom para features e bugs chatos.', stats: [3, 3, 3] },
-  { value: 'xhigh', label: 'Extra alto', title: 'Turbo', hint: 'Pensa bastante. Para refatorações grandes e problemas difíceis.', stats: [4, 2, 4] },
-  { value: 'max', label: 'Máximo', title: 'Modo lenda', hint: 'Sem economia. O Claude Code rebaixa se o modelo não aceitar.', stats: [5, 1, 5] },
+  {
+    value: 'high',
+    label: 'Alto',
+    title: 'Foco',
+    hint: 'Pensa com cuidado antes de agir. Bom para features e bugs chatos.',
+    stats: [3, 3, 3],
+  },
+  {
+    value: 'xhigh',
+    label: 'Extra alto',
+    title: 'Turbo',
+    hint: 'Pensa bastante. Para refatorações grandes e problemas difíceis.',
+    stats: [4, 2, 4],
+  },
+  {
+    value: 'max',
+    label: 'Máximo',
+    title: 'Modo lenda',
+    hint: 'Sem economia. O Claude Code rebaixa se o modelo não aceitar.',
+    stats: [5, 1, 5],
+  },
 ]
 
 /**
@@ -47,11 +75,22 @@ export function effortMeter(initial: string, compact = false): { el: HTMLElement
   const tag = h('span', { class: 'emeter-tag' })
   const hint = h('span', { class: 'emeter-hint' })
   const pips = (label: string) => {
-    const row = h('div', { class: 'emeter-stat' }, h('span', { class: 'emeter-stat-label' }, label), h('span', { class: 'emeter-pips' }, ...Array.from({ length: 5 }, () => h('i', {}))))
+    const row = h(
+      'div',
+      { class: 'emeter-stat' },
+      h('span', { class: 'emeter-stat-label' }, label),
+      h('span', { class: 'emeter-pips' }, ...Array.from({ length: 5 }, () => h('i', {}))),
+    )
     return row
   }
   const stats = [pips('Profundidade'), pips('Velocidade'), pips('Custo')]
-  const card = h('div', { class: 'emeter-card' }, h('div', { class: 'emeter-head' }, name, tag), compact ? null : h('div', { class: 'emeter-stats' }, ...stats), hint)
+  const card = h(
+    'div',
+    { class: 'emeter-card' },
+    h('div', { class: 'emeter-head' }, name, tag),
+    compact ? null : h('div', { class: 'emeter-stats' }, ...stats),
+    hint,
+  )
   const track = h('div', { class: 'emeter-track', role: 'radiogroup', 'aria-label': 'Esforço' }, ...tiles)
   const el = h('div', { class: `emeter${compact ? ' emeter-compact' : ''}` }, track, card)
 
@@ -99,7 +138,10 @@ export function effortMeter(initial: string, compact = false): { el: HTMLElement
  * Model picker plus the effort meter, so nobody hires a Haiku on low effort
  * for a migration by mistake.
  */
-export function brainFields(initial: { model: string; effort: string }, compact = false): { model: HTMLSelectElement; meter: HTMLElement; hint: HTMLElement; value(): AgentBrain } {
+export function brainFields(
+  initial: { model: string; effort: string },
+  compact = false,
+): { model: HTMLSelectElement; meter: HTMLElement; hint: HTMLElement; value(): AgentBrain } {
   const model = h('select', { class: 'input' }, ...MODELS.map((m) => h('option', { value: m.value }, m.label))) as HTMLSelectElement
   model.value = MODELS.some((m) => m.value === initial.model) ? initial.model : ''
   const effort = effortMeter(initial.effort, compact)

@@ -32,7 +32,13 @@ export function formatBytes(n: number): string {
 export function kindFromName(name: string, mime = ''): AttachmentKind {
   if (/^image\/(png|jpeg|gif|webp)$/.test(mime) || /\.(png|jpe?g|gif|webp)$/i.test(name)) return 'image'
   if (mime === 'application/pdf' || /\.pdf$/i.test(name)) return 'pdf'
-  if (mime.startsWith('text/') || /\.(txt|md|log|csv|json|ya?ml|toml|xml|html?|css|[cm]?[jt]sx?|py|rb|go|rs|java|kt|swift|c|h|cpp|hpp|cs|php|sh|zsh|sql|ini|env|conf)$/i.test(name)) return 'text'
+  if (
+    mime.startsWith('text/') ||
+    /\.(txt|md|log|csv|json|ya?ml|toml|xml|html?|css|[cm]?[jt]sx?|py|rb|go|rs|java|kt|swift|c|h|cpp|hpp|cs|php|sh|zsh|sql|ini|env|conf)$/i.test(
+      name,
+    )
+  )
+    return 'text'
   return 'file'
 }
 

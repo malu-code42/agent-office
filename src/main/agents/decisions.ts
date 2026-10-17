@@ -53,17 +53,31 @@ export abstract class AgentDecisions extends AgentSubagents {
     }
     if (!step?.current) return squad.name
     const who = !question && step.agent ? squad.members.find((m) => m.id === step.agent) : undefined
-    return [squad.name, `Passo ${step.current}${step.total ? `/${step.total}` : ''}`, step.label, who ? `${who.icon} ${who.name}` : ''].filter(Boolean).join(' · ')
+    return [squad.name, `Passo ${step.current}${step.total ? `/${step.total}` : ''}`, step.label, who ? `${who.icon} ${who.name}` : '']
+      .filter(Boolean)
+      .join(' · ')
   }
 
   // ---------- decisions (shared by office and terminal agents) ----------
 
-  requestDecision(agentId: string, req: Omit<PermissionRequest, 'id' | 'agentId' | 'createdAt'>, onDecision: (d: PermissionDecision) => void): string {
+  requestDecision(
+    agentId: string,
+    req: Omit<PermissionRequest, 'id' | 'agentId' | 'createdAt'>,
+    onDecision: (d: PermissionDecision) => void,
+  ): string {
     const agent = this.agents.get(agentId)
     const request: PermissionRequest = { ...req, id: randomUUID(), agentId, createdAt: Date.now() }
     this.pending.set(request.id, { request, resolve: onDecision })
     if (agent) {
-      this.setStatus(agent, 'waiting', req.kind === 'question' ? 'Com uma pergunta para você' : req.kind === 'plan' ? 'Com um plano para você' : 'Precisa da sua permissão')
+      this.setStatus(
+        agent,
+        'waiting',
+        req.kind === 'question'
+          ? 'Com uma pergunta para você'
+          : req.kind === 'plan'
+            ? 'Com um plano para você'
+            : 'Precisa da sua permissão',
+      )
     }
     this.send({ type: 'permission:new', request })
     return request.id
@@ -77,7 +91,13 @@ export abstract class AgentDecisions extends AgentSubagents {
     if (agent) {
       const verdict = d.behavior === 'deny' ? 'Negado' : d.behavior === 'allow_always' ? 'Sempre permitido' : 'Permitido'
       const answers = d.answers ? Object.values(d.answers).join(', ') : ''
-      this.addLog(agent, 'decision', p.request.kind === 'question' ? `Você respondeu: ${answers}` : `${verdict}: ${p.request.title}${d.message ? ` — ${d.message}` : ''}`)
+      this.addLog(
+        agent,
+        'decision',
+        p.request.kind === 'question'
+          ? `Você respondeu: ${answers}`
+          : `${verdict}: ${p.request.title}${d.message ? ` — ${d.message}` : ''}`,
+      )
       if (!this.hasPending(agent.summary.id)) this.setStatus(agent, 'working', 'Voltando ao trabalho')
     }
     this.send({ type: 'permission:resolved', requestId: d.requestId, agentId: p.request.agentId })
@@ -91,7 +111,8 @@ export abstract class AgentDecisions extends AgentSubagents {
     this.send({ type: 'permission:resolved', requestId, agentId: p.request.agentId })
     p.resolve({ requestId, behavior: 'deny', message })
     const agent = this.agents.get(p.request.agentId)
-    if (agent && agent.summary.status === 'waiting' && !this.hasPending(agent.summary.id)) this.setStatus(agent, 'working', 'Voltando ao trabalho')
+    if (agent && agent.summary.status === 'waiting' && !this.hasPending(agent.summary.id))
+      this.setStatus(agent, 'working', 'Voltando ao trabalho')
   }
 
   cancelAgentRequests(agentId: string, message = 'Interrompido pelo usuário.'): void {

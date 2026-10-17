@@ -120,7 +120,13 @@ export function bossChair(): THREE.Group {
 
 export function simpleChair(color = WOOD): THREE.Group {
   const g = new THREE.Group()
-  for (const [x, z] of [[-0.18, -0.18], [0.18, -0.18], [-0.18, 0.18], [0.18, 0.18]]) box(g, 0.05, 0.42, 0.05, WOOD_DARK, x, 0, z)
+  for (const [x, z] of [
+    [-0.18, -0.18],
+    [0.18, -0.18],
+    [-0.18, 0.18],
+    [0.18, 0.18],
+  ])
+    box(g, 0.05, 0.42, 0.05, WOOD_DARK, x, 0, z)
   box(g, 0.44, 0.06, 0.44, color, 0, 0.42, 0)
   box(g, 0.44, 0.42, 0.06, color, 0, 0.48, -0.19)
   return g
@@ -154,7 +160,12 @@ export function plant(kind: 'bush' | 'tall' | 'fern' | 'cactus' | 'flower', pot 
   } else if (kind === 'flower') {
     box(g, 0.2, 0.18, 0.2, pot, 0, 0, 0)
     blob(g, 0.13, greens[1], 0, 0.28, 0)
-    for (const [x, z, c] of [[0.06, 0.04, '#ff7675'], [-0.06, 0.02, '#fdcb6e'], [0, -0.07, '#fd79a8']] as const) box(g, 0.06, 0.06, 0.06, c, x, 0.36, z)
+    for (const [x, z, c] of [
+      [0.06, 0.04, '#ff7675'],
+      [-0.06, 0.02, '#fdcb6e'],
+      [0, -0.07, '#fd79a8'],
+    ] as const)
+      box(g, 0.06, 0.06, 0.06, c, x, 0.36, z)
   } else {
     box(g, 0.34, 0.3, 0.34, pot, 0, 0, 0)
     blob(g, 0.3, greens[0], 0, 0.55, 0, 0.9)
@@ -299,7 +310,10 @@ export function elevator(): { group: THREE.Group; doors: [THREE.Mesh, THREE.Mesh
   const light = box(g, 0.08, 0.08, 0.02, new THREE.MeshBasicMaterial({ color: '#55efc4' }), 0, 2.4, 0.05, false)
   box(g, 0.12, 0.22, 0.04, '#2d3142', 1.0, 1.0, 0.04, false)
   // call buttons: T on top, then one per floor above it
-  const buttons = [box(g, 0.05, 0.05, 0.02, '#fdcb6e', 1.0, 1.12, 0.07, false), box(g, 0.05, 0.05, 0.02, '#55efc4', 1.0, 1.04, 0.07, false)].map(animated)
+  const buttons = [
+    box(g, 0.05, 0.05, 0.02, '#fdcb6e', 1.0, 1.12, 0.07, false),
+    box(g, 0.05, 0.05, 0.02, '#55efc4', 1.0, 1.04, 0.07, false),
+  ].map(animated)
   return { group: g, doors: [left, right], light, buttons }
 }
 
@@ -399,7 +413,8 @@ export function foosball(): THREE.Group {
   const g = new THREE.Group()
   const len = 1.3
   const d = 0.75
-  for (const x of [-len / 2 + 0.1, len / 2 - 0.1]) for (const z of [-d / 2 + 0.08, d / 2 - 0.08]) box(g, 0.08, 0.62, 0.08, '#3a2b20', x, 0, z)
+  for (const x of [-len / 2 + 0.1, len / 2 - 0.1])
+    for (const z of [-d / 2 + 0.08, d / 2 - 0.08]) box(g, 0.08, 0.62, 0.08, '#3a2b20', x, 0, z)
   box(g, len, 0.22, d, '#c0392b', 0, 0.62, 0)
   box(g, len - 0.12, 0.02, d - 0.12, '#1e8f5a', 0, 0.84, 0, false)
   box(g, 0.02, 0.006, d - 0.14, '#ffffff', 0, 0.86, 0, false)
@@ -447,10 +462,14 @@ export function trash(): THREE.Group {
 }
 
 export function rug(w: number, d: number, texture: THREE.Texture): THREE.Mesh {
-  const m = new THREE.Mesh(
-    new THREE.BoxGeometry(w, 0.02, d),
-    [mat('#7a3b3b'), mat('#7a3b3b'), new THREE.MeshLambertMaterial({ map: texture }), mat('#7a3b3b'), mat('#7a3b3b'), mat('#7a3b3b')],
-  )
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.02, d), [
+    mat('#7a3b3b'),
+    mat('#7a3b3b'),
+    new THREE.MeshLambertMaterial({ map: texture }),
+    mat('#7a3b3b'),
+    mat('#7a3b3b'),
+    mat('#7a3b3b'),
+  ])
   m.position.y = 0.01
   m.receiveShadow = true
   return m
@@ -458,7 +477,10 @@ export function rug(w: number, d: number, texture: THREE.Texture): THREE.Mesh {
 
 export function shadeHex(hex: string, amt: number): string {
   const n = parseInt(hex.slice(1), 16)
-  const c = (v: number) => Math.max(0, Math.min(255, v + amt)).toString(16).padStart(2, '0')
+  const c = (v: number) =>
+    Math.max(0, Math.min(255, v + amt))
+      .toString(16)
+      .padStart(2, '0')
   return `#${c((n >> 16) & 255)}${c((n >> 8) & 255)}${c(n & 255)}`
 }
 

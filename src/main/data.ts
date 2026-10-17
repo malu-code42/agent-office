@@ -2,7 +2,21 @@ import { app, dialog, ipcMain, powerMonitor, shell, type BrowserWindow } from 'e
 import { mkdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { BackupEntry, OfficeEvent } from '@shared/types'
-import { backupsDir, dailyBackup, dayKey, importSet, keptBy, listBackups, parseExport, readBackup, replaceData, snapshot, writeExport, type DataFile, type DataSet } from './backups'
+import {
+  backupsDir,
+  dailyBackup,
+  dayKey,
+  importSet,
+  keptBy,
+  listBackups,
+  parseExport,
+  readBackup,
+  replaceData,
+  snapshot,
+  writeExport,
+  type DataFile,
+  type DataSet,
+} from './backups'
 import { onDataNotice } from './fs-safe'
 import { log } from './log'
 
@@ -115,7 +129,10 @@ export function setupData(d: DataDeps): void {
     const entry = listBackups(d.dataDir).find((b) => b.id === id)
     // A daily backup has a day, not a time (its date comes from the folder name).
     const when = entry
-      ? new Date(entry.at).toLocaleString('pt-BR', entry.kind === 'daily' ? { dateStyle: 'short' } : { dateStyle: 'short', timeStyle: 'short' })
+      ? new Date(entry.at).toLocaleString(
+          'pt-BR',
+          entry.kind === 'daily' ? { dateStyle: 'short' } : { dateStyle: 'short', timeStyle: 'short' },
+        )
       : String(id)
     const yes = await ask(
       `Restaurar o backup de ${when}?`,
@@ -153,7 +170,9 @@ export function setupData(d: DataDeps): void {
     if (!file) return false
     if (statSync(file).size > MAX_IMPORT_BYTES) throw new Error('Esse arquivo é grande demais para ser uma exportação do Agent Office.')
     const exp = parseExport(readFileSync(file, 'utf8'))
-    const when = exp.exportedAt ? new Date(exp.exportedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'data desconhecida'
+    const when = exp.exportedAt
+      ? new Date(exp.exportedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+      : 'data desconhecida'
     const set = importSet(exp)
     const yes = await ask(
       'Substituir os dados deste computador?',

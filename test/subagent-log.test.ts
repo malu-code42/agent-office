@@ -23,7 +23,13 @@ import {
 let n = 0
 const newId = () => `e${n++}`
 const entry = (text: string): LogEntry => ({ id: newId(), t: 0, kind: 'system', text })
-const sub = (id: string, extra: Partial<SubagentInfo> = {}): SubagentInfo => ({ id, description: id, startedAt: 1, background: false, ...extra })
+const sub = (id: string, extra: Partial<SubagentInfo> = {}): SubagentInfo => ({
+  id,
+  description: id,
+  startedAt: 1,
+  background: false,
+  ...extra,
+})
 
 describe('subagentStep: mensagem do subagente → entradas do log e atividade', () => {
   it('tool_use vira entrada "tool" e a atividade atual', () => {
@@ -35,7 +41,15 @@ describe('subagentStep: mensagem do subagente → entradas do log e atividade', 
   })
 
   it('texto, raciocínio e Bash', () => {
-    const s = subagentStep('assistant', [{ type: 'thinking', thinking: '…' }, { type: 'text', text: 'Vou rodar os testes.' }, { type: 'tool_use', id: 't', name: 'Bash', input: { command: 'npm test' } }], newId)
+    const s = subagentStep(
+      'assistant',
+      [
+        { type: 'thinking', thinking: '…' },
+        { type: 'text', text: 'Vou rodar os testes.' },
+        { type: 'tool_use', id: 't', name: 'Bash', input: { command: 'npm test' } },
+      ],
+      newId,
+    )
     expect(s.entries.map((e) => e.kind)).toEqual(['assistant', 'tool'])
     expect(s.activity).toBe('Rodando npm test')
   })
@@ -47,11 +61,18 @@ describe('subagentStep: mensagem do subagente → entradas do log e atividade', 
   })
 
   it('tool_result (texto ou blocos) e erro', () => {
-    const s = subagentStep('user', [
-      { type: 'tool_result', tool_use_id: 't', content: 'ok' },
-      { type: 'tool_result', tool_use_id: 'u', content: [{ type: 'text', text: 'falhou' }], is_error: true },
-    ], newId)
-    expect(s.entries).toMatchObject([{ kind: 'tool_result', text: 'ok' }, { kind: 'tool_result', text: 'falhou', isError: true }])
+    const s = subagentStep(
+      'user',
+      [
+        { type: 'tool_result', tool_use_id: 't', content: 'ok' },
+        { type: 'tool_result', tool_use_id: 'u', content: [{ type: 'text', text: 'falhou' }], is_error: true },
+      ],
+      newId,
+    )
+    expect(s.entries).toMatchObject([
+      { kind: 'tool_result', text: 'ok' },
+      { kind: 'tool_result', text: 'falhou', isError: true },
+    ])
     expect(s.activity).toBeUndefined()
   })
 
@@ -91,7 +112,10 @@ describe('SubagentLogs: log limitado por subagente', () => {
     expect(logs.add('toolu_a', [entry('4')])).toBe('a')
     expect(logs.get('a').map((e) => e.text)).toEqual(['1', '2', '4'])
     const sent = logs.take()
-    expect(sent.map((x) => [x.subId, x.entries.length])).toEqual([['a', 3], ['b', 1]])
+    expect(sent.map((x) => [x.subId, x.entries.length])).toEqual([
+      ['a', 3],
+      ['b', 1],
+    ])
     expect(logs.take()).toEqual([])
     expect(logs.hasPending).toBe(false)
   })
@@ -163,10 +187,36 @@ describe('Coalescer: agrupa rajadas', () => {
 describe('agentCallsFromTranscript: retomada', () => {
   it('liga o agentId do tool_result à chamada do Agent tool', () => {
     const calls = agentCallsFromTranscript([
-      { type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id: 'toolu_1', name: 'Agent', input: { description: 'Achar o bug', subagent_type: 'Explore' } }] } },
-      { type: 'assistant', parent_tool_use_id: 'toolu_1', message: { content: [{ type: 'tool_use', id: 'inner', name: 'Agent', input: {} }] } },
-      { type: 'user', parent_tool_use_id: null, message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: [{ type: 'text', text: 'Achei.\nagentId: a1b2c3 (use SendMessage…)' }] }] } },
-      { type: 'user', parent_tool_use_id: null, message: { content: [{ type: 'tool_result', tool_use_id: 'outro', content: 'agentId: zzz' }] } },
+      {
+        type: 'assistant',
+        parent_tool_use_id: null,
+        message: {
+          content: [{ type: 'tool_use', id: 'toolu_1', name: 'Agent', input: { description: 'Achar o bug', subagent_type: 'Explore' } }],
+        },
+      },
+      {
+        type: 'assistant',
+        parent_tool_use_id: 'toolu_1',
+        message: { content: [{ type: 'tool_use', id: 'inner', name: 'Agent', input: {} }] },
+      },
+      {
+        type: 'user',
+        parent_tool_use_id: null,
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'toolu_1',
+              content: [{ type: 'text', text: 'Achei.\nagentId: a1b2c3 (use SendMessage…)' }],
+            },
+          ],
+        },
+      },
+      {
+        type: 'user',
+        parent_tool_use_id: null,
+        message: { content: [{ type: 'tool_result', tool_use_id: 'outro', content: 'agentId: zzz' }] },
+      },
     ])
     expect([...calls]).toEqual([['a1b2c3', { toolUseId: 'toolu_1', description: 'Achar o bug', type: 'Explore', isError: false }]])
   })
@@ -189,12 +239,23 @@ describe('AgentManager: subagentes ao vivo (carga com 20)', () => {
   it('mensagens do filho vão para o log dele, não para o do pai, e chegam agrupadas', () => {
     const parent = manager.terminalAgent('s1', '/tmp/x').id
     const tasks = Array.from({ length: 20 }, (_, i) => `t${i}`)
-    for (const t of tasks) manager.demoTask(parent, { ...base(t), subtype: 'task_started', description: `Carga ${t}`, subagent_type: 'Explore', task_type: 'local_agent', prompt: 'faça' } as never)
+    for (const t of tasks)
+      manager.demoTask(parent, {
+        ...base(t),
+        subtype: 'task_started',
+        description: `Carga ${t}`,
+        subagent_type: 'Explore',
+        task_type: 'local_agent',
+        prompt: 'faça',
+      } as never)
     const parentLog = manager.getLog(parent).length
     events = []
     // 20 subagentes × 50 mensagens dentro de uma janela de agrupamento
     for (let k = 0; k < 50; k++) {
-      for (const t of tasks) manager.demoSubagentMessage(parent, `toolu_${t}`, 'assistant', [{ type: 'tool_use', id: `${t}-${k}`, name: 'Read', input: { file_path: `src/f${k}.ts` } }])
+      for (const t of tasks)
+        manager.demoSubagentMessage(parent, `toolu_${t}`, 'assistant', [
+          { type: 'tool_use', id: `${t}-${k}`, name: 'Read', input: { file_path: `src/f${k}.ts` } },
+        ])
     }
     expect(events).toHaveLength(0)
     vi.advanceTimersByTime(SUB_FLUSH_MS)
@@ -205,7 +266,10 @@ describe('AgentManager: subagentes ao vivo (carga com 20)', () => {
     expect(sublogs[0].type === 'agent:sublog' && sublogs[0].logs).toHaveLength(20)
     expect(upserts).toHaveLength(1)
     expect(manager.getLog(parent)).toHaveLength(parentLog)
-    const card = manager.list().find((a) => a.id === parent)!.subagents!.find((s) => s.id === 't3')!
+    const card = manager
+      .list()
+      .find((a) => a.id === parent)!
+      .subagents!.find((s) => s.id === 't3')!
     expect(card).toMatchObject({ activity: 'Lendo f49.ts', toolUses: 50, toolUseId: 'toolu_t3' })
     // prompt + 50 tools
     expect(manager.getSubagentLog(parent, 't3')).toHaveLength(51)
@@ -214,7 +278,8 @@ describe('AgentManager: subagentes ao vivo (carga com 20)', () => {
   it('log de cada um fica no limite mesmo com muitas mensagens', () => {
     const parent = manager.terminalAgent('s2', '/tmp/y').id
     manager.demoTask(parent, { ...base('a'), subtype: 'task_started', description: 'A', task_type: 'local_agent' } as never)
-    for (let k = 0; k < 3000; k++) manager.demoSubagentMessage(parent, 'toolu_a', 'user', [{ type: 'tool_result', tool_use_id: 'x', content: `saída ${k}` }])
+    for (let k = 0; k < 3000; k++)
+      manager.demoSubagentMessage(parent, 'toolu_a', 'user', [{ type: 'tool_result', tool_use_id: 'x', content: `saída ${k}` }])
     vi.advanceTimersByTime(SUB_FLUSH_MS)
     expect(manager.getSubagentLog(parent, 'a')).toHaveLength(SUB_LOG_LIMIT)
     expect(manager.subagentMemory(parent)).toBe(SUB_LOG_LIMIT)
@@ -224,8 +289,22 @@ describe('AgentManager: subagentes ao vivo (carga com 20)', () => {
     const parent = manager.terminalAgent('s3', '/tmp/z').id
     manager.demoTask(parent, { ...base('b'), subtype: 'task_started', description: 'B', task_type: 'local_agent' } as never)
     manager.demoSubagentMessage(parent, 'toolu_b', 'assistant', [{ type: 'text', text: 'oi' }])
-    manager.demoTask(parent, { ...base('b'), subtype: 'task_progress', description: 'B', usage: { total_tokens: 5000, tool_uses: 2, duration_ms: 10 }, last_tool_name: 'Grep', summary: 'Procurando o bug' } as never)
-    manager.demoTask(parent, { ...base('b'), subtype: 'task_notification', status: 'failed', output_file: '', summary: 'Deu errado', usage: { total_tokens: 7000, tool_uses: 3, duration_ms: 1200 } } as never)
+    manager.demoTask(parent, {
+      ...base('b'),
+      subtype: 'task_progress',
+      description: 'B',
+      usage: { total_tokens: 5000, tool_uses: 2, duration_ms: 10 },
+      last_tool_name: 'Grep',
+      summary: 'Procurando o bug',
+    } as never)
+    manager.demoTask(parent, {
+      ...base('b'),
+      subtype: 'task_notification',
+      status: 'failed',
+      output_file: '',
+      summary: 'Deu errado',
+      usage: { total_tokens: 7000, tool_uses: 3, duration_ms: 1200 },
+    } as never)
     const a = manager.list().find((x) => x.id === parent)!
     expect(a.subagents).toBeUndefined()
     expect(a.subagentsDone).toMatchObject([{ id: 'b', status: 'failed', tokens: 7000, summary: 'Procurando o bug' }])
@@ -237,8 +316,16 @@ describe('AgentManager: subagentes ao vivo (carga com 20)', () => {
 
   it('workflow vira ajudante com o nome do workflow', () => {
     const parent = manager.terminalAgent('s4', '/tmp/w').id
-    manager.demoTask(parent, { ...base('w'), subtype: 'task_started', description: 'revisão', task_type: 'local_workflow', workflow_name: 'spec' } as never)
-    expect(manager.list().find((x) => x.id === parent)!.subagents).toMatchObject([{ id: 'w', description: 'spec: revisão', type: 'Workflow', workflow: true }])
+    manager.demoTask(parent, {
+      ...base('w'),
+      subtype: 'task_started',
+      description: 'revisão',
+      task_type: 'local_workflow',
+      workflow_name: 'spec',
+    } as never)
+    expect(manager.list().find((x) => x.id === parent)!.subagents).toMatchObject([
+      { id: 'w', description: 'spec: revisão', type: 'Workflow', workflow: true },
+    ])
   })
 
   it('retomada: recall traz os ajudantes terminados com seus logs', () => {

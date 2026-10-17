@@ -52,11 +52,20 @@ function vividColor(px: Uint8ClampedArray): string | null {
 }
 
 /** Logo, brand color and the uniform toggle of one floor in Configurações. */
-export function brandFields(p: ProjectFloor, set: (patch: Partial<ProjectFloor>) => void, toast: (t: string, k?: 'info' | 'ok' | 'err') => void): HTMLElement {
+export function brandFields(
+  p: ProjectFloor,
+  set: (patch: Partial<ProjectFloor>) => void,
+  toast: (t: string, k?: 'info' | 'ok' | 'err') => void,
+): HTMLElement {
   const file = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/gif', class: 'hidden' }) as HTMLInputElement
   const thumb = h('button', { class: 'floor-brand-logo', type: 'button', title: 'Logo da empresa (placa do andar e farda)' })
   const clear = h('button', { class: 'icon-btn floor-brand-clear', type: 'button', title: 'Tirar o logo' }, icon('x', 12))
-  const color = h('input', { type: 'color', class: 'floor-brand-color', value: p.brandColor ?? DEFAULT_BRAND, title: 'Cor da empresa' }) as HTMLInputElement
+  const color = h('input', {
+    type: 'color',
+    class: 'floor-brand-color',
+    value: p.brandColor ?? DEFAULT_BRAND,
+    title: 'Cor da empresa',
+  }) as HTMLInputElement
   const uniform = h('input', { type: 'checkbox' }) as HTMLInputElement
   uniform.checked = !!p.uniform
   const showLogo = (logo: string | undefined) => {

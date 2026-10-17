@@ -15,7 +15,8 @@ export const dateOf = (day: string) => {
 }
 
 /** "qui, 9 out" */
-export const dayLong = (day: string) => dateOf(day).toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '')
+export const dayLong = (day: string) =>
+  dateOf(day).toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '')
 
 export const usd = (n: number) => formatCost(n) || '$0,00'
 export const int = (n: number) => Math.round(n).toLocaleString('pt-BR')
@@ -32,7 +33,12 @@ export function workTime(ms: number): string {
 
 /** "claude-opus-4-1-20250805" -> "opus 4.1" */
 export function modelName(id: string): string {
-  return id.replace(/^claude-/, '').replace(/-\d{8}$/, '').replace(/\[1m\]$/, ' 1M').replace(/-(\d+)-(\d+)\b/, ' $1.$2').replace(/-(\d+)\b/, ' $1')
+  return id
+    .replace(/^claude-/, '')
+    .replace(/-\d{8}$/, '')
+    .replace(/\[1m\]$/, ' 1M')
+    .replace(/-(\d+)-(\d+)\b/, ' $1.$2')
+    .replace(/-(\d+)\b/, ' $1')
 }
 
 /** A project of the report: a floor, or a folder outside the floors. */

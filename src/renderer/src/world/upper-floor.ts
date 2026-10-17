@@ -40,7 +40,15 @@ export function buildUpperFloor(plan: ProjectPlan, brand: Brand): UpperFloor {
   }
 
   // planks in the Diretoria, carpet in the rooms (under their rugs), hall planks in the corridor
-  const floor = buildShell(group, [{ id: 'boss', label: '', rect: DIRECTOR_RECT }, ...[...plan.team, ...plan.sectors].map((r) => ({ id: 'team' as const, label: '', rect: r.rect })), ...plan.commons.map((rect, i) => ({ id: COMMONS[i % COMMONS.length] === 'cafe' ? ('cafe' as const) : ('lounge' as const), label: '', rect }))])
+  const floor = buildShell(group, [
+    { id: 'boss', label: '', rect: DIRECTOR_RECT },
+    ...[...plan.team, ...plan.sectors].map((r) => ({ id: 'team' as const, label: '', rect: r.rect })),
+    ...plan.commons.map((rect, i) => ({
+      id: COMMONS[i % COMMONS.length] === 'cafe' ? ('cafe' as const) : ('lounge' as const),
+      label: '',
+      rect,
+    })),
+  ])
   buildPartitions(group, grid, plan.partitions)
 
   // ---------- Diretoria ----------
@@ -77,7 +85,10 @@ export function buildUpperFloor(plan: ProjectPlan, brand: Brand): UpperFloor {
 
   // ---------- team and sector rooms ----------
   const deskScreens: Screen[] = []
-  const rooms: [SectorRoom, number][] = [...plan.team.map((r): [SectorRoom, number] => [r, 0]), ...plan.sectors.map((r, i): [SectorRoom, number] => [r, i + 1])]
+  const rooms: [SectorRoom, number][] = [
+    ...plan.team.map((r): [SectorRoom, number] => [r, 0]),
+    ...plan.sectors.map((r, i): [SectorRoom, number] => [r, i + 1]),
+  ]
   rooms.forEach(([r, rug]) => {
     const [x0, z0, x1, z1] = r.rect
     const cx = (x0 + x1) / 2
@@ -152,7 +163,14 @@ type Common = 'lounge' | 'cafe' | 'games' | 'quiet'
 const COMMONS: Common[] = ['lounge', 'cafe', 'games', 'quiet']
 
 /** Furnishes an open front area (8 x 11 tiles); its back edge faces the corridor. */
-function commons(kind: Common, rect: [number, number, number, number], place: (o: THREE.Object3D, x: number, z: number, rot?: number, y?: number) => THREE.Object3D, grid: Grid, loops: LoopScreen[], accent: string): void {
+function commons(
+  kind: Common,
+  rect: [number, number, number, number],
+  place: (o: THREE.Object3D, x: number, z: number, rot?: number, y?: number) => THREE.Object3D,
+  grid: Grid,
+  loops: LoopScreen[],
+  accent: string,
+): void {
   const [x0, z0, x1, z1] = rect
   const cx = (x0 + x1) / 2
   const cz = (z0 + z1) / 2 + 0.5
@@ -184,10 +202,20 @@ function commons(kind: Common, rect: [number, number, number, number], place: (o
       block(cx + 1.5, z1 - 1)
       place(F.barTable(), cx - 1.5, cz - 1.5)
       block(cx - 2, cz - 2)
-      for (const [dx, dz, c] of [[-0.8, 0, '#d97757'], [0.8, 0, '#2f8f83'], [0, -0.8, accent]] as const) place(F.stool(c), cx - 1.5 + dx, cz - 1.5 + dz)
+      for (const [dx, dz, c] of [
+        [-0.8, 0, '#d97757'],
+        [0.8, 0, '#2f8f83'],
+        [0, -0.8, accent],
+      ] as const)
+        place(F.stool(c), cx - 1.5 + dx, cz - 1.5 + dz)
       place(F.roundTable(0.55), cx + 1.5, cz)
       block(cx + 1, cz)
-      for (const [dx, dz, r] of [[-1, 0, Math.PI / 2], [1, 0, -Math.PI / 2], [0, -1, 0]] as const) place(F.simpleChair('#f4a259'), cx + 1.5 + dx, cz + dz, r)
+      for (const [dx, dz, r] of [
+        [-1, 0, Math.PI / 2],
+        [1, 0, -Math.PI / 2],
+        [0, -1, 0],
+      ] as const)
+        place(F.simpleChair('#f4a259'), cx + 1.5 + dx, cz + dz, r)
       place(F.plant('fern'), x0 + 0.5, z1 - 0.5)
       block(x0, z1 - 1)
       break
@@ -209,7 +237,12 @@ function commons(kind: Common, rect: [number, number, number, number], place: (o
       place(F.rug(4, 4, rugTexture(4, 4, '#e3f1e6', '#6fae86', accent)), cx, cz)
       place(F.lowTable(), cx, cz)
       block(cx, cz)
-      for (const [dx, dz, c] of [[-1.2, 0, '#a29bfe'], [1.2, 0, '#ff7675'], [0, 1.2, '#55efc4'], [0, -1.2, '#fdcb6e']] as const) {
+      for (const [dx, dz, c] of [
+        [-1.2, 0, '#a29bfe'],
+        [1.2, 0, '#ff7675'],
+        [0, 1.2, '#55efc4'],
+        [0, -1.2, '#fdcb6e'],
+      ] as const) {
         place(F.beanBag(c), cx + dx, cz + dz, Math.atan2(-dx, -dz))
         block(cx + dx, cz + dz)
       }

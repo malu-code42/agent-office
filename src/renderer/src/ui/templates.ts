@@ -81,10 +81,20 @@ function lookEditor(initial: Look): { el: HTMLElement; value(): Look } {
  * Create or edit a template in its own dialog, above whatever is open. `initial.id`
  * set = edit that one. Resolves the template as stored, or null if the player gave up.
  */
-export function openTemplateEditor(root: HTMLElement, state: State, initial: Partial<AgentTemplate>, toast: Toast): Promise<AgentTemplate | null> {
+export function openTemplateEditor(
+  root: HTMLElement,
+  state: State,
+  initial: Partial<AgentTemplate>,
+  toast: Toast,
+): Promise<AgentTemplate | null> {
   return new Promise((resolve) => {
     const editing = !!initial.id && state.settings.templates?.some((t) => t.id === initial.id)
-    const name = h('input', { class: 'input', value: initial.name ?? '', maxlength: TEMPLATE_LIMITS.name, placeholder: 'Ex.: Revisor de PR' })
+    const name = h('input', {
+      class: 'input',
+      value: initial.name ?? '',
+      maxlength: TEMPLATE_LIMITS.name,
+      placeholder: 'Ex.: Revisor de PR',
+    })
     const look = lookEditor(initial.look ?? lookFromSeed(initial.name || String(Math.random())))
     const brain = brainFields({ model: initial.model ?? '', effort: initial.effort ?? '' }, true)
     const mode = h('select', { class: 'input' }, ...MODES.map((m) => h('option', { value: m.value }, m.label)))
@@ -189,7 +199,9 @@ export function saveAgentAsTemplate(root: HTMLElement, state: State, a: AgentSum
 /** Open tickets of this floor (null = ground floor), most recently touched first. */
 function floorTickets(state: State, project: ProjectFloor | null | undefined): Ticket[] {
   return [...state.tickets.values()]
-    .filter((t) => !t.closedAt && t.status !== 'done' && (projectFor(state.settings.projects, t.cwd ?? '')?.id ?? null) === (project?.id ?? null))
+    .filter(
+      (t) => !t.closedAt && t.status !== 'done' && (projectFor(state.settings.projects, t.cwd ?? '')?.id ?? null) === (project?.id ?? null),
+    )
     .sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
@@ -252,7 +264,9 @@ export function templatesTab(
   /** The brief as the agent will get it, or '' while something is missing. */
   const brief = (t: AgentTemplate): string => {
     const tk = state.tickets.get(ticket.value)
-    const base = t.instruction ? renderInstruction(t.instruction, { folder: ctx.cwd() || TEMPLATE_VARS.folder, ticket: tk ? ticketRef(tk) : TEMPLATE_VARS.ticket }) : ''
+    const base = t.instruction
+      ? renderInstruction(t.instruction, { folder: ctx.cwd() || TEMPLATE_VARS.folder, ticket: tk ? ticketRef(tk) : TEMPLATE_VARS.ticket })
+      : ''
     const extra = task.value.trim()
     return [base, extra].filter(Boolean).join('\n\n')
   }
@@ -264,7 +278,9 @@ export function templatesTab(
     preview.classList.toggle('hidden', !t || !t.instruction)
     if (!t) return
     taskLabel.textContent = t.instruction ? 'Complemento (opcional)' : 'Tarefa'
-    task.placeholder = t.instruction ? 'Algo a mais para esta vez. Pode deixar vazio.' : 'Este modelo não tem instrução base: descreva a tarefa.'
+    task.placeholder = t.instruction
+      ? 'Algo a mais para esta vez. Pode deixar vazio.'
+      : 'Este modelo não tem instrução base: descreva a tarefa.'
     preview.textContent = t.instruction ? brief(t) : ''
   }
 
@@ -277,7 +293,13 @@ export function templatesTab(
     select(stored.id)
   }
   const remove = async (t: AgentTemplate) => {
-    const ok = await confirmDialog(root, { title: 'Apagar modelo', text: `Apagar o modelo ${t.name}? Quem já foi contratado por ele continua no escritório.`, confirm: 'Apagar', cancel: 'Cancelar', danger: true })
+    const ok = await confirmDialog(root, {
+      title: 'Apagar modelo',
+      text: `Apagar o modelo ${t.name}? Quem já foi contratado por ele continua no escritório.`,
+      confirm: 'Apagar',
+      cancel: 'Cancelar',
+      danger: true,
+    })
     if (!ok) return
     try {
       await window.office.deleteTemplate(t.id)
@@ -302,17 +324,37 @@ export function templatesTab(
         ? items.map((t) => {
             const row = h(
               'div',
-              { class: `tpl-item${t.id === selected ? ' on' : ''}`, role: 'option', tabindex: 0, 'aria-selected': String(t.id === selected) },
+              {
+                class: `tpl-item${t.id === selected ? ' on' : ''}`,
+                role: 'option',
+                tabindex: 0,
+                'aria-selected': String(t.id === selected),
+              },
               portrait(t.look ?? lookFromSeed(t.name), 34),
               h(
                 'div',
                 { class: 'tpl-item-main' },
-                h('div', { class: 'tpl-item-name' }, t.name, t.permissionMode === 'bypassPermissions' ? h('span', { class: 'tpl-danger', title: 'Roda qualquer comando sem perguntar' }, 'sem pedir nada') : null),
+                h(
+                  'div',
+                  { class: 'tpl-item-name' },
+                  t.name,
+                  t.permissionMode === 'bypassPermissions'
+                    ? h('span', { class: 'tpl-danger', title: 'Roda qualquer comando sem perguntar' }, 'sem pedir nada')
+                    : null,
+                ),
                 h('div', { class: 'tpl-item-meta' }, templateMeta(t, state)),
                 h('div', { class: 'tpl-item-brief' }, t.instruction ? t.instruction.slice(0, 140) : 'Sem instrução base: pede a tarefa.'),
               ),
-              h('button', { class: 'icon-btn', type: 'button', title: 'Editar modelo', onclick: (e: Event) => (e.stopPropagation(), void edit(t)) }, icon('edit', 15)),
-              h('button', { class: 'icon-btn', type: 'button', title: 'Apagar modelo', onclick: (e: Event) => (e.stopPropagation(), void remove(t)) }, icon('trash', 15)),
+              h(
+                'button',
+                { class: 'icon-btn', type: 'button', title: 'Editar modelo', onclick: (e: Event) => (e.stopPropagation(), void edit(t)) },
+                icon('edit', 15),
+              ),
+              h(
+                'button',
+                { class: 'icon-btn', type: 'button', title: 'Apagar modelo', onclick: (e: Event) => (e.stopPropagation(), void remove(t)) },
+                icon('trash', 15),
+              ),
             )
             row.addEventListener('click', () => select(t.id))
             row.addEventListener('keydown', (e) => {
@@ -323,7 +365,13 @@ export function templatesTab(
             })
             return row
           })
-        : [h('div', { class: 'tpl-empty' }, 'Nenhum modelo ainda. Salve as escolhas de sempre (nome, modelo, permissões, instrução) e contrate com um clique.')]),
+        : [
+            h(
+              'div',
+              { class: 'tpl-empty' },
+              'Nenhum modelo ainda. Salve as escolhas de sempre (nome, modelo, permissões, instrução) e contrate com um clique.',
+            ),
+          ]),
     )
     fillTickets()
     syncDetail()

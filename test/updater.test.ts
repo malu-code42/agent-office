@@ -28,7 +28,13 @@ class FakeUpdater extends EventEmitter {
   quitAndInstall = vi.fn()
 }
 let fake: FakeUpdater
-vi.mock('electron-updater', () => ({ default: { get autoUpdater() { return fake } } }))
+vi.mock('electron-updater', () => ({
+  default: {
+    get autoUpdater() {
+      return fake
+    },
+  },
+}))
 
 const { Updater } = await import('../src/main/updater')
 

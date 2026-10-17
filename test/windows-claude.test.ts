@@ -29,20 +29,31 @@ function harness(answer: () => Promise<ProcRow[] | null>) {
 
 test('WindowsClaude: the Claude Desktop PID leaves count and memory; an unclassified PID counts as Claude Code', async () => {
   const { s, wc } = harness(async () => [cim(1, NPM), cim(2, DESKTOP)])
-  s.list = csv([['claude.exe', 1, 100], ['claude.exe', 2, 900], ['claude.exe.bak', 5, 50]])
+  s.list = csv([
+    ['claude.exe', 1, 100],
+    ['claude.exe', 2, 900],
+    ['claude.exe.bak', 5, 50],
+  ])
   // before the 1st sample nothing is classified: both claude.exe count
   assert.deepEqual(await wc.read(CORES), { count: 2, cpu: null, mem: 1000 * KB })
   await flush()
   assert.deepEqual(await wc.read(CORES), { count: 1, cpu: null, mem: 100 * KB })
   // a new PID shows up: counts as Claude Code until the next sample
-  s.list = csv([['claude.exe', 1, 100], ['claude.exe', 2, 900], ['claude.exe', 3, 40]])
+  s.list = csv([
+    ['claude.exe', 1, 100],
+    ['claude.exe', 2, 900],
+    ['claude.exe', 3, 40],
+  ])
   assert.deepEqual(await wc.read(CORES), { count: 2, cpu: null, mem: 140 * KB })
 })
 
 test('WindowsClaude: 1st sample gives cpu null, the 2nd a number', async () => {
   let ticks = 0
   const { s, wc } = harness(async () => [cim(1, NPM, ticks), cim(2, DESKTOP, 999_999_999)])
-  s.list = csv([['claude.exe', 1, 100], ['claude.exe', 2, 900]])
+  s.list = csv([
+    ['claude.exe', 1, 100],
+    ['claude.exe', 2, 900],
+  ])
   await wc.read(CORES)
   await flush()
   assert.equal((await wc.read(CORES)).cpu, null)
@@ -70,7 +81,10 @@ test('WindowsClaude: no new query before sampleEveryMs, except a new PID after 5
   assert.equal(s.queries, 2)
 
   const t1 = s.t
-  s.list = csv([['claude.exe', 1, 100], ['claude.exe', 7, 10]]) // unknown PID 7
+  s.list = csv([
+    ['claude.exe', 1, 100],
+    ['claude.exe', 7, 10],
+  ]) // unknown PID 7
   s.t = t1 + WindowsClaude.SOON_MS - 1
   await wc.read(CORES)
   assert.equal(s.queries, 2)
@@ -100,7 +114,10 @@ test('WindowsClaude: no overlapping query while one is busy', async () => {
 test('WindowsClaude: on failure cpu is null, every claude.exe counts, one warning, retry only after 5 min', async () => {
   let fail = false
   const { s, wc } = harness(async () => (fail ? null : [cim(1, NPM, 0), cim(2, DESKTOP)]))
-  s.list = csv([['claude.exe', 1, 100], ['claude.exe', 2, 900]])
+  s.list = csv([
+    ['claude.exe', 1, 100],
+    ['claude.exe', 2, 900],
+  ])
   await wc.read(CORES)
   await flush()
   assert.equal((await wc.read(CORES)).count, 1) // Desktop classified and left out

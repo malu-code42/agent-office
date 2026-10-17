@@ -7,7 +7,13 @@ import { copyTextSchema, markdownFileName, saveMarkdownArgsSchema } from '../src
 
 const t0 = new Date(2026, 9, 12, 9, 30).getTime()
 const log: LogEntry[] = [
-  { id: '1', t: t0, kind: 'user', text: 'Conserte o login\nsem mexer no layout', attachments: [{ name: 'print.png', kind: 'image', size: 10 }] },
+  {
+    id: '1',
+    t: t0,
+    kind: 'user',
+    text: 'Conserte o login\nsem mexer no layout',
+    attachments: [{ name: 'print.png', kind: 'image', size: 10 }],
+  },
   { id: '2', t: t0 + 60e3, kind: 'assistant', text: 'Vou olhar o **auth.ts**.' },
   { id: '3', t: t0 + 70e3, kind: 'tool', tool: 'Bash', text: 'npm test' },
   { id: '4', t: t0 + 80e3, kind: 'tool_result', text: 'ok ```code``` 3 testes', isError: false },
@@ -18,7 +24,18 @@ const log: LogEntry[] = [
 
 describe('conversationMarkdown', () => {
   it('cabeçalho com agente, pasta, modelo, custo e datas', () => {
-    const md = conversationMarkdown({ agent: 'Joana', cwd: '/Users/x/proj', model: 'claude-opus-5-5', costUsd: 1.234, startedAt: t0, sessionId: 'abc', exportedAt: t0 + 3600e3 }, log)
+    const md = conversationMarkdown(
+      {
+        agent: 'Joana',
+        cwd: '/Users/x/proj',
+        model: 'claude-opus-5-5',
+        costUsd: 1.234,
+        startedAt: t0,
+        sessionId: 'abc',
+        exportedAt: t0 + 3600e3,
+      },
+      log,
+    )
     expect(md).toMatch(/^# Joana\n/)
     expect(md).toContain('- **Pasta:** `/Users/x/proj`')
     expect(md).toContain('- **Modelo:** claude-opus-5-5')

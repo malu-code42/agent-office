@@ -5,7 +5,17 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AgentResult, AgentSummary, AgentTemplate, HireRequest, OfficeEvent, PermissionRequest, Routine, RoutineDraft, Settings } from '@shared/types'
+import type {
+  AgentResult,
+  AgentSummary,
+  AgentTemplate,
+  HireRequest,
+  OfficeEvent,
+  PermissionRequest,
+  Routine,
+  RoutineDraft,
+  Settings,
+} from '@shared/types'
 import { routinesLed, totemView } from '@shared/routines'
 import { RoutineScheduler, RoutineStore, type RoutineHost } from '../src/main/routines'
 import { cleanRoutineDraft } from '../src/main/validate'
@@ -28,7 +38,20 @@ class FakeManager extends EventEmitter implements RoutineHost {
   private n = 0
 
   add(name: string, extra: Partial<AgentSummary> = {}): AgentSummary {
-    const a = { id: `a${++this.n}`, name, source: 'office', cwd: project, permissionMode: 'default', status: 'idle', activity: '', desk: 0, look: {}, costUsd: 0, createdAt: 0, ...extra } as AgentSummary
+    const a = {
+      id: `a${++this.n}`,
+      name,
+      source: 'office',
+      cwd: project,
+      permissionMode: 'default',
+      status: 'idle',
+      activity: '',
+      desk: 0,
+      look: {},
+      costUsd: 0,
+      createdAt: 0,
+      ...extra,
+    } as AgentSummary
     this.agents.set(a.id, a)
     return a
   }
@@ -58,12 +81,31 @@ class FakeManager extends EventEmitter implements RoutineHost {
   finish(agentId: string, isError = false, spent = 0): AgentResult {
     const a = this.agents.get(agentId)!
     a.spentUsd = (a.spentUsd ?? 0) + spent
-    const result = { id: `r-${agentId}-${Date.now()}`, agentId, text: isError ? 'Deu errado\nno meio' : 'Feito', isError, costUsd: 0, durationMs: 0, turns: 1, createdAt: Date.now() }
+    const result = {
+      id: `r-${agentId}-${Date.now()}`,
+      agentId,
+      text: isError ? 'Deu errado\nno meio' : 'Feito',
+      isError,
+      costUsd: 0,
+      durationMs: 0,
+      turns: 1,
+      createdAt: Date.now(),
+    }
     this.emit('event', { type: 'result:new', result } satisfies OfficeEvent)
     return result
   }
   ask(agentId: string): void {
-    const request = { id: `p-${agentId}`, agentId, kind: 'tool', toolName: 'Bash', title: 'Rodar', detail: '', input: {}, canAlwaysAllow: false, createdAt: 0 } as PermissionRequest
+    const request = {
+      id: `p-${agentId}`,
+      agentId,
+      kind: 'tool',
+      toolName: 'Bash',
+      title: 'Rodar',
+      detail: '',
+      input: {},
+      canAlwaysAllow: false,
+      createdAt: 0,
+    } as PermissionRequest
     this.pending.push(request)
     this.emit('event', { type: 'permission:new', request } satisfies OfficeEvent)
   }
@@ -77,7 +119,9 @@ class FakeManager extends EventEmitter implements RoutineHost {
   }
 }
 
-const templates: AgentTemplate[] = [{ id: 'tpl', name: 'Revisor', permissionMode: 'bypassPermissions', instruction: 'Você revisa {pasta}.', model: 'sonnet' }]
+const templates: AgentTemplate[] = [
+  { id: 'tpl', name: 'Revisor', permissionMode: 'bypassPermissions', instruction: 'Você revisa {pasta}.', model: 'sonnet' },
+]
 const settings = (): Pick<Settings, 'projects' | 'templates'> => ({ projects: [{ id: 'p1', name: 'Loja', cwd: project }], templates })
 
 function setup() {
@@ -85,9 +129,27 @@ function setup() {
   const store = new RoutineStore(dir)
   const notices: string[] = []
   const broadcasts: Routine[][] = []
-  const scheduler = new RoutineScheduler({ store, manager, settings, broadcast: (l) => broadcasts.push(l), notify: (title, body) => notices.push(`${title}: ${body}`) })
+  const scheduler = new RoutineScheduler({
+    store,
+    manager,
+    settings,
+    broadcast: (l) => broadcasts.push(l),
+    notify: (title, body) => notices.push(`${title}: ${body}`),
+  })
   const save = (draft: Partial<RoutineDraft>) =>
-    scheduler.save(cleanRoutineDraft({ name: 'Relatório', prompt: 'Resuma o dia.', who: { kind: 'new' }, cwd: project, schedule: { kind: 'daily', time: '09:00' }, ...draft }, { settings: settings(), agents: manager.list() }))
+    scheduler.save(
+      cleanRoutineDraft(
+        {
+          name: 'Relatório',
+          prompt: 'Resuma o dia.',
+          who: { kind: 'new' },
+          cwd: project,
+          schedule: { kind: 'daily', time: '09:00' },
+          ...draft,
+        },
+        { settings: settings(), agents: manager.list() },
+      ),
+    )
   return { manager, store, scheduler, notices, broadcasts, save }
 }
 
@@ -309,7 +371,18 @@ describe('changes survive a restart', () => {
   it('a run the app was following when it closed reads as failed', () => {
     writeFileSync(
       join(dir, 'routines.json'),
-      JSON.stringify({ routines: [{ id: 'x', name: 'R', prompt: 'p', who: { kind: 'new' }, schedule: { kind: 'daily', time: '09:00' }, history: [{ id: 'h', startedAt: 1, status: 'running' }] }] }),
+      JSON.stringify({
+        routines: [
+          {
+            id: 'x',
+            name: 'R',
+            prompt: 'p',
+            who: { kind: 'new' },
+            schedule: { kind: 'daily', time: '09:00' },
+            history: [{ id: 'h', startedAt: 1, status: 'running' }],
+          },
+        ],
+      }),
     )
     expect(new RoutineStore(dir).routines[0].history[0]).toMatchObject({ status: 'failed', error: /fechou/ })
   })
@@ -317,7 +390,9 @@ describe('changes survive a restart', () => {
 
 describe('corrupt routines.json', () => {
   it('is moved aside, never written over, and the .bak loads', () => {
-    const good = JSON.stringify({ routines: [{ id: 'x', name: 'R', prompt: 'p', who: { kind: 'new' }, schedule: { kind: 'daily', time: '09:00' }, history: [] }] })
+    const good = JSON.stringify({
+      routines: [{ id: 'x', name: 'R', prompt: 'p', who: { kind: 'new' }, schedule: { kind: 'daily', time: '09:00' }, history: [] }],
+    })
     writeFileSync(join(dir, 'routines.json.bak'), good)
     writeFileSync(join(dir, 'routines.json'), good.slice(0, 30))
     const store = new RoutineStore(dir)
@@ -337,7 +412,16 @@ describe('corrupt routines.json', () => {
   })
 
   it('a broken entry is dropped, the others load', () => {
-    writeFileSync(join(dir, 'routines.json'), JSON.stringify({ routines: [{ id: 'ok', name: 'R', prompt: '', who: { kind: 'new' }, schedule: { kind: 'daily', time: '09:00' } }, { id: 2 }, { id: 'y', name: 'S' }] }))
+    writeFileSync(
+      join(dir, 'routines.json'),
+      JSON.stringify({
+        routines: [
+          { id: 'ok', name: 'R', prompt: '', who: { kind: 'new' }, schedule: { kind: 'daily', time: '09:00' } },
+          { id: 2 },
+          { id: 'y', name: 'S' },
+        ],
+      }),
+    )
     expect(new RoutineStore(dir).routines.map((r) => r.id)).toEqual(['ok'])
   })
 })
@@ -398,7 +482,10 @@ describe('import', () => {
       JSON.stringify({
         format: 'agent-office-dados',
         version: 1,
-        files: { 'office.json': { settings: {} }, 'routines.json': { routines: [{ id: 'r', enabled: true, nextAt: 5, permissionMode: 'bypassPermissions' }] } },
+        files: {
+          'office.json': { settings: {} },
+          'routines.json': { routines: [{ id: 'r', enabled: true, nextAt: 5, permissionMode: 'bypassPermissions' }] },
+        },
       }),
     )
     const r = JSON.parse(importSet(exp, '/home/x')['routines.json']!).routines[0]
