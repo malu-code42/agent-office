@@ -118,10 +118,10 @@ describe('previewRewrite', () => {
   })
 
   // Regra 6: duas barras depois da data e da hora
-  it('uses the section as lista and turns every | into · when two separators remain', () => {
+  it('uses the section as lista and turns every | into - when two separators remain', () => {
     const preview = previewRewrite(['## estudar', '- [ ] Ai | Matt Podock | email'].join('\n'), counter())
 
-    expect(preview.lines[1]).toMatchObject({ kind: 'task', after: '- [ ] estudar | Ai · Matt Podock · email ^t000001' })
+    expect(preview.lines[1]).toMatchObject({ kind: 'task', after: '- [ ] estudar | Ai - Matt Podock - email ^t000001' })
     expect(preview.lines[1]?.rules).toContain(6)
     expect(preview.ambiguous).toEqual([])
   })
@@ -130,7 +130,7 @@ describe('previewRewrite', () => {
   it('turns an area with more than three words into part of the title', () => {
     const preview = previewRewrite(['## pratica', '- [ ] Códigos do projeto estrutura de dados | leitura'].join('\n'), counter())
 
-    expect(preview.lines[1]?.after).toBe('- [ ] pratica | Códigos do projeto estrutura de dados · leitura ^t000001')
+    expect(preview.lines[1]?.after).toBe('- [ ] pratica | Códigos do projeto estrutura de dados - leitura ^t000001')
     expect(preview.lines[1]?.rules).toContain(7)
     expect(preview.ambiguous).toEqual([])
   })
@@ -150,6 +150,12 @@ describe('previewRewrite', () => {
   it('converts a discarded task with its reason', () => {
     expect(afterOf(['## Archive', '- [-] Ler artigo antigo ❌ 10.10.2026 — não é mais relevante'].join('\n'), 2)).toBe(
       '- [-] Archive | Ler artigo antigo ❌ 10.10.2026 — não é mais relevante ^t000001',
+    )
+  })
+
+  it('turns a | in the discard reason into - so the title part never has |', () => {
+    expect(afterOf(['## Archive', '- [-] Ler artigo ❌ 10.10.2026 — não é | mais relevante'].join('\n'), 2)).toBe(
+      '- [-] Archive | Ler artigo ❌ 10.10.2026 — não é - mais relevante ^t000001',
     )
   })
 

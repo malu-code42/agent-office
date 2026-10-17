@@ -108,7 +108,7 @@ function rewriteTask(mark: string, body: string, section: string | null, indente
     const cut = marker?.index ?? start
     const reason = mark === '-' && marker ? MOTIVE_RE.exec(text.slice(end)) : null
     const date = normalizeDate(only?.[0] ?? '')
-    closing = mark === 'x' ? `✅ ${date}` : `❌ ${date}${reason ? ` — ${reason[1]?.trim() ?? ''}` : ''}`
+    closing = mark === 'x' ? `✅ ${date}` : `❌ ${date}${reason ? ` — ${reason[1]?.trim().replaceAll('|', '-') ?? ''}` : ''}`
     text = reason ? text.slice(0, cut) : text.slice(0, cut) + text.slice(end)
     rules.push(mark === 'x' ? 2 : 9)
     if (mark === '-' && !reason) notes.push('descarte sem motivo')
@@ -142,7 +142,7 @@ function rewriteTask(mark: string, body: string, section: string | null, indente
 
   const defaultList = closes && !indented ? ARCHIVE : section
   let lista: string | null = defaultList
-  let title = fieldParts.join(' · ')
+  let title = fieldParts.join(' - ')
   const area = fieldParts.length === 2 ? unboldArea(fieldParts[0] ?? '') : null
   if (area && wordCount(area) <= 3) {
     lista = area
