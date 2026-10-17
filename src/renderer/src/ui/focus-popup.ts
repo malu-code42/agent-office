@@ -5,6 +5,7 @@ import { h } from './dom'
 import { cleanError, modal } from './modals/common'
 import { openTasksBoard, refreshTasksBoard } from './tasks-board'
 import { offerUndo, type Toast } from './tasks-complete'
+import { runDiscard } from './tasks-discard'
 import './focus.css'
 
 /**
@@ -81,6 +82,7 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
       el.append(timerBlock(item))
       actions.append(
         h('button', { class: 'btn btn-small', type: 'button', onclick: () => openStep(actions, item.id, item.step) }, 'Passo de hoje'),
+        h('button', { class: 'btn btn-small focus-card-discard', type: 'button', onclick: () => void discard(item) }, 'Descartar'),
       )
     }
     actions.append(
@@ -313,6 +315,13 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
       toast(cleanError(err), 'err')
     }
   }
+
+  // Discarding asks for the reason; the task leaves the focus and the board is drawn again if it is open.
+  const discard = (item: TaskItem): Promise<void> =>
+    runDiscard(root, toast, { id: item.id }, item.text, (next) => {
+      paint(next.focus)
+      refreshTasksBoard(root, state, toast, next.board)
+    })
 
   // Taking a task out writes nothing to tarefas.md: only the focus set changes.
   const remove = async (id: string) => {

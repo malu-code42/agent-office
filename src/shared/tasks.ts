@@ -44,6 +44,18 @@ export interface TaskMove {
 /** The task to complete: its line as the board read it, or its id (the focus popup has no line). */
 export type TaskRef = { line: number } | { id: string }
 
+/** A task to discard: the task, and the reason the form asks for (required, never empty). */
+export interface TaskDiscard {
+  target: TaskRef
+  reason: string
+}
+
+/** A task to reopen: the task, and the list to put it back in when its origin list no longer exists. */
+export interface TaskReopen {
+  target: TaskRef
+  list?: string
+}
+
 /** How long a completed task can be undone, in milliseconds. */
 export const UNDO_WINDOW_MS = 10_000
 
@@ -52,7 +64,8 @@ const BLOCK_ID = /\s+(\^t\S+)$/i
 const VALID_BLOCK_ID = /^\^t[a-z0-9]{6}$/i
 const SCHEDULED_DATE = /\s+📅\s+(\d{4}-\d{2}-\d{2})$/
 const COMPLETED_DATE = /\s+✅\s+(\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\.\d{4})$/
-const DISCARDED_DATE = /\s+❌\s+(\d{4}-\d{2}-\d{2})(?:\s+[—-]\s+descartada:\s*(.*))?$/i
+// The date is DD.MM.AAAA (AO-06); the ISO day and "descartada: motivo" of the first lines are still read.
+const DISCARDED_DATE = /\s+❌\s+(\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\.\d{4})(?:\s+[—-]\s+(?:descartada:\s*)?(.*))?$/i
 /** Fields of the new format: "data | hora | lista | tarefa"; a field that is absent is not written. */
 const FIELD_SEPARATOR = /\s+\|\s+/
 const READ_DATE = /^\d{2}\.\d{2}(?:\.\d{4})?$/
@@ -185,6 +198,16 @@ export function parseTasksFile(content: string): ParsedBoard & { original: strin
   return { lists, headings, warnings, original: content }
 }
 
+/** Whether a task line is in the new format: "data | hora | lista | tarefa", with the date and time optional. */
+export function isNewFormatLine(line: string): boolean {
+  const head = /^\s*[-*]\s+\[[ xX-]\]\s+/.exec(line)
+  if (!head) return false
+  const body = line.slice(head[0].length).trimEnd()
+  const id = BLOCK_ID.exec(body)
+  const fields = (id ? body.slice(0, id.index) : body).split(FIELD_SEPARATOR)
+  return fields.length > 1 && fields.slice(0, -2).every((f) => READ_DATE.test(f) || READ_TIME.test(f))
+}
+
 /**
  * The line with its list field set to `list`, when it is in the new format with an id
  * ("data | hora | lista | tarefa ^ID"). Any other line, and a line without an id, comes back as it was.
@@ -262,13 +285,17 @@ export interface BoardView {
 
 /**
  * The columns and the completed tasks of the board. The Archive is not a column; a completed
- * task, wherever it is, leaves its column and is listed read-only under "Mostrar concluídas".
+ * task, wherever it is, leaves its column and is listed under "Mostrar concluídas", with the
+ * discarded tasks of the Archive too: both can be reopened from there (AO-06).
  */
 export function boardView(lists: readonly TaskList[]): BoardView {
   const columns: TaskList[] = []
   const completed: CompletedView[] = []
   for (const list of lists) {
-    for (const task of list.tasks) if (task.status === 'completed') completed.push({ list: list.name, task })
+    for (const task of list.tasks) {
+      if (task.status === 'completed' || (task.status === 'discarded' && list.name === ARCHIVE_LIST))
+        completed.push({ list: list.name, task })
+    }
     if (list.name === ARCHIVE_LIST) continue
     columns.push({ name: list.name, tasks: list.tasks.filter((task) => task.status !== 'completed') })
   }

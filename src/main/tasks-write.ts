@@ -1,15 +1,20 @@
 import { randomInt } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { ArchivedTask } from '@shared/planning'
 import {
   ARCHIVE_LIST,
   dayLabel,
   isDateDDMMAAAA,
+  isNewFormatLine,
   parseTasksFile,
   rescheduleLine,
   retargetListField,
   taskDraftProblem,
   type NewTaskDraft,
+  type ParsedBoard,
+  type Task,
+  type TaskList,
 } from '@shared/tasks'
 import { dayKey } from './backups'
 import { writeFileAtomic } from './fs-safe'
@@ -18,9 +23,11 @@ import { writeFileAtomic } from './fs-safe'
  * Creates a task in tarefas.md: one new line at the end of its list, nothing else changes.
  * Moves a task to the end of another list: its line goes, the same text comes back under the
  * target heading. Completes a task: its line goes to the Archive with the day it was done.
- * planNewTask, planMoveTask and planComplete are pure (text in, text out). createTaskWriter
- * does the file: it checks the file still matches what the board read, backs it up once per
- * session, then writes it atomically. No Electron here, so it runs in unit tests against a temporary vault.
+ * Discards a task (AO-06): the same move, with [-], ❌ and the reason, and no ✅. Reopens a
+ * completed or discarded task: back to its origin list with the marks gone.
+ * planNewTask, planMoveTask, planComplete, planDiscard and planReopen are pure (text in, text out).
+ * createTaskWriter does the file: it checks the file still matches what the board read, backs it
+ * up once per session, then writes it atomically. No Electron here, so it runs in unit tests against a temporary vault.
  */
 
 export const TASKS_FILE = 'tarefas.md'
@@ -31,6 +38,12 @@ const UNDO_CHANGED = 'O tarefas.md mudou desde a conclusão, então nada foi des
 const NOT_FOUND = 'Não encontrei essa tarefa no tarefas.md. Abra o quadro Tarefas de novo.'
 const BROKEN_ID = 'Essa tarefa tem um identificador repetido ou inválido no tarefas.md. Corrija a linha e tente de novo.'
 const CHECKBOX_OPEN = /^(\s*[-*]\s+)\[ \]/
+const CHECKBOX_ANY = /^(\s*[-*]\s+)\[[ xX-]\]/
+/** The mark a completed or discarded line ends with, before its id: ✅ or ❌, the day, and for a discard the reason. */
+const DONE_MARK = /\s+[✅❌]\s+(?:\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\.\d{4})(?:\s+[—-]\s+.*)?$/
+const REASON_MAX = 200
+const NO_REASON = 'Escreva o motivo para descartar a tarefa.'
+const NOT_DONE = 'Essa tarefa não está concluída nem descartada, então não há o que reabrir.'
 
 /** A new id: ^t and six lowercase letters or digits, from the system's secure random source. */
 export function randomTaskId(): string {
@@ -172,7 +185,15 @@ export function planComplete(
   const block = /\s+\^t\S+$/i.exec(body)
   const head = (block ? body.slice(0, block.index) : body).replace(CHECKBOX_OPEN, '$1[x]')
   const completed = `${head} ✅ ${dayLabel(day)} ^${id}`
+  return { text: moveToArchive(text, line, completed), id, origin, originalLine: content, completedAt: dayKey(day) }
+}
 
+/**
+ * The text with the line `line` taken out and `done` put at the end of the Archive section. The
+ * Archive is made at the end of the file when there is none. Other lines and line endings stay.
+ */
+function moveToArchive(text: string, line: number, done: string): string {
+  const lines = text.split('\n')
   lines.splice(line - 1, 1)
   const rest = parseTasksFile(lines.join('\n'))
   const archive = rest.lists.findIndex((l) => l.name === ARCHIVE_LIST)
@@ -181,24 +202,145 @@ export function planComplete(
     const last = rest.lists[archive]!.tasks.at(-1)
     const at = last ? last.line : rest.headings[archive]! + 1
     const eolAt = lines[at - 1]!.endsWith('\r') ? '\r' : ''
-    lines.splice(at, 0, completed + eolAt)
-  } else {
-    // A new section at the end, after one blank line; the file keeps its last line break.
-    const crlf = text.includes('\r\n') ? '\r' : ''
-    const trailing = lines.at(-1) === ''
-    const out = trailing ? lines.slice(0, -1) : lines
-    if (out.length && out.at(-1)!.trim() !== '') out.push(crlf)
-    out.push(`## ${ARCHIVE_LIST}${crlf}`, completed + crlf)
-    if (trailing) out.push('')
-    return { text: out.join('\n'), id, origin, originalLine: content, completedAt: dayKey(day) }
+    lines.splice(at, 0, done + eolAt)
+    return lines.join('\n')
   }
-  return { text: lines.join('\n'), id, origin, originalLine: content, completedAt: dayKey(day) }
+  // A new section at the end, after one blank line; the file keeps its last line break.
+  const crlf = text.includes('\r\n') ? '\r' : ''
+  const trailing = lines.at(-1) === ''
+  const out = trailing ? lines.slice(0, -1) : lines
+  if (out.length && out.at(-1)!.trim() !== '') out.push(crlf)
+  out.push(`## ${ARCHIVE_LIST}${crlf}`, done + crlf)
+  if (trailing) out.push('')
+  return out.join('\n')
 }
 
 /** The text of tarefas.md as it was before a completion. Refused, with nothing written, when the file has changed since. */
 export function planUndoComplete(text: string, done: Pick<TaskCompletion, 'before' | 'after'>): string {
   if (text !== done.after) throw new Error(UNDO_CHANGED)
   return done.before
+}
+
+/** What discarding a task left behind: the id, the list it came from, the day it left and the line as it was. */
+export interface TaskDiscarded {
+  id: string
+  origin: string
+  completedAt: string
+  originalLine: string
+}
+
+/**
+ * The text of tarefas.md with the open task on `line` discarded, and its id. The line gets [-] and
+ * " ❌ DD.MM.AAAA — motivo" before its id, and goes to the end of the Archive. Discarding is not
+ * completing: no ✅ is written. The reason is required, and a "|", a line break or "^t" is refused,
+ * since each would break the fields of the line.
+ */
+export function planDiscard(
+  text: string,
+  line: number,
+  reason: string,
+  day: Date,
+  newId: () => string = randomTaskId,
+): { text: string } & TaskDiscarded {
+  const motivo = reason.trim()
+  if (!motivo) throw new Error(NO_REASON)
+  if ([...motivo].length > REASON_MAX) throw new Error(`O motivo pode ter até ${REASON_MAX} caracteres.`)
+  if (/[\r\n|]|\^t[a-z0-9]/i.test(motivo))
+    throw new Error('O motivo não pode ter “|”, quebra de linha nem “^t”, que separam os campos da linha.')
+
+  const board = parseTasksFile(text)
+  const from = board.lists.findIndex((l) => l.tasks.some((t) => t.line === line))
+  const task = from < 0 ? undefined : board.lists[from]!.tasks.find((t) => t.line === line)
+  if (!task) throw new Error(NOT_FOUND)
+  const origin = board.lists[from]!.name
+  if (origin === ARCHIVE_LIST) throw new Error('As tarefas do Archive não podem ser descartadas.')
+  if (task.status !== 'open') throw new Error('Só tarefas abertas podem ser descartadas.')
+
+  const lines = text.split('\n')
+  const raw = lines[line - 1]!
+  const eol = raw.endsWith('\r') ? '\r' : ''
+  const content = raw.slice(0, raw.length - eol.length)
+  if (!task.id && /\s\^t\S*\s*$/i.test(content)) throw new Error(BROKEN_ID)
+  const id = task.id ?? pickId(taskIdsIn(text), newId)
+  const body = content.trimEnd()
+  const block = /\s+\^t\S+$/i.exec(body)
+  const head = (block ? body.slice(0, block.index) : body).replace(CHECKBOX_OPEN, '$1[-]')
+  const discarded = `${head} ❌ ${dayLabel(day)} — ${motivo} ^${id}`
+  return { text: moveToArchive(text, line, discarded), id, origin, originalLine: content, completedAt: dayKey(day) }
+}
+
+/** How a reopen goes: the file with the task back in its list, or the lists to choose from when its origin is gone. */
+export type ReopenPlan = { status: 'done'; text: string; id?: string; list: string } | { status: 'choose'; lists: string[] }
+
+export interface ReopenOptions {
+  /** The list to put the task back in. Missing: the list it was taken from. */
+  list?: string
+  /** The record planning.json keeps for a task, by id, when there is one. */
+  archived: (id: string) => ArchivedTask | undefined
+}
+
+/**
+ * The text of tarefas.md with a completed or discarded task back in its list. Its ✅ or ❌ mark,
+ * its date and its reason go, the checkbox is [ ] again and its id stays. A legacy line goes back to
+ * the text it had before, when the record still has it. The task goes to the end of its origin list,
+ * or to `opts.list`; with no origin left, nothing is written and the lists to choose from come back.
+ * A task that is open already (a record left by a reopen that failed to clear it) is only let go of.
+ */
+export function planReopen(text: string, target: number | string, opts: ReopenOptions): ReopenPlan {
+  const board = parseTasksFile(text)
+  const found = locate(board, target)
+  if (!found) throw new Error(NOT_FOUND)
+  const { list: from, task } = found
+  const record = task.id ? opts.archived(task.id) : undefined
+
+  if (task.status === 'open') {
+    if (!record) throw new Error(NOT_DONE)
+    return { status: 'done', text, id: task.id, list: from.name }
+  }
+
+  const lists = board.lists.map((l) => l.name).filter((name) => name !== ARCHIVE_LIST)
+  if (opts.list !== undefined && !lists.includes(opts.list)) {
+    throw new Error(`Não encontrei a lista “${opts.list}” no tarefas.md. Escolha uma lista que exista.`)
+  }
+  const dest = opts.list ?? record?.origin
+  if (dest === undefined || !lists.includes(dest)) return { status: 'choose', lists }
+
+  const lines = text.split('\n')
+  const raw = lines[task.line - 1]!
+  const eol = raw.endsWith('\r') ? '\r' : ''
+  const restored = reopenedLine(raw.slice(0, raw.length - eol.length), task, record)
+
+  lines.splice(task.line - 1, 1)
+  const rest = parseTasksFile(lines.join('\n'))
+  const to = rest.lists.findIndex((l) => l.name === dest)
+  const last = rest.lists[to]!.tasks.at(-1)
+  // After the section's last task; with no task yet, right under its heading.
+  const at = last ? last.line : rest.headings[to]! + 1
+  const eolAt = lines[at - 1]!.endsWith('\r') ? '\r' : ''
+  lines.splice(at, 0, restored + eolAt)
+  return { status: 'done', text: lines.join('\n'), id: task.id, list: dest }
+}
+
+function locate(board: ParsedBoard, target: number | string): { list: TaskList; task: Task } | undefined {
+  const key = typeof target === 'number' ? '' : target.toLowerCase()
+  for (const list of board.lists) {
+    for (const task of list.tasks) {
+      if (typeof target === 'number' ? task.line === target : task.id?.toLowerCase() === key) return { list, task }
+    }
+  }
+  return undefined
+}
+
+/** The line of a completed or discarded task as it was before: marks out, checkbox open, id kept. */
+function reopenedLine(content: string, task: Task, record: ArchivedTask | undefined): string {
+  const body = content.trimEnd()
+  const block = /\s+\^t\S+$/i.exec(body)
+  const idPart = task.id ? ` ^${task.id}` : (block?.[0] ?? '')
+  if (record && !isNewFormatLine(content)) {
+    return record.originalLine.replace(/\s+\^t\S+$/i, '').replace(CHECKBOX_ANY, '$1[ ]') + idPart
+  }
+  const head = block ? body.slice(0, block.index) : body
+  return head.replace(DONE_MARK, '').replace(CHECKBOX_ANY, '$1[ ]') + idPart
 }
 
 /**
@@ -349,6 +491,20 @@ export function createTaskWriter(opts: TaskWriterOptions = {}) {
         before: text,
         after: plan.text,
       }
+    },
+    /** Discards the open task on `line` or with this id, with its reason. Nothing is written when a check fails. */
+    discard(vault: string, target: number | string, reason: string): TaskDiscarded {
+      const text = unchanged(vault)
+      const plan = planDiscard(text, typeof target === 'number' ? target : lineOfId(text, target), reason, now(), opts.newId)
+      save(vault, text, plan.text)
+      return { id: plan.id, origin: plan.origin, completedAt: plan.completedAt, originalLine: plan.originalLine }
+    },
+    /** Reopens the completed or discarded task on `line` or with this id. Writes nothing when it asks for a list instead. */
+    reopen(vault: string, target: number | string, opts: ReopenOptions): ReopenPlan {
+      const text = unchanged(vault)
+      const plan = planReopen(text, target, opts)
+      if (plan.status === 'done' && plan.text !== text) save(vault, text, plan.text)
+      return plan
     },
     /** Gives back the text of tarefas.md from before `done`. Refused when the file is not the one `done` wrote. */
     undoComplete(vault: string, done: TaskCompletion): void {

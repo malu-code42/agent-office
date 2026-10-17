@@ -9,7 +9,7 @@ import type { SquadInfo } from './squads'
 import type { MacJob, Routine, RoutineDraft } from './routines'
 import type { ClaudeStats } from './stats'
 import type { FocusItem } from '../planning'
-import type { NewTaskDraft, ParsedBoard, TaskMove, TaskRef, TaskReschedule } from '../tasks'
+import type { NewTaskDraft, ParsedBoard, TaskDiscard, TaskMove, TaskRef, TaskReopen, TaskReschedule } from '../tasks'
 import type { DelegateTarget, Ticket, TicketDraft, TicketPatch, TicketStatus } from './tickets'
 
 /** CPU (% of the whole machine) and memory (bytes), as in Activity Monitor. */
@@ -129,6 +129,9 @@ export type OfficeEvent =
   /** The Mac's own scheduled jobs changed (read every minute). */
   | { type: 'macJobs'; jobs: MacJob[] }
 
+/** A reopen either put the task back (`list` is where it went) or waits for the user to choose one of `lists`. */
+export type ReopenResult = { status: 'done'; list: string; board: ParsedBoard; focus: FocusItem[] } | { status: 'choose'; lists: string[] }
+
 /** window.onerror / unhandledrejection, as the page reports them to the log. */
 export interface RendererError {
   kind: 'error' | 'rejection'
@@ -153,6 +156,10 @@ export interface OfficeAPI {
   completeTask(target: TaskRef): Promise<{ id: string; board: ParsedBoard; focus: FocusItem[] }>
   /** Desfaz a conclusão feita há até 10 segundos: a tarefa volta à lista de origem e ao foco. Recusa se o tarefas.md mudou. */
   undoCompleteTask(id: string): Promise<{ board: ParsedBoard; focus: FocusItem[] }>
+  /** Descarta a tarefa (pela linha ou pelo id) com motivo obrigatório: ela vai para o Archive com ❌, sem ✅, e sai do foco. */
+  discardTask(input: TaskDiscard): Promise<{ id: string; board: ParsedBoard; focus: FocusItem[] }>
+  /** Reabre a tarefa concluída ou descartada na lista de origem, sem as marcas. Sem origem, devolve as listas para escolher (status choose). */
+  reopenTask(input: TaskReopen): Promise<ReopenResult>
   /** Lê o foco: cada tarefa com título e lista de origem, ou marcada como sumida do tarefas.md. */
   readFocus(): Promise<FocusItem[]>
   /** Põe em foco a tarefa da linha dada (ganha um id no tarefas.md se não tiver) e devolve o quadro e o foco. */

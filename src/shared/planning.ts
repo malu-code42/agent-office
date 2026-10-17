@@ -12,8 +12,9 @@ export interface Step {
 }
 
 /**
- * A completed task, by its id in planning.json. `origin` is the list it came from, `completedAt`
- * the local day as AAAA-MM-DD, `originalLine` the line as it was before. Reopening (AO-06) needs them.
+ * A completed or discarded task, by its id in planning.json. `origin` is the list it came from,
+ * `completedAt` the local day it left the list as AAAA-MM-DD, `originalLine` the line as it was
+ * before. Reopening (AO-06) needs them; the record goes when the task is reopened.
  */
 export interface ArchivedTask {
   origin: string
