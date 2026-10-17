@@ -1,5 +1,6 @@
 import type { State } from '../state'
 import { focusKey } from '@shared/planning'
+import { parseEmphasis } from '@shared/emphasis'
 import {
   ARCHIVE_LIST,
   boardView,
@@ -21,6 +22,17 @@ import { runDiscard, runReopen } from './tasks-discard'
 import './focus.css'
 
 const ARROWS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
+
+/** Renders `**negrito**` and `*itálico*` as elements; everything else stays text. */
+function taskTitle(text: string): (Node | string)[] {
+  return parseEmphasis(text).map((segment) =>
+    segment.kind === 'bold'
+      ? h('strong', { class: 'tcard-bold' }, segment.text)
+      : segment.kind === 'italic'
+        ? h('em', { class: 'tcard-italic' }, segment.text)
+        : segment.text,
+  )
+}
 
 /** ↑/↓ move between the cards of a list, ←/→ between lists (same row when there is one). */
 function moveFocus(columns: HTMLElement[], key: string): void {
@@ -390,7 +402,9 @@ export async function openTasksBoard(
                           tabindex: '0',
                           ...dragAndMove(list, task),
                           'aria-label': [
-                            task.text,
+                            parseEmphasis(task.text)
+                              .map((segment) => segment.text)
+                              .join(''),
                             task.status === 'discarded' ? 'Descartada' : '',
                             isFocused(task) ? 'Em foco' : '',
                             taskWhen(task) ? `Data ${taskWhen(task)}` : '',
@@ -404,8 +418,14 @@ export async function openTasksBoard(
                           'div',
                           { class: 'tcard-top' },
                           task.status === 'open' ? completeBox(task) : null,
-                          h('span', { class: 'tcard-title' }, task.text),
-                          task.status !== 'open' ? h('span', { class: 'chip chip-err' }, 'Descartada') : null,
+                          h('span', { class: 'tcard-title' }, ...taskTitle(task.text)),
+                          task.status !== 'open'
+                            ? h(
+                                'span',
+                                { class: `chip ${task.status === 'completed' ? 'chip-done' : 'chip-err'}` },
+                                task.status === 'completed' ? 'Concluída' : 'Descartada',
+                              )
+                            : null,
                           isFocused(task) ? h('span', { class: 'chip' }, 'Em foco') : null,
                         ),
                         taskWhen(task) ? h('div', { class: 'tcard-foot' }, taskWhen(task)) : null,
