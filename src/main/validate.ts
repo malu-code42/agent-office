@@ -82,6 +82,10 @@ export const moveTaskSchema: z.ZodType<TaskMove> = z.object({
   line: z.number().int().min(1).max(10_000_000),
   list: z.string().max(200),
 })
+/** The line of a task put in focus, as the board read it. */
+export const taskLineSchema = z.number().int().min(1).max(10_000_000)
+/** A task id as tarefas.md writes it: ^t and six letters or digits. */
+export const taskIdSchema = z.string().regex(/^t[a-z0-9]{6}$/i)
 export const permissionModeSchema = z.enum(PERMISSION_MODES as [OfficePermissionMode, ...OfficePermissionMode[]])
 export const ticketStatusSchema = z.enum(STATUS_VALUES)
 /** A message to an agent: long pastes are fine, megabytes of text are not. */

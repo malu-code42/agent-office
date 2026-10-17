@@ -108,6 +108,32 @@ export function planMoveTask(
   return { text: lines.join('\n'), id }
 }
 
+/**
+ * The text of tarefas.md with an id on the open task on `line`, and that id. A task that has one
+ * keeps it and the text comes back as it was. Any other line gets " ^id" at its end and nothing else
+ * changes: a legacy line keeps its format (rewriting it is ticket 19).
+ */
+export function planTaskId(text: string, line: number, newId: () => string = randomTaskId): { text: string; id: string } {
+  const board = parseTasksFile(text)
+  const list = board.lists.find((l) => l.tasks.some((t) => t.line === line))
+  const task = list?.tasks.find((t) => t.line === line)
+  if (!list || !task) throw new Error(NOT_FOUND)
+  if (list.name === ARCHIVE_LIST) throw new Error('As tarefas do Archive não podem ir para o foco.')
+  if (task.status !== 'open') throw new Error('Só tarefas abertas podem ir para o foco.')
+  if (task.id) return { text, id: task.id }
+
+  const lines = text.split('\n')
+  const raw = lines[line - 1]!
+  const eol = raw.endsWith('\r') ? '\r' : ''
+  const content = raw.slice(0, raw.length - eol.length)
+  // A second id token would make the line read as a task with two ids: refuse it instead.
+  if (/\s\^t\S*\s*$/i.test(content))
+    throw new Error('Essa tarefa tem um identificador repetido ou inválido no tarefas.md. Corrija a linha e tente de novo.')
+  const id = pickId(taskIdsIn(text), newId)
+  lines[line - 1] = `${content} ^${id}${eol}`
+  return { text: lines.join('\n'), id }
+}
+
 const stampOf = (d: Date): string => {
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
@@ -174,6 +200,13 @@ export function createTaskWriter(opts: TaskWriterOptions = {}) {
       const text = unchanged(vault)
       const plan = planNewTask(text, draft, opts.newId)
       save(vault, text, plan.text)
+      return plan.id
+    },
+    /** The id of the open task on `line` (as the board read it), given now when it has none. Returns the id. */
+    assignId(vault: string, line: number): string {
+      const text = unchanged(vault)
+      const plan = planTaskId(text, line, opts.newId)
+      if (plan.text !== text) save(vault, text, plan.text)
       return plan.id
     },
     /** Moves the task on `line` (as the board read it) to `list`. Nothing is written when it is already there. */

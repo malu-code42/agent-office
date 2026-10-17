@@ -6,6 +6,7 @@ import type { Bridge } from '../bridge'
 import type { TicketDesk } from '../delegate'
 import type { CostBook } from '../ledger'
 import type { MacJobs } from '../mac-jobs'
+import type { PlanningStore } from '../planning'
 import type { RoutineScheduler } from '../routines'
 import type { StatsReader } from '../stats'
 import type { Store } from '../store'
@@ -21,6 +22,8 @@ export interface IpcContext {
   store: Store
   manager: AgentManager
   board: TicketBoard
+  /** The focus set of the Tarefas (planning.json). */
+  planning: PlanningStore
   book: CostBook
   desk: TicketDesk
   routines: RoutineScheduler

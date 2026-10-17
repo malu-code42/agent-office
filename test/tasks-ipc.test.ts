@@ -1,7 +1,8 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { PlanningStore } from '../src/main/planning'
 
 const ipc = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
@@ -19,11 +20,15 @@ const { registerTasksIpc } = await import('../src/main/ipc/tasks')
 const invoke = (channel: string, ...args: unknown[]) => ipc.handlers.get(channel)!(undefined, ...args)
 
 let vault: string
+let data: string
+let planning: PlanningStore
 let settings: { vaultPath?: string }
 let broadcast: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   vault = mkdtempSync(join(tmpdir(), 'ao-vault-'))
+  data = mkdtempSync(join(tmpdir(), 'ao-focus-data-'))
+  planning = new PlanningStore(data)
   settings = {}
   broadcast = vi.fn()
   ipc.handlers.clear()
@@ -39,11 +44,15 @@ beforeEach(() => {
         settings = value
       },
     } as never,
+    planning,
     broadcast,
   } as never)
 })
 
-afterEach(() => rmSync(vault, { recursive: true, force: true }))
+afterEach(() => {
+  rmSync(vault, { recursive: true, force: true })
+  rmSync(data, { recursive: true, force: true })
+})
 
 describe('tasks IPC', () => {
   it('reads only the vault selected and saved through the native folder dialog', async () => {
@@ -147,5 +156,85 @@ describe('tasks IPC', () => {
     settings.vaultPath = join(vault, 'missing')
 
     await expect(invoke('office:readTasks')).rejects.toThrow(`A pasta do vault não existe: ${settings.vaultPath}`)
+  })
+})
+
+type FocusItemView = { id: string; missing: boolean; text?: string; list?: string }
+
+describe('tasks focus IPC', () => {
+  it('puts a task without an id in focus: its line gains the id, the rest of the file stays, and one backup is kept', async () => {
+    const source = '## Casa\n- [ ] Lavar roupa\n- [ ] Passar pano ^t1a2b3c\n'
+    const file = join(vault, 'tarefas.md')
+    writeFileSync(file, source, 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+
+    const focused = (await invoke('office:focusTask', 2)) as { focus: FocusItemView[] }
+    const id = focused.focus[0]!.id
+    const after = readFileSync(file, 'utf8')
+
+    expect(focused.focus).toEqual([{ id, missing: false, text: 'Lavar roupa', list: 'Casa' }])
+    expect(after.split('\n')).toEqual(['## Casa', `- [ ] Lavar roupa ^${id}`, '- [ ] Passar pano ^t1a2b3c', ''])
+    expect(planning.focus()).toEqual([id])
+    expect(readdirSync(join(vault, 'backups', 'tarefas'))).toHaveLength(1)
+  })
+
+  it('a task that already has an id keeps it and tarefas.md is not written', async () => {
+    const source = '## Casa\n- [ ] Passar pano ^t1a2b3c\n'
+    writeFileSync(join(vault, 'tarefas.md'), source, 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+
+    await invoke('office:focusTask', 2)
+
+    expect(readFileSync(join(vault, 'tarefas.md'), 'utf8')).toBe(source)
+    expect(planning.focus()).toEqual(['t1a2b3c'])
+    expect(existsSync(join(vault, 'backups'))).toBe(false)
+  })
+
+  it('a change to tarefas.md since the board read it cancels the focus, and nothing is recorded', async () => {
+    writeFileSync(join(vault, 'tarefas.md'), '## Casa\n- [ ] Lavar roupa\n', 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+    const changed = '## Casa\n- [ ] Lavar louça\n'
+    writeFileSync(join(vault, 'tarefas.md'), changed, 'utf8')
+
+    await expect(invoke('office:focusTask', 2)).rejects.toThrow('mudou desde que você abriu o quadro')
+    expect(planning.focus()).toEqual([])
+    expect(readFileSync(join(vault, 'tarefas.md'), 'utf8')).toBe(changed)
+  })
+
+  it('shows a focused task that is gone from tarefas.md as missing, and takes it out without writing the file', async () => {
+    const source = '## Casa\n- [ ] Lavar roupa ^t1a2b3c\n'
+    writeFileSync(join(vault, 'tarefas.md'), source, 'utf8')
+    settings.vaultPath = vault
+    planning.add('tzzzzzz')
+
+    expect(await invoke('office:readFocus')).toEqual([{ id: 'tzzzzzz', missing: true }])
+    expect(await invoke('office:unfocusTask', 'tzzzzzz')).toEqual([])
+    expect(planning.focus()).toEqual([])
+    expect(readFileSync(join(vault, 'tarefas.md'), 'utf8')).toBe(source)
+  })
+
+  it('refuses to focus a task on the Archive or a task that is not open', async () => {
+    const source = ['## Estudo', '- [x] Ler ✅ 2026-10-12 ^t1a2b3c', '## Archive', '- [-] Velho ❌ 2026-10-10 ^t4d5e6f', ''].join('\n')
+    writeFileSync(join(vault, 'tarefas.md'), source, 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+
+    await expect(invoke('office:focusTask', 2)).rejects.toThrow('Só tarefas abertas podem ir para o foco.')
+    await expect(invoke('office:focusTask', 4)).rejects.toThrow('As tarefas do Archive não podem ir para o foco.')
+    expect(planning.focus()).toEqual([])
+  })
+
+  it('refuses a bad line or id from the renderer', async () => {
+    settings.vaultPath = vault
+
+    await expect(invoke('office:focusTask', '2')).rejects.toThrow('Tarefa inválida.')
+    await expect(invoke('office:unfocusTask', '../tarefas')).rejects.toThrow('Identificador inválido.')
+  })
+
+  it('reads the focus only with a vault configured', async () => {
+    await expect(invoke('office:readFocus')).rejects.toThrow('Configure a pasta do vault em Ajustes → Tarefas do Obsidian.')
   })
 })
