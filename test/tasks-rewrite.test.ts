@@ -31,6 +31,23 @@ describe('previewRewrite', () => {
     expect(preview.lines[1]?.note).toBe('hora 9:00 escrita como 09:00')
   })
 
+  it('keeps both the date and the time when the line has both', () => {
+    const preview = previewRewrite(['## Rotina', '- [ ] **16.10.2026** | 14:30 | Consulta'].join('\n'), counter())
+
+    expect(preview.lines[1]?.after).toBe('- [ ] 16.10.2026 | 14:30 | Rotina | Consulta ^t000001')
+    expect(preview.lines[1]?.droppedTime).toBeUndefined()
+    expect(preview.lines[1]?.rules).not.toContain(13)
+  })
+
+  // Regra 13: hora só existe junto com data; sem data, a hora sai da linha
+  it('drops a time that has no date and keeps the rest of the line', () => {
+    const preview = previewRewrite(['## Rotina', '- [ ] 9:00 | Tomar café'].join('\n'), counter())
+
+    expect(preview.lines[1]?.after).toBe('- [ ] Rotina | Tomar café ^t000001')
+    expect(preview.lines[1]?.droppedTime).toBe('9:00')
+    expect(preview.lines[1]?.rules).toContain(13)
+  })
+
   it('turns an "Área | tarefa" prefix into the lista and keeps the section', () => {
     const preview = previewRewrite(['## tarefas', '- [ ] **06.10.2026** | Hera | criar revisão diária'].join('\n'), counter())
 

@@ -8,6 +8,8 @@ export type RewriteLine = {
   kind: RewriteKind
   /** Números das regras aprovadas que mudaram esta linha; a prévia os conta por regra. */
   rules: number[]
+  /** Hora original removida por não haver data na linha; a prévia lista cada uma. */
+  droppedTime?: string
   note?: string
 }
 
@@ -15,7 +17,7 @@ export type RewriteAmbiguity = { line: number; before: string; question: string 
 
 export type RewritePreview = { lines: RewriteLine[]; ambiguous: RewriteAmbiguity[] }
 
-type TaskRewrite = { fields: string; closing: string; problems: string[]; rules: number[]; note?: string }
+type TaskRewrite = { fields: string; closing: string; problems: string[]; rules: number[]; droppedTime?: string; note?: string }
 
 const TASK_RE = /^(\s*)- \[( |x|-)\] (.*)$/
 const HEADING_RE = /^##\s+(.+?)\s*$/
@@ -69,7 +71,8 @@ export function previewRewrite(content: string, ids: () => string): RewritePrevi
       before,
       after: `${indent}- [${mark}] ${rewrite.fields}${closing} ^${id}`,
       kind: 'task',
-      rules: [...rewrite.rules, 11],
+      rules: [...rewrite.rules, ...(rewrite.droppedTime ? [13] : []), 11],
+      droppedTime: rewrite.droppedTime,
       note: rewrite.note,
     })
   })
@@ -125,10 +128,16 @@ function rewriteTask(mark: string, body: string, section: string | null, indente
     fieldParts.shift()
   }
   const [rawTime] = fieldParts
+  let droppedTime: string | undefined
   if (rawTime !== undefined && TIME_RE.test(rawTime)) {
-    time = normalizeTime(rawTime)
     fieldParts.shift()
-    if (time !== rawTime) notes.push(`hora ${rawTime} escrita como ${time}`)
+    if (date) {
+      time = normalizeTime(rawTime)
+      if (time !== rawTime) notes.push(`hora ${rawTime} escrita como ${time}`)
+    } else {
+      droppedTime = rawTime
+      notes.push(`hora ${rawTime} removida (sem data)`)
+    }
   }
 
   const defaultList = closes && !indented ? ARCHIVE : section
@@ -155,6 +164,7 @@ function rewriteTask(mark: string, body: string, section: string | null, indente
     closing,
     problems,
     rules: [...new Set(rules)],
+    droppedTime,
     note: notes.length > 0 ? notes.join('; ') : undefined,
   }
 }
