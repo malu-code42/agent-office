@@ -24,7 +24,20 @@ export abstract class BoardColumns extends BoardBase {
     if (key !== this.tabKey) {
       this.tabKey = key
       this.tabBar.replaceChildren(
-        ...tabs.map((t) => h('button', { class: 'board-tab', type: 'button', role: 'tab', tabindex: -1, 'data-floor': t.value, onclick: () => this.selectFloor(t.value) }, t.label)),
+        ...tabs.map((t) =>
+          h(
+            'button',
+            {
+              class: 'board-tab',
+              type: 'button',
+              role: 'tab',
+              tabindex: -1,
+              'data-floor': t.value,
+              onclick: () => this.selectFloor(t.value),
+            },
+            t.label,
+          ),
+        ),
       )
     }
     const tabButtons = [...this.tabBar.querySelectorAll<HTMLButtonElement>('[role="tab"]')]

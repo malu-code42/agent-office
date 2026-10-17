@@ -188,7 +188,11 @@ export const focusChoiceSchema: z.ZodType<FocusChoice> = z.discriminatedUnion('k
 export const reviewChoicesSchema: z.ZodType<ReviewChoices> = z
   .record(taskIdSchema, focusChoiceSchema)
   .refine((c) => Object.keys(c).length <= 500, 'Escolhas demais na revisão.')
-export const reviewStepSchema = z.number().int().min(0).max(REVIEW_STEPS.length - 1)
+export const reviewStepSchema = z
+  .number()
+  .int()
+  .min(0)
+  .max(REVIEW_STEPS.length - 1)
 /** "Dispensar hoje" or adiar by 1, 2, 3 days or 1 week. */
 export const reviewPostponeSchema: z.ZodType<ReviewPostpone> = z.union([
   z.literal('dispensar'),

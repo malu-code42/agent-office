@@ -430,7 +430,12 @@ export class Hud {
           'button',
           { class: 'inbox-row', 'data-focus-key': row.id, onclick: () => this.pickProposal(row.id) },
           h('span', { class: 'inbox-mark', 'aria-hidden': 'true' }, icon('list', 18)),
-          h('div', { class: 'inbox-main' }, h('div', { class: 'inbox-name' }, row.name, h('span', { class: 'chip chip-wait' }, row.chip)), h('div', { class: 'inbox-text' }, row.text)),
+          h(
+            'div',
+            { class: 'inbox-main' },
+            h('div', { class: 'inbox-name' }, row.name, h('span', { class: 'chip chip-wait' }, row.chip)),
+            h('div', { class: 'inbox-text' }, row.text),
+          ),
           h('span', { class: 'inbox-time' }, timeAgo(row.createdAt)),
         ),
       )
@@ -442,7 +447,12 @@ export class Hud {
           'button',
           { class: 'inbox-row', 'data-focus-key': 'review-draft', onclick: () => this.pickReview() },
           h('span', { class: 'inbox-mark', 'aria-hidden': 'true' }, icon('list', 18)),
-          h('div', { class: 'inbox-main' }, h('div', { class: 'inbox-name' }, 'Revisão do dia', h('span', { class: 'chip chip-wait' }, 'rascunho')), h('div', { class: 'inbox-text' }, 'Continue de onde parou.')),
+          h(
+            'div',
+            { class: 'inbox-main' },
+            h('div', { class: 'inbox-name' }, 'Revisão do dia', h('span', { class: 'chip chip-wait' }, 'rascunho')),
+            h('div', { class: 'inbox-text' }, 'Continue de onde parou.'),
+          ),
         ),
       )
     }
