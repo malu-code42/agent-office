@@ -7,6 +7,7 @@ const api: OfficeAPI = {
   selectTasksVault: () => ipcRenderer.invoke('office:selectTasksVault'),
   createTask: (draft) => ipcRenderer.invoke('office:createTask', draft),
   moveTask: (move) => ipcRenderer.invoke('office:moveTask', move),
+  rescheduleTask: (change) => ipcRenderer.invoke('office:rescheduleTask', change),
   readFocus: () => ipcRenderer.invoke('office:readFocus'),
   focusTask: (line) => ipcRenderer.invoke('office:focusTask', line),
   unfocusTask: (id) => ipcRenderer.invoke('office:unfocusTask', id),

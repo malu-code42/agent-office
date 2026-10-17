@@ -5,7 +5,7 @@ import { ATTACH_LIMITS } from '@shared/attachments'
 import { HAIR_STYLES } from '@shared/describe'
 import { floorNameFor, MAX_PROJECT_FLOORS } from '@shared/projects'
 import { scheduleError } from '@shared/schedule'
-import type { NewTaskDraft, TaskMove } from '@shared/tasks'
+import { isDateDDMMAAAA, type NewTaskDraft, type TaskMove, type TaskReschedule } from '@shared/tasks'
 import { STATUSES } from '@shared/tickets'
 import { EFFORT_LEVELS, ROUTINE_LIMITS } from '@shared/types'
 import type { VideoSettings } from '@shared/video'
@@ -81,6 +81,11 @@ export const newTaskSchema: z.ZodType<NewTaskDraft> = z.object({
 export const moveTaskSchema: z.ZodType<TaskMove> = z.object({
   line: z.number().int().min(1).max(10_000_000),
   list: z.string().max(200),
+})
+/** A task moved to another day: the line as the board read it, the date DD.MM.AAAA for a day that exists. */
+export const rescheduleTaskSchema: z.ZodType<TaskReschedule> = z.object({
+  line: z.number().int().min(1).max(10_000_000),
+  date: z.string().max(10).refine(isDateDDMMAAAA),
 })
 /** The line of a task put in focus, as the board read it. */
 export const taskLineSchema = z.number().int().min(1).max(10_000_000)

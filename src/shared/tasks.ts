@@ -221,3 +221,54 @@ export function taskDraftProblem(draft: NewTaskDraft, listNames: readonly string
   if (time && !TIME_FORMAT.test(time)) return 'Hora inválida. Use HH:MM, por exemplo 09:00.'
   return null
 }
+
+/** A task moved to another day: its line in tarefas.md as the board read it, and the day as DD.MM.AAAA. */
+export interface TaskReschedule {
+  line: number
+  date: string
+}
+
+/** A date written DD.MM.AAAA for a day that exists in the calendar (no 31.02). */
+export function isDateDDMMAAAA(date: string): boolean {
+  return DATE_FORMAT.test(date) && isRealDate(date)
+}
+
+/** The date and time a card shows, as written in the line ("16.10.2026 09:00"); null when the line has neither. */
+export function taskWhen(task: Pick<Task, 'date' | 'dueDate' | 'time'>): string | null {
+  return [task.date ?? task.dueDate, task.time].filter(Boolean).join(' ') || null
+}
+
+const dayLabel = (d: Date): string =>
+  `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`
+
+/** The days the Reagendar menu offers, from the local "today": tomorrow, in three days, and the Monday of next week. */
+export function rescheduleTargets(today: Date): { label: string; date: string }[] {
+  const daysAhead = (n: number) => dayLabel(new Date(today.getFullYear(), today.getMonth(), today.getDate() + n))
+  // Sunday (0) gives 1 day, Monday (1) gives 7: always the Monday after today.
+  const toMonday = (1 - today.getDay() + 7) % 7 || 7
+  return [
+    { label: 'Amanhã', date: daysAhead(1) },
+    { label: 'Em 3 dias', date: daysAhead(3) },
+    { label: 'Próxima semana', date: daysAhead(toMonday) },
+  ]
+}
+
+/**
+ * The line with its date field set to `date` (DD.MM.AAAA). A date already there is replaced where it
+ * is; without one it goes first, before the time. Time, list, task and id stay as they are.
+ * null when the line is not in the new format: a legacy line is never rewritten here.
+ */
+export function rescheduleLine(line: string, date: string): string | null {
+  const head = /^\s*[-*]\s+\[[ xX-]\]\s+/.exec(line)
+  if (!head) return null
+  const rest = line.slice(head[0].length)
+  const body = rest.trimEnd()
+  const id = BLOCK_ID.exec(body)
+  const content = id ? body.slice(0, id.index) : body
+  const parts = content.split(/(\s+\|\s+)/)
+  const fields = parts.filter((_, i) => i % 2 === 0)
+  if (fields.length < 2 || !fields.slice(0, -2).every((f) => READ_DATE.test(f) || READ_TIME.test(f))) return null
+  if (fields.length > 2 && READ_DATE.test(fields[0]!)) parts[0] = date
+  else parts.unshift(date, parts[1]!)
+  return head[0] + parts.join('') + (id ? body.slice(id.index) : '') + rest.slice(body.length)
+}

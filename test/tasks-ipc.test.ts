@@ -148,6 +148,21 @@ describe('tasks IPC', () => {
     expect(readFileSync(file, 'utf8')).toBe(source)
   })
 
+  it('reschedules a task in the saved vault, and refuses a date that is not a day', async () => {
+    const file = join(vault, 'tarefas.md')
+    writeFileSync(file, '## Casa\n- [ ] Casa | Lavar roupa ^t1a2b3c\n', 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+
+    const rescheduled = (await invoke('office:rescheduleTask', { line: 2, date: '17.10.2026' })) as {
+      board: { lists: { tasks: { text: string; date?: string }[] }[] }
+    }
+
+    expect(readFileSync(file, 'utf8')).toBe('## Casa\n- [ ] 17.10.2026 | Casa | Lavar roupa ^t1a2b3c\n')
+    expect(rescheduled.board.lists[0]!.tasks[0]).toMatchObject({ text: 'Lavar roupa', date: '17.10.2026' })
+    await expect(invoke('office:rescheduleTask', { line: 2, date: '31.02.2026' })).rejects.toThrow('Reagendamento inválido.')
+  })
+
   it('requires a previously selected vault to read tasks', async () => {
     await expect(invoke('office:readTasks')).rejects.toThrow('Configure a pasta do vault em Ajustes → Tarefas do Obsidian.')
   })

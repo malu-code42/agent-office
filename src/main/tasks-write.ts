@@ -1,7 +1,15 @@
 import { randomInt } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ARCHIVE_LIST, parseTasksFile, retargetListField, taskDraftProblem, type NewTaskDraft } from '@shared/tasks'
+import {
+  ARCHIVE_LIST,
+  isDateDDMMAAAA,
+  parseTasksFile,
+  rescheduleLine,
+  retargetListField,
+  taskDraftProblem,
+  type NewTaskDraft,
+} from '@shared/tasks'
 import { writeFileAtomic } from './fs-safe'
 
 /**
@@ -134,6 +142,28 @@ export function planTaskId(text: string, line: number, newId: () => string = ran
   return { text: lines.join('\n'), id }
 }
 
+/**
+ * The text of tarefas.md with the date of the open task on `line` set to `date` (DD.MM.AAAA). Only
+ * that field changes. A legacy line is refused, not rewritten: that is ticket 19.
+ */
+export function planReschedule(text: string, line: number, date: string): string {
+  if (!isDateDDMMAAAA(date)) throw new Error('Data inválida. Use DD.MM.AAAA, por exemplo 16.10.2026.')
+  const board = parseTasksFile(text)
+  const list = board.lists.find((l) => l.tasks.some((t) => t.line === line))
+  const task = list?.tasks.find((t) => t.line === line)
+  if (!list || !task) throw new Error(NOT_FOUND)
+  if (list.name === ARCHIVE_LIST) throw new Error('As tarefas do Archive não podem ser reagendadas pelo quadro.')
+  if (task.status !== 'open') throw new Error('Só tarefas abertas podem ser reagendadas.')
+
+  const lines = text.split('\n')
+  const raw = lines[line - 1]!
+  const eol = raw.endsWith('\r') ? '\r' : ''
+  const next = rescheduleLine(raw.slice(0, raw.length - eol.length), date)
+  if (next === null) throw new Error('Reescreva esta tarefa no novo formato antes de reagendar')
+  lines[line - 1] = next + eol
+  return lines.join('\n')
+}
+
 const stampOf = (d: Date): string => {
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
@@ -214,6 +244,12 @@ export function createTaskWriter(opts: TaskWriterOptions = {}) {
       const text = unchanged(vault)
       const plan = planMoveTask(text, line, list, opts.newId)
       if (plan.text !== text) save(vault, text, plan.text)
+    },
+    /** Sets the date of the task on `line` (as the board read it) to `date`, DD.MM.AAAA. Nothing is written when it already is that date. */
+    reschedule(vault: string, line: number, date: string): void {
+      const text = unchanged(vault)
+      const next = planReschedule(text, line, date)
+      if (next !== text) save(vault, text, next)
     },
   }
 }
