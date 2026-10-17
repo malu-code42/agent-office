@@ -177,7 +177,9 @@ describe('export / import', () => {
     const other = mkdtempSync(join(tmpdir(), 'ao-import-'))
     try {
       applyImport(other, parseExport(JSON.stringify(buildExport(dir))), '/Users/outra')
-      expect(JSON.parse(readFileSync(join(other, 'office.json'), 'utf8')).settings.accounts).toEqual([{ id: 'b', configDir: join('/Users/outra', '.claude-trabalho') }])
+      expect(JSON.parse(readFileSync(join(other, 'office.json'), 'utf8')).settings.accounts).toEqual([
+        { id: 'b', configDir: join('/Users/outra', '.claude-trabalho') },
+      ])
     } finally {
       rmSync(other, { recursive: true, force: true })
     }

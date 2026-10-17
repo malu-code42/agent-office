@@ -36,7 +36,7 @@ test('psScript: name filter, or a validated integer PID; anything else throws', 
 })
 
 test('encodePs: base64 of UTF-16LE round-trips, accents included', () => {
-  const s = psScript(42) + " # João"
+  const s = psScript(42) + ' # João'
   const b64 = encodePs(s)
   assert.match(b64, /^[A-Za-z0-9+/]+=*$/)
   assert.equal(Buffer.from(b64, 'base64').toString('utf16le'), s)
@@ -44,7 +44,9 @@ test('encodePs: base64 of UTF-16LE round-trips, accents included', () => {
 
 test('parseCimLines: real line, spaces and accents, empty fields, CRLF, BOM and junk', () => {
   const out =
-    '\uFEFF18292\tclaude.exe\t37191250000\t366555136\t134352193202422190\t' + NPM + '\r\n' +
+    '\uFEFF18292\tclaude.exe\t37191250000\t366555136\t134352193202422190\t' +
+    NPM +
+    '\r\n' +
     '\r\n' +
     '5000\tclaude.exe\t10\t2048\t134352193202422191\tC:\\Users\\João\\Meus Apps\\claude.exe\r\n' +
     '6000\tclaude.exe\t0\t0\t\t\r\n' +
@@ -68,14 +70,30 @@ test('isDesktopPath: Claude Desktop (MSIX and legacy) only', () => {
   assert.equal(isDesktopPath(null), false)
 })
 
-const row = (pid: number, ticks: number, extra: Partial<ProcRow> = {}): ProcRow => ({ pid, name: 'claude.exe', ticks, ws: 0, created: '1', path: NPM, ...extra })
+const row = (pid: number, ticks: number, extra: Partial<ProcRow> = {}): ProcRow => ({
+  pid,
+  name: 'claude.exe',
+  ticks,
+  ws: 0,
+  created: '1',
+  path: NPM,
+  ...extra,
+})
 
 test('cpuPercent: share of the whole machine; new PIDs do not count; no overlap is null', () => {
   // 1 s of CPU (10^7 ticks) in 15 s on 12 cores ≈ 0.556 %
   const v = cpuPercent(new Map([[1, 0]]), [row(1, 10_000_000)], 15_000, 12)
   assert.ok(v !== null && Math.abs(v - 0.5556) < 0.001)
   // a new PID (2) is ignored; two known ones add up
-  const sum = cpuPercent(new Map([[1, 0], [3, 0]]), [row(1, 10_000_000), row(2, 99_000_000), row(3, 10_000_000)], 10_000, 2)
+  const sum = cpuPercent(
+    new Map([
+      [1, 0],
+      [3, 0],
+    ]),
+    [row(1, 10_000_000), row(2, 99_000_000), row(3, 10_000_000)],
+    10_000,
+    2,
+  )
   assert.equal(sum, 10)
   assert.equal(cpuPercent(new Map(), [row(1, 5)], 15_000, 12), null)
   assert.equal(cpuPercent(new Map([[9, 0]]), [row(1, 5)], 15_000, 12), null)
@@ -104,7 +122,10 @@ test('parseTasklistCsv: pt-BR and en-US output, "no tasks" message, exact names'
     { name: 'myclaude.exe', pid: 77, mem: 10 * 1024 },
     { name: 'claude.exe.bak', pid: 78, mem: 10 * 1024 },
   ])
-  assert.deepEqual(rows.filter((r) => isClaudeImage(r.name)).map((r) => r.pid), [18292, 4])
+  assert.deepEqual(
+    rows.filter((r) => isClaudeImage(r.name)).map((r) => r.pid),
+    [18292, 4],
+  )
   assert.deepEqual(parseTasklistCsv('INFORMAÇÕES: Nenhuma tarefa em execução corresponde aos critérios especificados.\r\n'), [])
   assert.deepEqual(parseTasklistCsv('INFO: No tasks are running which match the specified criteria.'), [])
   assert.equal(isClaudeImage('CLAUDE.EXE'), true)

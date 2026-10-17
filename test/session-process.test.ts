@@ -7,7 +7,15 @@ import { terminate } from '../src/main/session-process'
 const NPM = 'C:\\Users\\Ana\\AppData\\Roaming\\npm\\node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe'
 const DESKTOP = 'C:\\Program Files\\WindowsApps\\Claude_2.26454.2.0_x64__pzs8sxrjxfjjc\\app\\claude.exe'
 
-const row = (pid: number, over: Partial<ProcRow> = {}): ProcRow => ({ pid, name: 'claude.exe', ticks: 0, ws: 0, created: '111', path: NPM, ...over })
+const row = (pid: number, over: Partial<ProcRow> = {}): ProcRow => ({
+  pid,
+  name: 'claude.exe',
+  ticks: 0,
+  ws: 0,
+  created: '111',
+  path: NPM,
+  ...over,
+})
 const noTasklist = async () => {
   throw new Error('tasklist should not run')
 }

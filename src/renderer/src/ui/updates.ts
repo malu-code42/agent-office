@@ -60,7 +60,11 @@ export function mountUpdateNotice(root: HTMLElement): void {
       h('button', { class: 'btn btn-small btn-primary', onclick: () => void restart(root) }, 'Reiniciar'),
       h(
         'button',
-        { class: 'btn btn-small', title: 'Ela é instalada quando você fechar o app', onclick: () => ((dismissed = s.version ?? ''), render(s)) },
+        {
+          class: 'btn btn-small',
+          title: 'Ela é instalada quando você fechar o app',
+          onclick: () => ((dismissed = s.version ?? ''), render(s)),
+        },
         'Depois',
       ),
     )

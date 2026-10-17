@@ -3,7 +3,18 @@ import { isAbsolute } from 'node:path'
 import { isDir } from '../squads'
 import { cleanLook } from '../templates'
 import { repoRoot } from '../git'
-import { worktreeFlagSchema, attachmentsSchema, cleanBrain, cleanHire, messageSchema, parse, pathSchema, permissionDecisionSchema, permissionModeSchema, subagentLogArgsSchema } from '../validate'
+import {
+  worktreeFlagSchema,
+  attachmentsSchema,
+  cleanBrain,
+  cleanHire,
+  messageSchema,
+  parse,
+  pathSchema,
+  permissionDecisionSchema,
+  permissionModeSchema,
+  subagentLogArgsSchema,
+} from '../validate'
 import { id, type IpcContext } from './context'
 
 /** Agents: hire, summon, talk to them, answer permissions and ack results. */
@@ -22,7 +33,11 @@ export function registerAgentsIpc(ctx: IpcContext): void {
     if (!pathSchema.safeParse(cwd).success || !isDir(cwd)) throw new Error('Escolha uma pasta de projeto que exista.')
     const m = permissionModeSchema.safeParse(mode)
     const permissionMode = m.success ? m.data : store.settings.defaultPermissionMode
-    return manager.summon(cwd, { ...defaultBrain(), ...cleanBrain(brain, store.settings.accounts), permissionMode }, worktreeFlagSchema.parse(worktree))
+    return manager.summon(
+      cwd,
+      { ...defaultBrain(), ...cleanBrain(brain, store.settings.accounts), permissionMode },
+      worktreeFlagSchema.parse(worktree),
+    )
   })
   ipcMain.handle('office:isGitRepo', async (_e, cwd: unknown) => {
     const p = pathSchema.safeParse(cwd)

@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { autoStart, placeBalloon, resolveSteps, TOUR_DONE_KEY, TourFlow, tourDone, tourSteps, type FlagStore, type TourTarget } from '../src/renderer/src/ui/tour-plan'
+import {
+  autoStart,
+  placeBalloon,
+  resolveSteps,
+  TOUR_DONE_KEY,
+  TourFlow,
+  tourDone,
+  tourSteps,
+  type FlagStore,
+  type TourTarget,
+} from '../src/renderer/src/ui/tour-plan'
 
 /** localStorage stand-in. */
 function store(): FlagStore & { data: Map<string, string> } {
@@ -13,7 +23,20 @@ const key = (t: TourTarget) => ('hud' in t ? `hud:${t.hud}` : `world:${t.world}`
 describe('tour guiado: passos', () => {
   it('segue a ordem combinada', () => {
     expect(tourSteps('darwin').map((s) => s.id)).toEqual([
-      'welcome', 'desk', 'roster', 'panel', 'cards', 'board', 'resume', 'floors', 'limits', 'skull', 'lounge', 'routines', 'camera', 'end',
+      'welcome',
+      'desk',
+      'roster',
+      'panel',
+      'cards',
+      'board',
+      'resume',
+      'floors',
+      'limits',
+      'skull',
+      'lounge',
+      'routines',
+      'camera',
+      'end',
     ])
   })
 
@@ -90,7 +113,12 @@ describe('tour guiado: navegação e flag', () => {
   })
 
   it('não quebra se o armazenamento recusar a gravação', () => {
-    const flow = new TourFlow(steps(), { getItem: () => null, setItem: () => { throw new Error('cheio') } })
+    const flow = new TourFlow(steps(), {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error('cheio')
+      },
+    })
     expect(() => flow.skip()).not.toThrow()
   })
 })

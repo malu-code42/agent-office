@@ -9,7 +9,19 @@ const NOW = Date.now()
 const iso = (t: number) => new Date(t).toISOString()
 
 /** An assistant line as Claude Code writes it. */
-function line(o: { session?: string; t?: number; id?: string; req?: string; model?: string; input?: number; output?: number; tools?: number; extra?: Record<string, unknown> } = {}): string {
+function line(
+  o: {
+    session?: string
+    t?: number
+    id?: string
+    req?: string
+    model?: string
+    input?: number
+    output?: number
+    tools?: number
+    extra?: Record<string, unknown>
+  } = {},
+): string {
   const content = Array.from({ length: o.tools ?? 0 }, () => ({ type: 'tool_use' }))
   return JSON.stringify({
     type: 'assistant',
@@ -40,7 +52,16 @@ describe('parseLine', () => {
       }),
     )!
     expect(l).toMatchObject({ sessionId: 's1', key: 'msg-1|req-1', model: 'claude-opus-5', fast: true, toolCalls: 2 })
-    expect(l.tokens).toEqual({ input: 1000, output: 100, cacheRead: 50, cacheWrite5m: 20, cacheWrite1h: 10, webSearch: 2, messages: 1, costUsd: 0 })
+    expect(l.tokens).toEqual({
+      input: 1000,
+      output: 100,
+      cacheRead: 50,
+      cacheWrite5m: 20,
+      cacheWrite1h: 10,
+      webSearch: 2,
+      messages: 1,
+      costUsd: 0,
+    })
   })
 
   it('usa ephemeral_5m quando existe', () => {
@@ -70,7 +91,10 @@ describe('parseLine', () => {
 
 describe('streaks', () => {
   it('sequência atual termina hoje ou ontem; a maior conta dias seguidos', () => {
-    expect(streaks(['2026-10-10', '2026-10-11', '2026-10-12', '2026-10-01', '2026-10-02'], '2026-10-12')).toEqual({ current: 3, longest: 3 })
+    expect(streaks(['2026-10-10', '2026-10-11', '2026-10-12', '2026-10-01', '2026-10-02'], '2026-10-12')).toEqual({
+      current: 3,
+      longest: 3,
+    })
     expect(streaks(['2026-10-10', '2026-10-11'], '2026-10-12')).toEqual({ current: 2, longest: 2 })
     expect(streaks(['2026-10-01'], '2026-10-12')).toEqual({ current: 0, longest: 1 })
     expect(streaks([], '2026-10-12')).toEqual({ current: 0, longest: 0 })
@@ -126,7 +150,10 @@ describe('StatsReader', () => {
   })
 
   it('blocos seguidos da mesma mensagem somam só a saída extra e as ferramentas', async () => {
-    writeFileSync(join(projects(), 'a.jsonl'), [line({ id: 'x', output: 10 }), line({ id: 'x', output: 40, tools: 2 }), line({ id: 'x', output: 30 })].join('\n') + '\n')
+    writeFileSync(
+      join(projects(), 'a.jsonl'),
+      [line({ id: 'x', output: 10 }), line({ id: 'x', output: 40, tools: 2 }), line({ id: 'x', output: 30 })].join('\n') + '\n',
+    )
     const all = (await reader().refresh()).buckets[0]
     expect(all.totals.messages).toBe(1)
     expect(all.byModel['claude-opus-5'].output).toBe(40)
@@ -165,7 +192,10 @@ describe('StatsReader', () => {
       { t: NOW - 3_600_000, agentId: 'ag', sessionId: 's1', cwd: '/p', to: 'main', reason: 'start' },
       { t: NOW - 1_800_000, agentId: 'ag', sessionId: 's1', cwd: '/p', from: 'main', to: 'a-2', reason: 'failover' },
     ]
-    writeFileSync(join(projects(), 'a.jsonl'), [line({ id: 'early', t: NOW - 3_000_000 }), line({ id: 'late', t: NOW - 60_000 })].join('\n') + '\n')
+    writeFileSync(
+      join(projects(), 'a.jsonl'),
+      [line({ id: 'early', t: NOW - 3_000_000 }), line({ id: 'late', t: NOW - 60_000 })].join('\n') + '\n',
+    )
     const stats = await reader().refresh()
     const by = Object.fromEntries(stats.buckets.map((b) => [b.accountId, b.totals.messages]))
     expect(by).toEqual({ all: 2, main: 1, 'a-2': 1 })
@@ -200,7 +230,16 @@ describe('StatsReader', () => {
     )
     writeFileSync(join(projects(), 'a.jsonl'), line() + '\n')
     const all = (await reader().refresh()).buckets[0]
-    expect(all.days[0]).toEqual({ date: '2020-01-01', messages: 5, sessions: 1, toolCalls: 2, tokens: 15, byModel: {}, costUsd: 0, legacy: true })
+    expect(all.days[0]).toEqual({
+      date: '2020-01-01',
+      messages: 5,
+      sessions: 1,
+      toolCalls: 2,
+      tokens: 15,
+      byModel: {},
+      costUsd: 0,
+      legacy: true,
+    })
     expect(all.days).toHaveLength(2)
   })
 

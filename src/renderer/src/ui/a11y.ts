@@ -23,7 +23,12 @@ export function focusables(root: HTMLElement): HTMLElement[] {
 
 /** A text field has the focus: letters and Enter belong to it. */
 export function isTyping(el: Element | null = document.activeElement): boolean {
-  return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement || (el instanceof HTMLElement && el.isContentEditable)
+  return (
+    el instanceof HTMLInputElement ||
+    el instanceof HTMLTextAreaElement ||
+    el instanceof HTMLSelectElement ||
+    (el instanceof HTMLElement && el.isContentEditable)
+  )
 }
 
 let nextId = 0
@@ -60,7 +65,10 @@ export function trapTab(el: HTMLElement): void {
  * Marks `el` as a dialog labelled by `title` (and described by `description`), focusable
  * as a whole and with Tab kept inside. `modal` false for cards that leave the rest usable.
  */
-export function asDialog(el: HTMLElement, opts: { title?: HTMLElement | HTMLElement[]; description?: HTMLElement; modal?: boolean; label?: string } = {}): void {
+export function asDialog(
+  el: HTMLElement,
+  opts: { title?: HTMLElement | HTMLElement[]; description?: HTMLElement; modal?: boolean; label?: string } = {},
+): void {
   el.setAttribute('role', 'dialog')
   el.setAttribute('aria-modal', String(opts.modal ?? true))
   el.tabIndex = -1
@@ -72,7 +80,10 @@ export function asDialog(el: HTMLElement, opts: { title?: HTMLElement | HTMLElem
 }
 
 /** Points the dialog's aria-labelledby/-describedby at its current title and text. */
-export function labelDialog(el: HTMLElement, opts: { title?: HTMLElement | HTMLElement[]; description?: HTMLElement; label?: string }): void {
+export function labelDialog(
+  el: HTMLElement,
+  opts: { title?: HTMLElement | HTMLElement[]; description?: HTMLElement; label?: string },
+): void {
   const titles = opts.title ? (Array.isArray(opts.title) ? opts.title : [opts.title]) : []
   if (titles.length) el.setAttribute('aria-labelledby', titles.map(idOf).join(' '))
   else el.removeAttribute('aria-labelledby')
@@ -159,7 +170,12 @@ export function arrowList(list: HTMLElement, itemSelector: string): void {
     const current = (e.target as HTMLElement).closest<HTMLElement>(itemSelector)
     const i = current ? items.indexOf(current) : -1
     if (i < 0) return
-    const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : Math.max(0, Math.min(items.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))
+    const next =
+      e.key === 'Home'
+        ? 0
+        : e.key === 'End'
+          ? items.length - 1
+          : Math.max(0, Math.min(items.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))
     // The arrows would also walk the player around the office.
     e.preventDefault()
     e.stopPropagation()

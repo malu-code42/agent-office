@@ -12,7 +12,9 @@
   background: rgba(255, 255, 255, 0.05);
   font-weight: 600;
   white-space: nowrap;
-  transition: background 0.15s, transform 0.1s;
+  transition:
+    background 0.15s,
+    transform 0.1s;
 }
 
 .btn:hover {

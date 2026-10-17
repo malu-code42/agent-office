@@ -33,7 +33,13 @@ export abstract class AgentSdk extends AgentOffice {
     const squad = s.role === 'orchestrator' && s.squad ? findSquad(s.cwd, s.squad) : undefined
     if (s.role === 'orchestrator') {
       if (!squad) {
-        this.deliver(agent, { text: `Não achei mais o squad \`${s.squad}\` em ${s.cwd}/squads.`, isError: true, costUsd: s.costUsd, durationMs: 0, turns: 0 })
+        this.deliver(agent, {
+          text: `Não achei mais o squad \`${s.squad}\` em ${s.cwd}/squads.`,
+          isError: true,
+          costUsd: s.costUsd,
+          durationMs: 0,
+          turns: 0,
+        })
         return
       }
       agent.squad = squad
@@ -56,7 +62,8 @@ export abstract class AgentSdk extends AgentOffice {
     // A new task (not a failover or a /compact): remember the folder as it is now, so the
     // card can show what this task changed. The CLI only starts once the snapshot is done:
     // anything it writes before that would count as the player's own earlier change.
-    if (!agent.task && !agent.compacting && !agent.demo) agent.task = { snapshot: takeSnapshot(workDir).catch(() => null), touched: new Map() }
+    if (!agent.task && !agent.compacting && !agent.demo)
+      agent.task = { snapshot: takeSnapshot(workDir).catch(() => null), touched: new Map() }
     const input = new InputQueue()
     input.push(prompt)
     agent.input = input
@@ -158,7 +165,13 @@ export abstract class AgentSdk extends AgentOffice {
       const text = err instanceof Error ? err.message : String(err)
       this.addLog(agent, 'error', text)
       if (this.agents.has(agent.summary.id)) {
-        this.deliver(agent, { text: `Tive um problema e parei:\n\n${text}`, isError: true, costUsd: agent.summary.costUsd, durationMs: 0, turns: 0 })
+        this.deliver(agent, {
+          text: `Tive um problema e parei:\n\n${text}`,
+          isError: true,
+          costUsd: agent.summary.costUsd,
+          durationMs: 0,
+          turns: 0,
+        })
       }
     } finally {
       if (agent.query === q) {
@@ -166,7 +179,8 @@ export abstract class AgentSdk extends AgentOffice {
         agent.input = undefined
         // Subagents live inside the CLI process, so they ended with it.
         this.clearSubagents(agent)
-        if (agent.summary.status === 'working' || agent.summary.status === 'starting') this.setStatus(agent, 'idle', 'Aguardando instruções')
+        if (agent.summary.status === 'working' || agent.summary.status === 'starting')
+          this.setStatus(agent, 'idle', 'Aguardando instruções')
       }
     }
   }
@@ -182,7 +196,11 @@ export abstract class AgentSdk extends AgentOffice {
         } else if (msg.subtype === 'compact_boundary') {
           const { trigger, pre_tokens, post_tokens } = msg.compact_metadata
           const freed = post_tokens !== undefined ? ` de ${kTokens(pre_tokens)} para ${kTokens(post_tokens)}` : ''
-          this.addLog(agent, 'system', `${trigger === 'auto' ? 'O contexto encheu e foi compactado sozinho' : 'Conversa compactada'}${freed}.`)
+          this.addLog(
+            agent,
+            'system',
+            `${trigger === 'auto' ? 'O contexto encheu e foi compactado sozinho' : 'Conversa compactada'}${freed}.`,
+          )
           if (post_tokens !== undefined && agent.summary.context) this.setContext(agent, post_tokens, agent.summary.context.max)
         } else {
           this.trackSubagents(agent, msg)
@@ -201,7 +219,11 @@ export abstract class AgentSdk extends AgentOffice {
         // Live estimate between the exact readings taken after each turn.
         const u = msg.message.usage
         if (u && agent.summary.context) {
-          this.setContext(agent, u.input_tokens + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + u.output_tokens, agent.summary.context.max)
+          this.setContext(
+            agent,
+            u.input_tokens + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + u.output_tokens,
+            agent.summary.context.max,
+          )
         }
         for (const block of msg.message.content) {
           if (block.type === 'text' && block.text.trim()) {
@@ -212,7 +234,8 @@ export abstract class AgentSdk extends AgentOffice {
             const input = (block.input ?? {}) as Record<string, unknown>
             const line = describeTool(block.name, input)
             const file = input.file_path ?? input.notebook_path
-            if (agent.task && WRITE_TOOLS.has(block.name) && typeof file === 'string' && file.length < 4096) agent.task.touched.set(file, block.name)
+            if (agent.task && WRITE_TOOLS.has(block.name) && typeof file === 'string' && file.length < 4096)
+              agent.task.touched.set(file, block.name)
             this.addLog(agent, 'tool', toolDetail(block.name, input) || line, block.name)
             this.setActivity(agent, line)
           }
@@ -226,7 +249,8 @@ export abstract class AgentSdk extends AgentOffice {
         if (!Array.isArray(content)) return
         for (const block of content) {
           if (block.type !== 'tool_result') continue
-          const text = typeof block.content === 'string' ? block.content : (block.content ?? []).map((c) => ('text' in c ? c.text : '')).join('\n')
+          const text =
+            typeof block.content === 'string' ? block.content : (block.content ?? []).map((c) => ('text' in c ? c.text : '')).join('\n')
           if (text.trim()) this.addLog(agent, 'tool_result', text.slice(0, 1200), undefined, block.is_error === true)
         }
         return

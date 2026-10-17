@@ -7,11 +7,14 @@ import { type IpcContext } from './context'
 /** Squads of a project floor. */
 export function registerSquadsIpc(ctx: IpcContext): void {
   const { store, manager, defaultBrain } = ctx
-  ipcMain.handle('office:listSquads', (_e, cwd: unknown) => (pathSchema.safeParse(cwd).success && isDir(cwd) ? loadSquads(cwd).map(squadInfo) : []))
+  ipcMain.handle('office:listSquads', (_e, cwd: unknown) =>
+    pathSchema.safeParse(cwd).success && isDir(cwd) ? loadSquads(cwd).map(squadInfo) : [],
+  )
   ipcMain.handle('office:runSquad', (_e, cwd: unknown, code: unknown, mode: unknown, note: unknown) => {
     if (!pathSchema.safeParse(cwd).success || !isDir(cwd)) throw new Error('Essa pasta de squads não existe mais.')
     // Orchestrators work in the Diretoria of their project's floor.
-    if (projectFor(store.settings.projects, cwd)?.cwd !== cwd) throw new Error('Crie um andar para esse projeto antes de contratar um squad.')
+    if (projectFor(store.settings.projects, cwd)?.cwd !== cwd)
+      throw new Error('Crie um andar para esse projeto antes de contratar um squad.')
     const plain = squadCodeSchema.safeParse(code)
     const squad = plain.success ? findSquad(cwd, plain.data) : undefined
     if (!squad) throw new Error(`Não achei o squad ${plain.success ? plain.data : ''} em ${cwd}/squads.`)

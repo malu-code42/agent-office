@@ -83,7 +83,12 @@ export abstract class BoardBase {
         this.prioFilter,
         this.whoFilter,
         h('span', { class: 'grow' }),
-        h('button', { class: 'btn', title: 'Tickets fechados: buscar, ler e reabrir', onclick: () => this.openClosed() }, icon('archive', 16), 'Fechados'),
+        h(
+          'button',
+          { class: 'btn', title: 'Tickets fechados: buscar, ler e reabrir', onclick: () => this.openClosed() },
+          icon('archive', 16),
+          'Fechados',
+        ),
         h('button', { class: 'btn btn-primary', onclick: () => this.create('todo') }, icon('plus', 16), 'Novo ticket'),
         h('button', { class: 'icon-btn', title: 'Fechar (Esc)', onclick: () => this.close() }, icon('x', 18)),
       ),

@@ -5,7 +5,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { TicketBoard } from '../src/main/tickets'
 
 let dir: string
-const ticket = (n: number, extra: Record<string, unknown> = {}) => ({ id: `t${n}`, key: `AO-${n}`, title: `T${n}`, description: '', tags: [], ...extra })
+const ticket = (n: number, extra: Record<string, unknown> = {}) => ({
+  id: `t${n}`,
+  key: `AO-${n}`,
+  title: `T${n}`,
+  description: '',
+  tags: [],
+  ...extra,
+})
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'ao-tickets-'))

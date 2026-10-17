@@ -87,7 +87,11 @@ describe('cleanBrain', () => {
     })
   })
   it('chave presente e inválida vira undefined (padrão do Claude Code)', () => {
-    expect(cleanBrain({ model: 'rm -rf /', effort: 'turbo', accounts: 'main' }, accounts)).toEqual({ model: undefined, effort: undefined, accounts: [] })
+    expect(cleanBrain({ model: 'rm -rf /', effort: 'turbo', accounts: 'main' }, accounts)).toEqual({
+      model: undefined,
+      effort: undefined,
+      accounts: [],
+    })
   })
   it('chaves ausentes ficam ausentes; lixo vira objeto vazio', () => {
     expect(cleanBrain({}, accounts)).toEqual({})
@@ -115,10 +119,7 @@ describe('cleanAccounts', () => {
       ],
       accounts,
     )
-    expect(out).toEqual([
-      { ...work, name: 'Cliente', color: '#00ff00' },
-      { ...main },
-    ])
+    expect(out).toEqual([{ ...work, name: 'Cliente', color: '#00ff00' }, { ...main }])
   })
   it('ignora contas desconhecidas e repetidas, e nunca remove as que existem', () => {
     const out = cleanAccounts([{ id: 'ghost', name: 'x' }, { id: 'main', name: 'A' }, { id: 'main', name: 'B' }, 'lixo'], accounts)
@@ -187,7 +188,11 @@ describe('cleanProjects', () => {
 
 describe('cleanLedgerQuery', () => {
   it('mantém só dias YYYY-MM-DD e pasta absoluta', () => {
-    expect(cleanLedgerQuery({ from: '2026-10-01', to: '2026-10-12', cwd: '/proj', extra: 1 })).toEqual({ from: '2026-10-01', to: '2026-10-12', cwd: '/proj' })
+    expect(cleanLedgerQuery({ from: '2026-10-01', to: '2026-10-12', cwd: '/proj', extra: 1 })).toEqual({
+      from: '2026-10-01',
+      to: '2026-10-12',
+      cwd: '/proj',
+    })
     expect(cleanLedgerQuery({ from: 'ontem', to: 20261012, cwd: 'rel' })).toEqual({})
     expect(cleanLedgerQuery(undefined)).toEqual({})
   })
@@ -223,7 +228,9 @@ describe('cleanDelegateTarget', () => {
     expect(() => cleanDelegateTarget({ agentId: {} }, accounts)).toThrow('Agente inválido')
   })
   it('contratação nunca roda com bypass', () => {
-    expect(cleanDelegateTarget({ hire: { permissionMode: 'bypassPermissions', model: 'opus' } }, accounts)).toEqual({ hire: { model: 'opus', permissionMode: undefined } })
+    expect(cleanDelegateTarget({ hire: { permissionMode: 'bypassPermissions', model: 'opus' } }, accounts)).toEqual({
+      hire: { model: 'opus', permissionMode: undefined },
+    })
     expect(cleanDelegateTarget({ hire: { permissionMode: 'auto' } }, accounts)).toEqual({ hire: { permissionMode: 'auto' } })
     expect(cleanDelegateTarget(undefined, accounts)).toEqual({ hire: { permissionMode: undefined } })
   })
@@ -308,7 +315,10 @@ describe('cleanSettings', () => {
   it('video: aplica os campos válidos e mantém os inválidos', () => {
     const out = cleanSettings({ video: { ...QUALITY_PRESETS.saver, batterySaver: false } }, settings())
     expect(out.video).toEqual({ ...QUALITY_PRESETS.saver, batterySaver: false })
-    const bad = cleanSettings({ video: { shadows: 'sim', shadowMapSize: 4096, fpsLimit: 144, effects: 'none', batterySaver: 1, evil: '<x>' } }, settings())
+    const bad = cleanSettings(
+      { video: { shadows: 'sim', shadowMapSize: 4096, fpsLimit: 144, effects: 'none', batterySaver: 1, evil: '<x>' } },
+      settings(),
+    )
     expect(bad.video).toEqual(DEFAULT_VIDEO)
     expect(cleanSettings({ video: 'alta' }, settings()).video).toEqual(DEFAULT_VIDEO)
   })
@@ -367,7 +377,15 @@ describe('schemas do IPC', () => {
     expect(permissionDecisionSchema.safeParse({ requestId: 'r1', behavior: 'allow', answers: many }).success).toBe(false)
   })
   it('TicketDraft: exige título, aceita nulos, descarta chaves extras', () => {
-    const d = ticketDraftSchema.parse({ title: 'T', cwd: null, estimate: null, dueDate: null, acceptance: [{ text: 'a' }], key: 'AO-1', id: 'x' })
+    const d = ticketDraftSchema.parse({
+      title: 'T',
+      cwd: null,
+      estimate: null,
+      dueDate: null,
+      acceptance: [{ text: 'a' }],
+      key: 'AO-1',
+      id: 'x',
+    })
     expect(d).toEqual({ title: 'T', cwd: null, estimate: null, dueDate: null, acceptance: [{ text: 'a', done: false }] })
     expect(ticketDraftSchema.safeParse({}).success).toBe(false)
     expect(ticketDraftSchema.safeParse({ title: 'T', type: 'epic' }).success).toBe(false)

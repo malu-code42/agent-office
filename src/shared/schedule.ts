@@ -45,11 +45,42 @@ interface FieldDef {
 }
 
 const MONTH_NAMES: Record<string, number> = {
-  jan: 1, feb: 2, fev: 2, mar: 3, apr: 4, abr: 4, may: 5, mai: 5, jun: 6, jul: 7,
-  aug: 8, ago: 8, sep: 9, set: 9, oct: 10, out: 10, nov: 11, dec: 12, dez: 12,
+  jan: 1,
+  feb: 2,
+  fev: 2,
+  mar: 3,
+  apr: 4,
+  abr: 4,
+  may: 5,
+  mai: 5,
+  jun: 6,
+  jul: 7,
+  aug: 8,
+  ago: 8,
+  sep: 9,
+  set: 9,
+  oct: 10,
+  out: 10,
+  nov: 11,
+  dec: 12,
+  dez: 12,
 }
 const WEEKDAY_NAMES: Record<string, number> = {
-  sun: 0, dom: 0, mon: 1, seg: 1, tue: 2, ter: 2, wed: 3, qua: 3, thu: 4, qui: 4, fri: 5, sex: 5, sat: 6, sab: 6, 'sáb': 6,
+  sun: 0,
+  dom: 0,
+  mon: 1,
+  seg: 1,
+  tue: 2,
+  ter: 2,
+  wed: 3,
+  qua: 3,
+  thu: 4,
+  qui: 4,
+  fri: 5,
+  sex: 5,
+  sat: 6,
+  sab: 6,
+  sáb: 6,
 }
 const FIELDS: FieldDef[] = [
   { name: 'minuto', min: 0, max: 59 },
@@ -79,7 +110,8 @@ function field(text: string, f: FieldDef): number[] {
     if (extra !== undefined) throw new CronError(`Campo ${f.name}: use só uma barra, como em */15.`)
     let step = 1
     if (stepText !== undefined) {
-      if (!/^\d+$/.test(stepText) || Number(stepText) < 1) throw new CronError(`Campo ${f.name}: o passo "/${stepText}" precisa ser um número inteiro maior que zero.`)
+      if (!/^\d+$/.test(stepText) || Number(stepText) < 1)
+        throw new CronError(`Campo ${f.name}: o passo "/${stepText}" precisa ser um número inteiro maior que zero.`)
       step = Number(stepText)
     }
     let lo: number
@@ -89,7 +121,8 @@ function field(text: string, f: FieldDef): number[] {
       hi = f.max === 7 ? 6 : f.max
     } else if (range.includes('-')) {
       const [a, b, more] = range.split('-')
-      if (more !== undefined || !a || !b) throw new CronError(`Campo ${f.name}: "${range}" não é um intervalo válido. Use início-fim, como 1-5.`)
+      if (more !== undefined || !a || !b)
+        throw new CronError(`Campo ${f.name}: "${range}" não é um intervalo válido. Use início-fim, como 1-5.`)
       lo = value(a, f)
       hi = value(b, f)
       if (lo > hi) throw new CronError(`Campo ${f.name}: o intervalo ${a}-${b} está invertido. Escreva o menor primeiro.`)
@@ -271,7 +304,12 @@ export function nextRuns(s: Schedule, after: number, n: number): number[] {
 }
 
 /** Runs in [from, to]: how many (up to `cap`), the first and the last. */
-export function runsBetween(s: Schedule, from: number, to: number, cap = 1000): { count: number; first: number | null; last: number | null } {
+export function runsBetween(
+  s: Schedule,
+  from: number,
+  to: number,
+  cap = 1000,
+): { count: number; first: number | null; last: number | null } {
   let count = 0
   let first: number | null = null
   let last: number | null = null
@@ -308,8 +346,12 @@ export function weekdaysText(days: number[]): string {
   const each = (d: number) => (d === 0 || d === 6 ? 'todo' : 'toda')
   if (order.length === 1) return `${each(order[0])} ${DAYS[order[0]]}`
   const pos = order.map((d) => WEEK_ORDER.indexOf(d))
-  if (order.length >= 3 && pos.every((p, i) => i === 0 || p === pos[i - 1] + 1)) return `de ${DAYS[order[0]]} a ${DAYS[order[order.length - 1]]}`
-  return `${each(order[0])} ${order.slice(0, -1).map((d) => DAYS[d]).join(', ')} e ${DAYS[order[order.length - 1]]}`
+  if (order.length >= 3 && pos.every((p, i) => i === 0 || p === pos[i - 1] + 1))
+    return `de ${DAYS[order[0]]} a ${DAYS[order[order.length - 1]]}`
+  return `${each(order[0])} ${order
+    .slice(0, -1)
+    .map((d) => DAYS[d])
+    .join(', ')} e ${DAYS[order[order.length - 1]]}`
 }
 
 function cronText(expr: string): string {

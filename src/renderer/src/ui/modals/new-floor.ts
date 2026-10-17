@@ -10,7 +10,11 @@ import { cleanError, field, modal } from './common'
  * "Novo andar": a project folder becomes a floor. Resolves the floor as saved, or
  * null if the player gave up.
  */
-export function openNewFloor(root: HTMLElement, state: State, toast: (t: string, k?: 'info' | 'ok' | 'err') => void): Promise<ProjectFloor | null> {
+export function openNewFloor(
+  root: HTMLElement,
+  state: State,
+  toast: (t: string, k?: 'info' | 'ok' | 'err') => void,
+): Promise<ProjectFloor | null> {
   return new Promise((resolve) => {
     let cwd = ''
     let named = false
@@ -54,7 +58,10 @@ export function openNewFloor(root: HTMLElement, state: State, toast: (t: string,
       if (state.settings.projects.some((x) => x.cwd === cwd)) return toast('Essa pasta já tem um andar.', 'err')
       go.setAttribute('disabled', '')
       try {
-        const projects = [...state.settings.projects, { id: `p-${Date.now().toString(36)}`, name: name.value.trim() || floorNameFor(cwd), cwd }]
+        const projects = [
+          ...state.settings.projects,
+          { id: `p-${Date.now().toString(36)}`, name: name.value.trim() || floorNameFor(cwd), cwd },
+        ]
         const saved = await window.office.saveSettings({ projects })
         const floor = saved.projects.find((x) => x.cwd === cwd)
         if (!floor) throw new Error('Não consegui criar o andar: a pasta não existe mais?')
@@ -68,7 +75,11 @@ export function openNewFloor(root: HTMLElement, state: State, toast: (t: string,
     const el = modal(
       'Novo andar de projeto',
       [
-        h('div', { class: 'field-hint' }, 'Todo agente que você contratar ou chamar nesse andar trabalha na pasta do projeto, sem escolher pasta. Agentes de tickets, do resume ou do terminal nessa pasta também sobem para lá.'),
+        h(
+          'div',
+          { class: 'field-hint' },
+          'Todo agente que você contratar ou chamar nesse andar trabalha na pasta do projeto, sem escolher pasta. Agentes de tickets, do resume ou do terminal nessa pasta também sobem para lá.',
+        ),
         field('Pasta do projeto', h('div', { class: 'path-row' }, label, pick), hint),
         field('Nome do andar', name),
       ],

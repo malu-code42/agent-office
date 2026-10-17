@@ -24,7 +24,8 @@ export abstract class GameInput extends GameMovement {
     window.addEventListener('blur', () => this.keys.clear())
 
     // any touch on the scene draws at full rate for a moment (hover outline, drag, zoom)
-    for (const type of ['pointermove', 'pointerdown', 'pointerup', 'pointerleave', 'wheel'] as const) el.addEventListener(type, () => this.wake(), { passive: true })
+    for (const type of ['pointermove', 'pointerdown', 'pointerup', 'pointerleave', 'wheel'] as const)
+      el.addEventListener(type, () => this.wake(), { passive: true })
     window.addEventListener('keydown', () => this.wake())
 
     el.addEventListener('contextmenu', (e) => e.preventDefault())
@@ -71,7 +72,9 @@ export abstract class GameInput extends GameMovement {
   /** Helpers answer with their parent's id, plus their own in `helper`. */
   protected agentAt(x: number, y: number): { id: string; helper?: string } | null {
     const view = this.player.floor
-    const roots = [...this.actors.values()].filter((a) => a.goal !== 'leave' && !a.down && a.avatar.floor === view).map((a) => a.avatar.root)
+    const roots = [...this.actors.values()]
+      .filter((a) => a.goal !== 'leave' && !a.down && a.avatar.floor === view)
+      .map((a) => a.avatar.root)
     const helpers = [...this.helpers.values()].filter((h) => !h.gone && h.avatar.floor === view)
     for (const h of helpers) roots.push(h.avatar.root)
     for (const hit of this.engine.pick(x, y, roots)) {
@@ -99,7 +102,9 @@ export abstract class GameInput extends GameMovement {
       return
     }
     if (this.player.floor > 0) {
-      const roots = [...this.members.values()].filter((m) => m.phase !== 'leaving' && m.avatar.floor === this.player.floor).map((m) => m.avatar.root)
+      const roots = [...this.members.values()]
+        .filter((m) => m.phase !== 'leaving' && m.avatar.floor === this.player.floor)
+        .map((m) => m.avatar.root)
       const hit = this.engine.pick(x, y, roots).find((h) => String(h.object.userData.avatarId ?? '').startsWith('member:'))
       if (hit) return this.memberClick(String(hit.object.userData.avatarId).slice('member:'.length))
     }

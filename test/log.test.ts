@@ -81,7 +81,8 @@ describe('log: redact', () => {
         'api_key=minha-chave',
       ].join('\n'),
     )
-    for (const s of ['abc123456789', 'eyJhbGciOiJIUzI1NiJ9', 'sk-ant-api03', 't0k3n-valor', 'segredo', 'minha-chave']) expect(out).not.toContain(s)
+    for (const s of ['abc123456789', 'eyJhbGciOiJIUzI1NiJ9', 'sk-ant-api03', 't0k3n-valor', 'segredo', 'minha-chave'])
+      expect(out).not.toContain(s)
     expect(out).toContain('[redacted]')
   })
 
@@ -98,7 +99,12 @@ describe('log: redact', () => {
 
 describe('log: console', () => {
   it('"Render frame was disposed" do Electron não vira ERROR', () => {
-    expect(mod.consoleLevel('error', ['Error sending from webContents:', new Error('Render frame was disposed before WebFrameMain could be accessed')])).toBe('debug')
+    expect(
+      mod.consoleLevel('error', [
+        'Error sending from webContents:',
+        new Error('Render frame was disposed before WebFrameMain could be accessed'),
+      ]),
+    ).toBe('debug')
     expect(mod.consoleLevel('error', ['outra coisa'])).toBe('error')
     expect(mod.consoleLevel('warn', ['aviso'])).toBe('warn')
   })

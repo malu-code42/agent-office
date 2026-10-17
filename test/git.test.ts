@@ -1,5 +1,17 @@
 import { execFileSync } from 'node:child_process'
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -37,7 +49,8 @@ function tmp(prefix: string): string {
 
 function newRepo(prefix = 'ao-git-'): { dir: string; git: (...args: string[]) => string } {
   const dir = tmp(prefix)
-  const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, encoding: 'utf8', env: { ...process.env, GIT_CONFIG_NOSYSTEM: '1' } })
+  const git = (...args: string[]) =>
+    execFileSync('git', args, { cwd: dir, encoding: 'utf8', env: { ...process.env, GIT_CONFIG_NOSYSTEM: '1' } })
   git('init', '-q', '-b', 'main')
   git('config', 'user.email', 'teste@exemplo.com')
   git('config', 'user.name', 'Teste')
@@ -293,7 +306,16 @@ describe('worktrees (AO-33)', { timeout: GIT_TIMEOUT }, () => {
 
 describe('segurança', { timeout: GIT_TIMEOUT }, () => {
   it('recusa nomes de branch maliciosos e limpa o nome do agente', async () => {
-    for (const b of ['agent/x;rm -rf ~', '--upload-pack=evil', 'agent/../main', 'agent/-x', 'main', 'agent/a b', 'agent/x.lock', 'agent/$(id)']) {
+    for (const b of [
+      'agent/x;rm -rf ~',
+      '--upload-pack=evil',
+      'agent/../main',
+      'agent/-x',
+      'main',
+      'agent/a b',
+      'agent/x.lock',
+      'agent/$(id)',
+    ]) {
       expect(validBranch(b)).toBe(false)
     }
     expect(validBranch('agent/ada-1234abcd')).toBe(true)

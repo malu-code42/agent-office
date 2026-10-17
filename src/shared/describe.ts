@@ -107,7 +107,20 @@ export function describePermission(tool: string, input: Record<string, unknown> 
 
 export const SKIN_TONES = ['#f6d3b3', '#eebd94', '#d9a066', '#b97a4f', '#8d5636', '#5e3a24']
 export const HAIR_COLORS = ['#2b1d16', '#4a3022', '#7a4b2a', '#c98d4b', '#e8c26e', '#d8d2c8', '#b33a3a', '#3b4a8f', '#e070a8', '#1f1f24']
-export const SHIRT_COLORS = ['#e2574c', '#f0a23b', '#f2d34f', '#57b65f', '#3fa7a0', '#4a8fe0', '#6c5ce7', '#c56cd6', '#f27ea9', '#f4f4f4', '#2f3542', '#ff7f50']
+export const SHIRT_COLORS = [
+  '#e2574c',
+  '#f0a23b',
+  '#f2d34f',
+  '#57b65f',
+  '#3fa7a0',
+  '#4a8fe0',
+  '#6c5ce7',
+  '#c56cd6',
+  '#f27ea9',
+  '#f4f4f4',
+  '#2f3542',
+  '#ff7f50',
+]
 export const PANTS_COLORS = ['#2f3b5c', '#3d3d46', '#5a4636', '#24496b', '#6b6f7a', '#1e1e24', '#7a5c3e']
 export const SHOE_COLORS = ['#1e1e24', '#f4f4f4', '#7a4b2a', '#c0392b']
 export const HAIR_STYLES = 6
@@ -124,7 +137,7 @@ function hash(s: string): number {
 /** Deterministic look from a seed, so the same agent name always gets the same avatar. */
 export function lookFromSeed(seed: string): Look {
   let h = hash(seed)
-  const pick = <T,>(arr: T[]): T => {
+  const pick = <T>(arr: T[]): T => {
     const v = arr[h % arr.length]
     h = Math.imul(h ^ (h >>> 13), 2654435761) >>> 0
     return v
@@ -140,6 +153,24 @@ export function lookFromSeed(seed: string): Look {
 }
 
 export const AGENT_NAMES = [
-  'Ada', 'Turing', 'Grace', 'Linus', 'Margaret', 'Dennis', 'Barbara', 'Ken', 'Hedy', 'Alan',
-  'Radia', 'Guido', 'Frances', 'Bjarne', 'Katherine', 'Yukihiro', 'Joan', 'Anders', 'Sophie', 'Rich',
+  'Ada',
+  'Turing',
+  'Grace',
+  'Linus',
+  'Margaret',
+  'Dennis',
+  'Barbara',
+  'Ken',
+  'Hedy',
+  'Alan',
+  'Radia',
+  'Guido',
+  'Frances',
+  'Bjarne',
+  'Katherine',
+  'Yukihiro',
+  'Joan',
+  'Anders',
+  'Sophie',
+  'Rich',
 ]

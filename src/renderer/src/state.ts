@@ -1,4 +1,22 @@
-import type { Account, AccountStatus, AgentResult, AgentSummary, BridgeStatus, LedgerToday, LogEntry, MacJob, OfficeEvent, OfficeState, PermissionRequest, PlanUsage, Routine, Settings, SquadInfo, SystemStats, Ticket } from '@shared/types'
+import type {
+  Account,
+  AccountStatus,
+  AgentResult,
+  AgentSummary,
+  BridgeStatus,
+  LedgerToday,
+  LogEntry,
+  MacJob,
+  OfficeEvent,
+  OfficeState,
+  PermissionRequest,
+  PlanUsage,
+  Routine,
+  Settings,
+  SquadInfo,
+  SystemStats,
+  Ticket,
+} from '@shared/types'
 
 import type { Proposal } from '@shared/proposals'
 

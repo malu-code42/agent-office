@@ -72,6 +72,7 @@ export function totemView(list: Routine[], now = Date.now(), jobs: MacJob[] = []
   else if (waiting) [title, detail, screen] = [waiting.name, 'esperando você', { kind: 'wait' }]
   else if (running ?? jobRunning) [title, detail, screen] = [(running ?? jobRunning)!.name, 'rodando agora', { kind: 'run' }]
   else if (next) [title, detail, screen] = [next.name, countdown(next.at, now), { kind: 'count', text: shortCountdown(next.at, now) }]
-  else [title, detail, screen] = [list.length && list.every((r) => !r.enabled) ? 'Tudo pausado' : 'Sem próxima execução', '', { kind: 'idle' }]
+  else
+    [title, detail, screen] = [list.length && list.every((r) => !r.enabled) ? 'Tudo pausado' : 'Sem próxima execução', '', { kind: 'idle' }]
   return { title, detail, led, screen, line: detail ? `${title} · ${detail}` : title }
 }

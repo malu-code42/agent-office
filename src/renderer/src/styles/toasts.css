@@ -20,7 +20,9 @@
   box-shadow: var(--shadow);
   font-weight: 500;
   animation: rise-toast 0.2s ease-out;
-  transition: opacity 0.4s, transform 0.4s;
+  transition:
+    opacity 0.4s,
+    transform 0.4s;
 }
 
 /* The toasts are click-through (.toasts above); only the action button takes clicks. */

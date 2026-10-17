@@ -10,7 +10,8 @@ function fakeStore(marks: Record<string, SessionMark> = {}) {
   return store as typeof store & Store
 }
 
-const agent = (over: Partial<AgentSummary> = {}) => ({ id: 'ag-1', name: 'Ada', cwd: '/proj', model: 'claude-opus-5', ...over }) as AgentSummary
+const agent = (over: Partial<AgentSummary> = {}) =>
+  ({ id: 'ag-1', name: 'Ada', cwd: '/proj', model: 'claude-opus-5', ...over }) as AgentSummary
 const usage = (costUSD: number, inputTokens = 0, outputTokens = 0) => ({
   costUSD,
   inputTokens,

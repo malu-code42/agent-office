@@ -2,7 +2,15 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { commandRisk, normalizePath, permissionNotice, realPathOf, redactSecrets, toolRisk, type NoticeInput } from '@shared/permission-notice'
+import {
+  commandRisk,
+  normalizePath,
+  permissionNotice,
+  realPathOf,
+  redactSecrets,
+  toolRisk,
+  type NoticeInput,
+} from '@shared/permission-notice'
 
 // AO-35: o botão "Permitir" da notificação é uma lista permitida. Estes testes cobrem o
 // que entra e, principalmente, os jeitos conhecidos de contornar uma lista de bloqueio.
@@ -340,12 +348,22 @@ describe.skipIf(process.platform === 'win32')('symlinks que saem da pasta', () =
   })
 
   it('caminho que não resolve fica sem botão', () => {
-    const quebra = { cwd: proj, realpath: () => { throw new Error('ENOENT') } }
+    const quebra = {
+      cwd: proj,
+      realpath: () => {
+        throw new Error('ENOENT')
+      },
+    }
     expect(toolRisk('Write', { file_path: join(proj, 'novo.ts') }, quebra)).not.toBe('')
   })
 })
 
-const req = (toolName: string, input: Record<string, unknown>, kind: NoticeInput['kind'] = 'tool'): NoticeInput => ({ kind, toolName, title: `Usar ${toolName}`, input })
+const req = (toolName: string, input: Record<string, unknown>, kind: NoticeInput['kind'] = 'tool'): NoticeInput => ({
+  kind,
+  toolName,
+  title: `Usar ${toolName}`,
+  input,
+})
 
 describe('montagem da notificação', () => {
   it('Mac: Permitir e resposta em comando da lista', () => {
@@ -370,7 +388,9 @@ describe('montagem da notificação', () => {
   })
 
   it('corpo curto, numa linha, sem segredos', () => {
-    expect(permissionNotice(req('Edit', { file_path: '/Users/x/Playground/proj/src/main/index.ts' }), 'J', 'darwin', scope).body).toMatch(/^Editar …\/src\/main\/index\.ts/)
+    expect(permissionNotice(req('Edit', { file_path: '/Users/x/Playground/proj/src/main/index.ts' }), 'J', 'darwin', scope).body).toMatch(
+      /^Editar …\/src\/main\/index\.ts/,
+    )
     const long = permissionNotice(req('Bash', { command: `echo ${'a '.repeat(200)}` }), 'J', 'darwin', scope)
     expect(long.body.split('\n')[0].length).toBeLessThanOrEqual(140)
     const s = permissionNotice(req('Bash', { command: 'API_TOKEN=abc123segredo npm run deploy' }), 'J', 'darwin', scope)

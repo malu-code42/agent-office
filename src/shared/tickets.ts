@@ -44,7 +44,12 @@ export function ticketBrief(t: Ticket): string {
   ]
   if (t.tags.length) lines.push(`**Tags:** ${t.tags.join(', ')}`)
   lines.push(`**Aberto por:** ${t.reporter.name}`)
-  lines.push('', '## Contexto', '', t.description.trim() || '_Sem descrição. Leia o projeto e confirme o escopo antes de mudar algo grande._')
+  lines.push(
+    '',
+    '## Contexto',
+    '',
+    t.description.trim() || '_Sem descrição. Leia o projeto e confirme o escopo antes de mudar algo grande._',
+  )
   if (t.acceptance.length) {
     lines.push('', '## Critérios de aceite', '')
     t.acceptance.forEach((c, i) => lines.push(`${i + 1}. [${c.done ? 'x' : ' '}] ${c.text}`))

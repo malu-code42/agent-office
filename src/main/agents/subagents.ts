@@ -71,11 +71,19 @@ export abstract class AgentSubagents extends AgentRotation {
         if (msg.usage?.tool_uses) sub.toolUses = msg.usage.tool_uses
         const verb = msg.status === 'completed' ? 'terminou' : msg.status === 'failed' ? 'falhou' : 'foi interrompido'
         const ms = msg.usage?.duration_ms ?? Date.now() - sub.startedAt
-        const stats = [sub.tokens ? `${kTokens(sub.tokens)} tokens` : '', `${(ms / 1000).toFixed(1).replace('.', ',')} s`].filter(Boolean).join(' · ')
+        const stats = [sub.tokens ? `${kTokens(sub.tokens)} tokens` : '', `${(ms / 1000).toFixed(1).replace('.', ',')} s`]
+          .filter(Boolean)
+          .join(' · ')
         const member = sub.member ? agent.squad?.members.find((m) => m.id === sub.member) : undefined
         if (msg.summary?.trim()) agent.subs?.note(sub.id, this.subEntry('result', msg.summary.slice(0, 4000), msg.status === 'failed'))
         this.retire(agent, sub, msg.status, `${verb[0].toUpperCase()}${verb.slice(1)} (${stats}).`)
-        this.addLog(agent, msg.status === 'failed' ? 'error' : 'system', `${member ? `${member.icon} ${member.name}` : 'Ajudante'} ${verb}: ${sub.description} (${stats})`, undefined, msg.status === 'failed')
+        this.addLog(
+          agent,
+          msg.status === 'failed' ? 'error' : 'system',
+          `${member ? `${member.icon} ${member.name}` : 'Ajudante'} ${verb}: ${sub.description} (${stats})`,
+          undefined,
+          msg.status === 'failed',
+        )
         if (sub.member) {
           const summary = msg.status === 'failed' ? (msg.summary || 'Falhou sem dizer por quê.').slice(0, 200) : undefined
           this.send({ type: 'member:ended', agentId: agent.summary.id, taskId: sub.id, member: sub.member, status: msg.status, summary })
@@ -170,7 +178,11 @@ export abstract class AgentSubagents extends AgentRotation {
     const subs = agent.summary.subagents
     if (!subs?.length) return
     for (const sub of subs) this.retire(agent, sub, 'stopped', 'Parou junto com a sessão.')
-    this.addLog(agent, 'system', subs.length === 1 ? 'O ajudante parou junto com a sessão.' : `${subs.length} ajudantes pararam junto com a sessão.`)
+    this.addLog(
+      agent,
+      'system',
+      subs.length === 1 ? 'O ajudante parou junto com a sessão.' : `${subs.length} ajudantes pararam junto com a sessão.`,
+    )
   }
 
   /** What the subagent behind a request is doing; '' when the id is not one we track. */

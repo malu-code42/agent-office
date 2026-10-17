@@ -59,7 +59,22 @@ export abstract class GameSquads extends GameSubagents {
     this.engine.scene.add(avatar.root)
     const tag = this.overlays.add(new Tag(avatar.anchor, `${info.icon} ${info.name}`, false, () => this.memberClick(id)))
     tag.setDot('starting')
-    const m: Member = { id, parentId: a.id, info, avatar, tag, inline, desk: null, tile: null, phase: 'arriving', bornAt: this.time, endAt: null, failed: null, sub: null, infoUntil: 0 }
+    const m: Member = {
+      id,
+      parentId: a.id,
+      info,
+      avatar,
+      tag,
+      inline,
+      desk: null,
+      tile: null,
+      phase: 'arriving',
+      bornAt: this.time,
+      endAt: null,
+      failed: null,
+      sub: null,
+      infoUntil: 0,
+    }
     this.members.set(id, m)
     this.ding(avatar.floor)
     const arrive = () => {
@@ -131,7 +146,10 @@ export abstract class GameSquads extends GameSubagents {
     }
     if (m.phase === 'delivering') return m.tag.setBubble('✓ Entregando', 'done')
     if (m.phase === 'leaving') return m.tag.setBubble(null)
-    m.tag.setBubble(m.inline ? 'Neste passo com a Diretoria' : m.sub ? clip(m.sub.activity ? helperActivity(m.sub) : m.sub.description, 40) : null, 'work')
+    m.tag.setBubble(
+      m.inline ? 'Neste passo com a Diretoria' : m.sub ? clip(m.sub.activity ? helperActivity(m.sub) : m.sub.description, 40) : null,
+      'work',
+    )
   }
 
   /** Click: what the member is doing (task, tokens, last tool) for a few seconds, and the orchestrator's panel. */
@@ -178,7 +196,9 @@ export abstract class GameSquads extends GameSubagents {
     m.tag.setDot('done')
     m.avatar.setProp('paper')
     this.memberBubble(m)
-    const taken = new Set([...this.members.values()].filter((o) => o !== m && o.phase === 'delivering' && o.tile).map((o) => o.tile!.join(',')))
+    const taken = new Set(
+      [...this.members.values()].filter((o) => o !== m && o.phase === 'delivering' && o.tile).map((o) => o.tile!.join(',')),
+    )
     const tile = desk.deliver.find((t) => !taken.has(t.join(','))) ?? desk.deliver[0]
     m.tile = tile
     this.route(m.avatar, tile, null, () => {
@@ -222,9 +242,19 @@ export abstract class GameSquads extends GameSubagents {
       u.stepTags.forEach((tag, d) => {
         const st = byDesk.get(d)?.squadStep
         const text =
-          st?.status === 'completed' ? '✓ Ciclo concluído' : st?.current ? `${st.type === 'checkpoint' ? '⏸' : '▸'} Passo ${st.current}/${st.total} · ${clip(st.label, 32)}` : 'Aguardando o próximo ciclo'
+          st?.status === 'completed'
+            ? '✓ Ciclo concluído'
+            : st?.current
+              ? `${st.type === 'checkpoint' ? '⏸' : '▸'} Passo ${st.current}/${st.total} · ${clip(st.label, 32)}`
+              : 'Aguardando o próximo ciclo'
         tag.setName(text)
-        tag.setDot(st?.type === 'checkpoint' && st.status !== 'completed' ? 'waiting' : st?.current && st.status !== 'completed' ? 'working' : 'idle')
+        tag.setDot(
+          st?.type === 'checkpoint' && st.status !== 'completed'
+            ? 'waiting'
+            : st?.current && st.status !== 'completed'
+              ? 'working'
+              : 'idle',
+        )
       })
     })
   }

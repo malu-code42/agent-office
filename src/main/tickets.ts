@@ -93,7 +93,8 @@ export class TicketBoard extends EventEmitter {
     const raw: Partial<Data> = r.status === 'ok' || r.status === 'restored' ? r.data : {}
     const data = { seq: raw.seq ?? 0, tickets: raw.tickets ?? [] }
     // An older copy (or none) may be behind the keys already handed out: count past them.
-    if (r.status === 'restored' || r.status === 'lost') data.seq = Math.max(data.seq, ...[...data.tickets, ...this.closed].map((t) => keyNumber(t.key)))
+    if (r.status === 'restored' || r.status === 'lost')
+      data.seq = Math.max(data.seq, ...[...data.tickets, ...this.closed].map((t) => keyNumber(t.key)))
     return data
   }
 
@@ -368,7 +369,8 @@ export class TicketBoard extends EventEmitter {
     const onMyFloor = (t: Ticket) => projectFor(projects(), t.cwd)?.id === agent.project
     const find = (key: string) => {
       const t = this.byKey(key)
-      if (!t && this.byKey(key, true)) throw new Error(`${key} está fechado: só dá para ler (ticket_get). Peça para uma pessoa reabrir se precisar mexer.`)
+      if (!t && this.byKey(key, true))
+        throw new Error(`${key} está fechado: só dá para ler (ticket_get). Peça para uma pessoa reabrir se precisar mexer.`)
       if (!t) throw new Error(`Não achei o ticket ${key}. Use tickets_list para ver as chaves.`)
       return t
     }
@@ -407,7 +409,9 @@ export class TicketBoard extends EventEmitter {
               const others = args.all_floors ? '' : ' neste andar. Use all_floors=true para ver os outros andares'
               if (args.closed) {
                 const found = this.listClosed(args.search, 50).filter((t) => floor(t) && (!args.mine || t.assignee?.id === agent.id))
-                return found.length ? found.map((t) => `${listLine(t)} · fechado`).join('\n') : `Nenhum ticket fechado com esses filtros${others}.`
+                return found.length
+                  ? found.map((t) => `${listLine(t)} · fechado`).join('\n')
+                  : `Nenhum ticket fechado com esses filtros${others}.`
               }
               const q = args.search?.toLowerCase().trim()
               const shown = this.list()

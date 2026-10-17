@@ -23,7 +23,14 @@ describe('priceOf', () => {
 describe('messageCost', () => {
   it('soma entrada, saída e cache pelos multiplicadores', () => {
     // opus 5: 5 in, 25 out, 0.5 cache read; writes 1.25x (5m) and 2x (1h) input
-    const usd = messageCost('claude-opus-5', { input: 1_000_000, output: 1_000_000, cacheRead: 1_000_000, cacheWrite5m: 1_000_000, cacheWrite1h: 1_000_000, webSearch: 0 })
+    const usd = messageCost('claude-opus-5', {
+      input: 1_000_000,
+      output: 1_000_000,
+      cacheRead: 1_000_000,
+      cacheWrite5m: 1_000_000,
+      cacheWrite1h: 1_000_000,
+      webSearch: 0,
+    })
     expect(usd).toBeCloseTo(5 + 25 + 0.5 + 6.25 + 10)
   })
   it('modo rápido custa o dobro; busca na web soma 1 centavo cada', () => {

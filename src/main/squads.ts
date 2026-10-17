@@ -55,7 +55,8 @@ export function squadInfo(s: SquadDefinition): SquadInfo {
 function loadSquad(cwd: string, dir: string): SquadDefinition {
   // squads/ must live in the project and the squad folder in squads/ (no squads/x -> /somewhere/else).
   const realRoot = realpathSync(join(cwd, 'squads'))
-  if (!within(realpathSync(cwd), realRoot) || !within(realRoot, realpathSync(dir))) throw new Error('squad folder points outside the project')
+  if (!within(realpathSync(cwd), realRoot) || !within(realRoot, realpathSync(dir)))
+    throw new Error('squad folder points outside the project')
   const yaml = inside(dir, 'squad.yaml')
   if (!yaml) throw new Error('squad.yaml points outside the squad folder')
   const y = (parse(readSmall(yaml)) ?? {}) as Record<string, unknown>
@@ -130,7 +131,10 @@ export function outsideTeam(s: SquadDefinition, tool: string, input: unknown): s
   const type = String((input as { subagent_type?: unknown } | null)?.subagent_type ?? '') || 'general-purpose'
   const m = s.members.find((x) => x.id === type)
   if (m?.execution === 'subagent') return null
-  const team = s.members.filter((x) => x.execution === 'subagent').map((x) => x.id).join(', ')
+  const team = s.members
+    .filter((x) => x.execution === 'subagent')
+    .map((x) => x.id)
+    .join(', ')
   if (m) return `${m.name} (${m.id}) é membro inline: faça o passo dele aqui mesmo, nesta conversa, sem chamar subagente.`
   return `Bloqueado pelo Agent Office: "${type}" não é da equipe do squad ${s.name}. Chame só membros do squad pelo id (subagent_type): ${team}.`
 }
@@ -165,9 +169,11 @@ export function orchestratorPrompt(s: SquadDefinition): string {
   const inline = s.members.filter((m) => m.execution === 'inline')
   return [
     `You are the orchestrator of the Opensquad squad "${s.name}" (code ${s.code}). Your only job is to run its cycle: follow ${runner} and \`squads/${s.code}/squad.yaml\` + \`squads/${s.code}/pipeline/pipeline.yaml\` step by step.`,
-    'Your team is closed. Call members as subagents with the Agent tool, subagent_type = member id; any other subagent type (general-purpose, Explore, fork…) is blocked. Wherever the runner says to dispatch with the Task tool, use the Agent tool with the step agent\'s id. The member already has its .agent.md as system prompt, so your prompt carries the step: task files, inputs, transformed output paths, veto conditions, company context and squad memory. Members run in the foreground and you wait for each delivery; when steps can run in parallel, send all their Agent calls in one message.',
+    "Your team is closed. Call members as subagents with the Agent tool, subagent_type = member id; any other subagent type (general-purpose, Explore, fork…) is blocked. Wherever the runner says to dispatch with the Task tool, use the Agent tool with the step agent's id. The member already has its .agent.md as system prompt, so your prompt carries the step: task files, inputs, transformed output paths, veto conditions, company context and squad memory. Members run in the foreground and you wait for each delivery; when steps can run in parallel, send all their Agent calls in one message.",
     `Subagent members:\n${subs.map(line).join('\n') || '- (none)'}`,
-    inline.length ? `Inline members (you play them yourself, in this conversation, never as subagents):\n${inline.map(line).join('\n')}` : '',
+    inline.length
+      ? `Inline members (you play them yourself, in this conversation, never as subagents):\n${inline.map(line).join('\n')}`
+      : '',
     'Checkpoints: present EVERY checkpoint step (type: checkpoint) and every choice the runner asks the user for with the AskUserQuestion tool, never as plain text or a numbered list in a message. Put the step name in the question, keep the options short, and include the paths of files the user must review. Never pick an answer yourself or skip a checkpoint: without an answer the cycle waits. If the question is cancelled, stop and wait for instructions.',
     `Write \`squads/${s.code}/state.json\` exactly when the runner says to: the office reads it to show the current step.`,
     'Talk to the user in Brazilian Portuguese.',

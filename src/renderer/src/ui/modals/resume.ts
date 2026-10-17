@@ -52,46 +52,63 @@ export function openResume(
     const folder = s.cwd ? s.cwd.split(/[\\/]/).filter(Boolean).pop() : 'pasta desconhecida'
     const command = resumeCommand(state.platform, s.cwd, s.sessionId)
     const badge = owner
-      ? h('span', { class: owner.source === 'office' ? 'chip chip-done' : 'chip chip-term' }, owner.source === 'office' ? `no escritório: ${owner.name}` : 'aberta no terminal')
+      ? h(
+          'span',
+          { class: owner.source === 'office' ? 'chip chip-done' : 'chip chip-term' },
+          owner.source === 'office' ? `no escritório: ${owner.name}` : 'aberta no terminal',
+        )
       : recent
         ? h('span', { class: 'chip chip-wait' }, 'usada agora')
         : null
     const callBtn = h('button', { class: 'btn btn-small btn-primary' }, icon('walk', 14), 'Chamar')
     callBtn.addEventListener('click', () => callBack(s, callBtn))
     const actionsEl = owner
-      ? h('button', {
-          class: 'btn btn-small',
-          onclick: () => {
-            close()
-            actions.openAgent(owner.id)
+      ? h(
+          'button',
+          {
+            class: 'btn btn-small',
+            onclick: () => {
+              close()
+              actions.openAgent(owner.id)
+            },
           },
-        }, icon('eye', 14), 'Ver')
+          icon('eye', 14),
+          'Ver',
+        )
       : h(
           'div',
           { class: 'resume-actions' },
           s.cwd ? callBtn : null,
           (mac || state.platform === 'win32') && s.cwd
-            ? h('button', {
-                class: 'icon-btn',
-                title: terminalLabel,
-                'aria-label': terminalLabel,
-                onclick: async () => {
-                  const r = await window.office.openInTerminal(s.sessionId)
-                  if (r.ok) actions.toast(terminalToast(r.via, state.platform), 'ok')
-                  else actions.toast(terminalError(r.message, state.platform), 'err')
+            ? h(
+                'button',
+                {
+                  class: 'icon-btn',
+                  title: terminalLabel,
+                  'aria-label': terminalLabel,
+                  onclick: async () => {
+                    const r = await window.office.openInTerminal(s.sessionId)
+                    if (r.ok) actions.toast(terminalToast(r.via, state.platform), 'ok')
+                    else actions.toast(terminalError(r.message, state.platform), 'err')
+                  },
                 },
-              }, icon('terminal', 15))
+                icon('terminal', 15),
+              )
             : null,
           command
-            ? h('button', {
-                class: 'icon-btn',
-                title: `Copiar: claude --resume ${s.sessionId}`,
-                'aria-label': 'Copiar comando',
-                onclick: async () => {
-                  await navigator.clipboard.writeText(command)
-                  actions.toast(osText(state.platform).copiedToast, 'ok')
+            ? h(
+                'button',
+                {
+                  class: 'icon-btn',
+                  title: `Copiar: claude --resume ${s.sessionId}`,
+                  'aria-label': 'Copiar comando',
+                  onclick: async () => {
+                    await navigator.clipboard.writeText(command)
+                    actions.toast(osText(state.platform).copiedToast, 'ok')
+                  },
                 },
-              }, icon('copy', 15))
+                icon('copy', 15),
+              )
             : null,
         )
     const prompt = s.firstPrompt && s.firstPrompt !== s.title && !s.title.startsWith(s.firstPrompt.slice(0, 30)) ? s.firstPrompt : null
@@ -120,9 +137,13 @@ export function openResume(
 
   const render = () => {
     const q = search.value.trim().toLowerCase()
-    const shown = sessions.filter((s) => !q || [s.title, s.firstPrompt, s.cwd, s.branch, s.sessionId].some((v) => v?.toLowerCase().includes(q)))
+    const shown = sessions.filter(
+      (s) => !q || [s.title, s.firstPrompt, s.cwd, s.branch, s.sessionId].some((v) => v?.toLowerCase().includes(q)),
+    )
     if (!shown.length) {
-      list.replaceChildren(h('div', { class: 'resume-empty' }, sessions.length ? 'Nenhuma sessão com esse texto.' : 'Nenhuma sessão salva ainda.'))
+      list.replaceChildren(
+        h('div', { class: 'resume-empty' }, sessions.length ? 'Nenhuma sessão com esse texto.' : 'Nenhuma sessão salva ainda.'),
+      )
       return
     }
     const groups = new Map<string, SessionEntry[]>()
@@ -136,7 +157,15 @@ export function openResume(
   search.addEventListener('input', render)
   const el = modal(
     'Central de resume',
-    [h('div', { class: 'field-hint' }, 'Sessões recentes do Claude Code nesta máquina, do terminal ou do escritório. "Chamar" traz a sessão de volta como agente, com o histórico.'), search, list],
+    [
+      h(
+        'div',
+        { class: 'field-hint' },
+        'Sessões recentes do Claude Code nesta máquina, do terminal ou do escritório. "Chamar" traz a sessão de volta como agente, com o histórico.',
+      ),
+      search,
+      list,
+    ],
     [h('button', { class: 'btn', onclick: close }, 'Fechar')],
     close,
   )

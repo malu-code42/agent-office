@@ -66,7 +66,8 @@ export function costBoard(title: string, width = 2.4): CostBoard {
     // the total, glowing brighter for a moment after it changes
     ctx.font = 'bold 30px ui-monospace, "SF Mono", Menlo, monospace'
     let size = 30
-    while (ctx.measureText(money(shown)).width > BW - 16 && size > 16) ctx.font = `bold ${(size -= 2)}px ui-monospace, "SF Mono", Menlo, monospace`
+    while (ctx.measureText(money(shown)).width > BW - 16 && size > 16)
+      ctx.font = `bold ${(size -= 2)}px ui-monospace, "SF Mono", Menlo, monospace`
     ctx.shadowColor = '#ffb347'
     ctx.shadowBlur = 4 + flash * 10
     ctx.fillStyle = flash > 0 ? '#ffe2a8' : '#ffb347'
@@ -146,7 +147,14 @@ export function beacon(): Beacon {
   g.add(cap)
 
   // two light beams sweeping around the dome
-  const beamMat = new THREE.MeshBasicMaterial({ color: '#ff2a3d', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+  const beamMat = new THREE.MeshBasicMaterial({
+    color: '#ff2a3d',
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  })
   const beams = new THREE.Group()
   beams.position.set(0, 0.3, 0.16)
   for (const a of [0, Math.PI]) {
@@ -162,7 +170,14 @@ export function beacon(): Beacon {
 
   // soft red glow on the wall behind
   const glowTex = radialTexture()
-  const glowMat = new THREE.MeshBasicMaterial({ map: glowTex, color: '#ff2a3d', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })
+  const glowMat = new THREE.MeshBasicMaterial({
+    map: glowTex,
+    color: '#ff2a3d',
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  })
   const glow = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), glowMat)
   glow.position.set(0, 0.2, 0.02)
   g.add(glow)

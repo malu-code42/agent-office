@@ -1,6 +1,15 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { launchOnWindows, OPEN_FAILED, terminalEnv, wtArgs, wtCandidates, wtSafe, type Launcher, type LaunchOutcome } from '../src/main/terminal-launch'
+import {
+  launchOnWindows,
+  OPEN_FAILED,
+  terminalEnv,
+  wtArgs,
+  wtCandidates,
+  wtSafe,
+  type Launcher,
+  type LaunchOutcome,
+} from '../src/main/terminal-launch'
 
 const ID = '0b5c6a8e-3f1d-4c2a-9e7b-1a2b3c4d5e6f'
 const EXE = 'C:\\Users\\Ana\\AppData\\Roaming\\npm\\node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe'
@@ -11,7 +20,7 @@ test('wtSafe: ; and control characters are unsafe; spaces, accents and quotes ar
   assert.equal(wtSafe('C:\\tmp\\a\nb'), false)
   assert.equal(wtSafe('C:\\tmp\\a\tb'), false)
   assert.equal(wtSafe('C:\\tmp\\a\u007fb'), false)
-  assert.equal(wtSafe('C:\\Users\\João\\Meus Projetos\\O\'Brien'), true)
+  assert.equal(wtSafe("C:\\Users\\João\\Meus Projetos\\O'Brien"), true)
   assert.equal(wtSafe(EXE), true)
 })
 
@@ -74,7 +83,10 @@ test('launchOnWindows: Windows Terminal when the alias starts', async () => {
 test('launchOnWindows: missing alias tries wt.exe on PATH, then the console', async () => {
   const { launcher, calls } = fake(['missing', 'missing'])
   assert.deepEqual(await launchOnWindows('C:\\Proj', EXE, ID, launcher, ENV), { ok: true, via: 'console' })
-  assert.deepEqual(calls.map((c) => c.file), ['C:\\L\\Microsoft\\WindowsApps\\wt.exe', 'wt.exe', EXE])
+  assert.deepEqual(
+    calls.map((c) => c.file),
+    ['C:\\L\\Microsoft\\WindowsApps\\wt.exe', 'wt.exe', EXE],
+  )
   assert.deepEqual(calls[2].args, ['--resume', ID])
   assert.equal(calls[2].cwd, 'C:\\Proj')
   assert.equal(calls[2].env.AGENT_OFFICE_MANAGED, undefined)
@@ -83,7 +95,10 @@ test('launchOnWindows: missing alias tries wt.exe on PATH, then the console', as
 test('launchOnWindows: a folder with ; never reaches wt (no injected subcommand)', async () => {
   const { launcher, calls } = fake(['ok'])
   assert.deepEqual(await launchOnWindows('C:\\tmp\\a;calc', EXE, ID, launcher, ENV), { ok: true, via: 'console' })
-  assert.deepEqual(calls.map((c) => c.kind), ['console'])
+  assert.deepEqual(
+    calls.map((c) => c.kind),
+    ['console'],
+  )
   assert.deepEqual(calls[0].args, ['--resume', ID])
   assert.equal(calls[0].cwd, 'C:\\tmp\\a;calc')
 })
@@ -91,7 +106,10 @@ test('launchOnWindows: a folder with ; never reaches wt (no injected subcommand)
 test('launchOnWindows: an exe path with ; also skips wt', async () => {
   const { launcher, calls } = fake(['ok'])
   await launchOnWindows('C:\\Proj', 'C:\\a;b\\claude.exe', ID, launcher, ENV)
-  assert.deepEqual(calls.map((c) => c.kind), ['console'])
+  assert.deepEqual(
+    calls.map((c) => c.kind),
+    ['console'],
+  )
 })
 
 test('launchOnWindows: wt that ran and failed does not open a second terminal', async () => {

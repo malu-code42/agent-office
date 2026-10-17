@@ -11,7 +11,12 @@ export function modal(title: string, body: HTMLElement[], footer: HTMLElement[],
   const box = h(
     'div',
     { class: 'modal card' },
-    h('div', { class: 'modal-head' }, heading, h('button', { class: 'icon-btn', title: 'Fechar (Esc)', 'aria-label': 'Fechar', onclick: onClose }, icon('x', 18))),
+    h(
+      'div',
+      { class: 'modal-head' },
+      heading,
+      h('button', { class: 'icon-btn', title: 'Fechar (Esc)', 'aria-label': 'Fechar', onclick: onClose }, icon('x', 18)),
+    ),
     h('div', { class: 'modal-body' }, ...body),
     h('div', { class: 'modal-foot' }, ...footer),
   )
@@ -28,7 +33,13 @@ export function modal(title: string, body: HTMLElement[], footer: HTMLElement[],
 }
 
 export function field(label: string, control: HTMLElement, hint?: HTMLElement | string): HTMLElement {
-  return h('label', { class: 'field' }, h('span', { class: 'field-label' }, label), control, hint ? h('span', { class: 'field-hint' }, hint) : null)
+  return h(
+    'label',
+    { class: 'field' },
+    h('span', { class: 'field-label' }, label),
+    control,
+    hint ? h('span', { class: 'field-hint' }, hint) : null,
+  )
 }
 
 /** Styled yes/no dialog. Resolves true on confirm, false on cancel/Esc/backdrop. */

@@ -11,11 +11,21 @@
   background: rgba(0, 0, 0, 0.25);
 }
 
-.emeter[data-level='1'] { --lvl: #5bc8f0; }
-.emeter[data-level='2'] { --lvl: var(--green); }
-.emeter[data-level='3'] { --lvl: var(--amber); }
-.emeter[data-level='4'] { --lvl: #f07a3e; }
-.emeter[data-level='5'] { --lvl: var(--red); }
+.emeter[data-level='1'] {
+  --lvl: #5bc8f0;
+}
+.emeter[data-level='2'] {
+  --lvl: var(--green);
+}
+.emeter[data-level='3'] {
+  --lvl: var(--amber);
+}
+.emeter[data-level='4'] {
+  --lvl: #f07a3e;
+}
+.emeter[data-level='5'] {
+  --lvl: var(--red);
+}
 
 .emeter-track {
   display: flex;
@@ -46,20 +56,38 @@
   display: block;
   width: 100%;
   background: rgba(255, 255, 255, 0.07);
-  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.35), inset 0 2px 0 rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 -2px 0 rgba(0, 0, 0, 0.35),
+    inset 0 2px 0 rgba(255, 255, 255, 0.06);
   image-rendering: pixelated;
-  transition: background 0.12s steps(2), box-shadow 0.12s steps(2), transform 0.12s steps(2);
+  transition:
+    background 0.12s steps(2),
+    box-shadow 0.12s steps(2),
+    transform 0.12s steps(2);
 }
 
-.emeter-l1 .emeter-bar { height: 20%; }
-.emeter-l2 .emeter-bar { height: 40%; }
-.emeter-l3 .emeter-bar { height: 60%; }
-.emeter-l4 .emeter-bar { height: 80%; }
-.emeter-l5 .emeter-bar { height: 100%; }
+.emeter-l1 .emeter-bar {
+  height: 20%;
+}
+.emeter-l2 .emeter-bar {
+  height: 40%;
+}
+.emeter-l3 .emeter-bar {
+  height: 60%;
+}
+.emeter-l4 .emeter-bar {
+  height: 80%;
+}
+.emeter-l5 .emeter-bar {
+  height: 100%;
+}
 
 .emeter-tile.lit .emeter-bar {
   background: var(--lvl);
-  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.3), inset 0 3px 0 rgba(255, 255, 255, 0.35), 0 0 10px color-mix(in srgb, var(--lvl) 45%, transparent);
+  box-shadow:
+    inset 0 -3px 0 rgba(0, 0, 0, 0.3),
+    inset 0 3px 0 rgba(255, 255, 255, 0.35),
+    0 0 10px color-mix(in srgb, var(--lvl) 45%, transparent);
 }
 
 .emeter-tile:hover .emeter-bar {
@@ -165,9 +193,15 @@
 }
 
 @keyframes emeter-pop {
-  0% { transform: translateY(0) scaleY(0.6); }
-  60% { transform: translateY(-4px) scaleY(1.08); }
-  100% { transform: translateY(0) scaleY(1); }
+  0% {
+    transform: translateY(0) scaleY(0.6);
+  }
+  60% {
+    transform: translateY(-4px) scaleY(1.08);
+  }
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
 }
 
 /* "Modo lenda": the top bar flickers like a flame */
@@ -176,11 +210,19 @@
 }
 
 @keyframes emeter-flame {
-  50% { box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.3), inset 0 3px 0 #ffd27a, 0 0 16px rgba(239, 91, 91, 0.7); }
+  50% {
+    box-shadow:
+      inset 0 -3px 0 rgba(0, 0, 0, 0.3),
+      inset 0 3px 0 #ffd27a,
+      0 0 16px rgba(239, 91, 91, 0.7);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .emeter * { animation: none !important; transition: none !important; }
+  .emeter * {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 .emeter-compact {

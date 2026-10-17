@@ -14,14 +14,14 @@
 
 ### Nesta edição
 
-| | |
-| --- | --- |
-| **[A ideia](#a-ideia)** | Por que um escritório |
-| **[Um dia no escritório](#um-dia-no-escritório)** | Permissões, painel, quadro, lounge |
-| **[Instalar](#instalar)** | macOS, Windows e Linux |
-| **[Rodar do código-fonte](#rodar-do-código-fonte)** | Para quem quer mexer |
-| **[Releases automáticos](#releases-automáticos)** | Cada versão vira `.dmg`, `.exe` e `.AppImage` |
-| **[Por dentro](#por-dentro)** | Arquitetura, segurança e ferramentas |
+|                                                     |                                               |
+| --------------------------------------------------- | --------------------------------------------- |
+| **[A ideia](#a-ideia)**                             | Por que um escritório                         |
+| **[Um dia no escritório](#um-dia-no-escritório)**   | Permissões, painel, quadro, lounge            |
+| **[Instalar](#instalar)**                           | macOS, Windows e Linux                        |
+| **[Rodar do código-fonte](#rodar-do-código-fonte)** | Para quem quer mexer                          |
+| **[Releases automáticos](#releases-automáticos)**   | Cada versão vira `.dmg`, `.exe` e `.AppImage` |
+| **[Por dentro](#por-dentro)**                       | Arquitetura, segurança e ferramentas          |
 
 ---
 
@@ -31,7 +31,7 @@ Quem roda vários agentes ao mesmo tempo conhece a rotina: cinco terminais abert
 
 O Agent Office troca os terminais por um escritório. Cada agente ganha mesa, computador e avatar. A tela do computador mostra o que ele faz agora. Quando ele precisa de permissão, tem uma pergunta ou termina a tarefa, **levanta e vai até a sua sala**.
 
-> *"Ninguém precisa vigiar terminais. Quem precisa de você vem até você."*
+> _"Ninguém precisa vigiar terminais. Quem precisa de você vem até você."_
 
 Inspirado no Habbo Hotel (o visual isométrico) e no Gather (o escritório virtual).
 
@@ -184,12 +184,12 @@ Depois rode `claude` uma vez para fazer login.
 
 Baixe o instalador na **[página de releases](https://github.com/allefrodrigo/agent-office/releases/latest)**.
 
-| Sistema | Arquivo | Como instalar |
-| --- | --- | --- |
-| **macOS** Apple Silicon | `Agent-Office-<versão>-arm64.dmg` | Abra o `.dmg` e arraste para Aplicativos |
-| **macOS** Intel | `Agent-Office-<versão>-x64.dmg` | Igual |
-| **Windows** 10/11 | `Agent-Office-Setup-<versão>.exe` | Rode o instalador |
-| **Linux** x64 | `Agent-Office-<versão>-x86_64.AppImage` | `chmod +x` e rode |
+| Sistema                 | Arquivo                                 | Como instalar                            |
+| ----------------------- | --------------------------------------- | ---------------------------------------- |
+| **macOS** Apple Silicon | `Agent-Office-<versão>-arm64.dmg`       | Abra o `.dmg` e arraste para Aplicativos |
+| **macOS** Intel         | `Agent-Office-<versão>-x64.dmg`         | Igual                                    |
+| **Windows** 10/11       | `Agent-Office-Setup-<versão>.exe`       | Rode o instalador                        |
+| **Linux** x64           | `Agent-Office-<versão>-x86_64.AppImage` | `chmod +x` e rode                        |
 
 O app procura versão nova ao abrir e a cada 6 horas. No Windows e no Linux ele se atualiza sozinho; no Mac, só quando o build é assinado com Developer ID. Até lá, baixe o `.dmg` novo e substitua o app.
 
@@ -314,6 +314,7 @@ Sem credenciais, `npm run dist:mac` assina ad-hoc (`scripts/dist-mac.mjs`): o ap
    ```
 
    Com `CSC_LINK` ou `CSC_NAME`, o build liga o hardened runtime com `resources/entitlements.mac.plist` (só o JIT do V8) e notariza quando as três `APPLE_*` existem.
+
 4. Confira: `spctl --assess --type execute -vv "dist/mac-arm64/Agent Office.app"` deve responder `accepted, source=Notarized Developer ID`.
 
 No CI, as mesmas variáveis vêm dos secrets `MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` e `APPLE_TEAM_ID` (veja `.github/workflows/release.yml`).

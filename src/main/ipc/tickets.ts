@@ -1,5 +1,15 @@
 import { ipcMain } from 'electron'
-import { assigneeSchema, cleanDelegateTarget, commentSchema, parse, searchSchema, ticketDraftSchema, ticketIdsSchema, ticketPatchSchema, ticketStatusSchema } from '../validate'
+import {
+  assigneeSchema,
+  cleanDelegateTarget,
+  commentSchema,
+  parse,
+  searchSchema,
+  ticketDraftSchema,
+  ticketIdsSchema,
+  ticketPatchSchema,
+  ticketStatusSchema,
+} from '../validate'
 import { ticketId, type IpcContext } from './context'
 
 /** The ticket board. */

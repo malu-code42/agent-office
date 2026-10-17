@@ -61,7 +61,19 @@ export const BOSS_SEAT = { x: 4.5, z: 2.5 }
 export const BOSS_DESK = { x: 3, z: 3, w: 3 }
 /** Spots in front of the boss desk where visiting agents stand, best first. */
 export const VISIT_SPOTS: [number, number][] = [
-  [4, 4], [3, 4], [5, 4], [2, 4], [6, 4], [4, 5], [3, 5], [5, 5], [2, 5], [6, 5], [4, 6], [3, 6], [5, 6],
+  [4, 4],
+  [3, 4],
+  [5, 4],
+  [2, 4],
+  [6, 4],
+  [4, 5],
+  [3, 5],
+  [5, 5],
+  [2, 5],
+  [6, 5],
+  [4, 6],
+  [3, 6],
+  [5, 6],
 ]
 
 /** Tiles behind the boss desk, reserved for the player. */
@@ -263,7 +275,10 @@ export function projectPlan(squads: { code: string; members: { id: string; execu
   }
   let entries = [...bySector.entries()]
   const teamRects = entries.length > FRONT_ROOMS.length ? BACK_ROOMS.slice(0, 1) : BACK_ROOMS
-  const sectorSlots = [...FRONT_ROOMS.map((rect) => ({ rect, top: false })), ...BACK_ROOMS.slice(teamRects.length).map((rect) => ({ rect, top: true }))]
+  const sectorSlots = [
+    ...FRONT_ROOMS.map((rect) => ({ rect, top: false })),
+    ...BACK_ROOMS.slice(teamRects.length).map((rect) => ({ rect, top: true })),
+  ]
   // More sectors than rooms: the last room takes everyone left over.
   if (entries.length > sectorSlots.length) {
     const rest = entries.slice(sectorSlots.length - 1).flatMap(([, ids]) => ids)
@@ -313,7 +328,14 @@ export function projectPlan(squads: { code: string; members: { id: string; execu
     approach: [x + 1, 2],
     side: { x: x + 3.5, z: 3.5 },
     sideApproach: [x + 3, 4],
-    deliver: [[x + 1, 5], [x + 2, 5], [x, 5], [x + 1, 6], [x + 2, 6], [x, 6]],
+    deliver: [
+      [x + 1, 5],
+      [x + 2, 5],
+      [x, 5],
+      [x + 1, 6],
+      [x + 2, 6],
+      [x, 6],
+    ],
   }))
   // The middle row of the corridor, off the doors, so people still get by.
   const doors = new Set(partitions.filter((p) => p.axis === 'z').flatMap((p) => p.doors))

@@ -93,12 +93,16 @@
 
 .bubble-wait {
   background: #ffd166;
-  animation: pop 0.25s ease-out, bounce 1.1s ease-in-out infinite;
+  animation:
+    pop 0.25s ease-out,
+    bounce 1.1s ease-in-out infinite;
 }
 
 .bubble-done {
   background: #b8f2c9;
-  animation: pop 0.25s ease-out, bounce 1.6s ease-in-out infinite;
+  animation:
+    pop 0.25s ease-out,
+    bounce 1.6s ease-in-out infinite;
 }
 
 .bubble-error {

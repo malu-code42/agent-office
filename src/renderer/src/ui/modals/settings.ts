@@ -3,7 +3,16 @@ import { floorNameFor, MAX_PROJECT_FLOORS } from '@shared/projects'
 import type { Look, OfficePermissionMode, ProjectFloor } from '@shared/types'
 import type { ParsedBoard } from '@shared/tasks'
 import type { State } from '../../state'
-import { DEFAULT_VIDEO, QUALITY_LABELS, QUALITY_PRESETS, qualityOf, type FpsLimit, type Quality, type ShadowMapSize, type VideoSettings } from '@shared/video'
+import {
+  DEFAULT_VIDEO,
+  QUALITY_LABELS,
+  QUALITY_PRESETS,
+  qualityOf,
+  type FpsLimit,
+  type Quality,
+  type ShadowMapSize,
+  type VideoSettings,
+} from '@shared/video'
 import { openAccounts } from '../accounts'
 import { dataSection } from '../data'
 import { h, icon } from '../dom'
@@ -16,7 +25,12 @@ import { brandFields } from './brand'
 // Configurações: player, defaults, floors, accounts, data, video and the terminal bridge.
 
 /** `section: 'bridge'` opens scrolled to the terminal sessions box (the dock's gear does it when the bridge fails). */
-export function openSettings(root: HTMLElement, state: State, toast: (t: string, k?: 'info' | 'ok' | 'err') => void, opts: { section?: 'bridge'; tour?: () => void; openTasks?: (board: ParsedBoard) => void } = {}): void {
+export function openSettings(
+  root: HTMLElement,
+  state: State,
+  toast: (t: string, k?: 'info' | 'ok' | 'err') => void,
+  opts: { section?: 'bridge'; tour?: () => void; openTasks?: (board: ParsedBoard) => void } = {},
+): void {
   const s = state.settings
   const look: Look = { ...s.playerLook }
   const name = h('input', { class: 'input', value: s.playerName, maxlength: 24 })
@@ -52,7 +66,11 @@ export function openSettings(root: HTMLElement, state: State, toast: (t: string,
     styles.append(b)
   }
 
-  const pixel = h('select', { class: 'input' }, ...[2, 3, 4, 5].map((n) => h('option', { value: n }, `${n}px${n === 3 ? ' (padrão)' : ''}`)))
+  const pixel = h(
+    'select',
+    { class: 'input' },
+    ...[2, 3, 4, 5].map((n) => h('option', { value: n }, `${n}px${n === 3 ? ' (padrão)' : ''}`)),
+  )
   pixel.value = String(s.pixelSize)
   const notify = h('input', { type: 'checkbox' }) as HTMLInputElement
   notify.checked = s.notifications
@@ -63,50 +81,92 @@ export function openSettings(root: HTMLElement, state: State, toast: (t: string,
   const budget = h('input', { class: 'input', type: 'number', min: 0, step: 0.5, value: s.agentBudgetUsd ?? 0 }) as HTMLInputElement
   const updates = updateSettingsBox(root, s.updateChannel)
   const video = videoFields(state)
-  const vaultPath = h('input', { class: 'input', type: 'text', value: s.vaultPath ?? '', readonly: true, 'aria-label': 'Pasta do vault' }) as HTMLInputElement
-  const vaultStatus = h('span', { class: 'field-hint', role: 'status' }, s.vaultPath ? 'Pasta salva. O Office só lê tarefas.md.' : 'Escolha a pasta do vault; o Office só lê tarefas.md.')
-  const vaultSummary = (board: ParsedBoard) => `${board.lists.length} listas encontradas · ${board.lists.reduce((n, list) => n + list.tasks.length, 0)} tarefas · ${board.warnings.length} avisos.`
-  const chooseVault = h('button', { class: 'btn', type: 'button', onclick: async () => {
-    try {
-      const selected = await window.office.selectTasksVault()
-      if (!selected) return
-      vaultPath.value = selected.vaultPath
-      vaultStatus.textContent = vaultSummary(selected.board)
-      toast('Pasta do vault selecionada e validada.', 'ok')
-    } catch (err) {
-      vaultStatus.textContent = cleanError(err)
-      toast(cleanError(err), 'err')
-    }
-  } }, icon('folder', 14), 'Escolher pasta')
-  const verifyVault = h('button', { class: 'btn', type: 'button', onclick: async () => {
-    if (!vaultPath.value) return toast('Escolha a pasta que contém tarefas.md.', 'err')
-    try {
-      const board = await window.office.readTasks()
-      vaultStatus.textContent = vaultSummary(board)
-      toast('Pasta do vault verificada.', 'ok')
-    } catch (err) {
-      vaultStatus.textContent = cleanError(err)
-      toast(cleanError(err), 'err')
-    }
-  } }, icon('check', 14), 'Verificar tarefas.md')
-  const openTasks = h('button', { class: 'btn btn-primary', type: 'button', onclick: async () => {
-    if (!vaultPath.value) return toast('Escolha a pasta que contém tarefas.md.', 'err')
-    try {
-      const board = await window.office.readTasks()
-      close()
-      opts.openTasks?.(board)
-    } catch (err) {
-      vaultStatus.textContent = cleanError(err)
-      toast(cleanError(err), 'err')
-    }
-  } }, icon('list', 14), 'Abrir quadro Tarefas')
+  const vaultPath = h('input', {
+    class: 'input',
+    type: 'text',
+    value: s.vaultPath ?? '',
+    readonly: true,
+    'aria-label': 'Pasta do vault',
+  }) as HTMLInputElement
+  const vaultStatus = h(
+    'span',
+    { class: 'field-hint', role: 'status' },
+    s.vaultPath ? 'Pasta salva. O Office só lê tarefas.md.' : 'Escolha a pasta do vault; o Office só lê tarefas.md.',
+  )
+  const vaultSummary = (board: ParsedBoard) =>
+    `${board.lists.length} listas encontradas · ${board.lists.reduce((n, list) => n + list.tasks.length, 0)} tarefas · ${board.warnings.length} avisos.`
+  const chooseVault = h(
+    'button',
+    {
+      class: 'btn',
+      type: 'button',
+      onclick: async () => {
+        try {
+          const selected = await window.office.selectTasksVault()
+          if (!selected) return
+          vaultPath.value = selected.vaultPath
+          vaultStatus.textContent = vaultSummary(selected.board)
+          toast('Pasta do vault selecionada e validada.', 'ok')
+        } catch (err) {
+          vaultStatus.textContent = cleanError(err)
+          toast(cleanError(err), 'err')
+        }
+      },
+    },
+    icon('folder', 14),
+    'Escolher pasta',
+  )
+  const verifyVault = h(
+    'button',
+    {
+      class: 'btn',
+      type: 'button',
+      onclick: async () => {
+        if (!vaultPath.value) return toast('Escolha a pasta que contém tarefas.md.', 'err')
+        try {
+          const board = await window.office.readTasks()
+          vaultStatus.textContent = vaultSummary(board)
+          toast('Pasta do vault verificada.', 'ok')
+        } catch (err) {
+          vaultStatus.textContent = cleanError(err)
+          toast(cleanError(err), 'err')
+        }
+      },
+    },
+    icon('check', 14),
+    'Verificar tarefas.md',
+  )
+  const openTasks = h(
+    'button',
+    {
+      class: 'btn btn-primary',
+      type: 'button',
+      onclick: async () => {
+        if (!vaultPath.value) return toast('Escolha a pasta que contém tarefas.md.', 'err')
+        try {
+          const board = await window.office.readTasks()
+          close()
+          opts.openTasks?.(board)
+        } catch (err) {
+          vaultStatus.textContent = cleanError(err)
+          toast(cleanError(err), 'err')
+        }
+      },
+    },
+    icon('list', 14),
+    'Abrir quadro Tarefas',
+  )
 
   const b = state.bridge
   const bridgeStatus = h(
     'div',
     { class: 'bridge-status' },
     h('span', { class: `dot ${b.installed && b.listening ? 'dot-working' : b.installed ? 'dot-error' : 'dot-stopped'}` }),
-    b.installed ? (b.listening ? `Conectado (porta ${b.port})` : `Hooks instalados, servidor parado${b.error ? `: ${b.error}` : ''}`) : 'Desconectado',
+    b.installed
+      ? b.listening
+        ? `Conectado (porta ${b.port})`
+        : `Hooks instalados, servidor parado${b.error ? `: ${b.error}` : ''}`
+      : 'Desconectado',
   )
   // project floors: one per folder; renaming keeps whatever else a floor carries
   let floors: ProjectFloor[] = s.projects.map((p) => ({ ...p }))
@@ -119,7 +179,11 @@ export function openSettings(root: HTMLElement, state: State, toast: (t: string,
             const nameIn = h('input', { class: 'input', value: p.name, maxlength: 32, title: 'Nome do andar' })
             nameIn.addEventListener('input', () => (floors[i] = { ...floors[i], name: nameIn.value }))
             const squads = state.squads.filter((q) => q.cwd === p.cwd).length
-            const remove = h('button', { class: 'icon-btn', type: 'button', title: 'Tirar o andar: os agentes dele descem para o térreo' }, icon('x', 15))
+            const remove = h(
+              'button',
+              { class: 'icon-btn', type: 'button', title: 'Tirar o andar: os agentes dele descem para o térreo' },
+              icon('x', 15),
+            )
             const set = (patch: Partial<ProjectFloor>) => (floors[i] = { ...floors[i], ...patch })
             remove.addEventListener('click', () => {
               floors = floors.filter((_, j) => j !== i)
@@ -129,7 +193,18 @@ export function openSettings(root: HTMLElement, state: State, toast: (t: string,
               'div',
               { class: 'floor-row' },
               h('span', { class: 'floor-num' }, String(i + 1)),
-              h('div', { class: 'floor-row-main' }, nameIn, h('span', { class: 'floor-row-path', title: p.cwd }, p.cwd, squads ? ` · ${squads === 1 ? '1 squad' : `${squads} squads`}` : ''), brandFields(floors[i], set, toast)),
+              h(
+                'div',
+                { class: 'floor-row-main' },
+                nameIn,
+                h(
+                  'span',
+                  { class: 'floor-row-path', title: p.cwd },
+                  p.cwd,
+                  squads ? ` · ${squads === 1 ? '1 squad' : `${squads} squads`}` : '',
+                ),
+                brandFields(floors[i], set, toast),
+              ),
               remove,
             )
           })
@@ -149,7 +224,10 @@ export function openSettings(root: HTMLElement, state: State, toast: (t: string,
   const bridgeBtn = h('button', { class: 'btn' }, b.installed ? 'Desconectar' : 'Conectar')
   bridgeBtn.addEventListener('click', async () => {
     const next = b.installed ? await window.office.uninstallBridge() : await window.office.installBridge()
-    toast(next.installed ? 'Sessões do terminal conectadas. Abra um novo `claude` no terminal.' : 'Sessões do terminal desconectadas.', 'ok')
+    toast(
+      next.installed ? 'Sessões do terminal conectadas. Abra um novo `claude` no terminal.' : 'Sessões do terminal desconectadas.',
+      'ok',
+    )
     close()
   })
 
@@ -196,7 +274,15 @@ export function openSettings(root: HTMLElement, state: State, toast: (t: string,
       meterField('Esforço padrão', brain.meter),
       h('label', { class: 'check' }, notify, 'Notificar quando um agente precisar de mim ou terminar'),
       video.el,
-      h('div', { class: 'bridge-box' }, h('div', { class: 'bridge-title' }, icon('list', 16), 'Tarefas do Obsidian'), h('div', { class: 'field-hint' }, 'A pasta é escolhida no diálogo do sistema; o Office valida tarefas.md e guarda essa seleção.'), field('Pasta do vault', vaultPath), vaultStatus, h('div', { class: 'bridge-row' }, chooseVault, verifyVault, openTasks)),
+      h(
+        'div',
+        { class: 'bridge-box' },
+        h('div', { class: 'bridge-title' }, icon('list', 16), 'Tarefas do Obsidian'),
+        h('div', { class: 'field-hint' }, 'A pasta é escolhida no diálogo do sistema; o Office valida tarefas.md e guarda essa seleção.'),
+        field('Pasta do vault', vaultPath),
+        vaultStatus,
+        h('div', { class: 'bridge-row' }, chooseVault, verifyVault, openTasks),
+      ),
       h(
         'div',
         { class: 'bridge-box' },
@@ -229,7 +315,11 @@ export function openSettings(root: HTMLElement, state: State, toast: (t: string,
           { class: 'field-hint' },
           `${s.accounts.length === 1 ? 'Uma conta' : `${s.accounts.length} contas`}. Adicione outras para separar projetos ou revezar quando uma bater o limite de 5h.`,
         ),
-        h('div', { class: 'bridge-row' }, h('button', { class: 'btn', type: 'button', onclick: () => openAccounts(root, state, toast) }, 'Gerenciar contas')),
+        h(
+          'div',
+          { class: 'bridge-row' },
+          h('button', { class: 'btn', type: 'button', onclick: () => openAccounts(root, state, toast) }, 'Gerenciar contas'),
+        ),
       ),
       h(
         'div',
@@ -255,32 +345,47 @@ export function openSettings(root: HTMLElement, state: State, toast: (t: string,
         h(
           'div',
           { class: 'bridge-row bridge-row-start' },
-          h('button', {
-            class: 'btn',
-            type: 'button',
-            onclick: () => window.office.openLogs().catch((err) => toast(cleanError(err), 'err')),
-          }, icon('folder', 14), 'Abrir pasta de logs'),
-          h('button', {
-            class: 'btn',
-            type: 'button',
-            onclick: async () => {
-              try {
-                await window.office.copyDiagnostics()
-                toast('Diagnóstico copiado. Cole no relato do problema.', 'ok')
-              } catch (err) {
-                toast(cleanError(err), 'err')
-              }
+          h(
+            'button',
+            {
+              class: 'btn',
+              type: 'button',
+              onclick: () => window.office.openLogs().catch((err) => toast(cleanError(err), 'err')),
             },
-          }, icon('copy', 14), 'Copiar diagnóstico'),
+            icon('folder', 14),
+            'Abrir pasta de logs',
+          ),
+          h(
+            'button',
+            {
+              class: 'btn',
+              type: 'button',
+              onclick: async () => {
+                try {
+                  await window.office.copyDiagnostics()
+                  toast('Diagnóstico copiado. Cole no relato do problema.', 'ok')
+                } catch (err) {
+                  toast(cleanError(err), 'err')
+                }
+              },
+            },
+            icon('copy', 14),
+            'Copiar diagnóstico',
+          ),
           opts.tour
-            ? h('button', {
-                class: 'btn',
-                type: 'button',
-                onclick: () => {
-                  close()
-                  opts.tour?.()
+            ? h(
+                'button',
+                {
+                  class: 'btn',
+                  type: 'button',
+                  onclick: () => {
+                    close()
+                    opts.tour?.()
+                  },
                 },
-              }, icon('walk', 14), 'Rever o tour')
+                icon('walk', 14),
+                'Rever o tour',
+              )
             : null,
         ),
       ),
@@ -309,9 +414,26 @@ function videoFields(state: State): { el: HTMLElement; value: () => VideoSetting
     ...(Object.keys(QUALITY_LABELS) as Quality[]).map((q) => h('option', { value: q }, QUALITY_LABELS[q])),
     h('option', { value: 'custom', disabled: true }, 'Personalizada'),
   )
-  const fps = h('select', { class: 'input' }, h('option', { value: 30 }, '30 fps'), h('option', { value: 60 }, '60 fps'), h('option', { value: 0 }, 'Sem limite'))
-  const shadows = h('select', { class: 'input' }, h('option', { value: 'off' }, 'Desligadas'), h('option', { value: 1024 }, 'Ligadas · 1024'), h('option', { value: 2048 }, 'Ligadas · 2048'))
-  const effects = h('select', { class: 'input' }, h('option', { value: 'full' }, 'Completos'), h('option', { value: 'reduced' }, 'Reduzidos'))
+  const fps = h(
+    'select',
+    { class: 'input' },
+    h('option', { value: 30 }, '30 fps'),
+    h('option', { value: 60 }, '60 fps'),
+    h('option', { value: 0 }, 'Sem limite'),
+  )
+  const shadows = h(
+    'select',
+    { class: 'input' },
+    h('option', { value: 'off' }, 'Desligadas'),
+    h('option', { value: 1024 }, 'Ligadas · 1024'),
+    h('option', { value: 2048 }, 'Ligadas · 2048'),
+  )
+  const effects = h(
+    'select',
+    { class: 'input' },
+    h('option', { value: 'full' }, 'Completos'),
+    h('option', { value: 'reduced' }, 'Reduzidos'),
+  )
   const battery = h('input', { type: 'checkbox' }) as HTMLInputElement
   battery.checked = v.batterySaver
 
@@ -343,7 +465,11 @@ function videoFields(state: State): { el: HTMLElement; value: () => VideoSetting
     'div',
     { class: 'bridge-box' },
     h('div', { class: 'bridge-title' }, icon('gauge', 16), 'Vídeo'),
-    h('div', { class: 'field-hint' }, 'Economia desliga as sombras, limita a 30 fps e reduz fumaça, faíscas e giroflex. Com o escritório parado ou a janela minimizada, o app já desenha menos sozinho.'),
+    h(
+      'div',
+      { class: 'field-hint' },
+      'Economia desliga as sombras, limita a 30 fps e reduz fumaça, faíscas e giroflex. Com o escritório parado ou a janela minimizada, o app já desenha menos sozinho.',
+    ),
     h('div', { class: 'field-row' }, field('Qualidade', quality), field('Limite de fps', fps)),
     h('div', { class: 'field-row' }, field('Sombras', shadows), field('Efeitos', effects)),
     h('label', { class: 'check' }, battery, 'Economia automática na bateria'),

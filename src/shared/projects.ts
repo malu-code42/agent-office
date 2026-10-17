@@ -21,5 +21,11 @@ export function projectFor(projects: ProjectFloor[], cwd: string | undefined): P
 /** "apetit-studios" -> "Apetit Studios". */
 export function floorNameFor(cwd: string): string {
   const base = cwd.split(/[\\/]/).filter(Boolean).pop() ?? ''
-  return base.replace(/[-_]+/g, ' ').replace(/\b\p{L}/gu, (c) => c.toUpperCase()).trim().slice(0, 32) || 'Projeto'
+  return (
+    base
+      .replace(/[-_]+/g, ' ')
+      .replace(/\b\p{L}/gu, (c) => c.toUpperCase())
+      .trim()
+      .slice(0, 32) || 'Projeto'
+  )
 }

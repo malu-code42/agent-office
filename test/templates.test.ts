@@ -8,7 +8,13 @@ import { renderInstruction, TEMPLATE_LIMITS, templatesFor, ticketRef, usesTicket
 const floors: ProjectFloor[] = [{ id: 'acme', name: 'Acme', cwd: '/tmp/acme' }]
 const look = { skin: '#f1c27d', hair: '#2d3436', hairStyle: 2, shirt: '#0984e3', pants: '#2d3436', shoes: '#000000' }
 const base = { name: 'Revisor', permissionMode: 'default', instruction: 'Revise {pasta}' }
-const tpl = (id: string, extra: Partial<AgentTemplate> = {}): AgentTemplate => ({ id, name: 'Revisor', permissionMode: 'default', instruction: '', ...extra })
+const tpl = (id: string, extra: Partial<AgentTemplate> = {}): AgentTemplate => ({
+  id,
+  name: 'Revisor',
+  permissionMode: 'default',
+  instruction: '',
+  ...extra,
+})
 
 describe('cleanLook', () => {
   it('aceita uma aparência completa', () => {
@@ -37,7 +43,16 @@ describe('cleanTemplate', () => {
 
   it('guarda id válido, aparência, modelo, esforço e andar existente', () => {
     const t = cleanTemplate({ ...base, id: 'tpl-1', look, model: 'claude-opus-5-5[1m]', effort: 'high', floor: 'acme' }, floors)
-    expect(t).toEqual({ id: 'tpl-1', name: 'Revisor', permissionMode: 'default', instruction: 'Revise {pasta}', look, model: 'claude-opus-5-5[1m]', effort: 'high', floor: 'acme' })
+    expect(t).toEqual({
+      id: 'tpl-1',
+      name: 'Revisor',
+      permissionMode: 'default',
+      instruction: 'Revise {pasta}',
+      look,
+      model: 'claude-opus-5-5[1m]',
+      effort: 'high',
+      floor: 'acme',
+    })
   })
 
   it('troca id inválido por um novo e ignora modelo, esforço e andar vazios', () => {

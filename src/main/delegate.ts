@@ -42,9 +42,11 @@ export class TicketDesk {
       if (a.source !== 'office') throw new Error('Sessões do terminal não recebem tarefas daqui. Escolha um agente do escritório.')
       if (a.role === 'orchestrator') throw new Error(`${a.name} só roda o ciclo do squad. Delegue a um agente do térreo.`)
       // Same rule as hiring: ticket text may come from others, so it never runs without approvals.
-      if (a.permissionMode === 'bypassPermissions') throw new Error(`${a.name} está no modo "Sem pedir nada". Delegue a outro agente ou contrate um novo.`)
+      if (a.permissionMode === 'bypassPermissions')
+        throw new Error(`${a.name} está no modo "Sem pedir nada". Delegue a outro agente ou contrate um novo.`)
       if (this.manager.isBusy(a.id)) throw new Error(`${a.name} está ocupado. Espere terminar ou escolha outro agente.`)
-      if (t.cwd && t.cwd !== a.cwd) throw new Error(`${a.name} trabalha em outra pasta (${a.cwd}). Contrate um agente novo para este ticket.`)
+      if (t.cwd && t.cwd !== a.cwd)
+        throw new Error(`${a.name} trabalha em outra pasta (${a.cwd}). Contrate um agente novo para este ticket.`)
       if (!t.cwd) this.board.update(t.id, { cwd: a.cwd }, by)
       agent = a
       this.board.assign(t.id, { kind: 'agent', name: a.name, id: a.id }, by)
@@ -57,20 +59,22 @@ export class TicketDesk {
       // Making the worktree takes a moment: a second click meanwhile must not hire twice.
       if (this.hiring.has(t.id)) throw new Error(`Já estou contratando alguém para o ${t.key}.`)
       this.hiring.add(t.id)
-      agent = await this.manager.hire(
-        {
-          name: '',
-          cwd: t.cwd,
-          task: ticketBrief(t),
-          model: 'model' in target.hire ? target.hire.model : s.defaultModel || undefined,
-          effort: 'effort' in target.hire ? target.hire.effort : s.defaultEffort || undefined,
-          accounts: target.hire.accounts,
-          worktree: target.hire.worktree,
-          // Tickets may come from other people or agents: never run one with "bypass".
-          permissionMode: mode === 'bypassPermissions' ? 'default' : mode,
-        },
-        display,
-      ).finally(() => this.hiring.delete(t.id))
+      agent = await this.manager
+        .hire(
+          {
+            name: '',
+            cwd: t.cwd,
+            task: ticketBrief(t),
+            model: 'model' in target.hire ? target.hire.model : s.defaultModel || undefined,
+            effort: 'effort' in target.hire ? target.hire.effort : s.defaultEffort || undefined,
+            accounts: target.hire.accounts,
+            worktree: target.hire.worktree,
+            // Tickets may come from other people or agents: never run one with "bypass".
+            permissionMode: mode === 'bypassPermissions' ? 'default' : mode,
+          },
+          display,
+        )
+        .finally(() => this.hiring.delete(t.id))
       this.board.assign(t.id, { kind: 'agent', name: agent.name, id: agent.id }, by)
       this.board.move(t.id, 'doing', undefined, by)
     }

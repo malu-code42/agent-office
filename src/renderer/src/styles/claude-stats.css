@@ -207,10 +207,18 @@
   height: 9px;
 }
 
-.cs-cell.l1 { background: color-mix(in srgb, var(--cs-c) 28%, #232436); }
-.cs-cell.l2 { background: color-mix(in srgb, var(--cs-c) 50%, #232436); }
-.cs-cell.l3 { background: color-mix(in srgb, var(--cs-c) 75%, #232436); }
-.cs-cell.l4 { background: var(--cs-c); }
+.cs-cell.l1 {
+  background: color-mix(in srgb, var(--cs-c) 28%, #232436);
+}
+.cs-cell.l2 {
+  background: color-mix(in srgb, var(--cs-c) 50%, #232436);
+}
+.cs-cell.l3 {
+  background: color-mix(in srgb, var(--cs-c) 75%, #232436);
+}
+.cs-cell.l4 {
+  background: var(--cs-c);
+}
 
 .cs-cell.legacy {
   opacity: 0.6;
@@ -342,9 +350,15 @@
   background: rgba(255, 255, 255, 0.07);
 }
 
-.cs-blocks i.on { background: var(--green); }
-.ctx-warn .cs-blocks i.on { background: var(--amber); }
-.ctx-full .cs-blocks i.on { background: var(--red); }
+.cs-blocks i.on {
+  background: var(--green);
+}
+.ctx-warn .cs-blocks i.on {
+  background: var(--amber);
+}
+.ctx-full .cs-blocks i.on {
+  background: var(--red);
+}
 
 .cs-hours {
   display: flex;

@@ -215,7 +215,10 @@ export class WindowsClaude {
     const rows = parseTasklistCsv(out).filter((r) => isClaudeImage(r.name))
     // A PID not classified yet counts as Claude Code until the next sample.
     const code = rows.filter((r) => this.kind.get(r.pid) !== 'desktop')
-    this.maybeSample(cores, rows.some((r) => !this.kind.has(r.pid)))
+    this.maybeSample(
+      cores,
+      rows.some((r) => !this.kind.has(r.pid)),
+    )
     return {
       count: code.length,
       cpu: this.cpu === null ? null : Math.round(this.cpu),

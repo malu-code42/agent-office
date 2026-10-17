@@ -145,7 +145,13 @@ export class Accounts extends EventEmitter {
     let dir = join(homedir(), `.claude-${base}`)
     for (let n = 2; used.has(dir); n++) dir = join(homedir(), `.claude-${base}-${n}`)
     linkShared(dir)
-    return { id: randomUUID(), name: clean, provider: 'claude', configDir: dir, color: ACCOUNT_COLORS[this.list().length % ACCOUNT_COLORS.length] }
+    return {
+      id: randomUUID(),
+      name: clean,
+      provider: 'claude',
+      configDir: dir,
+      color: ACCOUNT_COLORS[this.list().length % ACCOUNT_COLORS.length],
+    }
   }
 
   /** Opens Terminal running `claude auth login` on the account; the browser does the rest. */
@@ -179,11 +185,17 @@ export class Accounts extends EventEmitter {
     if (until && until > Date.now()) return true
     if (this.status.get(id)?.loggedIn === false) return true
     const u = this.usage().find((x) => x.accountId === id)
-    return !!u?.windows.some((w) => (w.key === 'five_hour' || w.key === 'seven_day') && w.percent >= 100 && (!w.resetsAt || w.resetsAt > Date.now()))
+    return !!u?.windows.some(
+      (w) => (w.key === 'five_hour' || w.key === 'seven_day') && w.percent >= 100 && (!w.resetsAt || w.resetsAt > Date.now()),
+    )
   }
 
   private fiveHour(id: string): number {
-    return this.usage().find((x) => x.accountId === id)?.windows.find((w) => w.key === 'five_hour')?.percent ?? 0
+    return (
+      this.usage()
+        .find((x) => x.accountId === id)
+        ?.windows.find((w) => w.key === 'five_hour')?.percent ?? 0
+    )
   }
 }
 

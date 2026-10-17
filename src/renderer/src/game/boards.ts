@@ -43,16 +43,29 @@ export abstract class GameBoards extends GameFloors {
     const spenders = Object.values(today.agents)
     floors.forEach(([scene, tag, moneyTag, project], n) => {
       const total = Object.entries(today.costByCwd).reduce((sum, [cwd, usd]) => (n === 0 || floorOfCwd(cwd) === n ? sum + usd : sum), 0)
-      const top = spenders.filter((a) => n === 0 || floorOfCwd(a.cwd) === n).sort((a, b) => b.usd - a.usd).slice(0, 8)
-      scene.money.set(total, top.map((a) => ({ name: a.name, usd: a.usd })))
+      const top = spenders
+        .filter((a) => n === 0 || floorOfCwd(a.cwd) === n)
+        .sort((a, b) => b.usd - a.usd)
+        .slice(0, 8)
+      scene.money.set(
+        total,
+        top.map((a) => ({ name: a.name, usd: a.usd })),
+      )
       moneyTag.setName(`${money(total)} hoje`)
-      moneyTag.el.title = top.filter((a) => a.usd >= 0.005).map((a) => `${a.name}: ${money(a.usd)}`).join('\n') || 'Ninguém gastou nada hoje'
+      moneyTag.el.title =
+        top
+          .filter((a) => a.usd >= 0.005)
+          .map((a) => `${a.name}: ${money(a.usd)}`)
+          .join('\n') || 'Ninguém gastou nada hoje'
       const pool = project ? accountPool(this.state.settings, project.cwd) : [...limited.keys()]
       const hit = pool.filter((id) => limited.has(id))
       scene.alarm.setOn(hit.length > 0)
       if (!hit.length) return
       const names = hit.map((id) => this.state.account(id)?.name ?? id).join(', ')
-      const back = hit.map((id) => limited.get(id)).filter((t): t is number => !!t).sort((a, b) => a - b)[0]
+      const back = hit
+        .map((id) => limited.get(id))
+        .filter((t): t is number => !!t)
+        .sort((a, b) => a - b)[0]
       const clock = back ? ` · volta ${new Date(back).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''
       tag.setName(`${hit.length > 1 ? 'Contas' : 'Conta'} ${names} no limite${clock}`)
     })

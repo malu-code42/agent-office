@@ -51,7 +51,10 @@ export function dataSection(toast: Toast): HTMLElement {
         btn,
       )
     })
-    const more = all.length > SHOWN && !expanded ? h('button', { class: 'btn btn-small', type: 'button', onclick: () => ((expanded = true), render()) }, `Ver todos (${all.length})`) : null
+    const more =
+      all.length > SHOWN && !expanded
+        ? h('button', { class: 'btn btn-small', type: 'button', onclick: () => ((expanded = true), render()) }, `Ver todos (${all.length})`)
+        : null
     list.replaceChildren(...rows, ...(more ? [more] : []))
   }
 

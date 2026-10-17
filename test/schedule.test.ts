@@ -2,7 +2,18 @@
 process.env.TZ = 'America/Sao_Paulo'
 
 import { describe, expect, it } from 'vitest'
-import { countdown, describeSchedule, formatWhen, isPast, nextRun, nextRuns, runsBetween, scheduleError, scheduleSentence, weekdaysText } from '../src/shared/schedule'
+import {
+  countdown,
+  describeSchedule,
+  formatWhen,
+  isPast,
+  nextRun,
+  nextRuns,
+  runsBetween,
+  scheduleError,
+  scheduleSentence,
+  weekdaysText,
+} from '../src/shared/schedule'
 import type { Schedule } from '@shared/types'
 
 const at = (y: number, mo: number, d: number, h = 0, mi = 0) => new Date(y, mo - 1, d, h, mi).getTime()
@@ -48,9 +59,15 @@ describe('presets', () => {
     expect(nextRun(s, anchor)).toBe(at(2026, 10, 13, 12, 0))
     expect(nextRun(s, at(2026, 10, 13, 13, 0))).toBe(at(2026, 10, 13, 14, 0))
     expect(nextRun(s, anchor - 3_600_000)).toBe(at(2026, 10, 13, 12, 0))
-    expect(nextRuns({ kind: 'interval', every: 15, unit: 'minutes', anchor }, anchor, 3)).toEqual([anchor + 15 * 60_000, anchor + 30 * 60_000, anchor + 45 * 60_000])
+    expect(nextRuns({ kind: 'interval', every: 15, unit: 'minutes', anchor }, anchor, 3)).toEqual([
+      anchor + 15 * 60_000,
+      anchor + 30 * 60_000,
+      anchor + 45 * 60_000,
+    ])
     // overnight, into the next month
-    expect(nextRun({ kind: 'interval', every: 5, unit: 'hours', anchor: at(2026, 10, 31, 22, 0) }, at(2026, 10, 31, 23, 0))).toBe(at(2026, 11, 1, 3, 0))
+    expect(nextRun({ kind: 'interval', every: 5, unit: 'hours', anchor: at(2026, 10, 31, 22, 0) }, at(2026, 10, 31, 23, 0))).toBe(
+      at(2026, 11, 1, 3, 0),
+    )
   })
 })
 
@@ -62,7 +79,12 @@ describe('cron', () => {
   })
 
   it('steps, lists and names', () => {
-    expect(nextRuns(cron('*/20 8-9 * * *'), at(2026, 10, 13, 8, 5), 4)).toEqual([at(2026, 10, 13, 8, 20), at(2026, 10, 13, 8, 40), at(2026, 10, 13, 9, 0), at(2026, 10, 13, 9, 20)])
+    expect(nextRuns(cron('*/20 8-9 * * *'), at(2026, 10, 13, 8, 5), 4)).toEqual([
+      at(2026, 10, 13, 8, 20),
+      at(2026, 10, 13, 8, 40),
+      at(2026, 10, 13, 9, 0),
+      at(2026, 10, 13, 9, 20),
+    ])
     expect(nextRun(cron('30 7 * * mon,wed,fri'), at(2026, 10, 13, 12))).toBe(at(2026, 10, 14, 7, 30))
     expect(nextRun(cron('30 7 * * seg,qua'), at(2026, 10, 13, 12))).toBe(at(2026, 10, 14, 7, 30))
     expect(nextRun(cron('0 12 1 jan *'), at(2026, 10, 13))).toBe(at(2027, 1, 1, 12, 0))
@@ -146,7 +168,9 @@ describe('sentences', () => {
     const now = at(2026, 10, 13, 15, 0)
     const s: Schedule = { kind: 'weekly', days: [1, 2, 3, 4, 5], time: '09:00' }
     expect(scheduleSentence(s, nextRun(s, now), now)).toBe('Roda de segunda a sexta às 09:00. Próxima: amanhã, 09:00')
-    expect(scheduleSentence({ kind: 'once', at: '2026-10-01T09:00' }, null, now)).toBe('Roda uma vez, em 01/10/2026 às 09:00. Sem próxima execução.')
+    expect(scheduleSentence({ kind: 'once', at: '2026-10-01T09:00' }, null, now)).toBe(
+      'Roda uma vez, em 01/10/2026 às 09:00. Sem próxima execução.',
+    )
   })
 
   it('dates near and far', () => {

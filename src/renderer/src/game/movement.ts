@@ -167,7 +167,13 @@ export abstract class GameMovement extends GameSkull {
       const [ax, az] = tileOf(p.position)
       // keep a small radius away from blocked tiles and walls
       const r = 0.22
-      for (const [ox, oz] of [[0, 0], [r, r], [r, -r], [-r, r], [-r, -r]]) {
+      for (const [ox, oz] of [
+        [0, 0],
+        [r, r],
+        [r, -r],
+        [-r, r],
+        [-r, -r],
+      ]) {
         const tx = Math.floor(nx + ox)
         const tz = Math.floor(nz + oz)
         if ((tx !== ax || tz !== az) && !grid.canStep(ax, az, tx, tz)) return false

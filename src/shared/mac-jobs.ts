@@ -33,7 +33,8 @@ export function macJobName(label: string): string {
   return parts.join(' · ') || label
 }
 
-const int = (v: unknown, min: number, max: number): number | undefined => (typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max ? v : undefined)
+const int = (v: unknown, min: number, max: number): number | undefined =>
+  typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max ? v : undefined
 
 /** StartCalendarInterval (one dict or a list): each becomes a cron schedule; a missing key means every value, as in launchd. */
 export function calendarSchedules(raw: unknown): Schedule[] {
@@ -43,7 +44,12 @@ export function calendarSchedules(raw: unknown): Schedule[] {
     if (!it || typeof it !== 'object') continue
     const d = it as Record<string, unknown>
     const f = (v: number | undefined) => (v === undefined ? '*' : String(v))
-    out.push({ kind: 'cron', expr: [f(int(d.Minute, 0, 59)), f(int(d.Hour, 0, 23)), f(int(d.Day, 1, 31)), f(int(d.Month, 1, 12)), f(int(d.Weekday, 0, 7))].join(' ') })
+    out.push({
+      kind: 'cron',
+      expr: [f(int(d.Minute, 0, 59)), f(int(d.Hour, 0, 23)), f(int(d.Day, 1, 31)), f(int(d.Month, 1, 12)), f(int(d.Weekday, 0, 7))].join(
+        ' ',
+      ),
+    })
   }
   return out
 }
@@ -52,7 +58,12 @@ export function calendarSchedules(raw: unknown): Schedule[] {
  * A plist (as JSON) into a MacJob, or null when it is not one to show: no label,
  * a vendor agent, or nothing scheduled (KeepAlive daemons, WatchPaths only).
  */
-export function macJobFromPlist(plist: unknown, status: LaunchdStatus | undefined, lastLogAt: number | undefined, now = Date.now()): MacJob | null {
+export function macJobFromPlist(
+  plist: unknown,
+  status: LaunchdStatus | undefined,
+  lastLogAt: number | undefined,
+  now = Date.now(),
+): MacJob | null {
   if (!plist || typeof plist !== 'object') return null
   const p = plist as Record<string, unknown>
   const label = typeof p.Label === 'string' ? p.Label.trim() : ''
@@ -61,8 +72,11 @@ export function macJobFromPlist(plist: unknown, status: LaunchdStatus | undefine
   const everySec = int(p.StartInterval, 1, 366 * 86_400)
   if (!schedules.length && !everySec) return null
   const args = Array.isArray(p.ProgramArguments) ? p.ProgramArguments.filter((a): a is string => typeof a === 'string') : []
-  const command = (args.length ? args : typeof p.Program === 'string' ? [p.Program] : []).map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(' ')
-  const log = typeof p.StandardOutPath === 'string' ? p.StandardOutPath : typeof p.StandardErrorPath === 'string' ? p.StandardErrorPath : undefined
+  const command = (args.length ? args : typeof p.Program === 'string' ? [p.Program] : [])
+    .map((a) => (/\s/.test(a) ? `"${a}"` : a))
+    .join(' ')
+  const log =
+    typeof p.StandardOutPath === 'string' ? p.StandardOutPath : typeof p.StandardErrorPath === 'string' ? p.StandardErrorPath : undefined
   let nextAt: number | null = null
   for (const s of schedules) {
     const t = nextRun(s, now)

@@ -1,6 +1,16 @@
 import { dialog, ipcMain, shell } from 'electron'
 import { existsSync } from 'node:fs'
-import { commitChanges, discardChanges, fileDiff, insideRoot, openInEditor, openPullRequest, pendingLoss, removeWorktree, worktreeState } from '../git'
+import {
+  commitChanges,
+  discardChanges,
+  fileDiff,
+  insideRoot,
+  openInEditor,
+  openPullRequest,
+  pendingLoss,
+  removeWorktree,
+  worktreeState,
+} from '../git'
 import { changedPathSchema, commitMessageSchema, prTitleSchema, uuidSchema, parse } from '../validate'
 import { id, type IpcContext } from './context'
 
@@ -22,7 +32,9 @@ export function registerWorktreesIpc(ctx: IpcContext): void {
       fireChoices.set(a.id, { remove: false, dirty: 0, ignored: 0, fingerprint: '' })
       return 'plain'
     }
-    const kept = st.ahead ? ` O branch tem ${st.ahead} commit${st.ahead > 1 ? 's' : ''} e fica no repositório mesmo se você remover a cópia.` : ''
+    const kept = st.ahead
+      ? ` O branch tem ${st.ahead} commit${st.ahead > 1 ? 's' : ''} e fica no repositório mesmo se você remover a cópia.`
+      : ''
     // git worktree remove also deletes ignored files (.env, node_modules): say so.
     const ignoredLine = st.ignored
       ? `\n\nTem também ${plural(st.ignored, 'arquivo ou pasta ignorado', 'arquivos ou pastas ignorados')} pelo git (como .env ou node_modules), que somem junto com a cópia.`
@@ -35,7 +47,9 @@ export function registerWorktreesIpc(ctx: IpcContext): void {
       message: `Dispensar ${a.name}?`,
       detail:
         `A sessão para e o agente vai embora. Ele trabalhava numa cópia isolada (branch ${wt.branch}) em ${wt.root}.\n\n` +
-        (st.dirty ? `A cópia tem ${st.dirty} arquivo${st.dirty > 1 ? 's' : ''} com mudanças não commitadas.` : 'A cópia não tem mudanças não commitadas.') +
+        (st.dirty
+          ? `A cópia tem ${st.dirty} arquivo${st.dirty > 1 ? 's' : ''} com mudanças não commitadas.`
+          : 'A cópia não tem mudanças não commitadas.') +
         kept +
         ignoredLine,
     })
@@ -114,7 +128,8 @@ export function registerWorktreesIpc(ctx: IpcContext): void {
     const done = await discardChanges(c)
     const next = { ...c, discarded: true }
     manager.setChanges(r.id, next)
-    if (done.skipped.length) dialog.showErrorBox('Alguns arquivos ficaram como estão', `Não deu para restaurar:\n${done.skipped.slice(0, 20).join('\n')}`)
+    if (done.skipped.length)
+      dialog.showErrorBox('Alguns arquivos ficaram como estão', `Não deu para restaurar:\n${done.skipped.slice(0, 20).join('\n')}`)
     return next
   })
   ipcMain.handle('office:commitResult', async (_e, raw: unknown, message: unknown) => {

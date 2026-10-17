@@ -2,7 +2,14 @@ import { execFile } from 'node:child_process'
 import { createReadStream, existsSync, readdirSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join, resolve as resolvePath } from 'node:path'
-import { getSessionInfo, getSessionMessages, getSubagentMessages, listSessions, listSubagents, type SessionMessage } from '@anthropic-ai/claude-agent-sdk'
+import {
+  getSessionInfo,
+  getSessionMessages,
+  getSubagentMessages,
+  listSessions,
+  listSubagents,
+  type SessionMessage,
+} from '@anthropic-ai/claude-agent-sdk'
 import type { LogEntry, OpenTerminalResult, SessionEntry, SubagentInfo } from '@shared/types'
 import { toolDetail } from '@shared/describe'
 import { agentCallsFromTranscript, SUB_DONE_KEEP, subagentStep } from './subagent-log'
@@ -50,7 +57,10 @@ export async function sessionEntry(sessionId: string): Promise<SessionEntry | nu
 }
 
 /** The end of a transcript as office log entries, plus the model the session last used and its helpers' logs. */
-export async function transcript(sessionId: string, keep = 80): Promise<{ log: LogEntry[]; model?: string; helpers: { info: SubagentInfo; log: LogEntry[] }[] }> {
+export async function transcript(
+  sessionId: string,
+  keep = 80,
+): Promise<{ log: LogEntry[]; model?: string; helpers: { info: SubagentInfo; log: LogEntry[] }[] }> {
   const messages = await getSessionMessages(sessionId)
   const helpers = await subagentLogs(sessionId, messages).catch(() => [])
   const out: LogEntry[] = []
@@ -71,7 +81,12 @@ export async function transcript(sessionId: string, keep = 80): Promise<{ log: L
       for (const b of asBlocks(content)) {
         if (b.type === 'text' && typeof b.text === 'string' && !isMeta(b.text)) add('user', b.text)
         else if (b.type === 'tool_result') {
-          const text = typeof b.content === 'string' ? b.content : asBlocks(b.content).map((c) => (typeof c.text === 'string' ? c.text : '')).join('\n')
+          const text =
+            typeof b.content === 'string'
+              ? b.content
+              : asBlocks(b.content)
+                  .map((c) => (typeof c.text === 'string' ? c.text : ''))
+                  .join('\n')
           if (text.trim()) add('tool_result', text.slice(0, 1200), undefined, b.is_error === true)
         }
       }
@@ -80,12 +95,14 @@ export async function transcript(sessionId: string, keep = 80): Promise<{ log: L
       if (typeof used === 'string' && used.startsWith('claude-')) model = used
       for (const b of asBlocks(content)) {
         if (b.type === 'text' && typeof b.text === 'string' && b.text.trim()) add('assistant', b.text)
-        else if (b.type === 'tool_use' && typeof b.name === 'string') add('tool', toolDetail(b.name, (b.input ?? {}) as Record<string, unknown>), b.name)
+        else if (b.type === 'tool_use' && typeof b.name === 'string')
+          add('tool', toolDetail(b.name, (b.input ?? {}) as Record<string, unknown>), b.name)
       }
     }
   }
   const tail = out.slice(-keep)
-  if (out.length > keep) tail.unshift({ id: `${sessionId}-older`, t: 0, kind: 'system', text: `… ${out.length - keep} mensagens anteriores ocultas` })
+  if (out.length > keep)
+    tail.unshift({ id: `${sessionId}-older`, t: 0, kind: 'system', text: `… ${out.length - keep} mensagens anteriores ocultas` })
   tail.push({ id: `${sessionId}-back`, t: Date.now(), kind: 'system', text: 'Sessão retomada. Mande a próxima instrução.' })
   return { log: tail, model, helpers }
 }
@@ -95,7 +112,12 @@ export async function transcript(sessionId: string, keep = 80): Promise<{ log: L
  * transcript (<session>/subagents/agent-<id>.jsonl). The parent's Agent calls give the
  * description and type; a transcript with no call that matches still comes, unnamed.
  */
-export async function subagentLogs(sessionId: string, parent: SessionMessage[], max = SUB_DONE_KEEP, keep = 200): Promise<{ info: SubagentInfo; log: LogEntry[] }[]> {
+export async function subagentLogs(
+  sessionId: string,
+  parent: SessionMessage[],
+  max = SUB_DONE_KEEP,
+  keep = 200,
+): Promise<{ info: SubagentInfo; log: LogEntry[] }[]> {
   const calls = agentCallsFromTranscript(parent)
   const ids = await listSubagents(sessionId)
   // In the order the parent called them; the unmatched ones go first, as older.
@@ -112,7 +134,8 @@ export async function subagentLogs(sessionId: string, parent: SessionMessage[], 
         log.push(...step.entries.filter((e) => e.kind !== 'user' || !isMeta(e.text)))
       }
       const tail = log.slice(-keep)
-      if (log.length > keep) tail.unshift({ id: `${sessionId}-${id}-older`, t: 0, kind: 'system', text: `… ${log.length - keep} mensagens anteriores ocultas` })
+      if (log.length > keep)
+        tail.unshift({ id: `${sessionId}-${id}-older`, t: 0, kind: 'system', text: `… ${log.length - keep} mensagens anteriores ocultas` })
       const info: SubagentInfo = {
         id,
         description: call?.description ?? 'Ajudante',
@@ -143,14 +166,17 @@ export function openInTerminal(sessionId: string, cwd: string): Promise<OpenTerm
   if (!guard.ok) return Promise.resolve(guard)
 
   if (process.platform === 'win32' && guard.exe) return launchOnWindows(resolvePath(cwd), guard.exe, sessionId)
-  if (process.platform !== 'darwin') return Promise.resolve({ ok: false, message: 'Abrir no terminal funciona no Mac e no Windows. Use "Copiar comando".' })
+  if (process.platform !== 'darwin')
+    return Promise.resolve({ ok: false, message: 'Abrir no terminal funciona no Mac e no Windows. Use "Copiar comando".' })
   // A .command file opens in Terminal without needing Automation permission.
   // Paths go in single quotes; the session id is a validated UUID.
   const q = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`
   const file = join(tmpdir(), `agent-office-resume-${sessionId}.command`)
   writeFileSync(file, `#!/bin/zsh -l\ncd -- ${q(cwd)} && exec ${q(findClaude() ?? 'claude')} --resume ${sessionId}\n`, { mode: 0o700 })
   return new Promise((resolve) => {
-    execFile('open', ['-a', 'Terminal', file], (err) => resolve(err ? { ok: false, message: err.message } : { ok: true, via: 'terminal-app' }))
+    execFile('open', ['-a', 'Terminal', file], (err) =>
+      resolve(err ? { ok: false, message: err.message } : { ok: true, via: 'terminal-app' }),
+    )
   })
 }
 
@@ -165,7 +191,9 @@ function asBlocks(v: unknown): Block[] {
 /** Slash-command echoes, hook output and system reminders are not things the user typed. */
 function isMeta(text: string): boolean {
   const t = text.trimStart()
-  return !t || /^<(command-|local-command|system-reminder|bash-|user-memory|task-notification)/.test(t) || t.startsWith('[Request interrupted')
+  return (
+    !t || /^<(command-|local-command|system-reminder|bash-|user-memory|task-notification)/.test(t) || t.startsWith('[Request interrupted')
+  )
 }
 
 /**

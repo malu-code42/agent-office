@@ -1,6 +1,14 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { BUSY_MESSAGE, checkResumeTarget, createOpenGuard, createThrottle, INVALID_CWD_MESSAGE, NO_CLAUDE_MESSAGE, OPEN_THROTTLE_MS } from '../src/main/resume-guard'
+import {
+  BUSY_MESSAGE,
+  checkResumeTarget,
+  createOpenGuard,
+  createThrottle,
+  INVALID_CWD_MESSAGE,
+  NO_CLAUDE_MESSAGE,
+  OPEN_THROTTLE_MS,
+} from '../src/main/resume-guard'
 
 const EXE = 'C:\\Users\\Ana\\AppData\\Roaming\\npm\\node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe'
 const exists = () => true
@@ -20,7 +28,10 @@ test('checkResumeTarget: relative or control characters are refused with the sam
 })
 
 test('checkResumeTarget: a missing folder names it; the disk is not touched for an invalid cwd', () => {
-  assert.deepEqual(checkResumeTarget('C:\\sumiu', 'win32', EXE, () => false), { ok: false, message: 'A pasta C:\\sumiu não existe mais.' })
+  assert.deepEqual(
+    checkResumeTarget('C:\\sumiu', 'win32', EXE, () => false),
+    { ok: false, message: 'A pasta C:\\sumiu não existe mais.' },
+  )
   let probed = false
   checkResumeTarget('rel', 'win32', EXE, () => (probed = true))
   assert.equal(probed, false)

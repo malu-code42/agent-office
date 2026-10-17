@@ -61,7 +61,11 @@ function stats(values: number[]): Stats {
   const sorted = [...values].sort((a, b) => a - b)
   const mean = values.reduce((s, v) => s + v, 0) / values.length
   const round = (v: number) => Math.round(v * 100) / 100
-  return { mean: round(mean), p95: round(sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))]), max: round(sorted.at(-1)!) }
+  return {
+    mean: round(mean),
+    p95: round(sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))]),
+    max: round(sorted.at(-1)!),
+  }
 }
 
 function heapMB(): number | null {

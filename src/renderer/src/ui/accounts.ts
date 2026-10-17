@@ -27,7 +27,9 @@ export function statusText(st: AccountStatus | undefined): { text: string; tone:
   if (st.loggedIn === false) return { text: 'Sem login', tone: 'warn' }
   if (st.loggedIn === null) return { text: `Não consegui verificar: ${st.error}`, tone: 'warn' }
   const who = [st.email, st.plan].filter(Boolean).join(' · ') || 'Conectada'
-  return st.limitedUntil && st.limitedUntil > Date.now() ? { text: `${who} · sem espaço até ${clock(st.limitedUntil)}`, tone: 'warn' } : { text: who, tone: 'ok' }
+  return st.limitedUntil && st.limitedUntil > Date.now()
+    ? { text: `${who} · sem espaço até ${clock(st.limitedUntil)}`, tone: 'warn' }
+    : { text: who, tone: 'ok' }
 }
 
 /** Account an agent runs on, as a small colored chip; nothing while there is a single account. */
@@ -91,7 +93,11 @@ export function openAccounts(root: HTMLElement, state: State, toast: Toast): voi
       if (!v || v === a.name) return
       window.office.saveSettings({ accounts: state.settings.accounts.map((x) => (x.id === a.id ? { ...x, name: v } : x)) }).catch(fail)
     })
-    const login = h('button', { class: st?.loggedIn ? 'btn' : 'btn btn-primary', type: 'button' }, st?.loggedIn ? 'Entrar de novo' : 'Entrar')
+    const login = h(
+      'button',
+      { class: st?.loggedIn ? 'btn' : 'btn btn-primary', type: 'button' },
+      st?.loggedIn ? 'Entrar de novo' : 'Entrar',
+    )
     login.addEventListener('click', async () => {
       const r = await window.office.loginAccount(a.id).catch((err) => ({ ok: false, message: cleanError(err) }))
       if (r.ok) toast(`Faça o login de ${a.name} no navegador. Quando terminar, volte aqui.`, 'info')
@@ -99,14 +105,22 @@ export function openAccounts(root: HTMLElement, state: State, toast: Toast): voi
     })
     const folder = a.configDir ?? '~/.claude'
     const cmd = a.configDir ? `CLAUDE_CONFIG_DIR=${a.configDir} claude` : 'claude'
-    const copy = h('button', { class: 'icon-btn', type: 'button', title: `Copiar o comando para usar esta conta no terminal:\n${cmd}` }, icon('copy', 14))
+    const copy = h(
+      'button',
+      { class: 'icon-btn', type: 'button', title: `Copiar o comando para usar esta conta no terminal:\n${cmd}` },
+      icon('copy', 14),
+    )
     copy.addEventListener('click', () => {
       void navigator.clipboard.writeText(cmd).then(() => toast('Comando copiado. Cole no terminal para abrir o Claude nesta conta.', 'ok'))
     })
     const remove =
       a.id === MAIN_ACCOUNT
         ? null
-        : h('button', { class: 'icon-btn', type: 'button', title: 'Remover a conta (a pasta e o login continuam no disco)' }, icon('trash', 15))
+        : h(
+            'button',
+            { class: 'icon-btn', type: 'button', title: 'Remover a conta (a pasta e o login continuam no disco)' },
+            icon('trash', 15),
+          )
     remove?.addEventListener('click', async () => {
       const ok = await confirmDialog(root, {
         title: `Remover ${a.name}?`,
@@ -139,7 +153,10 @@ export function openAccounts(root: HTMLElement, state: State, toast: Toast): voi
       })
       return b
     })
-    const fallback = floorId === null ? state.account(MAIN_ACCOUNT)?.name ?? 'Principal' : `padrão: ${poolText(state, accountPool(state.settings, undefined))}`
+    const fallback =
+      floorId === null
+        ? (state.account(MAIN_ACCOUNT)?.name ?? 'Principal')
+        : `padrão: ${poolText(state, accountPool(state.settings, undefined))}`
     const summary = current.length ? poolText(state, current) : fallback
     return h(
       'div',

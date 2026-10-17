@@ -24,13 +24,13 @@ Metade dos sócios usa Windows.
 
 ## Métricas (sem telemetria)
 
-| Tipo | Métrica | Meta |
-|---|---|---|
-| Norte | Fluxos principais que funcionam no Windows 11 (contratar, chamar, permissão, entrega, quadro, delegar, resume, abrir no terminal, conectar terminal, fechar sessão) | 10 de 10 |
-| Valor | Permissões e entregas sinalizadas na barra de tarefas com o app sem foco | 100% |
-| Guarda | Mudança de comportamento no Mac fora das listadas | 0 |
-| Guarda | Custo de CPU do monitor de sistema | ≤ 1 ponto percentual |
-| Guarda | Achados altos no security gate | 0 |
+| Tipo   | Métrica                                                                                                                                                             | Meta                 |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| Norte  | Fluxos principais que funcionam no Windows 11 (contratar, chamar, permissão, entrega, quadro, delegar, resume, abrir no terminal, conectar terminal, fechar sessão) | 10 de 10             |
+| Valor  | Permissões e entregas sinalizadas na barra de tarefas com o app sem foco                                                                                            | 100%                 |
+| Guarda | Mudança de comportamento no Mac fora das listadas                                                                                                                   | 0                    |
+| Guarda | Custo de CPU do monitor de sistema                                                                                                                                  | ≤ 1 ponto percentual |
+| Guarda | Achados altos no security gate                                                                                                                                      | 0                    |
 
 ## Escopo
 
@@ -40,24 +40,24 @@ Metade dos sócios usa Windows.
 
 ## Requisitos
 
-| Id | Requisito |
-|---|---|
-| FR-1 | Achar o `claude.exe` do instalador nativo, do npm global e do WinGet, além do `PATH` e de `AGENT_OFFICE_CLAUDE` |
-| FR-2 | Sem Claude Code, mensagem com o comando de instalação do sistema (Windows: `irm https://claude.ai/install.ps1 \| iex`) |
-| FR-3 | Overlay numérico na barra de tarefas com descrição acessível ("N pendências"); zero limpa |
-| FR-4 | Pedido de permissão ou entrega com a janela sem foco faz a janela piscar até receber foco |
-| FR-5 | "Abrir no terminal" no Windows: aba do Windows Terminal; sem ele, console próprio |
-| FR-6 | "Copiar comando" válido no shell padrão do sistema (Windows: PowerShell 5.1) |
-| FR-7 | Card Sistema conta só o Claude Code, não o Claude Desktop |
-| FR-8 | "Fechar sessão" no Windows avisa que o encerramento é imediato; a checagem de PID não confunde o Claude Desktop |
-| FR-9 | `npm run demo` no PowerShell, no CMD e no zsh, sem dependência nova |
-| FR-10 | Textos da UI que citam o Mac usam o equivalente do sistema atual |
-| FR-11 | Barra de título integrada ao tema no Windows, sem colisão do HUD com os botões nativos |
-| NFR-1 | Nenhuma mudança de comportamento no Mac além dos textos e do comando copiado |
-| NFR-2 | Processos externos novos sem shell, com argumentos em lista, só por ação do usuário ou pelos monitores existentes |
-| NFR-3 | Monitor de sistema sem aumentar a CPU do app em mais de 1 ponto percentual |
-| CON-1 | Sem dependência nova de runtime; de dev, só com ADR |
-| CON-2 | Invariantes preservados; mudança no I-11 para o Windows só com ADR |
+| Id    | Requisito                                                                                                              |
+| ----- | ---------------------------------------------------------------------------------------------------------------------- |
+| FR-1  | Achar o `claude.exe` do instalador nativo, do npm global e do WinGet, além do `PATH` e de `AGENT_OFFICE_CLAUDE`        |
+| FR-2  | Sem Claude Code, mensagem com o comando de instalação do sistema (Windows: `irm https://claude.ai/install.ps1 \| iex`) |
+| FR-3  | Overlay numérico na barra de tarefas com descrição acessível ("N pendências"); zero limpa                              |
+| FR-4  | Pedido de permissão ou entrega com a janela sem foco faz a janela piscar até receber foco                              |
+| FR-5  | "Abrir no terminal" no Windows: aba do Windows Terminal; sem ele, console próprio                                      |
+| FR-6  | "Copiar comando" válido no shell padrão do sistema (Windows: PowerShell 5.1)                                           |
+| FR-7  | Card Sistema conta só o Claude Code, não o Claude Desktop                                                              |
+| FR-8  | "Fechar sessão" no Windows avisa que o encerramento é imediato; a checagem de PID não confunde o Claude Desktop        |
+| FR-9  | `npm run demo` no PowerShell, no CMD e no zsh, sem dependência nova                                                    |
+| FR-10 | Textos da UI que citam o Mac usam o equivalente do sistema atual                                                       |
+| FR-11 | Barra de título integrada ao tema no Windows, sem colisão do HUD com os botões nativos                                 |
+| NFR-1 | Nenhuma mudança de comportamento no Mac além dos textos e do comando copiado                                           |
+| NFR-2 | Processos externos novos sem shell, com argumentos em lista, só por ação do usuário ou pelos monitores existentes      |
+| NFR-3 | Monitor de sistema sem aumentar a CPU do app em mais de 1 ponto percentual                                             |
+| CON-1 | Sem dependência nova de runtime; de dev, só com ADR                                                                    |
+| CON-2 | Invariantes preservados; mudança no I-11 para o Windows só com ADR                                                     |
 
 ## Decisões de produto
 

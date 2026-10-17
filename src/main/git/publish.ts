@@ -55,7 +55,10 @@ export async function openPullRequest(wt: WorktreeInfo, title: string, body: str
   if (!st.exists) throw new Error('A cópia isolada deste agente não existe mais.')
   if (st.dirty) throw new Error('Tem mudanças não commitadas na cópia. Commite antes de abrir o PR.')
   if (!st.ahead) throw new Error('O branch ainda não tem commits. Commite as mudanças antes.')
-  const remotes = (await git(wt.root, ['remote'])).split('\n').map((r) => r.trim()).filter(Boolean)
+  const remotes = (await git(wt.root, ['remote']))
+    .split('\n')
+    .map((r) => r.trim())
+    .filter(Boolean)
   const remote = remotes.includes('origin') ? 'origin' : remotes[0]
   if (!remote || !/^\w[\w.-]*$/.test(remote)) throw new Error('Esse repositório não tem remoto para onde enviar o branch.')
   // Credentials come from gh's own helper only (the repo's credential.helper is wiped by
@@ -68,8 +71,18 @@ export async function openPullRequest(wt: WorktreeInfo, title: string, body: str
   })
   // gh calls git itself: it gets the same safe config through GIT_CONFIG_*.
   // --flag=value: a title or body starting with '-' stays a value.
-  const out = await run(gh, ['pr', 'create', `--head=${wt.branch}`, `--title=${title}`, `--body=${body}`], wt.root, { timeout: 120_000 }, await safeGitEnv(wt.root))
-  const url = out.trim().split('\n').reverse().find((l) => /^https:\/\/\S+$/.test(l.trim()))
+  const out = await run(
+    gh,
+    ['pr', 'create', `--head=${wt.branch}`, `--title=${title}`, `--body=${body}`],
+    wt.root,
+    { timeout: 120_000 },
+    await safeGitEnv(wt.root),
+  )
+  const url = out
+    .trim()
+    .split('\n')
+    .reverse()
+    .find((l) => /^https:\/\/\S+$/.test(l.trim()))
   if (!url) throw new Error('O gh não devolveu o link do PR.')
   return url.trim()
 }

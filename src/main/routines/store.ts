@@ -25,10 +25,17 @@ export function loadRoutine(raw: unknown): Routine | null {
   if (!isObj(r.schedule) || !SCHEDULES.has(r.schedule.kind as string)) return null
   if (!isObj(r.who) || !WHO.has(r.who.kind as string)) return null
   const history = (Array.isArray(r.history) ? r.history : [])
-    .filter((x): x is RoutineRun => isObj(x) && typeof x.id === 'string' && typeof x.startedAt === 'number' && RUN_STATUSES.has(x.status as string))
+    .filter(
+      (x): x is RoutineRun =>
+        isObj(x) && typeof x.id === 'string' && typeof x.startedAt === 'number' && RUN_STATUSES.has(x.status as string),
+    )
     .slice(0, ROUTINE_LIMITS.history)
     // A run the app was still following when it closed never reports back.
-    .map((x) => (x.status === 'running' || x.status === 'waiting' ? { ...x, status: 'failed' as const, endedAt: x.endedAt ?? x.startedAt, error: 'O app fechou antes de a execução terminar.' } : x))
+    .map((x) =>
+      x.status === 'running' || x.status === 'waiting'
+        ? { ...x, status: 'failed' as const, endedAt: x.endedAt ?? x.startedAt, error: 'O app fechou antes de a execução terminar.' }
+        : x,
+    )
   return {
     ...(r as unknown as Routine),
     enabled: r.enabled !== false,

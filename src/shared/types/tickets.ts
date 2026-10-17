@@ -85,4 +85,6 @@ export interface TicketDraft {
 export type TicketPatch = Partial<TicketDraft>
 
 /** Who takes a ticket: an office agent already here, or a new one hired for it. */
-export type DelegateTarget = { agentId: string } | { hire: { model?: string; effort?: EffortLevel; accounts?: string[]; permissionMode?: OfficePermissionMode; worktree?: boolean } }
+export type DelegateTarget =
+  | { agentId: string }
+  | { hire: { model?: string; effort?: EffortLevel; accounts?: string[]; permissionMode?: OfficePermissionMode; worktree?: boolean } }

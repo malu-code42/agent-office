@@ -45,7 +45,10 @@ describe('criar', () => {
       {
         title: '  muitos   espaços \n aqui ',
         tags: ['Front End', 'front end', '', 'x'.repeat(50)],
-        acceptance: [{ text: ' passa ', done: true }, { text: '   ', done: false }],
+        acceptance: [
+          { text: ' passa ', done: true },
+          { text: '   ', done: false },
+        ],
         estimate: 250,
         dueDate: 'amanhã',
         description: ' texto ',
@@ -133,9 +136,20 @@ describe('mover', () => {
 describe('editar, comentar, critérios, responsável', () => {
   it('update muda só o que veio e registra', () => {
     const t = board.create({ title: 'x', cwd: dir, tags: ['a'], estimate: 3, dueDate: '2026-01-01' }, me)
-    board.update(t.id, { type: 'bug', priority: 'critical', description: 'nova', title: 'y', acceptance: [{ text: 'ok', done: false }] }, me)
+    board.update(
+      t.id,
+      { type: 'bug', priority: 'critical', description: 'nova', title: 'y', acceptance: [{ text: 'ok', done: false }] },
+      me,
+    )
     board.update(t.id, { cwd: null, tags: ['b'], estimate: null, dueDate: null, status: 'review' }, me)
-    expect(board.get(t.id)).toMatchObject({ title: 'y', type: 'bug', priority: 'critical', description: 'nova', status: 'review', tags: ['b'] })
+    expect(board.get(t.id)).toMatchObject({
+      title: 'y',
+      type: 'bug',
+      priority: 'critical',
+      description: 'nova',
+      status: 'review',
+      tags: ['b'],
+    })
     expect(board.get(t.id)!.cwd).toBeUndefined()
     expect(board.get(t.id)!.estimate).toBeUndefined()
     expect(board.get(t.id)!.dueDate).toBeUndefined()
@@ -151,7 +165,16 @@ describe('editar, comentar, critérios, responsável', () => {
   })
 
   it('check marca critérios por posição e recusa posições fora', () => {
-    const t = board.create({ title: 'x', acceptance: [{ text: 'a', done: false }, { text: 'b', done: false }] }, me)
+    const t = board.create(
+      {
+        title: 'x',
+        acceptance: [
+          { text: 'a', done: false },
+          { text: 'b', done: false },
+        ],
+      },
+      me,
+    )
     board.check(t.id, [2, 9], true, me)
     expect(board.get(t.id)!.acceptance.map((c) => c.done)).toEqual([false, true])
     expect(() => board.check(t.id, [0, 3], true, me)).toThrow('2 critério')
@@ -255,7 +278,15 @@ describe('ferramentas dos agentes', () => {
 
   it('cria, lista no andar, lê, atualiza, marca e comenta', async () => {
     const call = tools([{ id: 'p1', name: 'Loja', cwd: dir }])
-    const created = await call('ticket_create', { title: 'Corrigir', type: 'bug', priority: 'high', description: 'd', acceptance: ['a', 'b'], tags: [], status: 'todo' })
+    const created = await call('ticket_create', {
+      title: 'Corrigir',
+      type: 'bug',
+      priority: 'high',
+      description: 'd',
+      acceptance: ['a', 'b'],
+      tags: [],
+      status: 'todo',
+    })
     expect(created.text).toBe('Criei AO-1: Corrigir (A fazer).')
     board.create({ title: 'Outro andar' }, me)
     const list = await call('tickets_list', {})
@@ -268,7 +299,9 @@ describe('ferramentas dos agentes', () => {
     expect((await call('ticket_check', { key: '1', items: [1, 2], done: true })).text).toBe('AO-1: 2/2 critérios cumpridos.')
     expect((await call('ticket_comment', { key: 'AO-1', text: 'feito' })).text).toBe('Comentei em AO-1.')
     expect(board.byKey('AO-1')!.comments[0].author).toEqual({ kind: 'agent', name: 'Ada', id: 'ag-1' })
-    expect((await call('tickets_list', { status: ['review'], mine: true })).text).toBe('Nenhum ticket com esses filtros neste andar. Use all_floors=true para ver os outros andares.')
+    expect((await call('tickets_list', { status: ['review'], mine: true })).text).toBe(
+      'Nenhum ticket com esses filtros neste andar. Use all_floors=true para ver os outros andares.',
+    )
   })
 
   it('fechado só se lê; ticket que não existe vira erro legível', async () => {

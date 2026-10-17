@@ -90,7 +90,12 @@ export function mountClaudeStats(host: HTMLElement): () => void {
   const toolbar = (s: ClaudeStats, current: StatsBucket): HTMLElement => {
     const refresh = h(
       'button',
-      { class: 'btn btn-small cs-refresh', title: 'Lê de novo os transcripts no disco (não usa tokens)', disabled: s.reading, onclick: () => void window.office.refreshStats() },
+      {
+        class: 'btn btn-small cs-refresh',
+        title: 'Lê de novo os transcripts no disco (não usa tokens)',
+        disabled: s.reading,
+        onclick: () => void window.office.refreshStats(),
+      },
       icon('reset', 13),
       s.reading ? 'Lendo…' : 'Atualizar',
     )
@@ -106,7 +111,10 @@ export function mountClaudeStats(host: HTMLElement): () => void {
             {
               class: `cs-pick${b.accountId === current.accountId ? ' on' : ''}${b.totals.messages ? '' : ' empty'}`,
               style: `--pc:${b.color}`,
-              title: b.accountId === 'terminal' ? 'Sessões sem conta registrada pelo escritório: terminal e sessões anteriores ao livro-caixa' : b.label,
+              title:
+                b.accountId === 'terminal'
+                  ? 'Sessões sem conta registrada pelo escritório: terminal e sessões anteriores ao livro-caixa'
+                  : b.label,
               onclick: () => {
                 pick = b.accountId
                 localStorage.setItem(PICK_KEY, pick)
@@ -119,22 +127,42 @@ export function mountClaudeStats(host: HTMLElement): () => void {
         ),
       ),
       h('span', { class: 'cs-sp' }),
-      h('span', { class: 'cs-age' }, s.lastRead ? `lido ${timeAgo(s.lastRead.at) === 'agora' ? 'agora' : `há ${timeAgo(s.lastRead.at)}`}` : 'ainda não lido'),
+      h(
+        'span',
+        { class: 'cs-age' },
+        s.lastRead ? `lido ${timeAgo(s.lastRead.at) === 'agora' ? 'agora' : `há ${timeAgo(s.lastRead.at)}`}` : 'ainda não lido',
+      ),
       refresh,
     )
   }
 
   const tile = (label: string, value: string, sub?: string, title?: string) =>
-    h('div', { class: 'cs-tile', title: title ?? '' }, h('div', { class: 'cs-tile-k' }, label), h('div', { class: 'cs-tile-v' }, value), sub ? h('div', { class: 'cs-tile-s' }, sub) : null)
+    h(
+      'div',
+      { class: 'cs-tile', title: title ?? '' },
+      h('div', { class: 'cs-tile-k' }, label),
+      h('div', { class: 'cs-tile-v' }, value),
+      sub ? h('div', { class: 'cs-tile-s' }, sub) : null,
+    )
 
   const tiles = (b: StatsBucket): HTMLElement =>
     h(
       'div',
       { class: 'cs-tiles' },
       tile('Sessões', int(b.totals.sessions), `${int(b.totals.activeDays)} dias ativos`),
-      tile('Respostas', compact(b.totals.messages), `${compact(b.totals.toolCalls)} ferramentas`, `${int(b.totals.messages)} respostas do modelo · ${int(b.totals.toolCalls)} chamadas de ferramenta`),
+      tile(
+        'Respostas',
+        compact(b.totals.messages),
+        `${compact(b.totals.toolCalls)} ferramentas`,
+        `${int(b.totals.messages)} respostas do modelo · ${int(b.totals.toolCalls)} chamadas de ferramenta`,
+      ),
       tile('Tokens', compact(b.totals.tokens), 'entrada + saída + cache', `${int(b.totals.tokens)} tokens`),
-      tile('Custo', usdShort(b.totals.costUsd), 'equivalente em API', `${usd(b.totals.costUsd)}. Preço de tabela da API para estes tokens. Quem usa assinatura não paga esse valor.`),
+      tile(
+        'Custo',
+        usdShort(b.totals.costUsd),
+        'equivalente em API',
+        `${usd(b.totals.costUsd)}. Preço de tabela da API para estes tokens. Quem usa assinatura não paga esse valor.`,
+      ),
       tile('Sequência', `${b.streak.current} ${b.streak.current === 1 ? 'dia' : 'dias'}`, `recorde: ${b.streak.longest}`),
       tile(
         'Maior sessão',
@@ -146,7 +174,10 @@ export function mountClaudeStats(host: HTMLElement): () => void {
 
   const heatmap = (b: StatsBucket): HTMLElement => {
     const byDate = new Map(b.days.map((d) => [d.date, d]))
-    const counts = b.days.map((d) => d.messages).filter((n) => n > 0).sort((x, y) => x - y)
+    const counts = b.days
+      .map((d) => d.messages)
+      .filter((n) => n > 0)
+      .sort((x, y) => x - y)
     const q = (f: number) => counts[Math.min(counts.length - 1, Math.floor(f * counts.length))] ?? 0
     const cuts = [q(0.25), q(0.5), q(0.75)]
     const lvl = (n: number) => (n <= 0 ? 0 : n <= cuts[0] ? 1 : n <= cuts[1] ? 2 : n <= cuts[2] ? 3 : 4)
@@ -172,7 +203,12 @@ export function mountClaudeStats(host: HTMLElement): () => void {
         }
         const key = localDate(d)
         const day = byDate.get(key)
-        cells.push(h('i', { class: `cs-cell l${lvl(day?.messages ?? 0)}${day?.legacy ? ' legacy' : ''}${key === localDate(today) ? ' today' : ''}`, title: cellTitle(d, day) }))
+        cells.push(
+          h('i', {
+            class: `cs-cell l${lvl(day?.messages ?? 0)}${day?.legacy ? ' legacy' : ''}${key === localDate(today) ? ' today' : ''}`,
+            title: cellTitle(d, day),
+          }),
+        )
       }
     }
     return h(
@@ -183,7 +219,12 @@ export function mountClaudeStats(host: HTMLElement): () => void {
         'div',
         { class: 'cs-heat-wrap' },
         h('div', { class: 'cs-heat-days' }, h('span', {}), ...WEEKDAYS.map((d, i) => h('span', {}, i % 2 ? d : ''))),
-        h('div', { class: 'cs-heat-scroll' }, h('div', { class: 'cs-heat-months', style: `--weeks:${WEEKS}` }, ...months), h('div', { class: 'cs-heat', style: `--weeks:${WEEKS}` }, ...cells)),
+        h(
+          'div',
+          { class: 'cs-heat-scroll' },
+          h('div', { class: 'cs-heat-months', style: `--weeks:${WEEKS}` }, ...months),
+          h('div', { class: 'cs-heat', style: `--weeks:${WEEKS}` }, ...cells),
+        ),
       ),
     )
   }
@@ -191,7 +232,11 @@ export function mountClaudeStats(host: HTMLElement): () => void {
   const cellTitle = (d: Date, day: DayStats | undefined): string => {
     const when = d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
     if (!day) return `${when}: sem atividade`
-    const parts = [`${int(day.messages)} respostas`, `${int(day.sessions)} ${day.sessions === 1 ? 'sessão' : 'sessões'}`, `${compact(day.tokens)} tokens`]
+    const parts = [
+      `${int(day.messages)} respostas`,
+      `${int(day.sessions)} ${day.sessions === 1 ? 'sessão' : 'sessões'}`,
+      `${compact(day.tokens)} tokens`,
+    ]
     if (!day.legacy) parts.push(usd(day.costUsd))
     return `${when}\n${parts.join(' · ')}${day.legacy ? '\n(do cache do /stats: sem custo nem modelos)' : ''}`
   }
@@ -209,7 +254,20 @@ export function mountClaudeStats(host: HTMLElement): () => void {
         ? h(
             'table',
             { class: 'cs-table' },
-            h('thead', {}, h('tr', {}, h('th', {}, 'Modelo'), h('th', { title: 'Respostas do modelo' }, 'Resp.'), h('th', { title: 'Entrada sem cache' }, 'Entrada'), h('th', {}, 'Saída'), h('th', { title: 'Lido do cache' }, 'Cache'), h('th', { title: 'Equivalente em preço de API' }, 'Custo'))),
+            h(
+              'thead',
+              {},
+              h(
+                'tr',
+                {},
+                h('th', {}, 'Modelo'),
+                h('th', { title: 'Respostas do modelo' }, 'Resp.'),
+                h('th', { title: 'Entrada sem cache' }, 'Entrada'),
+                h('th', {}, 'Saída'),
+                h('th', { title: 'Lido do cache' }, 'Cache'),
+                h('th', { title: 'Equivalente em preço de API' }, 'Custo'),
+              ),
+            ),
             h(
               'tbody',
               {},
@@ -219,12 +277,23 @@ export function mountClaudeStats(host: HTMLElement): () => void {
                   {
                     title: `${name}\nentrada ${int(m.input)} · saída ${int(m.output)}\ncache lido ${int(m.cacheRead)} · cache escrito ${int(m.cacheWrite5m + m.cacheWrite1h)}${m.webSearch ? `\nbuscas na web ${int(m.webSearch)}` : ''}`,
                   },
-                  h('td', {}, h('div', { class: 'cs-model' }, modelName(name)), h('div', { class: 'cs-meter' }, h('i', { style: `width:${(tokensOf(m) / max) * 100}%` }))),
+                  h(
+                    'td',
+                    {},
+                    h('div', { class: 'cs-model' }, modelName(name)),
+                    h('div', { class: 'cs-meter' }, h('i', { style: `width:${(tokensOf(m) / max) * 100}%` })),
+                  ),
                   h('td', {}, compact(m.messages)),
                   h('td', {}, compact(m.input + m.cacheWrite5m + m.cacheWrite1h)),
                   h('td', {}, compact(m.output)),
                   h('td', {}, compact(m.cacheRead)),
-                  h('td', { class: 'cs-usd' }, m.costUsd === undefined ? h('span', { class: 'cs-dim', title: 'Modelo sem preço na tabela local' }, 's/ preço') : usd(m.costUsd)),
+                  h(
+                    'td',
+                    { class: 'cs-usd' },
+                    m.costUsd === undefined
+                      ? h('span', { class: 'cs-dim', title: 'Modelo sem preço na tabela local' }, 's/ preço')
+                      : usd(m.costUsd),
+                  ),
                 ),
               ),
             ),
@@ -247,7 +316,11 @@ export function mountClaudeStats(host: HTMLElement): () => void {
       'div',
       { class: `cs-win ctx-${level(w.percent)}` },
       h('span', { class: 'cs-win-k' }, w.label),
-      h('div', { class: 'cs-blocks' }, ...Array.from({ length: 20 }, (_, i) => h('i', { class: i < Math.round(w.percent / 5) ? 'on' : '' }))),
+      h(
+        'div',
+        { class: 'cs-blocks' },
+        ...Array.from({ length: 20 }, (_, i) => h('i', { class: i < Math.round(w.percent / 5) ? 'on' : '' })),
+      ),
       h('span', { class: 'cs-win-v' }, `${w.percent}%`),
       h('small', {}, resetIn(w.resetsAt)),
     )
@@ -257,18 +330,38 @@ export function mountClaudeStats(host: HTMLElement): () => void {
     return h(
       'section',
       { class: 'cs-sec' },
-      h('div', { class: 'cs-sec-head' }, h('span', {}, 'Uso do plano'), h('span', { class: 'cs-sp' }), h('span', { class: 'cs-dim', title: 'Os números que o escritório já tinha. Abrir esta tela não faz nova consulta.' }, 'última leitura')),
+      h(
+        'div',
+        { class: 'cs-sec-head' },
+        h('span', {}, 'Uso do plano'),
+        h('span', { class: 'cs-sp' }),
+        h(
+          'span',
+          { class: 'cs-dim', title: 'Os números que o escritório já tinha. Abrir esta tela não faz nova consulta.' },
+          'última leitura',
+        ),
+      ),
       ...(rows.length
         ? rows.map((r) =>
             h(
               'div',
               { class: 'cs-plan' },
               rows.length > 1 || b.accountId === 'all' || b.accountId === 'terminal'
-                ? h('div', { class: 'cs-plan-name', style: `--pc:${r.color}` }, h('i', { class: 'cs-pip' }), r.name, r.u.updatedAt ? h('span', { class: 'cs-dim' }, ` · ${timeAgo(r.u.updatedAt)}`) : null)
+                ? h(
+                    'div',
+                    { class: 'cs-plan-name', style: `--pc:${r.color}` },
+                    h('i', { class: 'cs-pip' }),
+                    r.name,
+                    r.u.updatedAt ? h('span', { class: 'cs-dim' }, ` · ${timeAgo(r.u.updatedAt)}`) : null,
+                  )
                 : null,
               r.u.windows.length
                 ? r.u.windows.map(windowRow)
-                : h('div', { class: 'cs-dim' }, r.u.error ? `Sem dados: ${r.u.error}` : r.u.updatedAt ? 'Sem limites informados.' : 'Ainda não lido.'),
+                : h(
+                    'div',
+                    { class: 'cs-dim' },
+                    r.u.error ? `Sem dados: ${r.u.error}` : r.u.updatedAt ? 'Sem limites informados.' : 'Ainda não lido.',
+                  ),
             ),
           )
         : [h('div', { class: 'cs-dim' }, 'Sem limites para esta conta.')]),
@@ -284,9 +377,22 @@ export function mountClaudeStats(host: HTMLElement): () => void {
       h(
         'div',
         { class: 'cs-hours' },
-        ...b.hourCounts.map((n, i) => h('i', { style: `height:${Math.max(n ? 8 : 2, (n / max) * 100)}%`, title: `${String(i).padStart(2, '0')}h: ${int(n)} respostas` })),
+        ...b.hourCounts.map((n, i) =>
+          h('i', {
+            style: `height:${Math.max(n ? 8 : 2, (n / max) * 100)}%`,
+            title: `${String(i).padStart(2, '0')}h: ${int(n)} respostas`,
+          }),
+        ),
       ),
-      h('div', { class: 'cs-hours-axis' }, h('span', {}, '0h'), h('span', {}, '6h'), h('span', {}, '12h'), h('span', {}, '18h'), h('span', {}, '23h')),
+      h(
+        'div',
+        { class: 'cs-hours-axis' },
+        h('span', {}, '0h'),
+        h('span', {}, '6h'),
+        h('span', {}, '12h'),
+        h('span', {}, '18h'),
+        h('span', {}, '23h'),
+      ),
     )
   }
 
@@ -296,8 +402,16 @@ export function mountClaudeStats(host: HTMLElement): () => void {
       'div',
       { class: 'cs-notes' },
       h('p', {}, 'Custo = equivalente em preço de API, calculado com uma tabela local. Assinaturas (Pro/Max) não pagam esse valor.'),
-      since ? h('p', {}, `Totais contam desde ${since}, quando o escritório começou a ler os transcripts.${b.accountId === 'all' && b.days.some((d) => d.legacy) ? ' Dias anteriores no mapa vêm do cache do /stats.' : ''}`) : null,
-      b.accountId === 'terminal' ? h('p', {}, 'Terminal: sessões sem conta registrada pelo escritório (terminal e sessões anteriores ao livro-caixa).') : null,
+      since
+        ? h(
+            'p',
+            {},
+            `Totais contam desde ${since}, quando o escritório começou a ler os transcripts.${b.accountId === 'all' && b.days.some((d) => d.legacy) ? ' Dias anteriores no mapa vêm do cache do /stats.' : ''}`,
+          )
+        : null,
+      b.accountId === 'terminal'
+        ? h('p', {}, 'Terminal: sessões sem conta registrada pelo escritório (terminal e sessões anteriores ao livro-caixa).')
+        : null,
       s.unpricedModels.length ? h('p', {}, `Sem preço na tabela: ${s.unpricedModels.map(modelName).join(', ')}.`) : null,
       s.error ? h('p', { class: 'cs-err' }, `Última leitura falhou: ${s.error}`) : null,
     )
@@ -320,7 +434,10 @@ export function mountClaudeStats(host: HTMLElement): () => void {
       render()
     })
     .catch((err) => {
-      if (!gone) host.replaceChildren(h('div', { class: 'cs-empty cs-err' }, `Não deu para ler as estatísticas: ${err instanceof Error ? err.message : String(err)}`))
+      if (!gone)
+        host.replaceChildren(
+          h('div', { class: 'cs-empty cs-err' }, `Não deu para ler as estatísticas: ${err instanceof Error ? err.message : String(err)}`),
+        )
     })
 
   return () => {

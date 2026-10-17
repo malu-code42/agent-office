@@ -37,7 +37,11 @@ export function registerAccountsIpc(ctx: IpcContext): void {
     const s = store.settings
     const pool = cleanAccountIds(ids, s.accounts)
     if (floorId === null) store.settings = { ...s, defaultAccounts: pool }
-    else if (s.projects.some((p) => p.id === floorId)) store.settings = { ...s, projects: s.projects.map((p) => (p.id === floorId ? { ...p, accounts: pool.length ? pool : undefined } : p)) }
+    else if (s.projects.some((p) => p.id === floorId))
+      store.settings = {
+        ...s,
+        projects: s.projects.map((p) => (p.id === floorId ? { ...p, accounts: pool.length ? pool : undefined } : p)),
+      }
     else throw new Error('Esse andar não existe mais.')
     broadcast({ type: 'settings', settings: store.settings })
     return store.settings

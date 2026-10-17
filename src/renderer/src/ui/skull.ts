@@ -55,7 +55,11 @@ export function openSkull(root: HTMLElement, state: State, onDismiss: (agentId: 
     )
 
   const agents = [...state.agents.values()].sort((a, b) => a.desk - b.desk)
-  const list = h('div', { class: 'skull-list' }, ...(agents.length ? agents.map(row) : [h('div', { class: 'resume-empty' }, 'Nenhum agente no escritório.')]))
+  const list = h(
+    'div',
+    { class: 'skull-list' },
+    ...(agents.length ? agents.map(row) : [h('div', { class: 'resume-empty' }, 'Nenhum agente no escritório.')]),
+  )
   const closeBtn = h('button', { class: 'btn', onclick: close }, 'Fechar')
   const el = modal(
     'Dispensar um agente',
