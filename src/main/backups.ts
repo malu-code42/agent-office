@@ -43,7 +43,8 @@ export const DATA_SHAPES: Record<DataFile, (v: unknown) => boolean> = {
   'tickets.json': (v) => isObj(v) && (v.seq === undefined || (typeof v.seq === 'number' && Number.isFinite(v.seq))) && isList(v.tickets),
   'tickets-closed.json': (v) => isObj(v) && isList(v.tickets),
   'routines.json': (v) => isObj(v) && isList(v.routines),
-  'planning.json': (v) => isObj(v) && (v.focus === undefined || (Array.isArray(v.focus) && v.focus.every((id) => typeof id === 'string'))),
+  'planning.json': (v) =>
+    isObj(v) && (v.focus === undefined || (Array.isArray(v.focus) && v.focus.every((id) => typeof id === 'string'))) && isMap(v.steps),
 }
 
 /** The `valid` option of loadJson for a data file. */

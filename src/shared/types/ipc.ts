@@ -155,6 +155,10 @@ export interface OfficeAPI {
   focusTask(line: number): Promise<{ board: ParsedBoard; focus: FocusItem[] }>
   /** Tira do foco a tarefa com esse id. Não escreve no tarefas.md e devolve o foco. */
   unfocusTask(id: string): Promise<FocusItem[]>
+  /** Guarda o passo de hoje da tarefa em foco (um por tarefa, do dia de hoje) e devolve o foco. Não escreve no tarefas.md. */
+  saveStep(id: string, text: string): Promise<FocusItem[]>
+  /** Tira o passo de hoje da tarefa; o de outros dias fica no histórico. Devolve o foco. */
+  clearStep(id: string): Promise<FocusItem[]>
   getLog(agentId: string): Promise<LogEntry[]>
   /** The log of one subagent of the agent (running or recently ended); [] when unknown. */
   getSubagentLog(agentId: string, subId: string): Promise<LogEntry[]>

@@ -3,8 +3,18 @@ import { join } from 'node:path'
 import { dialog, ipcMain } from 'electron'
 import { focusItems } from '@shared/planning'
 import { parseTasksFile } from '@shared/tasks'
+import { dayKey } from '../backups'
 import { createTaskWriter, type TaskWriter } from '../tasks-write'
-import { moveTaskSchema, newTaskSchema, parse, rescheduleTaskSchema, taskIdSchema, taskLineSchema, vaultPathSchema } from '../validate'
+import {
+  moveTaskSchema,
+  newTaskSchema,
+  parse,
+  parseStepText,
+  rescheduleTaskSchema,
+  taskIdSchema,
+  taskLineSchema,
+  vaultPathSchema,
+} from '../validate'
 import type { IpcContext } from './context'
 
 export function registerTasksIpc(ctx: IpcContext): void {
@@ -16,7 +26,8 @@ export function registerTasksIpc(ctx: IpcContext): void {
     return checkedVault(vaultPath)
   }
   // Reads the file without remembering it: the board's line numbers come from its own read.
-  const focusOf = (path: string) => focusItems(parseTasksFile(readTasksFile(path)).lists, ctx.planning.focus())
+  const focusOf = (path: string) =>
+    focusItems(parseTasksFile(readTasksFile(path)).lists, ctx.planning.focus(), ctx.planning.todaySteps(dayKey()))
 
   ipcMain.handle('office:readTasks', async () => {
     const vaultPath = ctx.store.settings.vaultPath
@@ -74,13 +85,29 @@ export function registerTasksIpc(ctx: IpcContext): void {
     // The id is written into tarefas.md first: a refused write leaves the focus set as it was.
     ctx.planning.add(writer.assignId(path, input))
     const board = read(path)
-    return { board, focus: focusItems(board.lists, ctx.planning.focus()) }
+    return { board, focus: focusItems(board.lists, ctx.planning.focus(), ctx.planning.todaySteps(dayKey())) }
   })
 
   ipcMain.handle('office:unfocusTask', async (_e, id: unknown) => {
     const input = parse(taskIdSchema, id, 'Identificador inválido.')
     const path = requireVault()
     ctx.planning.remove(input)
+    return focusOf(path)
+  })
+
+  // The step goes to planning.json only: tarefas.md is read for the focus list, never written here.
+  ipcMain.handle('office:saveStep', async (_e, id: unknown, text: unknown) => {
+    const taskId = parse(taskIdSchema, id, 'Identificador inválido.')
+    const step = parseStepText(text)
+    const path = requireVault()
+    ctx.planning.saveStep(taskId, step, dayKey())
+    return focusOf(path)
+  })
+
+  ipcMain.handle('office:clearStep', async (_e, id: unknown) => {
+    const taskId = parse(taskIdSchema, id, 'Identificador inválido.')
+    const path = requireVault()
+    ctx.planning.clearStep(taskId, dayKey())
     return focusOf(path)
   })
 }

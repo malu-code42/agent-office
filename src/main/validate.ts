@@ -3,6 +3,7 @@ import { basename, isAbsolute } from 'node:path'
 import { z } from 'zod'
 import { ATTACH_LIMITS } from '@shared/attachments'
 import { HAIR_STYLES } from '@shared/describe'
+import { STEP_MAX } from '@shared/planning'
 import { floorNameFor, MAX_PROJECT_FLOORS } from '@shared/projects'
 import { scheduleError } from '@shared/schedule'
 import { isDateDDMMAAAA, type NewTaskDraft, type TaskMove, type TaskReschedule } from '@shared/tasks'
@@ -91,6 +92,19 @@ export const rescheduleTaskSchema: z.ZodType<TaskReschedule> = z.object({
 export const taskLineSchema = z.number().int().min(1).max(10_000_000)
 /** A task id as tarefas.md writes it: ^t and six letters or digits. */
 export const taskIdSchema = z.string().regex(/^t[a-z0-9]{6}$/i)
+/** The text of a "Passo de hoje": trimmed, never empty, at most STEP_MAX characters (counted as characters, not UTF-16 units). */
+export const stepTextSchema = z
+  .string('O passo de hoje precisa ser um texto.')
+  .transform((s) => s.trim())
+  .refine((s) => s.length > 0, 'Escreva o passo de hoje.')
+  .refine((s) => [...s].length <= STEP_MAX, `O passo de hoje pode ter no máximo ${STEP_MAX} caracteres.`)
+
+/** The step text from the renderer, or throws the message the popup shows. */
+export function parseStepText(raw: unknown): string {
+  const r = stepTextSchema.safeParse(raw)
+  if (!r.success) throw new Error(r.error.issues[0]!.message)
+  return r.data
+}
 export const permissionModeSchema = z.enum(PERMISSION_MODES as [OfficePermissionMode, ...OfficePermissionMode[]])
 export const ticketStatusSchema = z.enum(STATUS_VALUES)
 /** A message to an agent: long pastes are fine, megabytes of text are not. */

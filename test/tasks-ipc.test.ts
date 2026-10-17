@@ -174,7 +174,7 @@ describe('tasks IPC', () => {
   })
 })
 
-type FocusItemView = { id: string; missing: boolean; text?: string; list?: string }
+type FocusItemView = { id: string; missing: boolean; text?: string; list?: string; step?: string }
 
 describe('tasks focus IPC', () => {
   it('puts a task without an id in focus: its line gains the id, the rest of the file stays, and one backup is kept', async () => {
@@ -240,6 +240,44 @@ describe('tasks focus IPC', () => {
     await expect(invoke('office:focusTask', 2)).rejects.toThrow('Só tarefas abertas podem ir para o foco.')
     await expect(invoke('office:focusTask', 4)).rejects.toThrow('As tarefas do Archive não podem ir para o foco.')
     expect(planning.focus()).toEqual([])
+  })
+
+  it('saves and clears the step of a focused task without writing tarefas.md', async () => {
+    const source = '## Casa\n- [ ] Lavar roupa ^tabc123\n'
+    const file = join(vault, 'tarefas.md')
+    writeFileSync(file, source, 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+    await invoke('office:focusTask', 2)
+
+    const saved = (await invoke('office:saveStep', 'tabc123', '  Lavar a máquina  ')) as FocusItemView[]
+
+    expect(saved).toEqual([{ id: 'tabc123', missing: false, text: 'Lavar roupa', list: 'Casa', step: 'Lavar a máquina' }])
+    expect(await invoke('office:readFocus')).toEqual(saved)
+    expect(readFileSync(file, 'utf8')).toBe(source)
+
+    const cleared = (await invoke('office:clearStep', 'tabc123')) as FocusItemView[]
+
+    expect(cleared).toEqual([{ id: 'tabc123', missing: false, text: 'Lavar roupa', list: 'Casa' }])
+    expect(readFileSync(file, 'utf8')).toBe(source)
+    expect(planning.focus()).toEqual(['tabc123'])
+  })
+
+  it('refuses a step for a task that is not in focus, an empty or long step, and writes nothing', async () => {
+    const source = '## Casa\n- [ ] Lavar roupa ^tabc123\n'
+    writeFileSync(join(vault, 'tarefas.md'), source, 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+    await invoke('office:focusTask', 2)
+
+    await expect(invoke('office:saveStep', 'tzzzzzz', 'Ler')).rejects.toThrow('Só tarefas em foco podem ter passo de hoje.')
+    await expect(invoke('office:saveStep', 'tabc123', '   ')).rejects.toThrow('Escreva o passo de hoje.')
+    await expect(invoke('office:saveStep', 'tabc123', 'a'.repeat(201))).rejects.toThrow(
+      'O passo de hoje pode ter no máximo 200 caracteres.',
+    )
+    await expect(invoke('office:saveStep', '../tarefas', 'Ler')).rejects.toThrow('Identificador inválido.')
+    expect(readFileSync(join(vault, 'tarefas.md'), 'utf8')).toBe(source)
+    expect(await invoke('office:readFocus')).toEqual([{ id: 'tabc123', missing: false, text: 'Lavar roupa', list: 'Casa' }])
   })
 
   it('refuses a bad line or id from the renderer', async () => {
