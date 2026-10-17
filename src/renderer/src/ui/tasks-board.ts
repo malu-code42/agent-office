@@ -11,6 +11,7 @@ import {
   type TaskList,
   type TaskRef,
 } from '@shared/tasks'
+import { openAgenda } from './agenda'
 import { asDialog, FocusReturn, isTyping, rove } from './a11y'
 import { h, icon } from './dom'
 import { cleanError } from './modals'
@@ -313,6 +314,7 @@ export async function openTasksBoard(
         h('span', { class: 'board-count' }, `${columns.reduce((count, list) => count + list.tasks.length, 0)} tarefas`),
         h('span', { class: 'grow' }),
         h('button', { class: 'btn btn-small', type: 'button', onclick: () => openIris(root, toast) }, 'Pedir à Íris'),
+        h('button', { class: 'btn btn-small', type: 'button', onclick: () => openAgenda(root) }, icon('calendar', 14), 'Agenda'),
         h(
           'button',
           {

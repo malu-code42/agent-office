@@ -1,6 +1,7 @@
 import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { dialog, ipcMain } from 'electron'
+import { buildAgendaView } from '@shared/agenda'
 import { focusItems, focusKey } from '@shared/planning'
 import { parseTasksFile, type TaskList, type TaskRef } from '@shared/tasks'
 import type { Proposal } from '@shared/proposals'
@@ -166,6 +167,12 @@ export function registerTasksIpc(ctx: IpcContext): void {
 
   ipcMain.handle('office:readFocus', async () => focusOf(requireVault()))
 
+  // Read on every call, so an edit made in Obsidian shows on the next read. Nothing here writes agenda.md or tarefas.md (AO-11).
+  ipcMain.handle('office:readAgenda', async () => {
+    const path = requireVault()
+    return buildAgendaView(readOptionalFile(path, 'agenda.md'), readOptionalFile(path, 'tarefas.md') ?? '', new Date())
+  })
+
   ipcMain.handle('office:focusTask', async (_e, line: unknown) => {
     const input = parse(taskLineSchema, line, 'Tarefa inválida.')
     const path = requireVault()
@@ -294,6 +301,16 @@ function readTasksFile(path: string): string {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       throw new Error(`tarefas.md não encontrado em ${path}`, { cause: err })
     }
+    throw err
+  }
+}
+
+/** The text of a file in the vault, or null when the file is not there. */
+function readOptionalFile(path: string, name: string): string | null {
+  try {
+    return readFileSync(join(path, name), 'utf8')
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null
     throw err
   }
 }

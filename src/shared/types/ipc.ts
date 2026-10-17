@@ -8,6 +8,7 @@ import type { BridgeStatus, Settings, UpdateInstallResult, UpdateStatus } from '
 import type { SquadInfo } from './squads'
 import type { MacJob, Routine, RoutineDraft } from './routines'
 import type { ClaudeStats } from './stats'
+import type { AgendaView } from '../agenda'
 import type { FocusItem } from '../planning'
 import type { IrisPreview, IrisResult } from '../iris'
 import type { Proposal } from '../proposals'
@@ -202,6 +203,8 @@ export interface OfficeAPI {
   postponeReview(option: ReviewPostpone): Promise<{ next: string }>
   /** Applies the review's choices as one proposal, all or none. Returns how many operations were applied. */
   confirmReview(choices: ReviewChoices): Promise<{ applied: number }>
+  /** Lê o agenda.md do vault: o dia, a semana (segunda a domingo) e as linhas sem data. Só lê; não escreve em nenhum arquivo. */
+  readAgenda(): Promise<AgendaView>
   /** Põe em foco a tarefa da linha dada (ganha um id no tarefas.md se não tiver) e devolve o quadro e o foco. */
   focusTask(line: number): Promise<{ board: ParsedBoard; focus: FocusItem[] }>
   /** Tira do foco a tarefa com esse id. Não escreve no tarefas.md e devolve o foco. */

@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { parseAgendaLine } from '@shared/agenda'
 import { dayPt, isIsoDay, type CommitmentMove, type CommitmentRef } from '@shared/proposals'
 import { TIME_FORMAT } from '@shared/tasks'
 import { writeFileAtomic } from './fs-safe'
@@ -48,13 +49,16 @@ function sectionsOf(lines: string[]): Section[] {
 
 const bodyOf = (s: Section): number[] => Array.from({ length: s.end - s.heading - 1 }, (_, k) => s.heading + 1 + k)
 
-/** The time and title a line holds as a commitment, or null: a task reference (↦) is not one. */
+/**
+ * The time and title a line holds as a commitment, or null: a task reference (↦) is not one. The rule is the
+ * reader's (parseAgendaLine in @shared/agenda); COMMITMENT only keeps the spacing of the line for a retime.
+ */
 function commitmentOf(raw: string): { prefix: string; time: string; rest: string; title: string } | null {
-  const m = COMMITMENT.exec(raw.replace(/\r$/, ''))
-  if (!m || !TIME_FORMAT.test(m[2]!)) return null
-  const title = m[3]!.trim()
-  if (!title || title.includes(TASK_REFERENCE)) return null
-  return { prefix: m[1]!, time: m[2]!, rest: m[3]!, title }
+  const text = raw.replace(/\r$/, '')
+  const line = parseAgendaLine(text.trim(), text)
+  const m = COMMITMENT.exec(text)
+  if (line.kind !== 'commitment' || !m) return null
+  return { prefix: m[1]!, time: line.time, rest: m[3]!, title: line.title }
 }
 
 /** The same line with its time changed. Only the time moves: the dash, the spacing, the title and the line break stay. */

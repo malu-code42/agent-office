@@ -24,6 +24,7 @@ const api: OfficeAPI = {
   saveReviewDraft: (step, choices) => ipcRenderer.invoke('office:saveReviewDraft', step, choices),
   postponeReview: (option) => ipcRenderer.invoke('office:postponeReview', option),
   confirmReview: (choices) => ipcRenderer.invoke('office:confirmReview', choices),
+  readAgenda: () => ipcRenderer.invoke('office:readAgenda'),
   focusTask: (line) => ipcRenderer.invoke('office:focusTask', line),
   unfocusTask: (id) => ipcRenderer.invoke('office:unfocusTask', id),
   saveStep: (id, text) => ipcRenderer.invoke('office:saveStep', id, text),
