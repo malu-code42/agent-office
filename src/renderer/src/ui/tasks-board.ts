@@ -23,12 +23,6 @@ import { runDiscard, runReopen } from './tasks-discard'
 import { keepScroll } from './tasks-scroll'
 import './focus.css'
 
-// Modo seleção para múltipla marcação de foco
-let modoSelecao = false;
-const selecionadasParaFoco = new Set<string>();
-let btnFocoMultiplo: HTMLElement | null = null;
-
-
 const ARROWS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
 
 /** The focus memory of each open board. A redraw hands it to the board that replaces it. */
@@ -121,7 +115,7 @@ export async function openTasksBoard(
   try {
     const data = initialBoard ?? (await window.office.readTasks())
     const focused = new Set((await window.office.readFocus()).map((item) => item.id))
-    const isFocused = (task: Task) => !!task.id! && focused.has(focusKey(task.id!))
+    const isFocused = (task: Task) => !!task.id && focused.has(focusKey(task.id))
     // The Archive is not a column, and completed tasks are listed apart: see boardView.
     const { columns, completed } = boardView(data.lists)
     let dragging: { line: number; list: string; text: string } | null = null
@@ -368,32 +362,6 @@ export async function openTasksBoard(
           },
           icon('plus', 14),
           'Nova tarefa',
-        h(
-          'button',
-          {
-            class: 'btn btn-small',
-            type: 'button',
-            'data-focus-key': 'foco-multiplo',
-            'aria-pressed': 'false',
-            onclick: () => {
-              modoSelecao = !modoSelecao;
-              btnFocoMultiplo!.setAttribute('aria-pressed', String(modoSelecao));
-              if (!modoSelecao) {
-                const ids = Array.from(selecionadasParaFoco);
-                selecionadasParaFoco.clear();
-                for (const id of ids) {
-                  const task = data.lists.flatMap((l) => l.tasks).find((t) => t.id === id);
-                  if (task) {
-                    void window.office.focusTask(task.line).catch(() => {});
-                  }
-                }
-                void openTasksBoard(root, state, toast);
-              }
-            }
-          },
-          modoSelecao ? icon('check', 14) : icon('list', 14),
-          modoSelecao ? 'Sair do foco' : 'Pôr em foco',
-        ),
         ),
         h(
           'button',
@@ -468,9 +436,9 @@ export async function openTasksBoard(
                       h(
                         'li',
                         {
-                          class: `tcard task-readonly${task.status === 'discarded' ? ' task-discarded' : ''}${selecionadasParaFoco.has(task.id!) ? ' tcard-selecionada' : ''}`,
+                          class: `tcard task-readonly${task.status === 'discarded' ? ' task-discarded' : ''}`,
                           tabindex: '0',
-                          'data-focus-key': `${list.name} / ${task.text}`,                          onclick: (e: Event) => {                            if (modoSelecao) {                              e.preventDefault();                              e.stopPropagation();                              if (selecionadasParaFoco.has(task.id!)) {                                selecionadasParaFoco.delete(task.id!);                              } else {                                selecionadasParaFoco.add(task.id!);                              }                            }                          },
+                          'data-focus-key': `${list.name} / ${task.text}`,
                           ...dragAndMove(list, task),
                           'aria-label': [
                             parseEmphasis(task.text)
@@ -513,9 +481,6 @@ export async function openTasksBoard(
     ) as HTMLElement
 
     asDialog(board, { label: 'Quadro Tarefas' })
-    btnFocoMultiplo = board.querySelector<HTMLElement>('[data-focus-key=foco-multiplo]');
-    btnFocoMultiplo = board.querySelector<HTMLElement>('[data-focus-key=foco-multiplo]');
-    btnFocoMultiplo = board.querySelector<HTMLElement>('[data-focus-key=foco-multiplo]');
     const columnEls = [...board.querySelectorAll<HTMLElement>('.tcol')]
     const cardsOf = (column: HTMLElement) => [...column.querySelectorAll<HTMLElement>('.task-readonly')]
     for (const column of columnEls) {
