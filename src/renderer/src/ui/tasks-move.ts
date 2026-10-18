@@ -8,7 +8,7 @@ export interface TaskMenuOption {
 }
 
 /**
- * A menu of a task card, opened from the card with Enter or its button: the options are picked
+ * A menu of a task card, opened from the card with R or its button: the options are picked
  * with ↑/↓ and Enter chooses one; Esc or Tab closes the menu and gives the focus back to the card.
  * The menu lives inside the card, so keys pressed in it never reach the board (the arrows, and Esc, that close the board).
  */
@@ -56,14 +56,4 @@ export function openTaskMenu(card: HTMLElement, label: string, options: TaskMenu
   if (items.length) rove(items, 0)
   const first: HTMLElement = items[0] ?? menu
   first.focus({ preventScroll: true })
-}
-
-/** The "Mover para…" menu of a task card: the lists it can go to. */
-export function openMoveMenu(card: HTMLElement, destinations: string[], choose: (list: string) => void): void {
-  openTaskMenu(
-    card,
-    'Mover para…',
-    destinations.map((name) => ({ text: name, choose: () => choose(name) })),
-    'Não há outra lista para esta tarefa.',
-  )
 }
