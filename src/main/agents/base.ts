@@ -33,8 +33,12 @@ export abstract class AgentBase extends EventEmitter {
   constructor(protected store: Store) {
     super()
     for (const p of store.agents) {
+      const floor = p.summary.project ? store.settings.projects.find((x) => x.id === p.summary.project) : projectFor(store.settings.projects, p.summary.cwd)
       const summary: AgentSummary = {
         ...p.summary,
+        // Legacy orchestrators must always reload their definition from the stable floor root,
+        // never from a copied worktree or another transient working directory.
+        ...(p.summary.role === 'orchestrator' && floor ? { cwd: floor.cwd, project: floor.id } : {}),
         status: p.summary.status === 'done' ? 'done' : 'idle',
         activity: 'Aguardando instruções',
         subagents: undefined,

@@ -21,12 +21,59 @@ export function openRunSquad(
   toast: (t: string, k?: 'info' | 'ok' | 'err') => void,
   onStarted: (a: AgentSummary) => void,
 ): void {
-  const squads = state.squads.filter((q) => q.cwd === project.cwd)
-  if (!squads.length) return toast(`${project.name} não tem squads: nenhum squads/<code>/squad.yaml na pasta do projeto.`, 'err')
+  const catalogue = state.squads.filter((q) => q.cwd === project.cwd)
+  const squads = catalogue.filter((q) => q.availability !== 'unavailable')
+  const unavailable = catalogue.filter((q) => q.availability === 'unavailable')
+  const recoveryCard = (q: (typeof unavailable)[number]) => {
+    const card = h(
+      'div',
+      { class: 'squad-card', role: 'status' },
+      h('span', { class: 'squad-icon' }, '⚠️'),
+      h(
+        'span',
+        { class: 'squad-main' },
+        h('span', { class: 'squad-name' }, `${q.code} · indisponível`),
+        h('span', { class: 'squad-meta' }, q.unavailableReason ?? 'Definição ausente ou inválida.'),
+        h(
+          'span',
+          { class: 'squad-meta' },
+          `Recupere manualmente: ${q.recoveryPath ?? `${project.cwd}/squads/${q.code}/squad.yaml`}. Depois, feche e reabra o Agent Office.`,
+        ),
+      ),
+    )
+    const open = h('button', { class: 'btn', type: 'button' }, 'Abrir pasta para recuperar')
+    open.addEventListener('click', () => void window.office.revealPath(`${q.cwd}/squads/${q.code}`))
+    card.append(open)
+    return card
+  }
+  if (!squads.length) {
+    if (!unavailable.length)
+      return toast(`${project.name} não tem squads definidos. Crie ou restaure manualmente uma definição em ${project.cwd}/squads/<código>/squad.yaml.`, 'err')
+    const closeButton = h('button', { class: 'btn', type: 'button', onclick: () => recoveryDialog.remove() }, 'Fechar')
+    const recoveryDialog = modal(
+      `Squads indisponíveis · ${project.name}`,
+      [
+        h('div', { class: 'field-hint' }, 'Nenhuma definição pode ser executada. Restaure manualmente os arquivos indicados; o Agent Office não os recria nem sobrescreve.'),
+        h('div', { class: 'squad-list' }, ...unavailable.map(recoveryCard)),
+      ],
+      [closeButton],
+      () => recoveryDialog.remove(),
+    )
+    root.append(recoveryDialog)
+    closeButton.focus()
+    return
+  }
   const here = new Map(
     [...state.agents.values()].filter((a) => a.role === 'orchestrator' && a.cwd === project.cwd).map((a) => [a.squad, a]),
   )
-  const busy = (a: AgentSummary | undefined) => !!a && a.status !== 'idle' && a.status !== 'done' && a.status !== 'error'
+  const statusLabel = (a: AgentSummary | undefined) => {
+    if (!a) return 'disponível'
+    if (a.status === 'starting' || a.status === 'working') return 'trabalhando'
+    if (a.status === 'waiting') return 'aguardando decisão'
+    if (a.status === 'error' || a.status === 'stopped') return 'bloqueado'
+    if (a.status === 'done') return 'concluído'
+    return 'disponível'
+  }
   let chosen = squads[0]
   const cards = squads.map((q) => {
     const boss = here.get(q.code)
@@ -42,12 +89,17 @@ export function openRunSquad(
           'span',
           { class: 'squad-name' },
           q.name,
-          boss ? h('span', { class: `chip ${busy(boss) ? 'chip-wait' : ''}` }, busy(boss) ? 'rodando' : 'na Diretoria') : null,
+          h('span', { class: `chip ${boss?.status === 'waiting' ? 'chip-wait' : ''}` }, statusLabel(boss)),
         ),
         h(
           'span',
           { class: 'squad-meta' },
           `${q.members.length} membros${inline ? ` (${inline} inline)` : ''} · ${q.steps.length} passos · ${q.steps.filter((x) => x.type === 'checkpoint').length} checkpoints`,
+        ),
+        h(
+          'span',
+          { class: 'squad-meta' },
+          `Coordenador: Agent Office · ${q.members.map((m) => `${m.role === 'implementer' ? 'Implementador' : m.role === 'reviewer' ? 'Revisor' : 'Membro'}: ${m.name}`).join(' · ')}`,
         ),
         q.description ? h('span', { class: 'squad-desc' }, q.description) : null,
       ),
@@ -58,6 +110,7 @@ export function openRunSquad(
     })
     return card
   })
+  const invalidCards = unavailable.map(recoveryCard)
 
   const mode = h('select', { class: 'input' }, ...RUN_MODES.map((m) => h('option', { value: m.value }, m.label)))
   const saved = localStorage.getItem(LAST_RUN_MODE)
@@ -77,7 +130,7 @@ export function openRunSquad(
   const go = h('button', { class: 'btn btn-primary' })
   const paint = () => {
     cards.forEach((c, i) => c.classList.toggle('on', squads[i] === chosen))
-    go.textContent = here.has(chosen.code) ? '▶ Rodar ciclo' : '▶ Contratar e rodar ciclo'
+    go.textContent = here.has(chosen.code) ? '▶ Rodar ciclo' : '▶ Iniciar squad'
   }
   paint()
   go.addEventListener('click', async () => {
@@ -98,7 +151,7 @@ export function openRunSquad(
   const el = modal(
     `Contratar squad · ${project.name}`,
     [
-      h('div', { class: 'squad-list' }, ...cards),
+      h('div', { class: 'squad-list' }, ...cards, ...invalidCards),
       field('Permissões', mode, modeHint),
       field('Recado', note, 'Os checkpoints do ciclo vêm até você como perguntas. Sem resposta, o ciclo espera.'),
     ],

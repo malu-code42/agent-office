@@ -1,11 +1,12 @@
 import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { query, type Query, type SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import { describeTool, toolDetail } from '@shared/describe'
 import { MAIN_ACCOUNT } from '@shared/accounts'
 import { accountEnv } from '../accounts'
 import { claudeNotFoundMessage } from '../claude-messages'
 import { findClaude } from '../claude-path'
-import { findSquad, memberAgents, orchestratorPrompt, teamGuard, type SquadDefinition } from '../squads'
+import { findSquad, memberAgents, orchestratorPrompt, teamGuard, validateSquad, type SquadDefinition } from '../squads'
 import { takeSnapshot } from '../git'
 import { InputQueue, kTokens, toMs, WRITE_TOOLS, type Agent, type Prompt } from './types'
 import { AgentOffice } from './office'
@@ -32,9 +33,22 @@ export abstract class AgentSdk extends AgentOffice {
     // Orchestrators read the squad again, so edits to squad.yaml count from the next run.
     const squad = s.role === 'orchestrator' && s.squad ? findSquad(s.cwd, s.squad) : undefined
     if (s.role === 'orchestrator') {
+      const squadCode = s.squad ?? 'desconhecido'
       if (!squad) {
         this.deliver(agent, {
-          text: `Não achei mais o squad \`${s.squad}\` em ${s.cwd}/squads.`,
+          text: `A definição do squad \`${squadCode}\` não está disponível em ${join(s.cwd, 'squads', squadCode, 'squad.yaml')}. Restaure ou corrija esse arquivo manualmente e tente novamente; o Agent Office não recria definições.`,
+          isError: true,
+          costUsd: s.costUsd,
+          durationMs: 0,
+          turns: 0,
+        })
+        return
+      }
+      try {
+        validateSquad(squad)
+      } catch (err) {
+        this.deliver(agent, {
+          text: `O squad \`${squadCode}\` está indisponível: ${err instanceof Error ? err.message : String(err)}. Corrija ${join(s.cwd, 'squads', squadCode, 'squad.yaml')} e tente novamente.`,
           isError: true,
           costUsd: s.costUsd,
           durationMs: 0,
@@ -98,7 +112,17 @@ export abstract class AgentSdk extends AgentOffice {
     const wt = s.worktree
     // Each run starts a new CLI process, so it can move to another account between turns.
     const before = s.account
-    const account = this.accounts?.pick(s, agent.borrowed)
+    const account = squad && s.account && this.accounts ? this.accounts.get(s.account) : this.accounts?.pick(s, agent.borrowed)
+    if (squad && s.account && this.accounts && !account) {
+      this.deliver(agent, {
+        text: `A conta Claude fixa deste squad (${s.account}) não está mais configurada. Reconfigure a mesma conta antes de retomar; não vou trocar de conta automaticamente.`,
+        isError: true,
+        costUsd: s.costUsd,
+        durationMs: 0,
+        turns: 0,
+      })
+      return
+    }
     if (account) s.account = account.id
     const resumed = agent.started
     if (s.sessionId) {
@@ -291,7 +315,11 @@ export abstract class AgentSdk extends AgentOffice {
           this.setStatus(agent, 'idle', isError ? 'Não conseguiu compactar' : 'Memória organizada, esperando instruções')
           return
         }
-        if (hit && this.failover(agent, hit)) return
+        // A squad cycle is pinned to one Claude account for its whole lifecycle.
+        if (hit && agent.summary.role === 'orchestrator') {
+          if (agent.summary.account) this.accounts?.limitHit(agent.summary.account, hit.resetsAt)
+        }
+        else if (hit && this.failover(agent, hit)) return
         const limit = hit ? { accountId: agent.summary.account, resetsAt: hit.resetsAt } : undefined
         this.deliver(agent, { text, isError, costUsd: msg.total_cost_usd, durationMs: msg.duration_ms, turns: msg.num_turns, limit })
         return
