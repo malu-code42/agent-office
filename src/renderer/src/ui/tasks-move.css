@@ -1,4 +1,4 @@
-/* Mover tarefas: destino destacado ao arrastar, e os menus "Mover para…" e "Reagendar" de cada cartão. */
+/* Mover tarefas: destino destacado ao arrastar, e o menu "Reagendar" de cada cartão. */
 
 .tcard.task-readonly[draggable='true'] {
   cursor: grab;
@@ -9,7 +9,6 @@
   outline-offset: -2px;
 }
 
-.tcard-move,
 .tcard-reschedule {
   margin-top: 6px;
   font-size: 11.5px;

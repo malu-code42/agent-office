@@ -16,7 +16,7 @@ import { asDialog, FocusReturn, focusedKey, isTyping, refocusKey, rove } from '.
 import { h, icon } from './dom'
 import { cleanError } from './modals'
 import { offerUndo, type Toast } from './tasks-complete'
-import { openMoveMenu, openTaskMenu } from './tasks-move'
+import { openTaskMenu } from './tasks-move'
 import { openIris } from './iris'
 import { openNewTask } from './tasks-new'
 import { runDiscard, runReopen } from './tasks-discard'
@@ -129,12 +129,6 @@ export async function openTasksBoard(
         toast(cleanError(err), 'err')
       }
     }
-    const openMove = (card: HTMLElement, list: TaskList, task: Task) =>
-      openMoveMenu(
-        card,
-        data.lists.map((l) => l.name).filter((name) => name !== list.name && name !== ARCHIVE_LIST),
-        (to) => void move(task.line, task.text, to),
-      )
     // The main process writes the new date; a refusal (a legacy line, the file changed) comes back as the toast.
     const reschedule = async (list: TaskList, task: Task, date: string) => {
       try {
@@ -215,10 +209,7 @@ export async function openTasksBoard(
         onkeydown: (e: Event) => {
           const key = e as KeyboardEvent
           if (key.target !== key.currentTarget) return
-          if (key.key === 'Enter' || key.key === ' ') {
-            key.preventDefault()
-            openMove(key.currentTarget as HTMLElement, list, task)
-          } else if (key.key.toLowerCase() === 'f' && !key.ctrlKey && !key.metaKey && !key.altKey) {
+          if (key.key.toLowerCase() === 'f' && !key.ctrlKey && !key.metaKey && !key.altKey) {
             key.preventDefault()
             void toggleFocus(list, task, isFocused(task))
           } else if (key.key.toLowerCase() === 'r' && !key.ctrlKey && !key.metaKey && !key.altKey && task.status === 'open') {
@@ -233,17 +224,6 @@ export async function openTasksBoard(
         },
       }
     }
-    const moveButton = (list: TaskList, task: Task) =>
-      h(
-        'button',
-        {
-          class: 'btn btn-small tcard-move',
-          type: 'button',
-          tabindex: '-1',
-          onclick: (e: Event) => openMove((e.currentTarget as HTMLElement).closest<HTMLElement>('.tcard')!, list, task),
-        },
-        'Mover para…',
-      )
     const rescheduleButton = (list: TaskList, task: Task) =>
       h(
         'button',
@@ -448,7 +428,7 @@ export async function openTasksBoard(
                             isFocused(task) ? 'Em foco' : '',
                             taskWhen(task) ? `Data ${taskWhen(task)}` : '',
                             task.completedDate ? `Descartada em ${task.completedDate}` : '',
-                            `Pressione Enter para mover para outra lista, F para pôr ou tirar do foco${task.status === 'open' ? ', R para reagendar, D para descartar' : ''}`,
+                            `Pressione F para pôr ou tirar do foco${task.status === 'open' ? ', R para reagendar, D para descartar' : ''}`,
                           ]
                             .filter(Boolean)
                             .join('. '),
@@ -470,7 +450,6 @@ export async function openTasksBoard(
                         taskWhen(task) ? h('div', { class: 'tcard-foot' }, taskWhen(task)) : null,
                         task.completedDate ? h('div', { class: 'tcard-foot' }, `❌ ${task.completedDate}`) : null,
                         task.reason ? h('div', { class: 'hint' }, task.reason) : null,
-                        moveButton(list, task),
                         task.status === 'open' ? rescheduleButton(list, task) : null,
                         task.status === 'open' ? discardButton(task) : null,
                         task.status === 'open' || isFocused(task) ? focusButton(list, task) : null,
