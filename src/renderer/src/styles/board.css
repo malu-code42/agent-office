@@ -25,6 +25,11 @@
   outline: none;
 }
 
+/* a board drawn again in place of the open one does not play the entry animation */
+.board.board-redraw {
+  animation: none;
+}
+
 .platform-darwin .board {
   top: 40px;
 }

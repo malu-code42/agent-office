@@ -12,7 +12,7 @@ import {
   type TaskRef,
 } from '@shared/tasks'
 import { openAgenda } from './agenda'
-import { asDialog, FocusReturn, isTyping, rove } from './a11y'
+import { asDialog, FocusReturn, focusedKey, isTyping, refocusKey, rove } from './a11y'
 import { h, icon } from './dom'
 import { cleanError } from './modals'
 import { offerUndo, type Toast } from './tasks-complete'
@@ -20,9 +20,37 @@ import { openMoveMenu, openTaskMenu } from './tasks-move'
 import { openIris } from './iris'
 import { openNewTask } from './tasks-new'
 import { runDiscard, runReopen } from './tasks-discard'
+import { keepScroll } from './tasks-scroll'
 import './focus.css'
 
 const ARROWS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
+
+/** The focus memory of each open board. A redraw hands it to the board that replaces it. */
+const focusMemory = new WeakMap<HTMLElement, FocusReturn>()
+/** Boards taken out by a redraw: their close watcher must not give the focus back. */
+const replaced = new WeakSet<HTMLElement>()
+
+/** Scroll of the lists (by name) and of the columns row, read before a redraw. */
+function readScroll(board: HTMLElement): { lists: Record<string, number>; columns: number } {
+  const lists: Record<string, number> = {}
+  for (const el of board.querySelectorAll<HTMLElement>('.tcol-list')) lists[el.dataset.list ?? ''] = el.scrollTop
+  return { lists, columns: board.querySelector<HTMLElement>('.board-cols')?.scrollTop ?? 0 }
+}
+
+/** Puts the scroll back on the new board; it must be in the document, so the sizes are known. */
+function applyScroll(board: HTMLElement, scroll: { lists: Record<string, number>; columns: number }): void {
+  const els = [...board.querySelectorAll<HTMLElement>('.tcol-list')]
+  const names = els.map((el) => el.dataset.list ?? '')
+  const maxScroll: Record<string, number> = {}
+  els.forEach((el, i) => (maxScroll[names[i]!] = el.scrollHeight - el.clientHeight))
+  const kept = keepScroll(scroll.lists, names, maxScroll)
+  els.forEach((el, i) => {
+    const top = kept[names[i]!]
+    if (top !== undefined) el.scrollTop = top
+  })
+  const columns = board.querySelector<HTMLElement>('.board-cols')
+  if (columns) columns.scrollTop = scroll.columns
+}
 
 /** Renders `**negrito**` and `*itálico*` as elements; everything else stays text. */
 function taskTitle(text: string): (Node | string)[] {
@@ -90,13 +118,11 @@ export async function openTasksBoard(
     const isFocused = (task: Task) => !!task.id && focused.has(focusKey(task.id))
     // The Archive is not a column, and completed tasks are listed apart: see boardView.
     const { columns, completed } = boardView(data.lists)
-    const focusBack = new FocusReturn()
     let dragging: { line: number; list: string; text: string } | null = null
     // The main process checks the file again; a refusal (the file changed) comes back as the toast.
     const move = async (line: number, text: string, list: string) => {
       try {
         const next = await window.office.moveTask({ line, list })
-        board.remove()
         toast(`Tarefa movida para ${list}.`, 'ok')
         void openTasksBoard(root, state, toast, next.board, { list, text })
       } catch (err) {
@@ -113,7 +139,6 @@ export async function openTasksBoard(
     const reschedule = async (list: TaskList, task: Task, date: string) => {
       try {
         const next = await window.office.rescheduleTask({ line: task.line, date })
-        board.remove()
         toast(`Tarefa reagendada para ${date}.`, 'ok')
         void openTasksBoard(root, state, toast, next.board, { list: list.name, text: task.text })
       } catch (err) {
@@ -142,7 +167,6 @@ export async function openTasksBoard(
           next = (await window.office.focusTask(task.line)).board
           toast('Tarefa posta em foco.', 'ok')
         }
-        board.remove()
         void openTasksBoard(root, state, toast, next, { list: list.name, text: task.text })
       } catch (err) {
         toast(cleanError(err), 'err')
@@ -162,13 +186,11 @@ export async function openTasksBoard(
     // Discarding asks for the reason first; the card leaves the board and its line goes to the Archive.
     const discardCard = (task: Task) =>
       void runDiscard(root, toast, { line: task.line }, task.text, (next) => {
-        board.remove()
         void openTasksBoard(root, state, toast, next.board)
       })
     // A completed or discarded task goes back to its origin list, and its card is focused there.
     const reopenRow = (task: Task) =>
       void runReopen(root, toast, { line: task.line }, task.text, (next) => {
-        board.remove()
         void openTasksBoard(root, state, toast, next.board, { list: next.list, text: task.text })
       })
     /** Drag and keyboard for a card; the Archive is read-only. */
@@ -313,21 +335,28 @@ export async function openTasksBoard(
         h('div', { class: 'board-title' }, icon('list', 18), 'Tarefas'),
         h('span', { class: 'board-count' }, `${columns.reduce((count, list) => count + list.tasks.length, 0)} tarefas`),
         h('span', { class: 'grow' }),
-        h('button', { class: 'btn btn-small', type: 'button', onclick: () => openIris(root, toast) }, 'Pedir à Íris'),
-        h('button', { class: 'btn btn-small', type: 'button', onclick: () => openAgenda(root) }, icon('calendar', 14), 'Agenda'),
+        h(
+          'button',
+          { class: 'btn btn-small', type: 'button', 'data-focus-key': 'iris', onclick: () => openIris(root, toast) },
+          'Pedir à Íris',
+        ),
+        h(
+          'button',
+          { class: 'btn btn-small', type: 'button', 'data-focus-key': 'agenda', onclick: () => openAgenda(root) },
+          icon('calendar', 14),
+          'Agenda',
+        ),
         h(
           'button',
           {
             class: 'btn btn-small btn-primary',
             type: 'button',
+            'data-focus-key': 'nova-tarefa',
             onclick: () =>
               openNewTask(
                 root,
                 columns.map((list) => list.name),
-                (next) => {
-                  board.remove()
-                  void openTasksBoard(root, state, toast, next)
-                },
+                (next) => void openTasksBoard(root, state, toast, next),
                 toast,
               ),
           },
@@ -340,6 +369,7 @@ export async function openTasksBoard(
             class: 'btn btn-small',
             type: 'button',
             'aria-pressed': 'false',
+            'data-focus-key': 'concluidas',
             onclick: (e: Event) => toggleCompleted(e.currentTarget as HTMLButtonElement),
           },
           'Mostrar concluídas',
@@ -349,6 +379,7 @@ export async function openTasksBoard(
           {
             class: 'icon-btn',
             type: 'button',
+            'data-focus-key': 'fechar',
             title: 'Fechar (Esc)',
             'aria-label': 'Fechar quadro Tarefas',
             onclick: () => board.remove(),
@@ -393,7 +424,12 @@ export async function openTasksBoard(
               ),
               h(
                 'ul',
-                { class: 'tcol-list', style: 'list-style:none;margin:0', 'aria-label': `Tarefas de ${list.name}` },
+                {
+                  class: 'tcol-list',
+                  style: 'list-style:none;margin:0',
+                  'data-list': list.name,
+                  'aria-label': `Tarefas de ${list.name}`,
+                },
                 ...(list.tasks.length === 0
                   ? [h('li', { class: 'tcol-empty' }, 'Nenhuma tarefa')]
                   : list.tasks.map((task) =>
@@ -402,6 +438,7 @@ export async function openTasksBoard(
                         {
                           class: `tcard task-readonly${task.status === 'discarded' ? ' task-discarded' : ''}`,
                           tabindex: '0',
+                          'data-focus-key': `${list.name} / ${task.text}`,
                           ...dragAndMove(list, task),
                           'aria-label': [
                             parseEmphasis(task.text)
@@ -496,15 +533,22 @@ export async function openTasksBoard(
     board.addEventListener('click', (event) => {
       if (event.target === board) board.remove()
     })
-    focusBack.save(board)
+    // Read after the awaits, so it is the board that is open now. The old board is replaced in
+    // one step: between the remove and the append there is no frame without a board.
+    const previous = root.querySelector<HTMLElement>('[data-tasks-board]')
+    const scroll = previous ? readScroll(previous) : undefined
+    const keyBefore = previous ? focusedKey(previous) : undefined
+    const hadFocus = !!previous?.contains(document.activeElement)
+    const focusBack = (previous && focusMemory.get(previous)) || new FocusReturn()
+    focusMemory.set(board, focusBack)
+    if (!previous) focusBack.save(board)
     const observer = new MutationObserver(() => {
       if (board.isConnected) return
       observer.disconnect()
       window.removeEventListener('keydown', onKey, true)
-      focusBack.restore(board)
+      if (!replaced.has(board)) focusBack.restore(board)
     })
     observer.observe(root, { childList: true })
-    root.append(board)
     const landing = moved
       ? [...board.querySelectorAll<HTMLElement>('.task-readonly')].find(
           (card) =>
@@ -513,7 +557,18 @@ export async function openTasksBoard(
         )
       : undefined
     const target: HTMLElement = landing ?? columnEls[0] ?? board
-    target.focus({ preventScroll: true })
+    if (previous && scroll) {
+      replaced.add(previous)
+      board.classList.add('board-redraw')
+      previous.replaceWith(board)
+      applyScroll(board, scroll)
+      // The focus moves to the same card or button; if it was outside the board (a text field, the popup), it stays there.
+      const back = keyBefore !== undefined && refocusKey(board, keyBefore)
+      if (hadFocus && !back) target.focus({ preventScroll: true })
+    } else {
+      root.append(board)
+      target.focus({ preventScroll: true })
+    }
   } catch (err) {
     toast(cleanError(err), 'err')
   }
@@ -524,8 +579,6 @@ export async function openTasksBoard(
  * closed. Used after a completion and after its undo, which can come from the focus popup.
  */
 export function refreshTasksBoard(root: HTMLElement, state: State, toast: Toast, board: ParsedBoard): void {
-  const open = root.querySelector<HTMLElement>('[data-tasks-board]')
-  if (!open) return
-  open.remove()
+  if (!root.querySelector('[data-tasks-board]')) return
   void openTasksBoard(root, state, toast, board)
 }

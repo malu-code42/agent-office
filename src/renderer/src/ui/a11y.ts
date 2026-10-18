@@ -202,17 +202,28 @@ export function rove(items: HTMLElement[], current: number): void {
   items.forEach((el, i) => (el.tabIndex = i === current ? 0 : -1))
 }
 
+/** The `data-focus-key` of the element that has the focus inside `container`, if it has one. */
+export function focusedKey(container: HTMLElement): string | undefined {
+  const a = document.activeElement
+  return a instanceof HTMLElement && container.contains(a) ? a.closest<HTMLElement>('[data-focus-key]')?.dataset.focusKey : undefined
+}
+
+/** Focuses the element of `container` with that `data-focus-key`, if there is one. Returns whether it did. */
+export function refocusKey(container: HTMLElement, key: string): boolean {
+  const again = container.querySelector<HTMLElement>(`[data-focus-key="${CSS.escape(key)}"]`)
+  if (!again) return false
+  again.focus({ preventScroll: true })
+  return true
+}
+
 /**
  * Redraws `container` with `draw` and puts the focus back on the element with the same
  * `data-focus-key`, so a re-render does not throw a keyboard user out of the list.
  */
 export function keepFocus(container: HTMLElement, draw: () => void): void {
-  const a = document.activeElement
-  const key = a instanceof HTMLElement && container.contains(a) ? a.closest<HTMLElement>('[data-focus-key]')?.dataset.focusKey : undefined
+  const key = focusedKey(container)
   draw()
-  if (key === undefined) return
-  const again = container.querySelector<HTMLElement>(`[data-focus-key="${CSS.escape(key)}"]`)
-  if (again) again.focus({ preventScroll: true })
+  if (key !== undefined) refocusKey(container, key)
 }
 
 // ---------- screen reader announcements ----------
