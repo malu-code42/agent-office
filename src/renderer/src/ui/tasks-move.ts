@@ -9,14 +9,20 @@ export interface TaskMenuOption {
 
 /**
  * A menu of a task card, opened from the card with Enter or its button: the options are picked
- * with ↑/↓ and Enter chooses one; Esc or Tab closes the menu and gives the focus back to the card.
+ * with ↑/↓ and Enter chooses one; Esc or Tab closes the menu and gives the focus back to `returnTo` (the card, by default).
  * The menu lives inside the card, so keys pressed in it never reach the board (the arrows, and Esc, that close the board).
  */
-export function openTaskMenu(card: HTMLElement, label: string, options: TaskMenuOption[], empty: string): void {
+export function openTaskMenu(
+  card: HTMLElement,
+  label: string,
+  options: TaskMenuOption[],
+  empty: string,
+  returnTo: HTMLElement = card,
+): void {
   if (card.querySelector(':scope > .tmenu')) return
   const close = (back: boolean) => {
     menu.remove()
-    if (back) card.focus({ preventScroll: true })
+    if (back) returnTo.focus({ preventScroll: true })
   }
   const menu = h(
     'div',
