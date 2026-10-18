@@ -455,15 +455,21 @@ export async function openTasksBoard(
                         },
                         h(
                           'div',
-                          {},
+                          { class: 'tcard-top' },
                           task.status === 'open' ? completeBox(task) : null,
-                          taskWhen(task) ? h('div', { class: 'tcard-date' }, h('span', { class: 'tcard-date-text' }, taskWhen(task))) : null,
+                          taskWhen(task)
+                            ? h('div', { class: 'tcard-date' }, h('span', { class: 'tcard-date-text' }, taskWhen(task)))
+                            : null,
                           h('span', { class: `tcard-title${task.date ? ' tcard-bold' : ''}` }, ...taskTitle(task.text)),
-                          task.status !== 'open' ? h('span', { class: `chip ${task.status === 'completed' ? 'chip-done' : 'chip-err'}` }, task.status === 'completed' ? 'Concluída' : 'Descartada') : null,
+                          task.status !== 'open'
+                            ? h(
+                                'span',
+                                { class: `chip ${task.status === 'completed' ? 'chip-done' : 'chip-err'}` },
+                                task.status === 'completed' ? 'Concluída' : 'Descartada',
+                              )
+                            : null,
                           isFocused(task) ? h('span', { class: 'chip' }, 'Em foco') : null,
                         ),
-                        task.completedDate ? h('div', { class: 'tcard-foot' }, `❌ ${task.completedDate}`) : null,
-                        task.reason ? h('div', { class: 'hint' }, task.reason) : null,
                         task.completedDate ? h('div', { class: 'tcard-foot' }, `❌ ${task.completedDate}`) : null,
                         task.reason ? h('div', { class: 'hint' }, task.reason) : null,
                         moveButton(list, task),

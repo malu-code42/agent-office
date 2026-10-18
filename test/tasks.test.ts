@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseTasksFile } from '../src/shared/tasks'
+import { boardView, parseTasksFile, type Task } from '../src/shared/tasks'
 
 describe('parseTasksFile', () => {
   it('preserves the source and reads task lists in order, ignoring frontmatter and Kanban settings', () => {
@@ -133,5 +133,75 @@ describe('parseTasksFile', () => {
       { text: 'Sem data nenhuma', line: 3, status: 'open' },
     ])
     expect(parsed.lists[0]?.tasks[1]?.dueDate).toBeUndefined()
+  })
+})
+
+describe('boardView', () => {
+  const aTask = (overrides: Partial<Task>): Task => ({
+    text: 'tarefa',
+    line: 1,
+    status: 'open',
+    ...overrides,
+  })
+
+  it('coloca as tarefas com data primeiro, da mais próxima para a mais distante', () => {
+    const { columns } = boardView([
+      {
+        name: 'Casa',
+        tasks: [
+          aTask({ text: 'Dia 20', line: 3, date: '20.10.2026' }),
+          aTask({ text: 'Dia 16', line: 1, date: '16.10.2026' }),
+          aTask({ text: 'Dia 18', line: 2, date: '18.10.2026' }),
+        ],
+      },
+    ])
+
+    expect(columns[0]?.tasks.map((task) => task.text)).toEqual(['Dia 16', 'Dia 18', 'Dia 20'])
+  })
+
+  it('mantém a ordem original entre tarefas com a mesma data', () => {
+    const { columns } = boardView([
+      {
+        name: 'Casa',
+        tasks: [
+          aTask({ text: 'Primeira', line: 1, date: '16.10.2026' }),
+          aTask({ text: 'Segunda', line: 2, date: '16.10.2026' }),
+          aTask({ text: 'Terceira', line: 3, date: '16.10.2026' }),
+        ],
+      },
+    ])
+
+    expect(columns[0]?.tasks.map((task) => task.text)).toEqual(['Primeira', 'Segunda', 'Terceira'])
+  })
+
+  it('deixa as tarefas sem data depois das com data, na ordem original', () => {
+    const { columns } = boardView([
+      {
+        name: 'Casa',
+        tasks: [
+          aTask({ text: 'Sem data 1', line: 1 }),
+          aTask({ text: 'Com data', line: 2, date: '16.10.2026' }),
+          aTask({ text: 'Sem data 2', line: 3 }),
+        ],
+      },
+    ])
+
+    expect(columns[0]?.tasks.map((task) => task.text)).toEqual(['Com data', 'Sem data 1', 'Sem data 2'])
+  })
+
+  it('remove concluídas das colunas e as lista em concluídas, com os descartados do Archive', () => {
+    const { columns, completed } = boardView([
+      {
+        name: 'Casa',
+        tasks: [aTask({ text: 'Aberta', line: 1, status: 'open' }), aTask({ text: 'Concluída', line: 2, status: 'completed' })],
+      },
+      { name: 'Archive', tasks: [aTask({ text: 'Descartada no arquivo', line: 3, status: 'discarded' })] },
+    ])
+
+    expect(columns).toHaveLength(1)
+    expect(columns[0]?.tasks.map((task) => task.text)).toEqual(['Aberta'])
+    expect(completed.map((item) => item.task.text)).toEqual(['Concluída', 'Descartada no arquivo'])
+    expect(completed[0]?.list).toBe('Casa')
+    expect(completed[1]?.list).toBe('Archive')
   })
 })
