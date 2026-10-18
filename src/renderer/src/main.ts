@@ -39,7 +39,11 @@ window.addEventListener('error', (e) => {
 })
 window.addEventListener('unhandledrejection', (e) => {
   const r = e.reason
-  window.office.reportError({ kind: 'rejection', message: r instanceof Error ? r.message : String(r), stack: r instanceof Error ? r.stack : undefined })
+  window.office.reportError({
+    kind: 'rejection',
+    message: r instanceof Error ? r.message : String(r),
+    stack: r instanceof Error ? r.stack : undefined,
+  })
 })
 
 async function boot(): Promise<void> {
@@ -122,9 +126,20 @@ async function boot(): Promise<void> {
     const choice = await openNewAgent(ui, state, project, { toast, tab, hireSquad: project ? () => hireSquad(project) : undefined })
     if (choice?.kind !== 'summon') return
     try {
-      const a = await window.office.summon(choice.cwd, choice.permissionMode, choice.brain, choice.worktree)
+      const a = await window.office.summon(
+        choice.cwd,
+        choice.permissionMode,
+        choice.brain,
+        choice.worktree,
+        choice.confirmPermissionOverride,
+      )
       const floor = state.settings.projects.find((p) => p.id === a.project)
-      toast(floor && floor !== project ? `${a.name} está subindo para o andar ${floor.name}. Diga o que fazer.` : `${a.name} chegou. Diga o que fazer.`, 'ok')
+      toast(
+        floor && floor !== project
+          ? `${a.name} está subindo para o andar ${floor.name}. Diga o que fazer.`
+          : `${a.name} chegou. Diga o que fazer.`,
+        'ok',
+      )
       panel.open(a.id).then(() => panel.focusInput())
       game.focusAgent(a.id)
     } catch (err) {
@@ -191,37 +206,43 @@ async function boot(): Promise<void> {
       }),
   })
 
-  const hud = new Hud(ui, state, {
-    openAgent: (id) => {
-      panel.open(id)
-      game.focusAgent(id)
+  const hud = new Hud(
+    ui,
+    state,
+    {
+      openAgent: (id) => {
+        panel.open(id)
+        game.focusAgent(id)
+      },
+      focusAgent: (id) => game.focusAgent(id),
+      openItem: (agentId, itemId) => openItem(agentId, itemId),
+      settings: (section) =>
+        openSettings(ui, state, toast, { section, tour: replayTour, openTasks: (tasks) => void openTasksBoard(ui, state, toast, tasks) }),
+      goHome: () => game.goHome(),
+      zoom: (d) => game.zoom(d),
+      newAgent: () => void newAgent(),
+      goFloor: (n) => game.goFloor(n),
+      newFloor: () => void newFloor(),
+      accounts: () => openAccounts(ui, state, toast),
+      reports: () => openReports(ui, state, { project: game.currentProject, toast }),
+      openProposal: (id) => void openProposalReview(ui, toast, id),
+      review: () => void openReviewWizard(ui, toast),
+      iris: () => openIris(ui, toast),
+      board: (ticketId) => {
+        if (ticketId) board.open(ticketId)
+        else board.toggle()
+      },
+      resume: () =>
+        openResume(ui, state, {
+          openAgent: (id) => {
+            panel.open(id).then(() => panel.focusInput())
+            game.focusAgent(id)
+          },
+          toast,
+        }),
     },
-    focusAgent: (id) => game.focusAgent(id),
-    openItem: (agentId, itemId) => openItem(agentId, itemId),
-    settings: (section) => openSettings(ui, state, toast, { section, tour: replayTour, openTasks: (tasks) => void openTasksBoard(ui, state, toast, tasks) }),
-    goHome: () => game.goHome(),
-    zoom: (d) => game.zoom(d),
-    newAgent: () => void newAgent(),
-    goFloor: (n) => game.goFloor(n),
-    newFloor: () => void newFloor(),
-    accounts: () => openAccounts(ui, state, toast),
-    reports: () => openReports(ui, state, { project: game.currentProject, toast }),
-    openProposal: (id) => void openProposalReview(ui, toast, id),
-    review: () => void openReviewWizard(ui, toast),
-    iris: () => openIris(ui, toast),
-    board: (ticketId) => {
-      if (ticketId) board.open(ticketId)
-      else board.toggle()
-    },
-    resume: () =>
-      openResume(ui, state, {
-        openAgent: (id) => {
-          panel.open(id).then(() => panel.focusInput())
-          game.focusAgent(id)
-        },
-        toast,
-      }),
-  }, radio)
+    radio,
+  )
 
   radio.attach({ corners: () => game.tvCorners(), setOn: (on) => game.setTvOn(on) })
 
@@ -259,9 +280,35 @@ async function boot(): Promise<void> {
     const a = document.activeElement
     if (a instanceof HTMLInputElement || a instanceof HTMLTextAreaElement || a instanceof HTMLSelectElement) return
     if (e.key.toLowerCase() === 't' && !e.metaKey && !e.ctrlKey && !board.isOpen) board.open()
-    if (e.key.toLowerCase() === 'r' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.repeat && !board.isOpen && !ui.querySelector('.backdrop')) openReports(ui, state, { project: game.currentProject, toast })
-    if (e.key.toLowerCase() === 'i' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.repeat && !board.isOpen && !ui.querySelector('.backdrop')) hud.toggleInbox()
-    if (e.key.toLowerCase() === 'n' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.repeat && !board.isOpen && !ui.querySelector('.backdrop')) {
+    if (
+      e.key.toLowerCase() === 'r' &&
+      !e.metaKey &&
+      !e.ctrlKey &&
+      !e.altKey &&
+      !e.repeat &&
+      !board.isOpen &&
+      !ui.querySelector('.backdrop')
+    )
+      openReports(ui, state, { project: game.currentProject, toast })
+    if (
+      e.key.toLowerCase() === 'i' &&
+      !e.metaKey &&
+      !e.ctrlKey &&
+      !e.altKey &&
+      !e.repeat &&
+      !board.isOpen &&
+      !ui.querySelector('.backdrop')
+    )
+      hud.toggleInbox()
+    if (
+      e.key.toLowerCase() === 'n' &&
+      !e.metaKey &&
+      !e.ctrlKey &&
+      !e.altKey &&
+      !e.repeat &&
+      !board.isOpen &&
+      !ui.querySelector('.backdrop')
+    ) {
       e.preventDefault()
       void newAgent()
     }
@@ -328,7 +375,8 @@ async function boot(): Promise<void> {
     const reduced = video.effects === 'reduced' || reduceMotion.matches
     const key = JSON.stringify([video, reduced])
     if (key === videoKey) return
-    if (videoKey && video.saving !== was) toast(video.saving ? 'Na bateria: o escritório entrou no modo Economia.' : 'Na tomada: a qualidade gráfica voltou ao normal.')
+    if (videoKey && video.saving !== was)
+      toast(video.saving ? 'Na bateria: o escritório entrou no modo Economia.' : 'Na tomada: a qualidade gráfica voltou ao normal.')
     videoKey = key
     game.engine.setShadows(video.shadows, video.shadowMapSize)
     game.setReducedEffects(reduced)
@@ -379,8 +427,10 @@ async function boot(): Promise<void> {
     if (e.type === 'result:changes') dialog.syncChanges(e.resultId)
     if (e.type === 'ticket:upsert' && e.ticket.status !== before?.status) {
       const by = e.ticket.activity.at(-1)?.actor
-      if (e.ticket.status === 'review' && by?.kind === 'agent') toast(`${by.name} entregou o ${e.ticket.key}. Está esperando sua revisão no quadro.`, 'ok')
-      else if (!before && e.ticket.reporter.kind === 'agent') toast(`${e.ticket.reporter.name} abriu o ${e.ticket.key}: ${e.ticket.title}`, 'info')
+      if (e.ticket.status === 'review' && by?.kind === 'agent')
+        toast(`${by.name} entregou o ${e.ticket.key}. Está esperando sua revisão no quadro.`, 'ok')
+      else if (!before && e.ticket.reporter.kind === 'agent')
+        toast(`${e.ticket.reporter.name} abriu o ${e.ticket.key}: ${e.ticket.title}`, 'info')
     }
     if (e.type === 'permission:new') {
       const a = state.agents.get(e.request.agentId)
@@ -390,12 +440,19 @@ async function boot(): Promise<void> {
         const r = e.request
         const what = r.kind === 'question' ? 'tem uma pergunta' : r.kind === 'plan' ? 'trouxe um plano' : 'pede sua permissão'
         const detail = r.kind === 'tool' && r.detail ? ` ${r.detail.split('\n')[0].slice(0, 100)}.` : ''
-        const how = r.kind === 'question' ? 'Abra o cartão para responder.' : `Enter no cartão permite, ${state.platform === 'darwin' ? 'Command' : 'Control'} Backspace nega. I abre a caixa de entrada.`
+        const how =
+          r.kind === 'question'
+            ? 'Abra o cartão para responder.'
+            : `Enter no cartão permite, ${state.platform === 'darwin' ? 'Command' : 'Control'} Backspace nega. I abre a caixa de entrada.`
         announce(`${a.name} ${what}: ${r.title.replace(/[.?!:]*$/, '')}.${detail} ${how}`, 'assertive')
       }
     } else if (e.type === 'result:new') {
       const a = state.agents.get(e.result.agentId)
-      if (a) toast(e.result.isError ? `${a.name} teve um problema.` : `${a.name} terminou e vai te entregar o resultado.`, e.result.isError ? 'err' : 'ok')
+      if (a)
+        toast(
+          e.result.isError ? `${a.name} teve um problema.` : `${a.name} terminou e vai te entregar o resultado.`,
+          e.result.isError ? 'err' : 'ok',
+        )
     }
   })
 
@@ -424,7 +481,12 @@ async function boot(): Promise<void> {
   const frame = (now: number) => {
     requestAnimationFrame(frame)
     if (hidden()) return
-    const wait = frameInterval({ fpsLimit: video.fpsLimit, busy: game.busy, focused: headless || document.hasFocus(), fullSpeed: perf.recording })
+    const wait = frameInterval({
+      fpsLimit: video.fpsLimit,
+      busy: game.busy,
+      focused: headless || document.hasFocus(),
+      fullSpeed: perf.recording,
+    })
     // 2 ms of slack: animation frames land a little early or late
     if (now - drawnAt < wait - 2) return
     drawnAt = now
@@ -472,7 +534,8 @@ async function boot(): Promise<void> {
     setTimeout(tryReview, 2500)
   }
 
-  if (import.meta.env.DEV || new URLSearchParams(location.search).has('shots')) Object.assign(window, {
+  if (import.meta.env.DEV || new URLSearchParams(location.search).has('shots'))
+    Object.assign(window, {
       __game: game,
       __state: state,
       __perf: perf,
@@ -487,6 +550,10 @@ async function boot(): Promise<void> {
 }
 
 boot().catch((err) => {
-  window.office.reportError({ kind: 'error', message: `Falha ao iniciar: ${err instanceof Error ? err.message : String(err)}`, stack: err instanceof Error ? err.stack : undefined })
+  window.office.reportError({
+    kind: 'error',
+    message: `Falha ao iniciar: ${err instanceof Error ? err.message : String(err)}`,
+    stack: err instanceof Error ? err.stack : undefined,
+  })
   document.body.textContent = `Falha ao iniciar: ${err instanceof Error ? err.message : String(err)}`
 })

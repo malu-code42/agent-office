@@ -1,18 +1,10 @@
-import type { AgentSummary, OfficePermissionMode, Ticket, TicketStatus } from '@shared/types'
+import type { AgentSummary, Ticket, TicketStatus } from '@shared/types'
 import { h } from '../dom'
 import { renderMarkdown } from '../markdown'
 
 // Board constants and small DOM helpers shared by its parts.
 
 export type Who = 'all' | 'me' | 'agents' | 'none'
-
-/** "Sem pedir nada" is left out on purpose: a ticket may come from someone else. */
-export const DELEGATE_MODES: { value: OfficePermissionMode; label: string }[] = [
-  { value: 'default', label: 'Pedir permissão' },
-  { value: 'acceptEdits', label: 'Editar livremente' },
-  { value: 'auto', label: 'Automático' },
-  { value: 'plan', label: 'Planejar primeiro' },
-]
 
 export const EMPTY: Record<TicketStatus, string> = {
   backlog: 'Ideias e pedidos ainda sem prioridade.',
@@ -34,13 +26,27 @@ export function closedBody(t: Ticket): HTMLElement {
     'div',
     { class: 'closed-body' },
     t.description.trim() ? renderMarkdown(t.description) : h('div', { class: 'field-hint' }, 'Sem contexto.'),
-    t.acceptance.length ? h('ul', { class: 'closed-criteria' }, ...t.acceptance.map((c) => h('li', {}, `${c.done ? '✓' : '○'} ${c.text}`))) : null,
-    ...last.map((c) => h('div', { class: 'closed-comment' }, h('div', { class: 'closed-comment-who' }, `${c.author.name} · ${new Date(c.t).toLocaleDateString('pt-BR')}`), renderMarkdown(c.text))),
+    t.acceptance.length
+      ? h('ul', { class: 'closed-criteria' }, ...t.acceptance.map((c) => h('li', {}, `${c.done ? '✓' : '○'} ${c.text}`)))
+      : null,
+    ...last.map((c) =>
+      h(
+        'div',
+        { class: 'closed-comment' },
+        h('div', { class: 'closed-comment-who' }, `${c.author.name} · ${new Date(c.t).toLocaleDateString('pt-BR')}`),
+        renderMarkdown(c.text),
+      ),
+    ),
   )
 }
 
 export function filterSelect(all: string, options: { value: string; label: string }[]): HTMLSelectElement {
-  return h('select', { class: 'input board-filter' }, h('option', { value: '' }, all), ...options.map((o) => h('option', { value: o.value }, o.label)))
+  return h(
+    'select',
+    { class: 'input board-filter' },
+    h('option', { value: '' }, all),
+    ...options.map((o) => h('option', { value: o.value }, o.label)),
+  )
 }
 
 export function select<T extends string>(options: { value: T; label: string }[], value: T, onChange: (v: T) => void): HTMLSelectElement {

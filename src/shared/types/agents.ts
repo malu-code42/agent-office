@@ -179,6 +179,8 @@ export interface HireRequest {
   effort?: EffortLevel
   accounts?: string[]
   permissionMode: OfficePermissionMode
+  /** Set only after an explicit confirmation when selecting a more permissive project override. */
+  confirmPermissionOverride?: boolean
   /** Work in an isolated copy (git worktree). Missing = yes when the folder is a git repo. */
   worktree?: boolean
   /** Looks picked in a saved template; missing = drawn from the name. */

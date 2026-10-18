@@ -157,6 +157,7 @@ describe('export / import', () => {
     put('office.json', {
       settings: {
         defaultPermissionMode: 'bypassPermissions',
+        projects: [{ id: 'p1', name: 'Loja', cwd: '/projeto', permissionMode: 'bypassPermissions' }],
         accounts: [{ id: 'main' }, { id: 'b', configDir: '/Users/x/.claude-trabalho' }, { id: 'c', configDir: '/etc' }],
       },
     })
@@ -165,6 +166,7 @@ describe('export / import', () => {
       applyImport(other, parseExport(JSON.stringify(buildExport(dir))), '/Users/outra')
       const s = JSON.parse(readFileSync(join(other, 'office.json'), 'utf8')).settings
       expect(s.defaultPermissionMode).toBe('default')
+      expect(s.projects[0].permissionMode).toBe('default')
       // join, not a fixed string: on Windows the folder is \Users\outra\.claude-trabalho (AO-42).
       expect(s.accounts).toEqual([{ id: 'main' }, { id: 'b', configDir: join('/Users/outra', '.claude-trabalho') }])
     } finally {

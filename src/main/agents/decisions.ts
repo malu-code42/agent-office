@@ -1,11 +1,42 @@
 import { randomUUID } from 'node:crypto'
+import { lstatSync, realpathSync } from 'node:fs'
+import { basename, dirname, join, resolve } from 'node:path'
 import { type PermissionResult, type PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
 import type { AgentResult, AgentSummary, PermissionDecision, PermissionRequest, ResultChanges } from '@shared/types'
+import { projectFor } from '@shared/projects'
 import { outsideTeam, readProgress, type SquadDefinition } from '../squads'
 import { changesSince, displayPath } from '../git'
+import { decide } from '../permissions/policy'
 import { permissionFromTool } from './permissions'
 import { type Agent } from './types'
 import { AgentSubagents } from './subagents'
+
+/**
+ * Caminho real (symlinks e caixa de letra resolvidos) sem exigir que o arquivo exista:
+ * a pasta existente mais perto resolve e o resto fica relativo (Write/ManageEdits de
+ * arquivo novo precisa). Sobe só por ENOENT de componente ausente; link quebrado
+ * (o próprio link existe, o destino não) e caminho inacessível falham e propagam:
+ * a política vira pergunta dura. Windows (drive) e POSIX.
+ */
+export function lenientRealpath(p: string): string {
+  let head = resolve(p)
+  const tail: string[] = []
+  for (;;) {
+    try {
+      lstatSync(head)
+    } catch (err) {
+      if ((err as { code?: string }).code !== 'ENOENT') throw err // EACCES e afins: fail-closed
+      const parent = dirname(head)
+      if (parent === head) return resolve(p) // nada existe até a raiz: fica lexical, a política julga
+      tail.unshift(basename(head))
+      head = parent
+      continue
+    }
+    // O componente existe (symlink incluso): o caminho real tem de resolver.
+    // Link quebrado falha aqui e propaga — pergunta dura na política.
+    return tail.length ? join(realpathSync(head), ...tail) : realpathSync(head)
+  }
+}
 
 /** Permissions (asking the player, decisions) and results, shared by office and terminal agents. */
 export abstract class AgentDecisions extends AgentSubagents {
@@ -23,7 +54,20 @@ export abstract class AgentDecisions extends AgentSubagents {
       const why = outsideTeam(squad, tool, input)
       return Promise.resolve(why ? { behavior: 'deny', message: why } : { behavior: 'allow', updatedInput: input })
     }
-    const req = permissionFromTool(tool, input, opts.decisionReason, !!opts.suggestions?.length)
+    // A política do Office é a autoridade: o que ela provou seguro nem chega no cartão.
+    // O escopo é a pasta em que este comando roda (a worktree, quando há).
+    const s = agent.summary
+    const project = projectFor(this.store.settings.projects, s.cwd)
+    const scope = {
+      cwd: s.worktree?.path ?? s.cwd,
+      realpath: lenientRealpath,
+      rules: project?.alwaysAllow,
+    }
+    const check = decide(s.permissionMode, tool, input, scope)
+    if (check.verdict === 'allow') return Promise.resolve({ behavior: 'allow', updatedInput: input })
+    // O que pede é o risco classificado (o porquê da política), não a sugestão do CLI.
+    const canAlwaysAllow = !!project && s.permissionMode !== 'plan' && decide('auto', tool, input, scope).verdict === 'allow'
+    const req = permissionFromTool(tool, input, check.why ?? opts.decisionReason, canAlwaysAllow)
     if (opts.agentID) req.subagent = this.subagentLabel(agent, opts.agentID)
     if (squad) req.context = this.squadContext(agent, squad, tool === 'AskUserQuestion')
     return new Promise((resolve) => {
@@ -33,15 +77,28 @@ export abstract class AgentDecisions extends AgentSubagents {
         } else if (tool === 'AskUserQuestion') {
           resolve({ behavior: 'allow', updatedInput: { ...input, answers: d.answers ?? {} } })
         } else {
-          resolve({
-            behavior: 'allow',
-            updatedInput: input,
-            ...(d.behavior === 'allow_always' && opts.suggestions ? { updatedPermissions: opts.suggestions } : {}),
-          })
+          // Persist an exact, re-classified project rule only when the Office offered it.
+          // The SDK never receives updatedPermissions; approval is one-shot for this call.
+          if (d.behavior === 'allow_always' && req.canAlwaysAllow && project) this.saveAlwaysAllow(project.id, tool, input)
+          resolve({ behavior: 'allow', updatedInput: input })
         }
       })
       opts.signal.addEventListener('abort', () => this.cancelRequest(id, 'Cancelado.'), { once: true })
     })
+  }
+
+  private saveAlwaysAllow(projectId: string, tool: string, input: Record<string, unknown>): void {
+    const settings = this.store.settings
+    const floor = settings.projects.find((p) => p.id === projectId)
+    if (!floor) return
+    const command = tool === 'Bash' && typeof input.command === 'string' ? input.command : undefined
+    const kind: 'command' | 'tool' = command ? 'command' : 'tool'
+    const value = command ?? tool
+    const rules = floor.alwaysAllow ?? []
+    if (rules.some((rule) => rule.kind === kind && rule.value === value)) return
+    const updated = { ...floor, alwaysAllow: [...rules, { id: randomUUID(), createdAt: Date.now(), kind, value }].slice(0, 100) }
+    this.store.settings = { ...settings, projects: settings.projects.map((p) => (p.id === projectId ? updated : p)) }
+    this.send({ type: 'settings', settings: this.store.settings })
   }
 
   /** "Ciclo de Produto · Passo 1 · Foco da semana": read fresh, the watcher may still be debouncing. */
@@ -53,17 +110,31 @@ export abstract class AgentDecisions extends AgentSubagents {
     }
     if (!step?.current) return squad.name
     const who = !question && step.agent ? squad.members.find((m) => m.id === step.agent) : undefined
-    return [squad.name, `Passo ${step.current}${step.total ? `/${step.total}` : ''}`, step.label, who ? `${who.icon} ${who.name}` : ''].filter(Boolean).join(' · ')
+    return [squad.name, `Passo ${step.current}${step.total ? `/${step.total}` : ''}`, step.label, who ? `${who.icon} ${who.name}` : '']
+      .filter(Boolean)
+      .join(' · ')
   }
 
   // ---------- decisions (shared by office and terminal agents) ----------
 
-  requestDecision(agentId: string, req: Omit<PermissionRequest, 'id' | 'agentId' | 'createdAt'>, onDecision: (d: PermissionDecision) => void): string {
+  requestDecision(
+    agentId: string,
+    req: Omit<PermissionRequest, 'id' | 'agentId' | 'createdAt'>,
+    onDecision: (d: PermissionDecision) => void,
+  ): string {
     const agent = this.agents.get(agentId)
     const request: PermissionRequest = { ...req, id: randomUUID(), agentId, createdAt: Date.now() }
     this.pending.set(request.id, { request, resolve: onDecision })
     if (agent) {
-      this.setStatus(agent, 'waiting', req.kind === 'question' ? 'Com uma pergunta para você' : req.kind === 'plan' ? 'Com um plano para você' : 'Precisa da sua permissão')
+      this.setStatus(
+        agent,
+        'waiting',
+        req.kind === 'question'
+          ? 'Com uma pergunta para você'
+          : req.kind === 'plan'
+            ? 'Com um plano para você'
+            : 'Precisa da sua permissão',
+      )
     }
     this.send({ type: 'permission:new', request })
     return request.id
@@ -77,7 +148,13 @@ export abstract class AgentDecisions extends AgentSubagents {
     if (agent) {
       const verdict = d.behavior === 'deny' ? 'Negado' : d.behavior === 'allow_always' ? 'Sempre permitido' : 'Permitido'
       const answers = d.answers ? Object.values(d.answers).join(', ') : ''
-      this.addLog(agent, 'decision', p.request.kind === 'question' ? `Você respondeu: ${answers}` : `${verdict}: ${p.request.title}${d.message ? ` — ${d.message}` : ''}`)
+      this.addLog(
+        agent,
+        'decision',
+        p.request.kind === 'question'
+          ? `Você respondeu: ${answers}`
+          : `${verdict}: ${p.request.title}${d.message ? ` — ${d.message}` : ''}`,
+      )
       if (!this.hasPending(agent.summary.id)) this.setStatus(agent, 'working', 'Voltando ao trabalho')
     }
     this.send({ type: 'permission:resolved', requestId: d.requestId, agentId: p.request.agentId })
@@ -91,7 +168,8 @@ export abstract class AgentDecisions extends AgentSubagents {
     this.send({ type: 'permission:resolved', requestId, agentId: p.request.agentId })
     p.resolve({ requestId, behavior: 'deny', message })
     const agent = this.agents.get(p.request.agentId)
-    if (agent && agent.summary.status === 'waiting' && !this.hasPending(agent.summary.id)) this.setStatus(agent, 'working', 'Voltando ao trabalho')
+    if (agent && agent.summary.status === 'waiting' && !this.hasPending(agent.summary.id))
+      this.setStatus(agent, 'working', 'Voltando ao trabalho')
   }
 
   cancelAgentRequests(agentId: string, message = 'Interrompido pelo usuário.'): void {

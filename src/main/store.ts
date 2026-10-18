@@ -11,7 +11,7 @@ import { loadTemplates } from './templates'
 import type { SessionMark } from './ledger'
 import { backupCopies, shapeOf } from './backups'
 import { loadJson, reportLoad, writeJsonAtomic } from './fs-safe'
-import { cleanVideo } from './validate'
+import { cleanAlwaysAllowRules, permissionModeSchema, cleanVideo } from './validate'
 
 export interface PersistedAgent {
   summary: AgentSummary
@@ -54,6 +54,16 @@ function migrateSettings(raw: Record<string, unknown> | undefined): Settings {
   const { squadFolder, squadFloorName, ...rest } = (raw ?? {}) as Record<string, unknown>
   const settings = { ...DEFAULT_SETTINGS, ...rest } as Settings
   if (!Array.isArray(settings.projects)) settings.projects = []
+  else
+    settings.projects = settings.projects.map((raw) => {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw
+      const project = { ...(raw as unknown as Record<string, unknown>) }
+      const mode = permissionModeSchema.safeParse(project.permissionMode)
+      if (mode.success) project.permissionMode = mode.data
+      else delete project.permissionMode
+      if (Object.hasOwn(project, 'alwaysAllow')) project.alwaysAllow = cleanAlwaysAllowRules(project.alwaysAllow)
+      return project
+    }) as Settings['projects']
   if (!Array.isArray(settings.accounts)) settings.accounts = []
   // The main login (~/.claude) is always there, first.
   if (!settings.accounts.some((a) => a.id === MAIN_ACCOUNT)) settings.accounts = [mainAccount(), ...settings.accounts]

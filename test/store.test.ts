@@ -70,6 +70,25 @@ describe('Store: carga e migração das configurações', () => {
     expect(s.video).toEqual(DEFAULT_VIDEO)
   })
 
+  it('modo e regras "Sempre permitir" quebrados num andar antigo somem na carga', () => {
+    write({
+      settings: {
+        projects: [
+          {
+            id: 'p1',
+            name: 'Loja',
+            cwd: '/x/y',
+            permissionMode: 'raiz',
+            alwaysAllow: [{ kind: 'tool', value: '' }, 'lixo', { id: 'r1', kind: 'command', value: 'npm test' }],
+          },
+        ],
+      },
+    })
+    const [p] = new Store().settings.projects
+    expect('permissionMode' in p).toBe(false)
+    expect(p.alwaysAllow).toEqual([{ id: 'r1', createdAt: expect.any(Number), kind: 'command', value: 'npm test' }])
+  })
+
   it('vídeo: campo ruim volta ao padrão, os bons ficam', () => {
     write({ settings: { video: { shadows: false, fpsLimit: 45, effects: 'reduced', extra: 1 } } })
     expect(new Store().settings.video).toEqual({ ...DEFAULT_VIDEO, shadows: false, effects: 'reduced' })

@@ -14,10 +14,18 @@ const LAST_RUN_MODE = 'agent-office:squad-mode'
  * Diretoria with the whole team to run its pipeline. Hiring it again for the same
  * squad just starts another cycle. Squad cycles never run with "Sem pedir nada".
  */
-export function openRunSquad(root: HTMLElement, state: State, project: ProjectFloor, toast: (t: string, k?: 'info' | 'ok' | 'err') => void, onStarted: (a: AgentSummary) => void): void {
+export function openRunSquad(
+  root: HTMLElement,
+  state: State,
+  project: ProjectFloor,
+  toast: (t: string, k?: 'info' | 'ok' | 'err') => void,
+  onStarted: (a: AgentSummary) => void,
+): void {
   const squads = state.squads.filter((q) => q.cwd === project.cwd)
   if (!squads.length) return toast(`${project.name} não tem squads: nenhum squads/<code>/squad.yaml na pasta do projeto.`, 'err')
-  const here = new Map([...state.agents.values()].filter((a) => a.role === 'orchestrator' && a.cwd === project.cwd).map((a) => [a.squad, a]))
+  const here = new Map(
+    [...state.agents.values()].filter((a) => a.role === 'orchestrator' && a.cwd === project.cwd).map((a) => [a.squad, a]),
+  )
   const busy = (a: AgentSummary | undefined) => !!a && a.status !== 'idle' && a.status !== 'done' && a.status !== 'error'
   let chosen = squads[0]
   const cards = squads.map((q) => {
@@ -30,8 +38,17 @@ export function openRunSquad(root: HTMLElement, state: State, project: ProjectFl
       h(
         'span',
         { class: 'squad-main' },
-        h('span', { class: 'squad-name' }, q.name, boss ? h('span', { class: `chip ${busy(boss) ? 'chip-wait' : ''}` }, busy(boss) ? 'rodando' : 'na Diretoria') : null),
-        h('span', { class: 'squad-meta' }, `${q.members.length} membros${inline ? ` (${inline} inline)` : ''} · ${q.steps.length} passos · ${q.steps.filter((x) => x.type === 'checkpoint').length} checkpoints`),
+        h(
+          'span',
+          { class: 'squad-name' },
+          q.name,
+          boss ? h('span', { class: `chip ${busy(boss) ? 'chip-wait' : ''}` }, busy(boss) ? 'rodando' : 'na Diretoria') : null,
+        ),
+        h(
+          'span',
+          { class: 'squad-meta' },
+          `${q.members.length} membros${inline ? ` (${inline} inline)` : ''} · ${q.steps.length} passos · ${q.steps.filter((x) => x.type === 'checkpoint').length} checkpoints`,
+        ),
         q.description ? h('span', { class: 'squad-desc' }, q.description) : null,
       ),
     )
@@ -44,7 +61,12 @@ export function openRunSquad(root: HTMLElement, state: State, project: ProjectFl
 
   const mode = h('select', { class: 'input' }, ...RUN_MODES.map((m) => h('option', { value: m.value }, m.label)))
   const saved = localStorage.getItem(LAST_RUN_MODE)
-  mode.value = RUN_MODES.some((m) => m.value === saved) ? saved! : RUN_MODES.some((m) => m.value === state.settings.defaultPermissionMode) ? state.settings.defaultPermissionMode : 'default'
+  const inheritedMode = project.permissionMode ?? state.settings.defaultPermissionMode
+  mode.value = RUN_MODES.some((m) => m.value === saved)
+    ? saved!
+    : RUN_MODES.some((m) => m.value === inheritedMode)
+      ? inheritedMode
+      : 'default'
   const modeHint = h('span', {})
   const syncHint = () => (modeHint.textContent = RUN_MODES.find((x) => x.value === mode.value)!.hint)
   mode.addEventListener('change', syncHint)
@@ -61,8 +83,10 @@ export function openRunSquad(root: HTMLElement, state: State, project: ProjectFl
   go.addEventListener('click', async () => {
     go.setAttribute('disabled', '')
     try {
+      const modeOrder: OfficePermissionMode[] = ['plan', 'default', 'acceptEdits', 'auto', 'bypassPermissions']
+      const confirmOverride = modeOrder.indexOf(mode.value as OfficePermissionMode) > modeOrder.indexOf(inheritedMode)
       localStorage.setItem(LAST_RUN_MODE, mode.value)
-      const a = await window.office.runSquad(chosen.cwd, chosen.code, mode.value as OfficePermissionMode, note.value)
+      const a = await window.office.runSquad(chosen.cwd, chosen.code, mode.value as OfficePermissionMode, note.value, confirmOverride)
       close()
       toast(`${a.name} subiu para a Diretoria com o squad e começou o ciclo.`, 'ok')
       onStarted(a)
