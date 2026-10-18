@@ -4,22 +4,41 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin: 0 0 8px;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .review-step {
-  padding: 4px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
   color: var(--muted);
   font-size: 12px;
 }
 
+.review-step-num {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  color: var(--text);
+  font-size: 11px;
+}
+
 .review-step[aria-current='step'] {
   border-color: var(--accent);
   color: var(--text);
+}
+
+.review-step[aria-current='step'] .review-step-num {
+  background: var(--accent-solid);
+  color: #fff;
 }
 
 .review-step[data-done='true'] {
@@ -68,11 +87,24 @@
   font-size: 12px;
 }
 
-.review-choices,
-.review-postpone {
+.review-choices {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+/* The "Adiar" menu opens above its button: the footer is the last thing in the modal. */
+.review-postpone {
+  position: relative;
+}
+
+.review-postpone .tmenu {
+  top: auto;
+  bottom: 100%;
+  left: auto;
+  right: 0;
+  width: 150px;
+  margin: 0 0 4px;
 }
 
 .review-detail {

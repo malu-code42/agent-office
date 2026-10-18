@@ -16,6 +16,7 @@ import {
 } from '@shared/review'
 import { h } from './dom'
 import { cleanError, modal } from './modals/common'
+import { openTaskMenu, type TaskMenuOption } from './tasks-move'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
 
@@ -41,13 +42,27 @@ const CHOICE_LABELS: { kind: FocusChoice['kind']; label: string }[] = [
 ]
 
 const POSTPONE_LABELS: { option: ReviewPostpone; label: string }[] = [
-  { option: 1, label: 'Adiar 1 dia' },
-  { option: 2, label: 'Adiar 2 dias' },
-  { option: 3, label: 'Adiar 3 dias' },
-  { option: 7, label: 'Adiar 1 semana' },
+  { option: 1, label: '1 dia' },
+  { option: 2, label: '2 dias' },
+  { option: 3, label: '3 dias' },
+  { option: 7, label: '1 semana' },
 ]
 
+const OFFER = 'A Íris propõe revisar o seu dia: agenda, foco, estudos e andares.'
+const OFFER_NOTE = 'Nada muda sem a sua confirmação no fim. Se quiser, adie a revisão.'
+
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`
+
+/** The four steps as pills. `current` is the step on screen; on the offer it is -1, and no pill is highlighted. */
+const stepItems = (current: number): HTMLElement[] =>
+  REVIEW_STEPS.map((s, i) =>
+    h(
+      'li',
+      { class: 'review-step', 'aria-current': i === current ? 'step' : undefined, 'data-done': String(i < current) },
+      h('span', { class: 'review-step-num' }, String(i + 1)),
+      REVIEW_STEP_TITLES[s],
+    ),
+  )
 
 /** The offer of the day: shown on the first open of each local day. "Dispensar hoje" and Esc leave it for the day. */
 export function openReviewOffer(root: HTMLElement, toast: Toast): void {
@@ -70,22 +85,28 @@ export function openReviewOffer(root: HTMLElement, toast: Toast): void {
     void openReviewWizard(root, toast)
   }
   const dismiss = () => void leave('dispensar')
+  const postpone = h('div', { class: 'review-postpone' })
+  const postponeBtn = h(
+    'button',
+    {
+      class: 'btn',
+      type: 'button',
+      'aria-haspopup': 'menu',
+      onclick: () => {
+        const options: TaskMenuOption[] = POSTPONE_LABELS.map(({ option, label }) => ({ text: label, choose: () => void leave(option) }))
+        openTaskMenu(postpone, 'Adiar a revisão', options, '', postponeBtn)
+      },
+    },
+    'Adiar',
+  )
+  postpone.append(postponeBtn)
   const el = modal(
     'Revisão do dia',
-    [
-      h('p', {}, 'A Íris propõe revisar o seu dia: agenda, foco, estudos e andares.'),
-      h('p', { class: 'hint' }, 'Nada muda sem a sua confirmação no fim. Se quiser, adie a revisão.'),
-    ],
+    [h('ol', { class: 'review-steps' }, ...stepItems(-1)), h('p', {}, `${OFFER} ${OFFER_NOTE}`)],
     [
       h('button', { class: 'btn', type: 'button', onclick: dismiss }, 'Dispensar hoje'),
-      h(
-        'div',
-        { class: 'review-postpone', role: 'group', 'aria-label': 'Adiar a revisão' },
-        ...POSTPONE_LABELS.map(({ option, label }) =>
-          h('button', { class: 'btn btn-small', type: 'button', onclick: () => void leave(option) }, label),
-        ),
-      ),
       h('div', { class: 'grow' }),
+      postpone,
       h('button', { class: 'btn btn-primary', type: 'button', onclick: start }, 'Começar'),
     ],
     dismiss,
@@ -325,15 +346,7 @@ export async function openReviewWizard(root: HTMLElement, toast: Toast): Promise
 
   const render = () => {
     const current = plan()
-    stepsEl.replaceChildren(
-      ...REVIEW_STEPS.map((s, i) =>
-        h(
-          'li',
-          { class: 'review-step', 'aria-current': i === step ? 'step' : undefined, 'data-done': String(i < step) },
-          `${i + 1}. ${REVIEW_STEP_TITLES[s]}`,
-        ),
-      ),
-    )
+    stepsEl.replaceChildren(...stepItems(step))
     hintEl.textContent = REVIEW_STEP_HINTS[REVIEW_STEPS[step]]
     content.replaceChildren(...stepBody(REVIEW_STEPS[step], current))
     actions.replaceChildren(...footer(current))
