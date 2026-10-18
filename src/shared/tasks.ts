@@ -305,12 +305,30 @@ export function boardView(lists: readonly TaskList[]): BoardView {
         completed.push({ list: list.name, task })
     }
     if (list.name === ARCHIVE_LIST) continue
-    columns.push({ name: list.name, tasks: list.tasks.filter((task) => task.status !== 'completed') })
+    columns.push({ name: list.name, tasks: orderTasks(list.tasks.filter((task) => task.status !== 'completed')) })
   }
   return { columns, completed }
 }
 
-/** The days the Reagendar menu offers, from the local "today": tomorrow, in three days, and the Monday of next week. */
+/**
+ * A date string DD.MM.AAAA as a sortable key; null when the string is missing or invalid.
+ */
+function dateKey(date: string | undefined): number | null {
+  if (!date || !DATE_FORMAT.test(date)) return null
+  const [d, m, y] = date.split('.').map(Number)
+  return new Date(y, m - 1, d).getTime()
+}
+
+/**
+ * Tasks with a date come first, ordered by proximity (nearest date first); tasks without a
+ * date keep their original order after them.
+ */
+function orderTasks(tasks: readonly Task[]): Task[] {
+  const dated = tasks.filter((t) => dateKey(t.date) !== null).sort((a, b) => dateKey(a.date)! - dateKey(b.date)!)
+  const undated = tasks.filter((t) => !t.date)
+  return [...dated, ...undated]
+}
+
 export function rescheduleTargets(today: Date): { label: string; date: string }[] {
   const daysAhead = (n: number) => dayLabel(new Date(today.getFullYear(), today.getMonth(), today.getDate() + n))
   // Sunday (0) gives 1 day, Monday (1) gives 7: always the Monday after today.

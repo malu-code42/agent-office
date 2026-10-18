@@ -303,6 +303,18 @@
   color: var(--muted);
 }
 
+.tcard-date {
+  margin: 4px 0 6px 0;
+}
+
+.tcard-date-text {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-solid);
+  white-space: nowrap;
+}
+
+
 /* which floor a card belongs to, on "Todos os andares" */
 .tfloor {
   --floor: var(--accent);
@@ -334,6 +346,16 @@
   background: rgba(62, 207, 142, 0.14);
   color: var(--green-text);
 }
+.ttype-improvement {
+  background: rgba(62, 207, 142, 0.14);
+  color: var(--green-text);
+}
+
+.tcard-bold {
+  color: var(--accent-solid);
+  font-weight: 700;
+}
+
 
 .tprio {
   margin-left: auto;
