@@ -154,7 +154,7 @@ describe('complete and undo in createTaskWriter', () => {
   })
 
   it('completes by id, the way the focus popup does', () => {
-    const writer = createTaskWriter({ newId: ids('tnovo01') })
+    const writer = createTaskWriter({ newId: ids('tnovo01'), now: () => DAY })
     writer.remember(vault, SOURCE)
 
     expect(writer.complete(vault, 'tabc123').id).toBe('tabc123')
