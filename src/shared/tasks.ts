@@ -310,8 +310,16 @@ export function boardView(lists: readonly TaskList[]): BoardView {
   return { columns, completed }
 }
 
+/** Ano usado para datas legadas que trazem apenas dia e mês (sem ano). */
+const LEGACY_NO_YEAR = 2026
+
+const DUE_DATE_DDMMYYYY = /^(\d{2})\.(\d{2})\.(\d{4})$/
+const DUE_DATE_DDMM = /^(\d{2})\.(\d{2})$/
+const DUE_DATE_ISO = /^(\d{4})-(\d{2})-(\d{2})$/
+
 /**
  * A date string DD.MM.AAAA as a sortable key; null when the string is missing or invalid.
+ * Used by the new `date` format, which always carries a full year.
  */
 function dateKey(date: string | undefined): number | null {
   if (!date || !DATE_FORMAT.test(date)) return null
@@ -320,12 +328,62 @@ function dateKey(date: string | undefined): number | null {
 }
 
 /**
+ * The legacy `dueDate` as a sortable key: `DD.MM.AAAA`, `DD.MM` (year 2026 when it has no
+ * year) or ISO `AAAA-MM-DD`. It never uses `new Date(isoString)`, which would read the ISO in
+ * UTC and could shift a day by the time zone; every form is read as a local date. Null when
+ * missing or invalid (a day/month/year that does not exist in the calendar, like 31.02).
+ */
+function dueDateKey(dueDate: string | undefined): number | null {
+  if (!dueDate) return null
+  let d: number
+  let m: number
+  let y: number
+  const ddmmyyyy = DUE_DATE_DDMMYYYY.exec(dueDate)
+  if (ddmmyyyy) {
+    d = Number(ddmmyyyy[1])
+    m = Number(ddmmyyyy[2])
+    y = Number(ddmmyyyy[3])
+  } else {
+    const ddmm = DUE_DATE_DDMM.exec(dueDate)
+    if (ddmm) {
+      d = Number(ddmm[1])
+      m = Number(ddmm[2])
+      y = LEGACY_NO_YEAR
+    } else {
+      const iso = DUE_DATE_ISO.exec(dueDate)
+      if (!iso) return null
+      y = Number(iso[1])
+      m = Number(iso[2])
+      d = Number(iso[3])
+    }
+  }
+  if (!isValidCalendarDate(y, m, d)) return null
+  return new Date(y, m - 1, d).getTime()
+}
+
+/** Whether the year/month/day form a real calendar date. */
+function isValidCalendarDate(y: number, m: number, d: number): boolean {
+  const parsed = new Date(y, m - 1, d)
+  return parsed.getFullYear() === y && parsed.getMonth() === m - 1 && parsed.getDate() === d
+}
+
+/**
  * Tasks with a date come first, ordered by proximity (nearest date first); tasks without a
- * date keep their original order after them.
+ * valid date keep their original order after them. The date is `date` (new format) or the
+ * legacy `dueDate` (`DD.MM.AAAA`, `DD.MM` in 2026, or ISO `AAAA-MM-DD`), read as written and
+ * never converted or mutated. Ties keep their original order.
  */
 function orderTasks(tasks: readonly Task[]): Task[] {
-  const dated = tasks.filter((t) => dateKey(t.date) !== null).sort((a, b) => dateKey(a.date)! - dateKey(b.date)!)
-  const undated = tasks.filter((t) => !t.date)
+  const indexed = tasks.map((task, index) => ({
+    task,
+    index,
+    key: dateKey(task.date) ?? dueDateKey(task.dueDate),
+  }))
+  const dated = indexed
+    .filter((entry) => entry.key !== null)
+    .sort((a, b) => a.key! - b.key! || a.index - b.index)
+    .map((entry) => entry.task)
+  const undated = indexed.filter((entry) => entry.key === null).map((entry) => entry.task)
   return [...dated, ...undated]
 }
 

@@ -189,6 +189,97 @@ describe('boardView', () => {
     expect(columns[0]?.tasks.map((task) => task.text)).toEqual(['Com data', 'Sem data 1', 'Sem data 2'])
   })
 
+  it('ordena também pelas datas legadas de dueDate em DD.MM.AAAA', () => {
+    const { columns } = boardView([
+      {
+        name: 'Casa',
+        tasks: [
+          aTask({ text: 'Dia 20', line: 3, dueDate: '20.10.2026' }),
+          aTask({ text: 'Dia 16', line: 1, dueDate: '16.10.2026' }),
+          aTask({ text: 'Dia 18', line: 2, dueDate: '18.10.2026' }),
+        ],
+      },
+    ])
+
+    expect(columns[0]?.tasks.map((task) => task.text)).toEqual(['Dia 16', 'Dia 18', 'Dia 20'])
+  })
+
+  it('trata dueDate DD.MM como 2026 na ordenação', () => {
+    const { columns } = boardView([
+      {
+        name: 'Casa',
+        tasks: [
+          aTask({ text: 'Dia 20', line: 3, dueDate: '20.10.2026' }),
+          aTask({ text: 'Dia 9 outubro', line: 1, dueDate: '09.10' }),
+          aTask({ text: 'Dia 16', line: 2, dueDate: '16.10.2026' }),
+        ],
+      },
+    ])
+
+    expect(columns[0]?.tasks.map((task) => task.text)).toEqual(['Dia 9 outubro', 'Dia 16', 'Dia 20'])
+  })
+
+  it('ordena dueDate ISO AAAA-MM-DD sem deslocar dia pelo fuso horário', () => {
+    const { columns } = boardView([
+      {
+        name: 'Casa',
+        tasks: [
+          aTask({ text: 'Dia 20', line: 3, dueDate: '2026-10-20' }),
+          aTask({ text: 'Dia 16', line: 1, dueDate: '2026-10-16' }),
+          aTask({ text: 'Dia 18', line: 2, dueDate: '2026-10-18' }),
+        ],
+      },
+    ])
+
+    expect(columns[0]?.tasks.map((task) => task.text)).toEqual(['Dia 16', 'Dia 18', 'Dia 20'])
+  })
+
+  it('ordena date novo e dueDate legado pela mesma chave de proximidade', () => {
+    const { columns } = boardView([
+      {
+        name: 'Casa',
+        tasks: [
+          aTask({ text: 'Legado 20', line: 1, dueDate: '20.10.2026' }),
+          aTask({ text: 'Novo 16', line: 2, date: '16.10.2026' }),
+          aTask({ text: 'Legado 18', line: 3, dueDate: '18.10.2026' }),
+        ],
+      },
+    ])
+
+    expect(columns[0]?.tasks.map((task) => task.text)).toEqual(['Novo 16', 'Legado 18', 'Legado 20'])
+  })
+
+  it('mantém a ordem original entre tarefas com a mesma dueDate legacy', () => {
+    const { columns } = boardView([
+      {
+        name: 'Casa',
+        tasks: [
+          aTask({ text: 'Primeira', line: 1, dueDate: '16.10.2026' }),
+          aTask({ text: 'Segunda', line: 2, dueDate: '2026-10-16' }),
+          aTask({ text: 'Terceira', line: 3, dueDate: '16.10.2026' }),
+        ],
+      },
+    ])
+
+    expect(columns[0]?.tasks.map((task) => task.text)).toEqual(['Primeira', 'Segunda', 'Terceira'])
+  })
+
+  it('deixa dueDate inválido como sem data, depois das válidas, na ordem original', () => {
+    const { columns } = boardView([
+      {
+        name: 'Casa',
+        tasks: [
+          aTask({ text: 'Inválida', line: 1, dueDate: '99.99.9999' }),
+          aTask({ text: 'Com data', line: 2, dueDate: '16.10.2026' }),
+          aTask({ text: 'Também inválida', line: 3, dueDate: 'não é data' }),
+          aTask({ text: 'Sem data', line: 4 }),
+        ],
+      },
+    ])
+
+    expect(columns[0]?.tasks.map((task) => task.text)).toEqual(['Com data', 'Inválida', 'Também inválida', 'Sem data'])
+  })
+
   it('remove concluídas das colunas e as lista em concluídas, com os descartados do Archive', () => {
     const { columns, completed } = boardView([
       {
