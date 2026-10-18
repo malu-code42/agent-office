@@ -20,9 +20,20 @@ import { openMoveMenu, openTaskMenu } from './tasks-move'
 import { openIris } from './iris'
 import { openNewTask } from './tasks-new'
 import { runDiscard, runReopen } from './tasks-discard'
+import { keepListScroll } from './tasks-board-scroll'
 import './focus.css'
 
 const ARROWS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
+
+/** The card to focus after a move: the list it went to and its title. */
+type Moved = { list: string; text: string }
+
+/** Draws the open board again, in place, with new data. */
+type Render = (next: ParsedBoard, nextFocused: Set<string>, moved?: Moved) => void
+
+/** The render of each open board: an action draws the same element again, so it does not blink. */
+const renders = new WeakMap<HTMLElement, Render>()
+let latestRefresh = 0
 
 /** Renders `**negrito**` and `*itálico*` as elements; everything else stays text. */
 function taskTitle(text: string): (Node | string)[] {
@@ -70,13 +81,23 @@ function moveFocus(columns: HTMLElement[], key: string): void {
   targetCards[at].focus()
 }
 
+/** Scroll offset of each list in the open board, by name. */
+function listScroll(cols: HTMLElement): Map<string, number> {
+  return new Map(
+    [...cols.querySelectorAll<HTMLElement>('.tcol')].map((column): [string, number] => [
+      column.dataset.list ?? '',
+      column.querySelector<HTMLElement>('.tcol-list')?.scrollTop ?? 0,
+    ]),
+  )
+}
+
 /** `moved` is the card to focus after a move: the list it went to and its title. */
 export async function openTasksBoard(
   root: HTMLElement,
   state: State,
   toast: Toast,
   initialBoard?: ParsedBoard,
-  moved?: { list: string; text: string },
+  moved?: Moved,
 ): Promise<void> {
   const vaultPath = state.settings.vaultPath
   if (!vaultPath && !initialBoard) {
@@ -85,20 +106,22 @@ export async function openTasksBoard(
   }
 
   try {
-    const data = initialBoard ?? (await window.office.readTasks())
-    const focused = new Set((await window.office.readFocus()).map((item) => item.id))
-    const isFocused = (task: Task) => !!task.id && focused.has(focusKey(task.id))
-    // The Archive is not a column, and completed tasks are listed apart: see boardView.
-    const { columns, completed } = boardView(data.lists)
-    const focusBack = new FocusReturn()
+    const initial = initialBoard ?? (await window.office.readTasks())
+    const initialFocused = new Set((await window.office.readFocus()).map((item) => item.id))
+    // The board element stays while it is open: every change goes through render, never a new board.
+    let data = initial
+    let focused = initialFocused
+    let columns: TaskList[] = []
     let dragging: { line: number; list: string; text: string } | null = null
+    let showCompleted = false
+    const isFocused = (task: Task) => !!task.id && focused.has(focusKey(task.id))
+    const focusBack = new FocusReturn()
     // The main process checks the file again; a refusal (the file changed) comes back as the toast.
     const move = async (line: number, text: string, list: string) => {
       try {
         const next = await window.office.moveTask({ line, list })
-        board.remove()
         toast(`Tarefa movida para ${list}.`, 'ok')
-        void openTasksBoard(root, state, toast, next.board, { list, text })
+        refreshTasksBoard(root, state, toast, next.board, { list, text })
       } catch (err) {
         toast(cleanError(err), 'err')
       }
@@ -113,9 +136,8 @@ export async function openTasksBoard(
     const reschedule = async (list: TaskList, task: Task, date: string) => {
       try {
         const next = await window.office.rescheduleTask({ line: task.line, date })
-        board.remove()
         toast(`Tarefa reagendada para ${date}.`, 'ok')
-        void openTasksBoard(root, state, toast, next.board, { list: list.name, text: task.text })
+        refreshTasksBoard(root, state, toast, next.board, { list: list.name, text: task.text })
       } catch (err) {
         toast(cleanError(err), 'err')
       }
@@ -142,8 +164,7 @@ export async function openTasksBoard(
           next = (await window.office.focusTask(task.line)).board
           toast('Tarefa posta em foco.', 'ok')
         }
-        board.remove()
-        void openTasksBoard(root, state, toast, next, { list: list.name, text: task.text })
+        refreshTasksBoard(root, state, toast, next, { list: list.name, text: task.text })
       } catch (err) {
         toast(cleanError(err), 'err')
       }
@@ -162,14 +183,12 @@ export async function openTasksBoard(
     // Discarding asks for the reason first; the card leaves the board and its line goes to the Archive.
     const discardCard = (task: Task) =>
       void runDiscard(root, toast, { line: task.line }, task.text, (next) => {
-        board.remove()
-        void openTasksBoard(root, state, toast, next.board)
+        refreshTasksBoard(root, state, toast, next.board)
       })
     // A completed or discarded task goes back to its origin list, and its card is focused there.
     const reopenRow = (task: Task) =>
       void runReopen(root, toast, { line: task.line }, task.text, (next) => {
-        board.remove()
-        void openTasksBoard(root, state, toast, next.board, { list: next.list, text: task.text })
+        refreshTasksBoard(root, state, toast, next.board, { list: next.list, text: task.text })
       })
     /** Drag and keyboard for a card; the Archive is read-only. */
     const dragAndMove = (list: TaskList, task: Task): Record<string, string | EventListener | undefined> => {
@@ -265,45 +284,29 @@ export async function openTasksBoard(
         wasFocused ? 'Tirar do foco' : 'Pôr em foco',
       )
     }
-    const toggleCompleted = (button: HTMLButtonElement) => {
-      const show = completedPanel.hidden
-      completedPanel.hidden = !show
-      button.textContent = show ? 'Ocultar concluídas' : 'Mostrar concluídas'
-      button.setAttribute('aria-pressed', String(show))
+    const applyCompleted = () => {
+      completedPanel.hidden = !showCompleted
+      completedToggle.textContent = showCompleted ? 'Ocultar concluídas' : 'Mostrar concluídas'
+      completedToggle.setAttribute('aria-pressed', String(showCompleted))
     }
-    const completedPanel = h(
-      'section',
-      { class: 'tasks-completed', hidden: true, 'aria-label': 'Tarefas concluídas', tabindex: '0' },
-      completed.length === 0
-        ? h('div', { class: 'hint' }, 'Nenhuma tarefa concluída ainda.')
-        : h(
-            'ul',
-            { class: 'tcompleted-list', 'aria-label': 'Tarefas concluídas' },
-            ...completed.map(({ list, task }) =>
-              h(
-                'li',
-                { class: 'tcompleted-row' },
-                h('span', { class: 'tcompleted-title' }, `${task.status === 'discarded' ? '❌' : '✅'} ${task.text}`),
-                h(
-                  'span',
-                  { class: 'tcompleted-foot' },
-                  [task.completedDate, list === ARCHIVE_LIST ? '' : list].filter(Boolean).join(' · '),
-                ),
-                task.reason ? h('span', { class: 'tcompleted-foot' }, `Motivo: ${task.reason}`) : null,
-                h(
-                  'button',
-                  {
-                    class: 'btn btn-small tcompleted-reopen',
-                    type: 'button',
-                    'aria-label': `Reabrir “${task.text}”`,
-                    onclick: () => reopenRow(task),
-                  },
-                  'Reabrir',
-                ),
-              ),
-            ),
-          ),
+    const completedToggle = h(
+      'button',
+      {
+        class: 'btn btn-small',
+        type: 'button',
+        'aria-pressed': 'false',
+        onclick: () => {
+          showCompleted = !showCompleted
+          applyCompleted()
+        },
+      },
+      'Mostrar concluídas',
     )
+    const completedPanel = h('section', { class: 'tasks-completed', hidden: true, 'aria-label': 'Tarefas concluídas', tabindex: '0' })
+    const countEl = h('span', { class: 'board-count' })
+    const colsEl = h('div', { class: 'board-cols', role: 'group', 'aria-label': 'Colunas do quadro Tarefas' })
+    const bodyEl = h('div', { class: 'board-body' }, colsEl, completedPanel)
+    let warnings: HTMLElement | null = null
     const board = h(
       'div',
       { class: 'board', tabindex: '-1', 'data-tasks-board': 'true' },
@@ -311,7 +314,7 @@ export async function openTasksBoard(
         'div',
         { class: 'board-head' },
         h('div', { class: 'board-title' }, icon('list', 18), 'Tarefas'),
-        h('span', { class: 'board-count' }, `${columns.reduce((count, list) => count + list.tasks.length, 0)} tarefas`),
+        countEl,
         h('span', { class: 'grow' }),
         h('button', { class: 'btn btn-small', type: 'button', onclick: () => openIris(root, toast) }, 'Pedir à Íris'),
         h('button', { class: 'btn btn-small', type: 'button', onclick: () => openAgenda(root) }, icon('calendar', 14), 'Agenda'),
@@ -325,8 +328,7 @@ export async function openTasksBoard(
                 root,
                 columns.map((list) => list.name),
                 (next) => {
-                  board.remove()
-                  void openTasksBoard(root, state, toast, next)
+                  refreshTasksBoard(root, state, toast, next)
                 },
                 toast,
               ),
@@ -334,16 +336,7 @@ export async function openTasksBoard(
           icon('plus', 14),
           'Nova tarefa',
         ),
-        h(
-          'button',
-          {
-            class: 'btn btn-small',
-            type: 'button',
-            'aria-pressed': 'false',
-            onclick: (e: Event) => toggleCompleted(e.currentTarget as HTMLButtonElement),
-          },
-          'Mostrar concluídas',
-        ),
+        completedToggle,
         h(
           'button',
           {
@@ -356,109 +349,12 @@ export async function openTasksBoard(
           icon('x', 18),
         ),
       ),
-      data.warnings.length
-        ? h(
-            'div',
-            { class: 'tasks-warnings', role: 'status' },
-            h('strong', {}, `${data.warnings.length} linha(s) não reconhecida(s)`),
-            h('ul', {}, ...data.warnings.map((warning) => h('li', {}, warning))),
-          )
-        : null,
-      h(
-        'div',
-        { class: 'board-body' },
-        h(
-          'div',
-          { class: 'board-cols', role: 'group', 'aria-label': 'Colunas do quadro Tarefas' },
-          ...(data.lists.length === 0
-            ? [
-                h(
-                  'div',
-                  { class: 'empty-box panelbox' },
-                  h('b', {}, 'Nenhuma lista encontrada'),
-                  h('span', {}, 'O arquivo tarefas.md não contém títulos de lista iniciados por “##”.'),
-                ),
-              ]
-            : []),
-          ...columns.map((list: TaskList) =>
-            h(
-              'section',
-              { class: 'tcol', tabindex: '0', 'aria-label': `Lista ${list.name}` },
-              h(
-                'div',
-                { class: 'tcol-head' },
-                h('span', { class: 'tcol-dot' }),
-                h('span', { class: 'grow' }, list.name),
-                h('span', { class: 'tcol-count' }, String(list.tasks.length)),
-              ),
-              h(
-                'ul',
-                { class: 'tcol-list', style: 'list-style:none;margin:0', 'aria-label': `Tarefas de ${list.name}` },
-                ...(list.tasks.length === 0
-                  ? [h('li', { class: 'tcol-empty' }, 'Nenhuma tarefa')]
-                  : list.tasks.map((task) =>
-                      h(
-                        'li',
-                        {
-                          class: `tcard task-readonly${task.status === 'discarded' ? ' task-discarded' : ''}`,
-                          tabindex: '0',
-                          ...dragAndMove(list, task),
-                          'aria-label': [
-                            parseEmphasis(task.text)
-                              .map((segment) => segment.text)
-                              .join(''),
-                            task.status === 'discarded' ? 'Descartada' : '',
-                            isFocused(task) ? 'Em foco' : '',
-                            taskWhen(task) ? `Data ${taskWhen(task)}` : '',
-                            task.completedDate ? `Descartada em ${task.completedDate}` : '',
-                            `Pressione Enter para mover para outra lista, F para pôr ou tirar do foco${task.status === 'open' ? ', R para reagendar, D para descartar' : ''}`,
-                          ]
-                            .filter(Boolean)
-                            .join('. '),
-                        },
-                        h(
-                          'div',
-                          { class: 'tcard-top' },
-                          task.status === 'open' ? completeBox(task) : null,
-                          h('span', { class: 'tcard-title' }, ...taskTitle(task.text)),
-                          task.status !== 'open'
-                            ? h(
-                                'span',
-                                { class: `chip ${task.status === 'completed' ? 'chip-done' : 'chip-err'}` },
-                                task.status === 'completed' ? 'Concluída' : 'Descartada',
-                              )
-                            : null,
-                          isFocused(task) ? h('span', { class: 'chip' }, 'Em foco') : null,
-                        ),
-                        taskWhen(task) ? h('div', { class: 'tcard-foot' }, taskWhen(task)) : null,
-                        task.completedDate ? h('div', { class: 'tcard-foot' }, `❌ ${task.completedDate}`) : null,
-                        task.reason ? h('div', { class: 'hint' }, task.reason) : null,
-                        moveButton(list, task),
-                        task.status === 'open' ? rescheduleButton(list, task) : null,
-                        task.status === 'open' ? discardButton(task) : null,
-                        task.status === 'open' || isFocused(task) ? focusButton(list, task) : null,
-                      ),
-                    )),
-              ),
-            ),
-          ),
-        ),
-        completedPanel,
-      ),
+      bodyEl,
     ) as HTMLElement
 
     asDialog(board, { label: 'Quadro Tarefas' })
-    const columnEls = [...board.querySelectorAll<HTMLElement>('.tcol')]
+    let columnEls: HTMLElement[] = []
     const cardsOf = (column: HTMLElement) => [...column.querySelectorAll<HTMLElement>('.task-readonly')]
-    for (const column of columnEls) {
-      const cards = cardsOf(column)
-      if (cards.length) rove(cards, 0)
-    }
-    board.addEventListener('focusin', (event) => {
-      const card = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>('.task-readonly') : null
-      const column = card?.closest<HTMLElement>('.tcol')
-      if (card && column) rove(cardsOf(column), cardsOf(column).indexOf(card))
-    })
     const dropZone = (column: HTMLElement, name: string) => {
       column.addEventListener('dragover', (e) => {
         if (!dragging || dragging.list === name) return
@@ -477,7 +373,156 @@ export async function openTasksBoard(
         if (drop && drop.list !== name) void move(drop.line, drop.text, name)
       })
     }
-    columnEls.forEach((column, i) => dropZone(column, columns[i]!.name))
+    const render: Render = (next, nextFocused, movedTo) => {
+      data = next
+      focused = nextFocused
+      const view = boardView(next.lists)
+      columns = view.columns
+      // Read the lists' scroll before their elements are replaced, and put it back after.
+      const kept = keepListScroll(
+        listScroll(colsEl),
+        columns.map((list) => list.name),
+      )
+      countEl.textContent = `${columns.reduce((count, list) => count + list.tasks.length, 0)} tarefas`
+      warnings?.remove()
+      warnings = next.warnings.length
+        ? h(
+            'div',
+            { class: 'tasks-warnings', role: 'status' },
+            h('strong', {}, `${next.warnings.length} linha(s) não reconhecida(s)`),
+            h('ul', {}, ...next.warnings.map((warning) => h('li', {}, warning))),
+          )
+        : null
+      if (warnings) bodyEl.before(warnings)
+      colsEl.replaceChildren(
+        ...(next.lists.length === 0
+          ? [
+              h(
+                'div',
+                { class: 'empty-box panelbox' },
+                h('b', {}, 'Nenhuma lista encontrada'),
+                h('span', {}, 'O arquivo tarefas.md não contém títulos de lista iniciados por “##”.'),
+              ),
+            ]
+          : []),
+        ...columns.map((list: TaskList) =>
+          h(
+            'section',
+            { class: 'tcol', tabindex: '0', 'aria-label': `Lista ${list.name}`, 'data-list': list.name },
+            h(
+              'div',
+              { class: 'tcol-head' },
+              h('span', { class: 'tcol-dot' }),
+              h('span', { class: 'grow' }, list.name),
+              h('span', { class: 'tcol-count' }, String(list.tasks.length)),
+            ),
+            h(
+              'ul',
+              { class: 'tcol-list', style: 'list-style:none;margin:0', 'aria-label': `Tarefas de ${list.name}` },
+              ...(list.tasks.length === 0
+                ? [h('li', { class: 'tcol-empty' }, 'Nenhuma tarefa')]
+                : list.tasks.map((task) =>
+                    h(
+                      'li',
+                      {
+                        class: `tcard task-readonly${task.status === 'discarded' ? ' task-discarded' : ''}`,
+                        tabindex: '0',
+                        ...dragAndMove(list, task),
+                        'aria-label': [
+                          parseEmphasis(task.text)
+                            .map((segment) => segment.text)
+                            .join(''),
+                          task.status === 'discarded' ? 'Descartada' : '',
+                          isFocused(task) ? 'Em foco' : '',
+                          taskWhen(task) ? `Data ${taskWhen(task)}` : '',
+                          task.completedDate ? `Descartada em ${task.completedDate}` : '',
+                          `Pressione Enter para mover para outra lista, F para pôr ou tirar do foco${task.status === 'open' ? ', R para reagendar, D para descartar' : ''}`,
+                        ]
+                          .filter(Boolean)
+                          .join('. '),
+                      },
+                      h(
+                        'div',
+                        { class: 'tcard-top' },
+                        task.status === 'open' ? completeBox(task) : null,
+                        h('span', { class: 'tcard-title' }, ...taskTitle(task.text)),
+                        task.status !== 'open'
+                          ? h(
+                              'span',
+                              { class: `chip ${task.status === 'completed' ? 'chip-done' : 'chip-err'}` },
+                              task.status === 'completed' ? 'Concluída' : 'Descartada',
+                            )
+                          : null,
+                        isFocused(task) ? h('span', { class: 'chip' }, 'Em foco') : null,
+                      ),
+                      taskWhen(task) ? h('div', { class: 'tcard-foot' }, taskWhen(task)) : null,
+                      task.completedDate ? h('div', { class: 'tcard-foot' }, `❌ ${task.completedDate}`) : null,
+                      task.reason ? h('div', { class: 'hint' }, task.reason) : null,
+                      moveButton(list, task),
+                      task.status === 'open' ? rescheduleButton(list, task) : null,
+                      task.status === 'open' ? discardButton(task) : null,
+                      task.status === 'open' || isFocused(task) ? focusButton(list, task) : null,
+                    ),
+                  )),
+            ),
+          ),
+        ),
+      )
+      columnEls = [...colsEl.querySelectorAll<HTMLElement>('.tcol')]
+      for (const column of columnEls) {
+        const cards = cardsOf(column)
+        if (cards.length) rove(cards, 0)
+        const scroller = column.querySelector<HTMLElement>('.tcol-list')
+        if (scroller) scroller.scrollTop = kept.get(column.dataset.list ?? '') ?? 0
+      }
+      columnEls.forEach((column, i) => dropZone(column, columns[i]!.name))
+      completedPanel.replaceChildren(
+        view.completed.length === 0
+          ? h('div', { class: 'hint' }, 'Nenhuma tarefa concluída ainda.')
+          : h(
+              'ul',
+              { class: 'tcompleted-list', 'aria-label': 'Tarefas concluídas' },
+              ...view.completed.map(({ list, task }) =>
+                h(
+                  'li',
+                  { class: 'tcompleted-row' },
+                  h('span', { class: 'tcompleted-title' }, `${task.status === 'discarded' ? '❌' : '✅'} ${task.text}`),
+                  h(
+                    'span',
+                    { class: 'tcompleted-foot' },
+                    [task.completedDate, list === ARCHIVE_LIST ? '' : list].filter(Boolean).join(' · '),
+                  ),
+                  task.reason ? h('span', { class: 'tcompleted-foot' }, `Motivo: ${task.reason}`) : null,
+                  h(
+                    'button',
+                    {
+                      class: 'btn btn-small tcompleted-reopen',
+                      type: 'button',
+                      'aria-label': `Reabrir “${task.text}”`,
+                      onclick: () => reopenRow(task),
+                    },
+                    'Reabrir',
+                  ),
+                ),
+              ),
+            ),
+      )
+      applyCompleted()
+      const landing = movedTo
+        ? [...board.querySelectorAll<HTMLElement>('.task-readonly')].find(
+            (card) =>
+              card.closest('.tcol')?.getAttribute('aria-label') === `Lista ${movedTo.list}` &&
+              card.querySelector('.tcard-title')?.textContent === movedTo.text,
+          )
+        : undefined
+      const target: HTMLElement = landing ?? columnEls[0] ?? board
+      target.focus({ preventScroll: true })
+    }
+    board.addEventListener('focusin', (event) => {
+      const card = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>('.task-readonly') : null
+      const column = card?.closest<HTMLElement>('.tcol')
+      if (card && column) rove(cardsOf(column), cardsOf(column).indexOf(card))
+    })
     // Capture on window, like the "?" shortcut: the game listens on window and would move the player.
     const onKey = (event: KeyboardEvent) => {
       if (!board.isConnected || isTyping() || event.altKey || event.metaKey || event.ctrlKey) return
@@ -504,28 +549,28 @@ export async function openTasksBoard(
       focusBack.restore(board)
     })
     observer.observe(root, { childList: true })
+    renders.set(board, render)
     root.append(board)
-    const landing = moved
-      ? [...board.querySelectorAll<HTMLElement>('.task-readonly')].find(
-          (card) =>
-            card.closest('.tcol')?.getAttribute('aria-label') === `Lista ${moved.list}` &&
-            card.querySelector('.tcard-title')?.textContent === moved.text,
-        )
-      : undefined
-    const target: HTMLElement = landing ?? columnEls[0] ?? board
-    target.focus({ preventScroll: true })
+    render(initial, initialFocused, moved)
   } catch (err) {
     toast(cleanError(err), 'err')
   }
 }
 
 /**
- * Draws the Tarefas board again with `board` when it is open; a board the user closed stays
- * closed. Used after a completion and after its undo, which can come from the focus popup.
+ * Draws the open Tarefas board again with `board`, in place; a board the user closed stays closed.
+ * Used after a completion and after its undo, which can come from the focus popup.
  */
-export function refreshTasksBoard(root: HTMLElement, state: State, toast: Toast, board: ParsedBoard): void {
+export function refreshTasksBoard(root: HTMLElement, state: State, toast: Toast, board: ParsedBoard, moved?: Moved): void {
   const open = root.querySelector<HTMLElement>('[data-tasks-board]')
-  if (!open) return
-  open.remove()
-  void openTasksBoard(root, state, toast, board)
+  const render = open ? renders.get(open) : undefined
+  if (!open || !render) return
+  const token = ++latestRefresh
+  window.office
+    .readFocus()
+    .then((items) => {
+      // A newer action has its own data; an older answer arriving late would put the board back in time.
+      if (token === latestRefresh && open.isConnected) render(board, new Set(items.map((item) => item.id)), moved)
+    })
+    .catch((err: unknown) => toast(cleanError(err), 'err'))
 }
