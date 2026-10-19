@@ -158,7 +158,7 @@ export class Hud {
     this.boardBadge = h('span', { class: 'badge badge-review hidden' })
     this.boardBtn = h('button', { class: 'dock-btn', 'data-tour': 'board', title: 'Quadro de tickets (T)', onclick: () => actions.board() }, icon('kanban'), this.boardBadge)
     // Tarefas em foco: the pin and the count, next to "Novo agente" and before the inbox.
-    this.focusBadge = h('span', { class: 'badge hidden' })
+    this.focusBadge = h('span', { class: 'badge' })
     this.focusBtn = h(
       'button',
       {
@@ -279,7 +279,6 @@ export class Hud {
   private renderFocus(): void {
     const n = this.state.focusCount
     this.focusBadge.textContent = String(n)
-    this.focusBadge.classList.toggle('hidden', n === 0)
     this.focusBtn.setAttribute('aria-label', focusLabel(n))
     const open = isFocusPopupOpen()
     this.focusBtn.classList.toggle('open', open)
