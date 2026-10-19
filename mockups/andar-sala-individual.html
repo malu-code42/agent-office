@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Protótipos do ticket 04 · andar de projeto</title>
+<title>Referência visual do ticket 04 · andar de projeto</title>
 <style>
 :root {
   --bg: #1c1d2e; --card: rgba(24, 25, 40, 0.92); --card-solid: #1a1b2b;
@@ -35,36 +35,46 @@ ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }
 </head>
 <body>
 <main>
-  <h1>Protótipos visuais do ticket 04</h1>
-  <p class="sub">Cada arquivo é um conceito autossuficiente do andar de projeto (tokens reais de <code>tokens.css</code>, geometria 32×24 do <code>layout.ts</code>). Abra no navegador e responda as decisões no rodapé de cada um.</p>
+  <h1>Referência visual do ticket 04</h1>
+  <p class="sub">A direção visual canônica segue <code>claude design/HANDOFF.md</code>, §3.4, e o ticket 04. As quatro páginas abaixo são explorações anteriores, preservadas como histórico — não são opções pendentes nem gate de aprovação. A implementação deve usar o layout e os componentes reais do Agent Office.</p>
+  <div class="questions">
+    <b>Direção definida</b>
+    <ul>
+      <li>Salas dos squads à esquerda; à direita, uma grande sala de vidro para agentes individuais, com duas portas para a entrada.</li>
+      <li>Dez mesas em duas colunas de cinco, giradas 90° e alinhadas lado a lado; agentes principais permanecem nos seus lugares, inclusive quando ociosos.</li>
+      <li>Agentes individuais mostram nome, cor e estado (trabalhando, aguardando, disponível ou bloqueado). Subagentes usam assentos temporários apenas durante a execução; o resultado continua no painel do agente principal.</li>
+      <li>Salas sem squad ficam apagadas, sem pessoas e com computadores desligados; clicar oferece “Atribuir um squad”. Andar novo mantém as mesas individuais e começa sem squads.</li>
+      <li>Não adicionar um novo botão à barra inferior para esta sala. Reutilizar a navegação e os componentes reais do app; não alterar o padrão aprovado de Tarefas em foco.</li>
+    </ul>
+  </div>
+  <p class="sub">As explorações antigas usam tokens de <code>tokens.css</code> e a geometria 32×24 de <code>layout.ts</code>, mas não substituem a referência definida acima.</p>
   <div class="grid">
     <a class="item" href="andar-sala-individual-01-lados.html">
       <span class="tag">1 / 4</span>
-      <b>Lados opostos definitivos</b>
+      <b>Exploração 1 · Lados opostos</b>
       <span>Cabines de squads numa coluna, sala de individuais/OpenCode na coluna oposta com assentos temporários listados; botão fixo no topo do andar.</span>
     </a>
     <a class="item" href="andar-sala-individual-02-plano-atual.html">
       <span class="tag">2 / 4</span>
-      <b>Plano atual preservado</b>
+      <b>Exploração 2 · Plano atual</b>
       <span>Squads seguem em frente como hoje; sala individuais nasce ao fundo na sala oposta; a vaga vazia da frente é, ela mesma, o botão.</span>
     </a>
     <a class="item" href="andar-sala-individual-03-atrio.html">
       <span class="tag">3 / 4</span>
-      <b>Átrio central de individuais</b>
+      <b>Exploração 3 · Átrio central</b>
       <span>Sala no miolo com mesa núcleo e anel de assentos temporários que cresce conforme o limite de concorrência; cabines nas laterais.</span>
     </a>
     <a class="item" href="andar-sala-individual-04-proposta.html">
       <span class="tag">4 / 4</span>
-      <b>Andar vazio + estados da proposta</b>
+      <b>Exploração 4 · Estados da proposta</b>
       <span>Sem squad pré-criado: vaga central chama o botão; os cinco estados (gerando, pronta para revisão, aprovada, cancelada, falhou) e a ficha somente leitura.</span>
     </a>
   </div>
   <div class="questions">
-    <b>Como aprovar:</b> abra cada arquivo, confira a visão larga e a visão estreita, e responda as três perguntas do rodapé de cada um — “aprovado como está”, “aprovado com ajuste Y” ou “prefiro C, motivo Z”. Nenhuma UI final é escrita antes da sua aprovação.
+    <b>Escopo que ainda falta:</b> implementar a direção definida no layout real do andar e integrar estados/ações aos dados do Agent Office. Não é necessário escolher uma destas explorações para começar.
     <ul>
-      <li>Assento fixo: agentes principais permanecem nele mesmo ociosos.</li>
-      <li>Assento temporário só existe enquanto o subagente executa; ao concluir, o assento some e o resultado fica no painel do pai.</li>
-      <li>Nada é gravado antes da aprovação; cancelar/falhar não muda o andar.</li>
+      <li>A proposta de squad continua somente leitura até aprovação explícita; cancelar ou falhar não grava estado parcial.</li>
+      <li>Esta página descreve a referência visual; não autoriza preencher a cena com dados fictícios na implementação real.</li>
     </ul>
   </div>
 </main>
