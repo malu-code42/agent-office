@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { delimiter, join } from 'node:path'
 import type { ResultChanges, WorktreeInfo } from '@shared/types'
 import { insideRoot } from './repo'
-import { chunked, git, run, safeGitEnv } from './run'
+import { chunked, git, runBatch, safeGitEnv } from './run'
 import { checkWorktree, worktreeState } from './worktrees'
 
 /**
@@ -22,13 +22,16 @@ export async function commitChanges(c: ResultChanges, message: string): Promise<
 
 // ---------- tools on PATH ----------
 
-/** First of `names` found on PATH, as an absolute path. */
+/** First of `names` found on PATH, as an absolute path. Windows executables wear .exe, batch launchers .cmd/.bat. */
 export function findOnPath(names: string[]): string | null {
+  const exts = process.platform === 'win32' ? ['.exe', '.cmd', '.bat', ''] : ['']
   const dirs = (process.env.PATH ?? '').split(delimiter).filter(Boolean)
   for (const n of names) {
     for (const d of dirs) {
-      const p = join(d, process.platform === 'win32' ? `${n}.cmd` : n)
-      if (existsSync(p)) return p
+      for (const ext of exts) {
+        const p = join(d, `${n}${ext}`)
+        if (existsSync(p)) return p
+      }
     }
   }
   return null
@@ -39,8 +42,12 @@ export async function openInEditor(root: string, file?: string): Promise<boolean
   const editor = findOnPath(['cursor', 'code'])
   if (!editor) return false
   const target = file ? insideRoot(root, file) : null
-  await run(editor, [root, ...(target ? [target] : [])], root, { timeout: 15_000 })
-  return true
+  try {
+    await runBatch(editor, [root, ...(target ? [target] : [])], root, 15_000)
+    return true
+  } catch (err) {
+    throw new Error(`Não consegui abrir o editor: ${err instanceof Error ? err.message : String(err)}`, { cause: err })
+  }
 }
 
 /**
@@ -50,26 +57,56 @@ export async function openInEditor(root: string, file?: string): Promise<boolean
 export async function openPullRequest(wt: WorktreeInfo, title: string, body: string): Promise<string> {
   checkWorktree(wt)
   const gh = findOnPath(['gh'])
-  if (!gh) throw new Error('Não achei o GitHub CLI (gh). Instale com `brew install gh` e rode `gh auth login`.')
+  if (!gh)
+    throw new Error(
+      'Não achei o GitHub CLI (gh) no PATH. Instale (winget install GitHub.cli, ou scoop/choco no Windows e brew install gh no Mac) e rode `gh auth login`.',
+    )
+  // gh pr create needs a multiline body. Refuse batch shims before pushing: cmd.exe
+  // cannot safely receive arbitrary PR text, and a late failure would leave a pushed branch.
+  if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(gh)) {
+    throw new Error('No Windows, instale o GitHub CLI como executável gh.exe; o launcher .cmd/.bat não pode abrir PR com segurança.')
+  }
   const st = await worktreeState(wt)
   if (!st.exists) throw new Error('A cópia isolada deste agente não existe mais.')
   if (st.dirty) throw new Error('Tem mudanças não commitadas na cópia. Commite antes de abrir o PR.')
   if (!st.ahead) throw new Error('O branch ainda não tem commits. Commite as mudanças antes.')
-  const remotes = (await git(wt.root, ['remote'])).split('\n').map((r) => r.trim()).filter(Boolean)
+  const remotes = (await git(wt.root, ['remote']))
+    .split('\n')
+    .map((r) => r.trim())
+    .filter(Boolean)
   const remote = remotes.includes('origin') ? 'origin' : remotes[0]
   if (!remote || !/^\w[\w.-]*$/.test(remote)) throw new Error('Esse repositório não tem remoto para onde enviar o branch.')
   // Credentials come from gh's own helper only (the repo's credential.helper is wiped by
   // the safe config). gh's path goes inside single quotes, so it can't carry any.
   if (gh.includes("'")) throw new Error('O caminho do gh tem aspas; não dá para usar com segurança.')
   // The ref is spelled out so it can't read as an option.
-  await git(wt.root, ['push', '-u', remote, `refs/heads/${wt.branch}:refs/heads/${wt.branch}`], {
-    timeout: 180_000,
-    config: [['credential.helper', `!'${gh}' auth git-credential`]],
-  })
+  try {
+    await git(wt.root, ['push', '-u', remote, `refs/heads/${wt.branch}:refs/heads/${wt.branch}`], {
+      timeout: 180_000,
+      config: [['credential.helper', `!'${gh}' auth git-credential`]],
+    })
+  } catch (err) {
+    throw new Error(`Falhou o envio do branch ${wt.branch}: ${err instanceof Error ? err.message : String(err)}`, { cause: err })
+  }
   // gh calls git itself: it gets the same safe config through GIT_CONFIG_*.
   // --flag=value: a title or body starting with '-' stays a value.
-  const out = await run(gh, ['pr', 'create', `--head=${wt.branch}`, `--title=${title}`, `--body=${body}`], wt.root, { timeout: 120_000 }, await safeGitEnv(wt.root))
-  const url = out.trim().split('\n').reverse().find((l) => /^https:\/\/\S+$/.test(l.trim()))
+  let out: string
+  try {
+    out = await runBatch(
+      gh,
+      ['pr', 'create', `--head=${wt.branch}`, `--title=${title}`, `--body=${body}`],
+      wt.root,
+      120_000,
+      await safeGitEnv(wt.root),
+    )
+  } catch (err) {
+    throw new Error(`O gh não conseguiu criar o pull request: ${err instanceof Error ? err.message : String(err)}`, { cause: err })
+  }
+  const url = out
+    .trim()
+    .split('\n')
+    .reverse()
+    .find((l) => /^https:\/\/\S+$/.test(l.trim()))
   if (!url) throw new Error('O gh não devolveu o link do PR.')
   return url.trim()
 }

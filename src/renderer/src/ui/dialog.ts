@@ -6,6 +6,7 @@ import { formatCost, formatDuration, h, icon } from './dom'
 import { renderMarkdown } from './markdown'
 import { cleanError } from './modals/common'
 import { portrait } from './portrait'
+import { changeButtons, editorMissingNote } from './result-rules'
 
 export interface DialogActions {
   reply(agentId: string): void
@@ -522,14 +523,67 @@ export class Dialog {
 
   private changeActions(r: AgentResult): HTMLElement {
     const c = r.changes!
-    const busy = (b: HTMLButtonElement, p: Promise<unknown>) => {
-      b.setAttribute('disabled', '')
-      return p.finally(() => b.removeAttribute('disabled'))
-    }
-    const editor = h('button', { class: 'btn btn-small', type: 'button', onclick: () => this.openEditor(r) }, icon('edit', 13), 'Abrir no editor')
+    const rules = changeButtons(c)
+    const editor = h(
+      'button',
+      { class: 'btn btn-small', type: 'button', onclick: () => this.openEditor(r) },
+      icon('edit', 13),
+      'Abrir no editor',
+    )
     if (!c.git || !c.files.length) return h('div', { class: 'chg-actions' }, c.files.length ? editor : null)
-    const live = !c.committed && !c.discarded
-    const discard = h('button', { class: 'btn btn-small btn-danger-soft', type: 'button', disabled: !live, title: 'Volta os arquivos para como estavam antes da tarefa (pede confirmação)' }, icon('undo', 13), 'Descartar')
+    const discard = h(
+      'button',
+      {
+        class: 'btn btn-small btn-danger-soft',
+        type: 'button',
+        disabled: !rules.discard,
+        title: 'Volta os arquivos para como estavam antes da tarefa (pede confirmação)',
+      },
+      icon('undo', 13),
+      'Descartar',
+    )
+    if (this.commitDraft === null) this.commitDraft = commitHint(r.text)
+    const message = h('input', {
+      class: 'input chg-msg',
+      value: this.commitDraft,
+      maxlength: 2000,
+      placeholder: 'Mensagem do commit',
+      disabled: !rules.commit,
+      title: 'Sugerida a partir do relatório do agente. Edite à vontade.',
+    }) as HTMLInputElement
+    message.addEventListener('keydown', (e) => e.stopPropagation())
+    message.addEventListener('input', () => (this.commitDraft = message.value))
+    const commit = h(
+      'button',
+      { class: 'btn btn-small btn-primary', type: 'button', disabled: !rules.commit },
+      icon('check', 13),
+      'Commitar',
+    )
+    const pr = c.branch
+      ? h(
+          'button',
+          { class: 'btn btn-small', type: 'button', disabled: !rules.pr, title: 'git push do branch e gh pr create (pede confirmação)' },
+          icon('pr', 13),
+          'Abrir PR',
+        )
+      : null
+    // Wait state: while one action runs, the whole block stays off (Commitar,
+    // Descartar, Abrir PR and the message box). Success re-renders the card with
+    // fresh rules; the wait state only needs to come back when the action fails.
+    const setWait = (on: boolean) => {
+      discard.disabled = on || !rules.discard
+      commit.disabled = on || !rules.commit
+      message.disabled = on || !rules.commit
+      if (pr) pr.disabled = on || !rules.pr
+    }
+    const busy = (b: HTMLButtonElement, p: Promise<unknown>) => {
+      setWait(true)
+      b.setAttribute('aria-busy', 'true')
+      return p.finally(() => {
+        b.removeAttribute('aria-busy')
+        setWait(false)
+      })
+    }
     discard.addEventListener('click', () =>
       busy(
         discard,
@@ -538,21 +592,15 @@ export class Dialog {
         }),
       ).catch((err) => this.actions.toast(cleanErr(err), 'err')),
     )
-    if (this.commitDraft === null) this.commitDraft = commitHint(r.text)
-    const message = h('input', { class: 'input chg-msg', value: this.commitDraft, maxlength: 2000, placeholder: 'Mensagem do commit', disabled: !live, title: 'Sugerida a partir do relatório do agente. Edite à vontade.' }) as HTMLInputElement
-    message.addEventListener('keydown', (e) => e.stopPropagation())
-    message.addEventListener('input', () => (this.commitDraft = message.value))
-    const commit = h('button', { class: 'btn btn-small btn-primary', type: 'button', disabled: !live }, icon('check', 13), 'Commitar')
     commit.addEventListener('click', () => {
       if (!message.value.trim()) return message.focus()
       busy(
         commit,
-        window.office.commitResult(r.id, message.value.trim()).then((next) => this.actions.toast(`Commit ${next.committed} feito${c.branch ? ` no branch ${c.branch}` : ''}.`, 'ok')),
+        window.office
+          .commitResult(r.id, message.value.trim())
+          .then((next) => this.actions.toast(`Commit ${next.committed} feito${c.branch ? ` no branch ${c.branch}` : ''}.`, 'ok')),
       ).catch((err) => this.actions.toast(cleanErr(err), 'err'))
     })
-    const pr = c.branch
-      ? h('button', { class: 'btn btn-small', type: 'button', disabled: !!c.discarded, title: 'git push do branch e gh pr create (pede confirmação)' }, icon('pr', 13), 'Abrir PR')
-      : null
     pr?.addEventListener('click', () =>
       busy(
         pr,
@@ -575,7 +623,8 @@ export class Dialog {
     window.office
       .openResultInEditor(r.id, path)
       .then((opened) => {
-        if (!opened) this.actions.toast('Não achei o Cursor nem o VS Code (comando cursor/code). Mostrei no Finder.', 'info')
+        if (!opened)
+          this.actions.toast(`Não achei o Cursor nem o VS Code (comandos cursor/code). ${editorMissingNote(navigator.userAgent)}`, 'info')
       })
       .catch((err) => this.actions.toast(cleanErr(err), 'err'))
   }
