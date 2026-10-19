@@ -65,6 +65,34 @@ describe('PlanningStore', () => {
   it('lists planning.json among the data files that are backed up', () => {
     expect(DATA_FILES).toContain('planning.json')
   })
+
+  it('tells the app when the focus changes size, and stays quiet when it does not', () => {
+    const told: number[] = []
+    const store = new PlanningStore(dir, Date.now, (count) => told.push(count))
+
+    store.add('tabc123')
+    store.add('tabc123')
+    store.saveStep('tabc123', 'Lavar a máquina', TODAY)
+    store.remove('tnao001')
+
+    expect(told).toEqual([1])
+
+    store.remove('tabc123')
+    expect(told).toEqual([1, 0])
+  })
+
+  it('tells the app when a completed task leaves the focus, and not when the store is read again', () => {
+    const told: number[] = []
+    const store = new PlanningStore(dir, Date.now, (count) => told.push(count))
+    store.add('tabc123')
+    store.add('tdef456')
+
+    store.archive('TABC123', { origin: 'Casa', completedAt: '2026-10-17', originalLine: '- [ ] Lavar roupa ^tabc123' })
+    expect(told).toEqual([1, 2, 1])
+
+    expect(new PlanningStore(dir, Date.now, (count) => told.push(count)).focus()).toEqual(['tdef456'])
+    expect(told).toEqual([1, 2, 1])
+  })
 })
 
 describe('focusItems', () => {

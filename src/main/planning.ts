@@ -87,15 +87,27 @@ export class PlanningStore {
   private reviewNext: string | undefined
   private draft: ReviewDraft | undefined
   private readonly now: () => number
+  /** How many tasks were in the focus the last time the app was told about it. */
+  private toldFocus: number
 
-  /** `now` is the clock: the app uses the system's, tests pass one they control. */
-  constructor(dir: string, now: () => number = Date.now) {
+  /**
+   * `now` is the clock: the app uses the system's, tests pass one they control.
+   * `onFocusChange` is called with the new size of the focus whenever it changes, so the
+   * dock can show how many tasks are in it.
+   */
+  constructor(
+    dir: string,
+    now: () => number = Date.now,
+    private onFocusChange?: (count: number) => void,
+  ) {
     this.now = now
     this.file = join(dir, 'planning.json')
     const r = loadJson<Partial<Planning>>(this.file, { valid: shapeOf('planning.json'), fallbacks: backupCopies(dir, 'planning.json') })
     reportLoad(this.file, r)
     const raw: Partial<Planning> = r.status === 'ok' || r.status === 'restored' ? r.data : {}
     this.focusIds = [...new Set((raw.focus ?? []).map(focusKey))]
+    // The count the app already has: only a change is news.
+    this.toldFocus = this.focusIds.length
     this.steps = new Map(
       Object.entries(raw.steps ?? {})
         .filter(([, s]) => isStep(s))
@@ -381,5 +393,14 @@ export class PlanningStore {
       } satisfies Planning,
       { space: 2, newline: true },
     )
+    this.tellFocus()
+  }
+
+  /** Tells the app when the focus changes size: the file is already written when it does. */
+  private tellFocus(): void {
+    const n = this.focusIds.length
+    if (n === this.toldFocus) return
+    this.toldFocus = n
+    this.onFocusChange?.(n)
   }
 }

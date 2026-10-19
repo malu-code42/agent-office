@@ -199,7 +199,12 @@ app.whenReady().then(async () => {
   const book = new CostBook(store)
   manager.book = book
   const board = new TicketBoard(app.getPath('userData'))
-  const planning = new PlanningStore(app.getPath('userData'))
+  const broadcast = (e: OfficeEvent) => {
+    // A crashed page reloads by itself and gets the state again; sending now only makes noise (AO-27).
+    if (win && !win.isDestroyed() && !win.webContents.isCrashed()) win.webContents.send('office:event', e)
+  }
+  // The focus count goes to the renderer, so the dock always shows how many tasks are in it.
+  const planning = new PlanningStore(app.getPath('userData'), Date.now, (count) => broadcast({ type: 'focus:count', count }))
   const routineStore = new RoutineStore(app.getPath('userData'))
   // A fatal error saves what is in memory before asking what to do.
   onFatalFlush(() => {
@@ -214,11 +219,6 @@ app.whenReady().then(async () => {
   setInterval(() => board.autoClose(store.settings.ticketAutoCloseDays), 3_600_000).unref()
   const player = (): Actor => ({ kind: 'player', name: store.settings.playerName })
   const defaultBrain = (): AgentBrain => ({ model: store.settings.defaultModel || undefined, effort: store.settings.defaultEffort || undefined })
-
-  const broadcast = (e: OfficeEvent) => {
-    // A crashed page reloads by itself and gets the state again; sending now only makes noise (AO-27).
-    if (win && !win.isDestroyed() && !win.webContents.isCrashed()) win.webContents.send('office:event', e)
-  }
 
   // Windows has no app badge: the taskbar shows an overlay icon instead.
   // Images depend only on a count computed here, never on renderer data.

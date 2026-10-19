@@ -209,6 +209,7 @@ async function boot(): Promise<void> {
     openProposal: (id) => void openProposalReview(ui, toast, id),
     review: () => void openReviewWizard(ui, toast),
     iris: () => openIris(ui, toast),
+    focus: () => void openFocusPopup(ui, state, toast),
     board: (ticketId) => {
       if (ticketId) board.open(ticketId)
       else board.toggle()
