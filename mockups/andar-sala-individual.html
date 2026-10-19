@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Protótipos do ticket 04 · andar de projeto</title>
+<style>
+:root {
+  --bg: #1c1d2e; --card: rgba(24, 25, 40, 0.92); --card-solid: #1a1b2b;
+  --line: rgba(255, 255, 255, 0.08); --line-strong: rgba(255, 255, 255, 0.14);
+  --text: #eceaf6; --muted: #b3b1cb; --dim: #9a98b4;
+  --accent: #d97757; --accent-hi: #e8896a; --accent-solid: #b4583a; --accent-solid-hi: #a84f33;
+  --radius: 14px; --shadow: 0 10px 40px rgba(5, 5, 15, 0.45), 0 2px 8px rgba(5, 5, 15, 0.3);
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+main { max-width: 860px; margin: 0 auto; padding: 40px 18px 60px; }
+h1 { font-size: 20px; margin: 0 0 6px; }
+.sub { color: var(--dim); margin-bottom: 24px; }
+.grid { display: grid; gap: 12px; }
+a.item { display: grid; gap: 4px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--card); padding: 14px 16px; text-decoration: none; color: var(--text); transition: background .15s; }
+a.item:hover { background: rgba(217, 119, 87, .07); border-color: rgba(217, 119, 87, .4); }
+a.item b { font-size: 14px; }
+a.item span { color: var(--muted); font-size: 12px; }
+a.item .tag { justify-self: start; font: 700 10px/1 var(--font); color: var(--accent-hi);
+  background: rgba(217, 119, 87, .14); border: 1px solid rgba(217, 119, 87, .3); padding: 3px 8px; border-radius: 8px; }
+.questions { border: 1px solid var(--line); border-radius: var(--radius); background: var(--card-solid);
+  padding: 14px 16px; color: var(--muted); font-size: 13px; }
+.questions b { color: var(--text); }
+ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Protótipos visuais do ticket 04</h1>
+  <p class="sub">Cada arquivo é um conceito autossuficiente do andar de projeto (tokens reais de <code>tokens.css</code>, geometria 32×24 do <code>layout.ts</code>). Abra no navegador e responda as decisões no rodapé de cada um.</p>
+  <div class="grid">
+    <a class="item" href="andar-sala-individual-01-lados.html">
+      <span class="tag">1 / 4</span>
+      <b>Lados opostos definitivos</b>
+      <span>Cabines de squads numa coluna, sala de individuais/OpenCode na coluna oposta com assentos temporários listados; botão fixo no topo do andar.</span>
+    </a>
+    <a class="item" href="andar-sala-individual-02-plano-atual.html">
+      <span class="tag">2 / 4</span>
+      <b>Plano atual preservado</b>
+      <span>Squads seguem em frente como hoje; sala individuais nasce ao fundo na sala oposta; a vaga vazia da frente é, ela mesma, o botão.</span>
+    </a>
+    <a class="item" href="andar-sala-individual-03-atrio.html">
+      <span class="tag">3 / 4</span>
+      <b>Átrio central de individuais</b>
+      <span>Sala no miolo com mesa núcleo e anel de assentos temporários que cresce conforme o limite de concorrência; cabines nas laterais.</span>
+    </a>
+    <a class="item" href="andar-sala-individual-04-proposta.html">
+      <span class="tag">4 / 4</span>
+      <b>Andar vazio + estados da proposta</b>
+      <span>Sem squad pré-criado: vaga central chama o botão; os cinco estados (gerando, pronta para revisão, aprovada, cancelada, falhou) e a ficha somente leitura.</span>
+    </a>
+  </div>
+  <div class="questions">
+    <b>Como aprovar:</b> abra cada arquivo, confira a visão larga e a visão estreita, e responda as três perguntas do rodapé de cada um — “aprovado como está”, “aprovado com ajuste Y” ou “prefiro C, motivo Z”. Nenhuma UI final é escrita antes da sua aprovação.
+    <ul>
+      <li>Assento fixo: agentes principais permanecem nele mesmo ociosos.</li>
+      <li>Assento temporário só existe enquanto o subagente executa; ao concluir, o assento some e o resultado fica no painel do pai.</li>
+      <li>Nada é gravado antes da aprovação; cancelar/falhar não muda o andar.</li>
+    </ul>
+  </div>
+</main>
+</body>
+</html>
