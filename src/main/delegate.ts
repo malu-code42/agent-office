@@ -79,6 +79,7 @@ export class TicketDesk {
             effort: 'effort' in target.hire ? target.hire.effort : s.defaultEffort || undefined,
             accounts: target.hire.accounts,
             worktree: target.hire.worktree,
+            engine: target.hire.engine ?? s.defaultEngine,
             permissionMode: mode,
           },
           display,

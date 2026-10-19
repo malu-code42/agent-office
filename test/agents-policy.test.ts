@@ -14,6 +14,7 @@ type ToolUseOpts = { signal: AbortSignal; suggestions?: unknown[]; decisionReaso
 type CanUse = (tool: string, input: Record<string, unknown>, opts: ToolUseOpts) => Promise<unknown>
 
 const queries: Array<{ prompt: unknown; options: Record<string, unknown> & { canUseTool?: CanUse } }> = []
+const openCode = vi.hoisted(() => ({ run: vi.fn(), interrupt: vi.fn(async (_sessionID: string) => undefined) }))
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: (args: { prompt: unknown; options: Record<string, unknown> & { canUseTool?: CanUse } }) => {
@@ -30,6 +31,12 @@ vi.mock('../src/main/git', () => ({
   createWorktree: async () => null,
   changesSince: async () => null,
   takeSnapshot: async () => null,
+}))
+vi.mock('../src/main/opencode/runtime', () => ({
+  OpenCodeRuntime: class {
+    run(...args: [unknown, string, AbortSignal, unknown, unknown, unknown]) { return openCode.run(...args) }
+    interrupt(sessionID: string) { return openCode.interrupt(sessionID) }
+  },
 }))
 
 const { Store } = await import('../src/main/store')
@@ -53,7 +60,7 @@ const started = async (
   const dir = proj()
   store.settings = { ...store.settings, projects: [{ id: 'p1', name: 'Teste', cwd: dir }] }
   const m = new AgentManager(store)
-  const a = await m.hire({ name: 'Ada', cwd: dir, task: 'organize', permissionMode: mode, worktree: false })
+  const a = await m.hire({ name: 'Ada', cwd: dir, task: 'organize', engine: 'claude', permissionMode: mode, worktree: false })
   await flush()
   const canUse = queries[0]?.options.canUseTool
   expect(canUse).toBeTypeOf('function')
@@ -72,6 +79,65 @@ describe('permissões: o Office decide antes do cartão (seam 2)', () => {
   beforeEach(() => {
     app.setPath('userData', mkdtempSync(join(tmpdir(), 'ao-po-')))
     queries.length = 0
+    openCode.run.mockClear()
+  })
+
+  it('requires first-use consent before sending an OpenCode task to a provider', async () => {
+    const store = new Store()
+    const dir = proj()
+    const m = new AgentManager(store)
+    const events = track(m)
+    const agent = await m.hire({ name: 'Ada', cwd: dir, task: 'synthetic task', engine: 'opencode', permissionMode: 'default', worktree: false })
+    await flush()
+    expect(agent.sessionId).toMatch(/^ses_[0-9a-f]{32}$/i)
+    expect(openCode.run).not.toHaveBeenCalled()
+    const result = events.find((e) => e.type === 'result:new')
+    expect(result?.type === 'result:new' && result.result.text.includes('Nenhum conteúdo foi enviado')).toBe(true)
+    expect(result?.type === 'result:new' && result.result.costUnknown).toBe(true)
+  })
+
+  it('stores a safe OpenCode allow-always rule in Office and replies only once to OpenCode', async () => {
+    const store = new Store()
+    const dir = proj()
+    store.settings = {
+      ...store.settings,
+      openCodeDataConsentAt: Date.now(),
+      projects: [{ id: 'p1', name: 'Teste', cwd: dir }],
+    }
+    const m = new AgentManager(store)
+    const events = track(m)
+    let openCodeReply: unknown
+    openCode.run.mockImplementation(async (...args: unknown[]) => {
+      const onPermission = args[3] as (request: Record<string, unknown>) => Promise<unknown>
+      openCodeReply = await onPermission({
+        sessionID: 'session-opencode',
+        requestID: 'permission-opencode',
+        action: 'edit',
+        resources: [`${dir}\\src\\safe.ts`],
+      })
+      return {
+        text: 'Pronto.',
+        providerID: 'openai',
+        model: 'gpt-6-luna',
+        variant: 'high',
+        rationale: 'modelo autorizado',
+        streamed: false,
+        inputTokens: 10,
+        outputTokens: 5,
+        children: [],
+      }
+    })
+    const agent = await m.hire({ name: 'Ada', cwd: dir, task: 'ajuste seguro', engine: 'opencode', permissionMode: 'default', worktree: false })
+    await flush()
+    const request = asked(events)
+    expect(request.canAlwaysAllow).toBe(true)
+    m.respond({ requestId: request.id, behavior: 'allow_always' })
+    await flush()
+    expect(openCodeReply).toBe('once')
+    expect(store.settings.projects[0].alwaysAllow).toEqual([
+      expect.objectContaining({ kind: 'tool', value: 'Edit', id: expect.any(String) }),
+    ])
+    expect(m.agent(agent.id)?.engine).toBe('opencode')
   })
 
   it('leitura comum no Automático passa sem cartão nem evento', async () => {

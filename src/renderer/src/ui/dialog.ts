@@ -432,7 +432,7 @@ export class Dialog {
   private showResult(agent: AgentSummary, r: AgentResult): void {
     this.itemId = r.id
     this.agentId = agent.id
-    const meta = [formatDuration(r.durationMs), r.turns ? `${r.turns} turnos` : '', formatCost(r.costUsd)].filter(Boolean).join(' · ')
+    const meta = [formatDuration(r.durationMs), r.turns ? `${r.turns} turnos` : '', r.costUnknown ? 's/ preço' : formatCost(r.costUsd)].filter(Boolean).join(' · ')
     const ack = async () => {
       this.close()
       await window.office.ackResult(r.id)

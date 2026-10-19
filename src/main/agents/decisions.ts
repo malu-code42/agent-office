@@ -87,7 +87,7 @@ export abstract class AgentDecisions extends AgentSubagents {
     })
   }
 
-  private saveAlwaysAllow(projectId: string, tool: string, input: Record<string, unknown>): void {
+  protected saveAlwaysAllow(projectId: string, tool: string, input: Record<string, unknown>): void {
     const settings = this.store.settings
     const floor = settings.projects.find((p) => p.id === projectId)
     if (!floor) return

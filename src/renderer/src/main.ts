@@ -132,6 +132,7 @@ async function boot(): Promise<void> {
         choice.brain,
         choice.worktree,
         choice.confirmPermissionOverride,
+        choice.engine,
       )
       const floor = state.settings.projects.find((p) => p.id === a.project)
       toast(

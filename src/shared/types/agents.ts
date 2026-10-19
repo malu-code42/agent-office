@@ -13,6 +13,7 @@ export type AgentStatus =
 
 /** Where the agent lives: spawned by the office, or a Claude Code session running in a terminal. */
 export type AgentSource = 'office' | 'terminal'
+export type AgentEngine = 'claude' | 'opencode'
 
 export type OfficePermissionMode = 'default' | 'acceptEdits' | 'auto' | 'plan' | 'bypassPermissions'
 
@@ -41,6 +42,8 @@ export interface AgentSummary {
   id: string
   name: string
   source: AgentSource
+  /** Missing on persisted pre-OpenCode agents: those migrate to Claude. */
+  engine?: AgentEngine
   cwd: string
   model?: string
   effort?: EffortLevel
@@ -56,6 +59,10 @@ export interface AgentSummary {
   look: Look
   /** Running total of the current Claude Code session, as the SDK reports it (a resumed session includes earlier turns). */
   costUsd: number
+  /** True when at least part of an OpenCode run has no trustworthy provider price. */
+  costUnknown?: boolean
+  /** OpenCode usage is reported per completed turn; missing cost means provider pricing is unknown. */
+  opencodeUsage?: { inputTokens: number; outputTokens: number; costUsd?: number }
   /** What this agent spent while in the office: the sum of its entries in the cost book. Missing = nothing yet. */
   spentUsd?: number
   createdAt: number
@@ -142,6 +149,13 @@ export interface SubagentInfo {
   description: string
   /** Agent type, e.g. "Explore" or "general-purpose". */
   type?: string
+  /** OpenCode model and variant chosen for this child task. */
+  model?: string
+  variant?: string
+  inputTokens?: number
+  outputTokens?: number
+  costUsd?: number
+  costUnknown?: boolean
   startedAt: number
   /** Running in the background: only background_tasks_changed reports it ending. */
   background: boolean
@@ -175,6 +189,7 @@ export interface HireRequest {
   name: string
   cwd: string
   task: string
+  engine?: AgentEngine
   model?: string
   effort?: EffortLevel
   accounts?: string[]

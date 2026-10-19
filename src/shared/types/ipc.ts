@@ -234,6 +234,7 @@ export interface OfficeAPI {
     brain?: AgentBrain,
     worktree?: boolean,
     confirmPermissionOverride?: boolean,
+    engine?: 'claude' | 'opencode',
   ): Promise<AgentSummary>
   send(agentId: string, text: string, attachments?: AttachmentInput[]): Promise<void>
   /** Disk path of a picked or dropped file; '' for pasted data. */

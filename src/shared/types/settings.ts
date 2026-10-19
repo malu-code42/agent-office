@@ -2,7 +2,7 @@
 
 import type { VideoSettings } from '../video'
 import type { Account } from './accounts'
-import type { AgentTemplate, EffortLevel, Look, OfficePermissionMode } from './agents'
+import type { AgentEngine, AgentTemplate, EffortLevel, Look, OfficePermissionMode } from './agents'
 
 export interface BridgeStatus {
   installed: boolean
@@ -16,6 +16,10 @@ export interface Settings {
   playerLook: Look
   pixelSize: number
   defaultModel: string
+  /** New installs use OpenCode for individual agents; squads remain Claude-only. */
+  defaultEngine: AgentEngine
+  /** Main-process timestamp of explicit first-use consent for OpenCode data transfer. */
+  openCodeDataConsentAt?: number
   /** '' = the model's default effort. */
   defaultEffort: EffortLevel | ''
   defaultPermissionMode: OfficePermissionMode

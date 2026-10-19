@@ -45,6 +45,7 @@ const settings = (): Settings => ({
   playerLook: { skin: '#f6d3b3', hair: '#2b1d16', hairStyle: 1, shirt: '#4a8fe0', pants: '#2f3b5c', shoes: '#1e1e24' },
   pixelSize: 3,
   defaultModel: '',
+  defaultEngine: 'claude',
   defaultEffort: '',
   defaultPermissionMode: 'default',
   notifications: true,
@@ -273,6 +274,13 @@ describe('cleanHire', () => {
     expect(r.permissionMode).toBe('plan')
     expect(cleanHire({ cwd: dir, task: 'faz' }, s).permissionMode).toBe('default')
   })
+  it('engine inválido ou ausente herda o padrão do escritório', () => {
+    const legacy = { ...s, defaultEngine: 'claude' as const }
+    expect(cleanHire({ cwd: dir, task: 'faz' }, legacy).engine).toBe('claude')
+    expect(cleanHire({ cwd: dir, task: 'faz', engine: 'opencode' }, legacy).engine).toBe('opencode')
+    expect(cleanHire({ cwd: dir, task: 'faz', engine: 'desconhecido' }, legacy).engine).toBe('claude')
+    expect(cleanHire({ cwd: dir, task: 'faz', engine: 'opencode', accounts: ['main'] }, legacy).accounts).toBeUndefined()
+  })
   it('override mais permissivo exige confirmação explícita; restrição não', () => {
     expect(() => cleanHire({ cwd: dir, task: 'faz', permissionMode: 'acceptEdits' }, s)).toThrow(/Confirme explicitamente/)
     expect(cleanHire({ cwd: dir, task: 'faz', permissionMode: 'acceptEdits', confirmPermissionOverride: true }, s).permissionMode).toBe(
@@ -300,7 +308,7 @@ describe('cleanHire', () => {
   })
   it('corta o nome, limpa o cérebro e descarta chaves extras', () => {
     const r = cleanHire({ name: 'x'.repeat(100), cwd: dir, task: 't', model: 'opus', accounts: ['ghost'], evil: true }, s)
-    expect(r).toEqual({ name: 'x'.repeat(40), cwd: dir, task: 't', model: 'opus', accounts: [], permissionMode: 'default' })
+    expect(r).toEqual({ name: 'x'.repeat(40), cwd: dir, task: 't', model: 'opus', accounts: [], engine: 'claude', permissionMode: 'default', worktree: undefined })
     expect(cleanHire({ name: 7, cwd: dir, task: 't' }, s).name).toBe('')
   })
 })
@@ -340,6 +348,14 @@ describe('cleanSettings', () => {
     expect(out).toEqual(settings())
     expect('evil' in out).toBe(false)
     expect(({} as Record<string, unknown>).polluted).toBeUndefined()
+  })
+  it('valida e persiste o motor padrão dos novos agentes', () => {
+    expect(cleanSettings({ defaultEngine: 'opencode' }, settings()).defaultEngine).toBe('opencode')
+    expect(cleanSettings({ defaultEngine: 'desconhecido' }, settings()).defaultEngine).toBe('claude')
+  })
+  it('renderer cannot forge first-use provider consent', () => {
+    const now = Date.now()
+    expect(cleanSettings({ openCodeDataConsentAt: now }, settings()).openCodeDataConsentAt).toBeUndefined()
   })
   it('aplica campos válidos', () => {
     const out = cleanSettings(

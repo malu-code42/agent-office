@@ -7,6 +7,7 @@ export interface ExportHeader {
   cwd: string
   model?: string
   costUsd?: number
+  costUnknown?: boolean
   /** Quando o agente chegou (ms). */
   startedAt?: number
   sessionId?: string
@@ -36,7 +37,7 @@ function headerLines(head: ExportHeader, log: LogEntry[]): string[] {
   const rows: [string, string | undefined][] = [
     ['Pasta', head.cwd ? `\`${head.cwd}\`` : undefined],
     ['Modelo', head.model],
-    ['Custo', head.costUsd ? usd(head.costUsd) : undefined],
+    ['Custo', head.costUnknown ? 'desconhecido (provedor sem preço confiável)' : head.costUsd ? usd(head.costUsd) : undefined],
     ['Início', first ? dateTime(first) : undefined],
     ['Última entrada', last ? dateTime(last) : undefined],
     ['Exportado em', dateTime(head.exportedAt ?? Date.now())],

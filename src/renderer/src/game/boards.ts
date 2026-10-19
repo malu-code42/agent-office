@@ -40,13 +40,20 @@ export abstract class GameBoards extends GameFloors {
       const id = projectFor(this.state.settings.projects, cwd)?.id
       return id ? this.uppers.findIndex((u) => u.project.id === id) + 1 : 0
     }
+    const costUnknownOnFloor = (n: number) =>
+      Object.entries(today.costUnknownByCwd ?? {}).some(([cwd, unknown]) => unknown && (n === 0 || floorOfCwd(cwd) === n))
     const spenders = Object.values(today.agents)
     floors.forEach(([scene, tag, moneyTag, project], n) => {
       const total = Object.entries(today.costByCwd).reduce((sum, [cwd, usd]) => (n === 0 || floorOfCwd(cwd) === n ? sum + usd : sum), 0)
+      const costUnknown = costUnknownOnFloor(n)
       const top = spenders.filter((a) => n === 0 || floorOfCwd(a.cwd) === n).sort((a, b) => b.usd - a.usd).slice(0, 8)
-      scene.money.set(total, top.map((a) => ({ name: a.name, usd: a.usd })))
-      moneyTag.setName(`${money(total)} hoje`)
-      moneyTag.el.title = top.filter((a) => a.usd >= 0.005).map((a) => `${a.name}: ${money(a.usd)}`).join('\n') || 'Ninguém gastou nada hoje'
+      scene.money.set(total, top.map((a) => ({ name: a.name, usd: a.usd, costUnknown: a.costUnknown })), costUnknown)
+      moneyTag.setName(costUnknown ? (total > 0 ? `≥ ${money(total)} hoje` : 's/ preço hoje') : `${money(total)} hoje`)
+      const spendersText = top
+        .filter((a) => a.usd >= 0.005 || a.costUnknown)
+        .map((a) => `${a.name}: ${a.costUnknown ? 'sem preço confiável' : money(a.usd)}`)
+      if (costUnknown) spendersText.push('O provedor não informou preço confiável para parte do uso.')
+      moneyTag.el.title = spendersText.join('\n') || 'Ninguém gastou nada hoje'
       const pool = project ? accountPool(this.state.settings, project.cwd) : [...limited.keys()]
       const hit = pool.filter((id) => limited.has(id))
       scene.alarm.setOn(hit.length > 0)

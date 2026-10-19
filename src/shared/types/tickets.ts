@@ -1,4 +1,4 @@
-import type { EffortLevel, OfficePermissionMode } from './agents'
+import type { AgentEngine, EffortLevel, OfficePermissionMode } from './agents'
 
 // ---------- tickets (kanban) ----------
 
@@ -89,6 +89,7 @@ export type DelegateTarget =
   | { agentId: string; confirmPermissionOverride?: boolean }
   | {
       hire: {
+        engine?: AgentEngine
         model?: string
         effort?: EffortLevel
         accounts?: string[]

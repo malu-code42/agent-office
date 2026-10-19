@@ -112,6 +112,7 @@ export type NewAgentChoice =
   | {
       kind: 'summon'
       cwd: string
+      engine: 'claude' | 'opencode'
       permissionMode: OfficePermissionMode
       brain: AgentBrain
       worktree?: boolean
@@ -151,6 +152,8 @@ export function openNewAgent(
     const brain = brainFields({ model: state.settings.defaultModel, effort: state.settings.defaultEffort })
     const account = accountField(state, () => folder.cwd())
     const mode = h('select', { class: 'input' }, ...MODES.map((m) => h('option', { value: m.value }, m.label)))
+    const engine = h('select', { class: 'input' }, h('option', { value: 'opencode' }, 'OpenCode'), h('option', { value: 'claude' }, 'Claude Code'))
+    engine.value = state.settings.defaultEngine
     const savedMode = localStorage.getItem(LAST_SUMMON_MODE)
     const inheritedMode = project?.permissionMode ?? state.settings.defaultPermissionMode
     mode.value = MODES.some((m) => m.value === savedMode) ? savedMode! : inheritedMode
@@ -203,7 +206,16 @@ export function openNewAgent(
     const seg = h('div', { class: 'seg', role: 'tablist' }, talkBtn, taskBtn, templatesBtn, squadBtn)
     const modelField = field('Modelo', brain.model, brain.hint)
     const effortField = meterField('Esforço', brain.meter)
+    const engineField = field('Motor', engine, 'OpenCode executa agentes individuais; squads continuam no Claude Code.')
+    const openCodeModelField = field('Modelo OpenCode', h('span', { class: 'field-hint' }, 'GPT-6 Luna · reasoning high · provedor conectado no OpenCode.'))
     const modeField = field('Permissões', mode, modeHint)
+    const syncEngineFields = () => {
+      const byTemplate = tab === 'templates'
+      const openCode = engine.value === 'opencode'
+      for (const f of [modelField, effortField]) f.classList.toggle('hidden', byTemplate || openCode)
+      openCodeModelField.classList.toggle('hidden', byTemplate || !openCode)
+      account.el?.classList.toggle('hidden', byTemplate || openCode)
+    }
 
     // Hidden with the class, not the attribute: .field sets display and would win over [hidden].
     const setTab = (next: NewAgentTab, remember: boolean) => {
@@ -217,8 +229,9 @@ export function openNewAgent(
       nameField.classList.toggle('hidden', !hire)
       taskField.classList.toggle('hidden', !hire)
       // a template brings its own brain and freedom
-      for (const f of [modelField, effortField, modeField]) f.classList.toggle('hidden', byTemplate)
+      for (const f of [modeField, engineField]) f.classList.toggle('hidden', byTemplate)
       templates.el.classList.toggle('hidden', !byTemplate)
+       syncEngineFields()
       go.replaceChildren(...(hire || byTemplate ? [icon('plus', 16), 'Contratar'] : [icon('terminal', 15), 'Chamar']))
       tabHint.textContent = byTemplate
         ? `Ele chega com as escolhas do modelo; sem instrução base, digite a tarefa. ${send} contrata.`
@@ -229,6 +242,7 @@ export function openNewAgent(
       else if (byTemplate) templates.focus()
       else go.focus()
     }
+    engine.addEventListener('change', syncEngineFields)
 
     const summon = async () => {
       if (!(await folder.ensure())) return
@@ -239,8 +253,11 @@ export function openNewAgent(
       finish({
         kind: 'summon',
         cwd: folder.cwd(),
+        engine: engine.value as 'claude' | 'opencode',
         permissionMode: mode.value as OfficePermissionMode,
-        brain: { ...brain.value(), accounts: account.value() },
+        brain: engine.value === 'opencode'
+          ? { model: 'gpt-6-luna', effort: 'high' }
+          : { ...brain.value(), accounts: account.value() },
         worktree: isolated.value(),
         confirmPermissionOverride,
       })
@@ -259,8 +276,9 @@ export function openNewAgent(
           name: name.value.trim() || 'Agente',
           cwd,
           task: task.value.trim(),
-          ...brain.value(),
-          accounts: account.value(),
+          engine: engine.value as 'claude' | 'opencode',
+          ...(engine.value === 'opencode' ? { model: 'gpt-6-luna', effort: 'high' as const } : brain.value()),
+          ...(engine.value === 'claude' ? { accounts: account.value() } : {}),
           permissionMode: mode.value as OfficePermissionMode,
           confirmPermissionOverride,
           worktree: isolated.value(),
@@ -291,6 +309,8 @@ export function openNewAgent(
         folder.el,
         isolated.el,
         taskField,
+        engineField,
+        openCodeModelField,
         templates.el,
         modelField,
         effortField,

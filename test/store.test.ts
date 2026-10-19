@@ -19,6 +19,7 @@ describe('Store: carga e migração das configurações', () => {
   it('sem arquivo: configurações padrão com a conta principal', () => {
     const s = new Store()
     expect(s.settings.playerName).toBe('Você')
+    expect(s.settings.defaultEngine).toBe('opencode')
     expect(s.settings.accounts.map((a) => a.id)).toEqual(['main'])
     expect(s.settings.projects).toEqual([])
     expect(s.agents).toEqual([])
@@ -68,6 +69,7 @@ describe('Store: carga e migração das configurações', () => {
     expect(s.maxSubagents).toBe(10)
     expect(s.agentBudgetUsd).toBe(0)
     expect(s.video).toEqual(DEFAULT_VIDEO)
+    expect(s.defaultEngine).toBe('claude')
   })
 
   it('modo e regras "Sempre permitir" quebrados num andar antigo somem na carga', () => {

@@ -13,6 +13,7 @@ export function money(usd: number): string {
 export interface CostLine {
   name: string
   usd: number
+  costUnknown?: boolean
 }
 
 export interface CostBoard {
@@ -20,7 +21,7 @@ export interface CostBoard {
   /** Top of the board, where its tag attaches. */
   anchor: THREE.Object3D
   /** Total for the floor and its biggest spenders. */
-  set(total: number, lines: CostLine[]): void
+  set(total: number, lines: CostLine[], costUnknown?: boolean): void
   update(dt: number): void
 }
 
@@ -51,6 +52,7 @@ export function costBoard(title: string, width = 2.4): CostBoard {
   let target = 0
   let shown = 0
   let ticker = ''
+  let unknownCost = false
   let scroll = 0
   let flash = 0
   let frame = 0
@@ -66,11 +68,12 @@ export function costBoard(title: string, width = 2.4): CostBoard {
     // the total, glowing brighter for a moment after it changes
     ctx.font = 'bold 30px ui-monospace, "SF Mono", Menlo, monospace'
     let size = 30
-    while (ctx.measureText(money(shown)).width > BW - 16 && size > 16) ctx.font = `bold ${(size -= 2)}px ui-monospace, "SF Mono", Menlo, monospace`
+    const totalText = unknownCost ? (shown > 0 ? `≥${money(shown)}` : 's/ preço') : money(shown)
+    while (ctx.measureText(totalText).width > BW - 16 && size > 16) ctx.font = `bold ${(size -= 2)}px ui-monospace, "SF Mono", Menlo, monospace`
     ctx.shadowColor = '#ffb347'
     ctx.shadowBlur = 4 + flash * 10
     ctx.fillStyle = flash > 0 ? '#ffe2a8' : '#ffb347'
-    ctx.fillText(money(shown), 8, 22)
+    ctx.fillText(totalText, 8, 22)
     ctx.shadowBlur = 0
     // who spent it, scrolling
     ctx.fillStyle = '#1a1d2a'
@@ -93,12 +96,13 @@ export function costBoard(title: string, width = 2.4): CostBoard {
   return {
     group: g,
     anchor,
-    set(total, lines) {
+    set(total, lines, costUnknown = false) {
       if (Math.abs(total - target) > 0.004) flash = 1
       target = total
+      unknownCost = costUnknown
       ticker = lines
-        .filter((l) => l.usd >= 0.005)
-        .map((l) => `${l.name} ${money(l.usd)}`)
+        .filter((line) => line.usd >= 0.005 || line.costUnknown)
+        .map((line) => `${line.name} ${line.costUnknown ? 's/ preço' : money(line.usd)}`)
         .join('   ·   ')
     },
     update(dt) {

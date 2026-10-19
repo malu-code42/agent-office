@@ -456,7 +456,7 @@ export function cleanLedgerQuery(raw: unknown): LedgerQuery {
  * for the most permissive ones is the form's job), otherwise the floor of the folder,
  * and only in the last case the office default.
  */
-export function cleanHire(raw: unknown, settings: Pick<Settings, 'accounts' | 'defaultPermissionMode' | 'projects'>): HireRequest {
+export function cleanHire(raw: unknown, settings: Pick<Settings, 'accounts' | 'defaultEngine' | 'defaultPermissionMode' | 'projects'>): HireRequest {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   const cwd = pathSchema.safeParse(r.cwd)
   if (!cwd.success || !isDir(cwd.data)) throw new Error('Escolha uma pasta de projeto que exista.')
@@ -465,6 +465,9 @@ export function cleanHire(raw: unknown, settings: Pick<Settings, 'accounts' | 'd
   const inherited = projectFor(settings.projects, cwd.data)?.permissionMode ?? settings.defaultPermissionMode
   const mode = permissionModeSchema.safeParse(r.permissionMode)
   const requested = mode.success ? mode.data : inherited
+  const engine = r.engine === 'claude' || r.engine === 'opencode' ? r.engine : settings.defaultEngine
+  const brain = cleanBrain(r, settings.accounts)
+  if (engine === 'opencode') delete brain.accounts
   if (modeIsMorePermissive(requested, inherited) && r.confirmPermissionOverride !== true) {
     throw new Error('Confirme explicitamente o modo de permissões mais permissivo que o padrão do projeto.')
   }
@@ -472,7 +475,8 @@ export function cleanHire(raw: unknown, settings: Pick<Settings, 'accounts' | 'd
     name: typeof r.name === 'string' ? r.name.slice(0, 40) : '',
     cwd: cwd.data,
     task: task.data,
-    ...cleanBrain(r, settings.accounts),
+    engine,
+    ...brain,
     permissionMode: requested,
     ...(r.confirmPermissionOverride === true ? { confirmPermissionOverride: true } : {}),
     worktree: worktreeFlagSchema.parse(r.worktree),
@@ -507,6 +511,7 @@ export function cleanDelegateTarget(raw: unknown, accounts: Account[]): Delegate
   return {
     hire: {
       ...cleanBrain(hire, accounts),
+      ...(hire.engine === 'claude' || hire.engine === 'opencode' ? { engine: hire.engine } : {}),
       permissionMode: permissionModeSchema.safeParse(hire.permissionMode).success
         ? (hire.permissionMode as OfficePermissionMode)
         : undefined,
@@ -575,6 +580,7 @@ const settingsFields = {
   playerLook: lookSchema,
   pixelSize: z.number().int().min(2).max(5),
   defaultModel: z.union([z.literal(''), z.string().regex(MODEL_RE)]),
+  defaultEngine: z.enum(['claude', 'opencode']),
   defaultEffort: z.union([z.literal(''), z.enum(EFFORT_LEVELS as [EffortLevel, ...EffortLevel[]])]),
   defaultPermissionMode: permissionModeSchema,
   notifications: z.boolean(),
