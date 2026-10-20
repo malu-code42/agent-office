@@ -11,7 +11,6 @@ import {
   type TaskList,
   type TaskRef,
 } from '@shared/tasks'
-import { openAgenda } from './agenda'
 import { asDialog, FocusReturn, focusedKey, isTyping, refocusKey, rove } from './a11y'
 import { h, icon } from './dom'
 import { cleanError } from './modals'
@@ -339,12 +338,6 @@ export async function openTasksBoard(
           'button',
           { class: 'btn btn-small', type: 'button', 'data-focus-key': 'iris', onclick: () => openIris(root, toast) },
           'Pedir à Íris',
-        ),
-        h(
-          'button',
-          { class: 'btn btn-small', type: 'button', 'data-focus-key': 'agenda', onclick: () => openAgenda(root) },
-          icon('calendar', 14),
-          'Agenda',
         ),
         h(
           'button',
