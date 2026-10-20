@@ -26,7 +26,13 @@ function folderField(
     return {
       el: field(
         'Projeto',
-        h('div', { class: 'path-row path-fixed', title: project.cwd }, icon('folder', 15), h('span', { class: 'path-name' }, project.name), h('span', { class: 'path-label' }, project.cwd)),
+        h(
+          'div',
+          { class: 'path-row path-fixed', title: project.cwd },
+          icon('folder', 15),
+          h('span', { class: 'path-name' }, project.name),
+          h('span', { class: 'path-label' }, project.cwd),
+        ),
         `Andar ${project.name}: quem você chama aqui trabalha nesta pasta.`,
       ),
       cwd: () => project.cwd,
@@ -71,7 +77,11 @@ export function worktreeToggle(): { el: HTMLElement; set(cwd: string | undefined
   box.checked = true
   const el = h(
     'label',
-    { class: 'check worktree-check hidden', title: 'O agente ganha um branch agent/… numa pasta própria em .agent-office/worktrees. Outros agentes no mesmo repo não mexem nos arquivos dele.' },
+    {
+      class: 'check worktree-check hidden',
+      title:
+        'O agente ganha um branch agent/… numa pasta própria em .agent-office/worktrees. Outros agentes no mesmo repo não mexem nos arquivos dele.',
+    },
     box,
     'Trabalhar numa cópia isolada (worktree)',
   )
@@ -98,7 +108,17 @@ const LAST_NEW_AGENT_TAB = 'agent-office:new-agent-tab'
 
 type NewAgentTab = 'summon' | 'hire' | 'templates'
 
-export type NewAgentChoice = { kind: 'summon'; cwd: string; permissionMode: OfficePermissionMode; brain: AgentBrain; worktree?: boolean } | { kind: 'hire' }
+export type NewAgentChoice =
+  | {
+      kind: 'summon'
+      cwd: string
+      engine: 'claude' | 'opencode'
+      permissionMode: OfficePermissionMode
+      brain: AgentBrain
+      worktree?: boolean
+      confirmPermissionOverride?: boolean
+    }
+  | { kind: 'hire' }
 
 /**
  * "Novo agente": one dialog for every way of getting an agent.
@@ -124,12 +144,19 @@ export function openNewAgent(
     const isolated = worktreeToggle()
     const folder = folderField(state, project, (p) => isolated.set(p))
     isolated.set(folder.cwd())
-    const task = h('textarea', { class: 'input', rows: 5, placeholder: 'Ex.: Adicione testes para o módulo de pagamentos e corrija o que quebrar.' })
+    const task = h('textarea', {
+      class: 'input',
+      rows: 5,
+      placeholder: 'Ex.: Adicione testes para o módulo de pagamentos e corrija o que quebrar.',
+    })
     const brain = brainFields({ model: state.settings.defaultModel, effort: state.settings.defaultEffort })
     const account = accountField(state, () => folder.cwd())
     const mode = h('select', { class: 'input' }, ...MODES.map((m) => h('option', { value: m.value }, m.label)))
+    const engine = h('select', { class: 'input' }, h('option', { value: 'opencode' }, 'OpenCode'), h('option', { value: 'claude' }, 'Claude Code'))
+    engine.value = state.settings.defaultEngine
     const savedMode = localStorage.getItem(LAST_SUMMON_MODE)
-    mode.value = MODES.some((m) => m.value === savedMode) ? savedMode! : state.settings.defaultPermissionMode
+    const inheritedMode = project?.permissionMode ?? state.settings.defaultPermissionMode
+    mode.value = MODES.some((m) => m.value === savedMode) ? savedMode! : inheritedMode
     const modeHint = h('span', {})
     const syncHint = () => {
       const m = MODES.find((x) => x.value === mode.value)!
@@ -149,14 +176,21 @@ export function openNewAgent(
 
     const savedTab = localStorage.getItem(LAST_NEW_AGENT_TAB)
     let tab: NewAgentTab = opts.tab ?? (savedTab === 'hire' || savedTab === 'templates' ? savedTab : 'summon')
-    const templates = templatesTab(root, state, project, { toast, cwd: () => folder.cwd(), ensureFolder: () => folder.ensure(), accounts: () => account.value(), worktree: () => isolated.value() })
+    const templates = templatesTab(root, state, project, {
+      toast,
+      cwd: () => folder.cwd(),
+      ensureFolder: () => folder.ensure(),
+      accounts: () => account.value(),
+      worktree: () => isolated.value(),
+    })
     const go = h('button', { class: 'btn btn-primary' })
     const nameField = field('Nome', name)
     const taskField = field('Tarefa', task)
     const tabHint = h('div', { class: 'field-hint' })
     const send = state.platform === 'darwin' ? '⌘↩' : 'Ctrl+Enter'
 
-    const segBtn = (label: string, title: string, onclick: () => void) => h('button', { class: 'seg-btn', type: 'button', title, onclick }, label)
+    const segBtn = (label: string, title: string, onclick: () => void) =>
+      h('button', { class: 'seg-btn', type: 'button', title, onclick }, label)
     const talkBtn = segBtn('Conversar', 'Sem tarefa: ele chega e o painel abre para você digitar', () => setTab('summon', true))
     const taskBtn = segBtn('Com tarefa', 'Nome, tarefa e modelo: ele já chega trabalhando', () => setTab('hire', true))
     const templatesBtn = segBtn('Modelos', 'Contrate com as escolhas salvas num modelo', () => setTab('templates', true))
@@ -172,7 +206,16 @@ export function openNewAgent(
     const seg = h('div', { class: 'seg', role: 'tablist' }, talkBtn, taskBtn, templatesBtn, squadBtn)
     const modelField = field('Modelo', brain.model, brain.hint)
     const effortField = meterField('Esforço', brain.meter)
+    const engineField = field('Motor', engine, 'OpenCode executa agentes individuais; squads continuam no Claude Code.')
+    const openCodeModelField = field('Modelo OpenCode', h('span', { class: 'field-hint' }, 'GPT-6 Luna · reasoning high · provedor conectado no OpenCode.'))
     const modeField = field('Permissões', mode, modeHint)
+    const syncEngineFields = () => {
+      const byTemplate = tab === 'templates'
+      const openCode = engine.value === 'opencode'
+      for (const f of [modelField, effortField]) f.classList.toggle('hidden', byTemplate || openCode)
+      openCodeModelField.classList.toggle('hidden', byTemplate || !openCode)
+      account.el?.classList.toggle('hidden', byTemplate || openCode)
+    }
 
     // Hidden with the class, not the attribute: .field sets display and would win over [hidden].
     const setTab = (next: NewAgentTab, remember: boolean) => {
@@ -186,8 +229,9 @@ export function openNewAgent(
       nameField.classList.toggle('hidden', !hire)
       taskField.classList.toggle('hidden', !hire)
       // a template brings its own brain and freedom
-      for (const f of [modelField, effortField, modeField]) f.classList.toggle('hidden', byTemplate)
+      for (const f of [modeField, engineField]) f.classList.toggle('hidden', byTemplate)
       templates.el.classList.toggle('hidden', !byTemplate)
+       syncEngineFields()
       go.replaceChildren(...(hire || byTemplate ? [icon('plus', 16), 'Contratar'] : [icon('terminal', 15), 'Chamar']))
       tabHint.textContent = byTemplate
         ? `Ele chega com as escolhas do modelo; sem instrução base, digite a tarefa. ${send} contrata.`
@@ -198,19 +242,32 @@ export function openNewAgent(
       else if (byTemplate) templates.focus()
       else go.focus()
     }
+    engine.addEventListener('change', syncEngineFields)
 
     const summon = async () => {
       if (!(await folder.ensure())) return
-      if (mode.value === 'bypassPermissions' && !confirm('Esse agente vai rodar qualquer comando sem perguntar. Continuar?')) return
+      const modeOrder: OfficePermissionMode[] = ['plan', 'default', 'acceptEdits', 'auto', 'bypassPermissions']
+      const confirmPermissionOverride = modeOrder.indexOf(mode.value as OfficePermissionMode) > modeOrder.indexOf(inheritedMode)
       if (!project) localStorage.setItem(LAST_CWD, folder.cwd())
       localStorage.setItem(LAST_SUMMON_MODE, mode.value)
-      finish({ kind: 'summon', cwd: folder.cwd(), permissionMode: mode.value as OfficePermissionMode, brain: { ...brain.value(), accounts: account.value() }, worktree: isolated.value() })
+      finish({
+        kind: 'summon',
+        cwd: folder.cwd(),
+        engine: engine.value as 'claude' | 'opencode',
+        permissionMode: mode.value as OfficePermissionMode,
+        brain: engine.value === 'opencode'
+          ? { model: 'gpt-6-luna', effort: 'high' }
+          : { ...brain.value(), accounts: account.value() },
+        worktree: isolated.value(),
+        confirmPermissionOverride,
+      })
     }
     const hire = async () => {
       const cwd = folder.cwd()
       if (!cwd) return toast('Escolha a pasta do projeto.', 'err')
       if (!task.value.trim()) return toast('Descreva a tarefa.', 'err')
-      if (mode.value === 'bypassPermissions' && !confirm('Esse agente vai rodar qualquer comando sem perguntar. Continuar?')) return
+      const modeOrder: OfficePermissionMode[] = ['plan', 'default', 'acceptEdits', 'auto', 'bypassPermissions']
+      const confirmPermissionOverride = modeOrder.indexOf(mode.value as OfficePermissionMode) > modeOrder.indexOf(inheritedMode)
       go.setAttribute('disabled', '')
       try {
         if (!project) localStorage.setItem(LAST_CWD, cwd)
@@ -219,9 +276,11 @@ export function openNewAgent(
           name: name.value.trim() || 'Agente',
           cwd,
           task: task.value.trim(),
-          ...brain.value(),
-          accounts: account.value(),
+          engine: engine.value as 'claude' | 'opencode',
+          ...(engine.value === 'opencode' ? { model: 'gpt-6-luna', effort: 'high' as const } : brain.value()),
+          ...(engine.value === 'claude' ? { accounts: account.value() } : {}),
           permissionMode: mode.value as OfficePermissionMode,
+          confirmPermissionOverride,
           worktree: isolated.value(),
         })
         toast(`${a.name} está subindo pelo elevador.`, 'ok')
@@ -250,6 +309,8 @@ export function openNewAgent(
         folder.el,
         isolated.el,
         taskField,
+        engineField,
+        openCodeModelField,
         templates.el,
         modelField,
         effortField,

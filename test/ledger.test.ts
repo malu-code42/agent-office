@@ -48,6 +48,21 @@ describe('localDay', () => {
 })
 
 describe('custo por dia e projeto', () => {
+  it('keeps unpriced OpenCode usage visible as unknown rather than free', () => {
+    book.recordOpenCode(agent({ engine: 'opencode' }), 'oc-1', 'openai/gpt-6-luna', 120, 35, undefined, T)
+    const today = book.today()
+    expect(today.costByCwd['/proj']).toBe(0)
+    expect(today.costUnknownByCwd?.['/proj']).toBe(true)
+    expect(today.agents['ag-1']).toMatchObject({ usd: 0, costUnknown: true })
+    expect(store.ledger.days['/proj'][DAY].accounts.opencode).toMatchObject({ costUsd: 0, costUnknown: true })
+    expect(store.ledger.days['/proj'][DAY].models['openai/gpt-6-luna']).toMatchObject({
+      costUsd: 0,
+      inputTokens: 120,
+      outputTokens: 35,
+      costUnknown: true,
+    })
+  })
+
   it('sessão nova conta só o que cresceu entre resultados', () => {
     book.begin('s1', false, 0)
     expect(book.record(agent(), 's1', 'main', result(0.5, { 'claude-opus-5': usage(0.5, 100, 10) }), T)).toBeCloseTo(0.5)

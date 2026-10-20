@@ -87,6 +87,8 @@ export interface RoutineDraft {
   cwd?: string
   floor?: string
   permissionMode?: OfficePermissionMode
+  /** Present only after explicit confirmation of a more permissive project override. */
+  confirmPermissionOverride?: boolean
   schedule: Schedule
   enabled?: boolean
   missed?: MissedPolicy

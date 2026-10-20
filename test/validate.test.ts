@@ -16,7 +16,8 @@ import {
   cleanProjects,
   cleanSettings,
   cleanVideo,
-  delegateMode,
+  checkedSquadMode,
+  modeIsMorePermissive,
   externalUrlSchema,
   idSchema,
   MAX_LOGO_CHARS,
@@ -44,6 +45,7 @@ const settings = (): Settings => ({
   playerLook: { skin: '#f6d3b3', hair: '#2b1d16', hairStyle: 1, shirt: '#4a8fe0', pants: '#2f3b5c', shoes: '#1e1e24' },
   pixelSize: 3,
   defaultModel: '',
+  defaultEngine: 'claude',
   defaultEffort: '',
   defaultPermissionMode: 'default',
   notifications: true,
@@ -87,7 +89,11 @@ describe('cleanBrain', () => {
     })
   })
   it('chave presente e inválida vira undefined (padrão do Claude Code)', () => {
-    expect(cleanBrain({ model: 'rm -rf /', effort: 'turbo', accounts: 'main' }, accounts)).toEqual({ model: undefined, effort: undefined, accounts: [] })
+    expect(cleanBrain({ model: 'rm -rf /', effort: 'turbo', accounts: 'main' }, accounts)).toEqual({
+      model: undefined,
+      effort: undefined,
+      accounts: [],
+    })
   })
   it('chaves ausentes ficam ausentes; lixo vira objeto vazio', () => {
     expect(cleanBrain({}, accounts)).toEqual({})
@@ -115,10 +121,7 @@ describe('cleanAccounts', () => {
       ],
       accounts,
     )
-    expect(out).toEqual([
-      { ...work, name: 'Cliente', color: '#00ff00' },
-      { ...main },
-    ])
+    expect(out).toEqual([{ ...work, name: 'Cliente', color: '#00ff00' }, { ...main }])
   })
   it('ignora contas desconhecidas e repetidas, e nunca remove as que existem', () => {
     const out = cleanAccounts([{ id: 'ghost', name: 'x' }, { id: 'main', name: 'A' }, { id: 'main', name: 'B' }, 'lixo'], accounts)
@@ -183,11 +186,82 @@ describe('cleanProjects', () => {
     expect(cleanProjects('lixo', [])).toEqual([])
     expect(cleanProjects([null, 3], [])).toEqual([])
   })
+  it('guarda o modo do andar; fora da lista mantém o que já existia', () => {
+    const previous: ProjectFloor[] = [{ id: 'p1', name: 'Loja', cwd: dir, permissionMode: 'auto' }]
+    expect(cleanProjects([{ id: 'p1', name: 'Loja', cwd: dir, permissionMode: 'auto' }], previous)[0].permissionMode).toBe('auto')
+    expect(cleanProjects([{ id: 'p2', name: 'Novo', cwd: other, permissionMode: 'plan' }], [])[0].permissionMode).toBe('plan')
+    // O formulário pode mandar o modo inválido (ou nem mandar): o andar mantém o seu.
+    expect(cleanProjects([{ id: 'p1', name: 'Loja', cwd: dir, permissionMode: 'raiz' }], previous)[0].permissionMode).toBe('auto')
+    expect(cleanProjects([{ id: 'p1', name: 'Loja', cwd: dir }], previous)[0].permissionMode).toBe('auto')
+    const [semPrev] = cleanProjects([{ id: 'p3', name: 'X', cwd: other, permissionMode: 'raiz' }], [])
+    expect('permissionMode' in semPrev).toBe(false)
+  })
+  it('não transfere o modo nem as permissões salvas quando um id de andar muda de pasta', () => {
+    const previous: ProjectFloor[] = [
+      { id: 'p1', name: 'Loja', cwd: dir, permissionMode: 'auto', alwaysAllow: [{ id: 'r1', kind: 'tool', value: 'Read' }] },
+    ]
+    const [moved] = cleanProjects([{ id: 'p1', name: 'Outro', cwd: other }], previous)
+    expect('permissionMode' in moved).toBe(false)
+    expect('alwaysAllow' in moved).toBe(false)
+  })
+  it('guarda, limpa e dedupe as regras "Sempre permitir"; apagar manda lista vazia', () => {
+    // Sem a chave no patch, o andar mantém as regras que já tinha.
+    const previous: ProjectFloor[] = [{ id: 'p1', name: 'Loja', cwd: dir, alwaysAllow: [{ id: 'r1', kind: 'tool', value: 'Read' }] }]
+    expect(cleanProjects([{ id: 'p1', name: 'Loja', cwd: dir }], previous)[0].alwaysAllow).toEqual([
+      { id: 'r1', kind: 'tool', value: 'Read' },
+    ])
+    // Com a chave (o formulário manda sempre, com ou sem regras), o lixo sai e a lista vazia vale.
+    const out = cleanProjects(
+      [
+        {
+          id: 'p2',
+          name: 'Novo',
+          cwd: other,
+          alwaysAllow: [
+            { id: 'a', kind: 'command', value: ' npm test ' },
+            { kind: 'tool', value: 'Read' },
+            { id: 'b', kind: 'destrua', value: 'Read' },
+            { id: 'c', kind: 'tool', value: '   ' },
+            { id: 'a', kind: 'command', value: 'npm test' },
+            'lixo',
+          ],
+        },
+      ],
+      [],
+    )
+    expect(out[0].alwaysAllow).toEqual([
+      { id: 'a', createdAt: expect.any(Number), kind: 'command', value: 'npm test' },
+      { id: expect.any(String), createdAt: expect.any(Number), kind: 'tool', value: 'Read' },
+    ])
+    expect(cleanProjects([{ id: 'p2', name: 'Novo', cwd: other, alwaysAllow: [] }], [])[0].alwaysAllow ?? []).toEqual([])
+  })
+  it('limpa as "Sempre permitir" do andar que já existia: zerar é zerar', () => {
+    const previous: ProjectFloor[] = [
+      {
+        id: 'p1',
+        name: 'Loja',
+        cwd: dir,
+        alwaysAllow: [
+          { id: 'r1', kind: 'tool', value: 'Read' },
+          { id: 'r2', kind: 'command', value: 'ls' },
+        ],
+      },
+    ]
+    const [p] = cleanProjects(
+      [{ id: 'p1', name: 'Loja', cwd: dir, alwaysAllow: [{ id: 'r2', kind: 'command', value: 'ls' }, 'lixo'] }],
+      previous,
+    )
+    expect(p.alwaysAllow).toEqual([{ id: 'r2', createdAt: expect.any(Number), kind: 'command', value: 'ls' }])
+  })
 })
 
 describe('cleanLedgerQuery', () => {
   it('mantém só dias YYYY-MM-DD e pasta absoluta', () => {
-    expect(cleanLedgerQuery({ from: '2026-10-01', to: '2026-10-12', cwd: '/proj', extra: 1 })).toEqual({ from: '2026-10-01', to: '2026-10-12', cwd: '/proj' })
+    expect(cleanLedgerQuery({ from: '2026-10-01', to: '2026-10-12', cwd: '/proj', extra: 1 })).toEqual({
+      from: '2026-10-01',
+      to: '2026-10-12',
+      cwd: '/proj',
+    })
     expect(cleanLedgerQuery({ from: 'ontem', to: 20261012, cwd: 'rel' })).toEqual({})
     expect(cleanLedgerQuery(undefined)).toEqual({})
   })
@@ -200,8 +274,30 @@ describe('cleanHire', () => {
     expect(r.permissionMode).toBe('plan')
     expect(cleanHire({ cwd: dir, task: 'faz' }, s).permissionMode).toBe('default')
   })
-  it('permissionMode válido passa', () => {
-    expect(cleanHire({ cwd: dir, task: 'faz', permissionMode: 'acceptEdits' }, s).permissionMode).toBe('acceptEdits')
+  it('engine inválido ou ausente herda o padrão do escritório', () => {
+    const legacy = { ...s, defaultEngine: 'claude' as const }
+    expect(cleanHire({ cwd: dir, task: 'faz' }, legacy).engine).toBe('claude')
+    expect(cleanHire({ cwd: dir, task: 'faz', engine: 'opencode' }, legacy).engine).toBe('opencode')
+    expect(cleanHire({ cwd: dir, task: 'faz', engine: 'desconhecido' }, legacy).engine).toBe('claude')
+    expect(cleanHire({ cwd: dir, task: 'faz', engine: 'opencode', accounts: ['main'] }, legacy).accounts).toBeUndefined()
+  })
+  it('override mais permissivo exige confirmação explícita; restrição não', () => {
+    expect(() => cleanHire({ cwd: dir, task: 'faz', permissionMode: 'acceptEdits' }, s)).toThrow(/Confirme explicitamente/)
+    expect(cleanHire({ cwd: dir, task: 'faz', permissionMode: 'acceptEdits', confirmPermissionOverride: true }, s).permissionMode).toBe(
+      'acceptEdits',
+    )
+    expect(cleanHire({ cwd: dir, task: 'faz', permissionMode: 'plan' }, s).permissionMode).toBe('plan')
+  })
+  it('herda o modo do andar do projeto quando não há modo escolhido', () => {
+    const comAndar = { ...s, projects: [{ id: 'p1', name: 'Loja', cwd: dir, permissionMode: 'plan' as const }] }
+    // Sem modo no pedido: o modo do andar. Modo inválido: cai no andar, não no global.
+    expect(cleanHire({ cwd: dir, task: 'faz' }, comAndar).permissionMode).toBe('plan')
+    expect(cleanHire({ cwd: dir, task: 'faz', permissionMode: 'rootMode' }, comAndar).permissionMode).toBe('plan')
+    // Andar sem modo próprio: o padrão do escritório.
+    const andarSemModo = { ...s, projects: [{ id: 'p1', name: 'Loja', cwd: dir }], defaultPermissionMode: 'acceptEdits' as const }
+    expect(cleanHire({ cwd: dir, task: 'faz' }, andarSemModo).permissionMode).toBe('acceptEdits')
+    // Pasta de fora: o padrão do escritório continua.
+    expect(cleanHire({ cwd: other, task: 'faz' }, comAndar).permissionMode).toBe('default')
   })
   it('recusa pasta que não existe e tarefa vazia', () => {
     expect(() => cleanHire({ cwd: join(dir, 'nada'), task: 'x' }, s)).toThrow('Escolha uma pasta')
@@ -212,25 +308,37 @@ describe('cleanHire', () => {
   })
   it('corta o nome, limpa o cérebro e descarta chaves extras', () => {
     const r = cleanHire({ name: 'x'.repeat(100), cwd: dir, task: 't', model: 'opus', accounts: ['ghost'], evil: true }, s)
-    expect(r).toEqual({ name: 'x'.repeat(40), cwd: dir, task: 't', model: 'opus', accounts: [], permissionMode: 'default' })
+    expect(r).toEqual({ name: 'x'.repeat(40), cwd: dir, task: 't', model: 'opus', accounts: [], engine: 'claude', permissionMode: 'default', worktree: undefined })
     expect(cleanHire({ name: 7, cwd: dir, task: 't' }, s).name).toBe('')
   })
 })
 
 describe('cleanDelegateTarget', () => {
   it('agente existente: só o id', () => {
-    expect(cleanDelegateTarget({ agentId: 'ag-1', hire: { permissionMode: 'bypassPermissions' } }, accounts)).toEqual({ agentId: 'ag-1' })
+    expect(cleanDelegateTarget({ agentId: 'ag-1', hire: { permissionMode: 'bypassPermissions' } }, accounts)).toEqual({
+      agentId: 'ag-1',
+      confirmPermissionOverride: false,
+    })
     expect(() => cleanDelegateTarget({ agentId: {} }, accounts)).toThrow('Agente inválido')
   })
-  it('contratação nunca roda com bypass', () => {
-    expect(cleanDelegateTarget({ hire: { permissionMode: 'bypassPermissions', model: 'opus' } }, accounts)).toEqual({ hire: { model: 'opus', permissionMode: undefined } })
-    expect(cleanDelegateTarget({ hire: { permissionMode: 'auto' } }, accounts)).toEqual({ hire: { permissionMode: 'auto' } })
-    expect(cleanDelegateTarget(undefined, accounts)).toEqual({ hire: { permissionMode: undefined } })
+  it('preserva modo delegado, sem downgrade silencioso; tickets validam o bypass no servidor', () => {
+    expect(cleanDelegateTarget({ hire: { permissionMode: 'bypassPermissions', model: 'opus' } }, accounts)).toEqual({
+      hire: { model: 'opus', permissionMode: 'bypassPermissions', confirmPermissionOverride: false, worktree: undefined },
+    })
+    expect(cleanDelegateTarget({ hire: { permissionMode: 'auto' } }, accounts)).toEqual({
+      hire: { permissionMode: 'auto', confirmPermissionOverride: false, worktree: undefined },
+    })
+    expect(cleanDelegateTarget(undefined, accounts)).toEqual({
+      hire: { permissionMode: undefined, confirmPermissionOverride: false, worktree: undefined },
+    })
   })
-  it('delegateMode cai em default fora da lista', () => {
-    expect(delegateMode('bypassPermissions')).toBe('default')
-    expect(delegateMode('plan')).toBe('plan')
-    expect(delegateMode(undefined)).toBe('default')
+  it('compara override conservador e nunca permite bypass em squad', () => {
+    expect(modeIsMorePermissive('plan', 'default')).toBe(false)
+    expect(modeIsMorePermissive('auto', 'default')).toBe(true)
+    expect(checkedSquadMode('plan', 'default')).toBe('plan')
+    expect(() => checkedSquadMode('bypassPermissions', 'default', true)).toThrow(/Squads nunca/)
+    expect(() => checkedSquadMode('auto', 'default')).toThrow(/Confirme explicitamente/)
+    expect(checkedSquadMode('auto', 'default', true)).toBe('auto')
   })
 })
 
@@ -240,6 +348,14 @@ describe('cleanSettings', () => {
     expect(out).toEqual(settings())
     expect('evil' in out).toBe(false)
     expect(({} as Record<string, unknown>).polluted).toBeUndefined()
+  })
+  it('valida e persiste o motor padrão dos novos agentes', () => {
+    expect(cleanSettings({ defaultEngine: 'opencode' }, settings()).defaultEngine).toBe('opencode')
+    expect(cleanSettings({ defaultEngine: 'desconhecido' }, settings()).defaultEngine).toBe('claude')
+  })
+  it('renderer cannot forge first-use provider consent', () => {
+    const now = Date.now()
+    expect(cleanSettings({ openCodeDataConsentAt: now }, settings()).openCodeDataConsentAt).toBeUndefined()
   })
   it('aplica campos válidos', () => {
     const out = cleanSettings(
@@ -308,7 +424,10 @@ describe('cleanSettings', () => {
   it('video: aplica os campos válidos e mantém os inválidos', () => {
     const out = cleanSettings({ video: { ...QUALITY_PRESETS.saver, batterySaver: false } }, settings())
     expect(out.video).toEqual({ ...QUALITY_PRESETS.saver, batterySaver: false })
-    const bad = cleanSettings({ video: { shadows: 'sim', shadowMapSize: 4096, fpsLimit: 144, effects: 'none', batterySaver: 1, evil: '<x>' } }, settings())
+    const bad = cleanSettings(
+      { video: { shadows: 'sim', shadowMapSize: 4096, fpsLimit: 144, effects: 'none', batterySaver: 1, evil: '<x>' } },
+      settings(),
+    )
     expect(bad.video).toEqual(DEFAULT_VIDEO)
     expect(cleanSettings({ video: 'alta' }, settings()).video).toEqual(DEFAULT_VIDEO)
   })
@@ -367,7 +486,15 @@ describe('schemas do IPC', () => {
     expect(permissionDecisionSchema.safeParse({ requestId: 'r1', behavior: 'allow', answers: many }).success).toBe(false)
   })
   it('TicketDraft: exige título, aceita nulos, descarta chaves extras', () => {
-    const d = ticketDraftSchema.parse({ title: 'T', cwd: null, estimate: null, dueDate: null, acceptance: [{ text: 'a' }], key: 'AO-1', id: 'x' })
+    const d = ticketDraftSchema.parse({
+      title: 'T',
+      cwd: null,
+      estimate: null,
+      dueDate: null,
+      acceptance: [{ text: 'a' }],
+      key: 'AO-1',
+      id: 'x',
+    })
     expect(d).toEqual({ title: 'T', cwd: null, estimate: null, dueDate: null, acceptance: [{ text: 'a', done: false }] })
     expect(ticketDraftSchema.safeParse({}).success).toBe(false)
     expect(ticketDraftSchema.safeParse({ title: 'T', type: 'epic' }).success).toBe(false)

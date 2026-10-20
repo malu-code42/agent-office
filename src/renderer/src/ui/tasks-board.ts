@@ -17,7 +17,6 @@ import { h, icon } from './dom'
 import { cleanError } from './modals'
 import { offerUndo, type Toast } from './tasks-complete'
 import { openMoveMenu, openTaskMenu } from './tasks-move'
-import { openIris } from './iris'
 import { openNewTask } from './tasks-new'
 import { runDiscard, runReopen } from './tasks-discard'
 import { keepScroll } from './tasks-scroll'
@@ -335,11 +334,6 @@ export async function openTasksBoard(
         h('div', { class: 'board-title' }, icon('list', 18), 'Tarefas'),
         h('span', { class: 'board-count' }, `${columns.reduce((count, list) => count + list.tasks.length, 0)} tarefas`),
         h('span', { class: 'grow' }),
-        h(
-          'button',
-          { class: 'btn btn-small', type: 'button', 'data-focus-key': 'iris', onclick: () => openIris(root, toast) },
-          'Pedir à Íris',
-        ),
         h(
           'button',
           { class: 'btn btn-small', type: 'button', 'data-focus-key': 'agenda', onclick: () => openAgenda(root) },

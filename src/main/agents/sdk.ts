@@ -1,23 +1,44 @@
 import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { query, type Query, type SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import { describeTool, toolDetail } from '@shared/describe'
 import { MAIN_ACCOUNT } from '@shared/accounts'
+import { projectFor } from '@shared/projects'
+import type { AgentSummary } from '@shared/types'
 import { accountEnv } from '../accounts'
 import { claudeNotFoundMessage } from '../claude-messages'
 import { findClaude } from '../claude-path'
-import { findSquad, memberAgents, orchestratorPrompt, teamGuard, type SquadDefinition } from '../squads'
+import { findSquad, memberAgents, orchestratorPrompt, teamGuard, validateSquad, type SquadDefinition } from '../squads'
 import { takeSnapshot } from '../git'
 import { InputQueue, kTokens, toMs, WRITE_TOOLS, type Agent, type Prompt } from './types'
 import { AgentOffice } from './office'
+import { randomUUID } from 'node:crypto'
+import { OpenCodeRuntime } from '../opencode/runtime'
+import { decide, type PolicyDecision } from '../permissions/policy'
+import { lenientRealpath } from './decisions'
+import { mapOpenCodePermission } from '../opencode/judge'
+import type { OpenCodePermission } from '../opencode/runtime'
 
 /** Runs on the Claude Agent SDK: starting the query and turning its messages into status, activity and log. */
 export abstract class AgentSdk extends AgentOffice {
+  protected openCode = new OpenCodeRuntime()
+  protected interruptOpenCode(sessionID: string): Promise<void> {
+    return this.openCode.interrupt(sessionID)
+  }
   /** CLI processes closed on purpose to move to another account: their end is not an error. */
   protected replaced = new WeakSet<Query>()
 
   protected run(agent: Agent, prompt: Prompt): void {
     const s = agent.summary
     if (this.simulate) return this.simulate(s.id, typeof prompt === 'string' ? prompt : '(mensagem com anexos)')
+    if (s.engine === 'opencode' && s.role !== 'orchestrator') {
+      if (typeof prompt !== 'string') {
+        this.deliver(agent, { text: 'O agente OpenCode ainda não aceita anexos. Envie o conteúdo como texto ou use Claude Code.', isError: true, costUsd: s.costUsd, durationMs: 0, turns: 0 })
+        return
+      }
+      void this.runOpenCode(agent, prompt)
+      return
+    }
     const claude = findClaude()
     if (!claude) {
       this.deliver(agent, {
@@ -32,13 +53,41 @@ export abstract class AgentSdk extends AgentOffice {
     // Orchestrators read the squad again, so edits to squad.yaml count from the next run.
     const squad = s.role === 'orchestrator' && s.squad ? findSquad(s.cwd, s.squad) : undefined
     if (s.role === 'orchestrator') {
+      const squadCode = s.squad ?? 'desconhecido'
       if (!squad) {
-        this.deliver(agent, { text: `Não achei mais o squad \`${s.squad}\` em ${s.cwd}/squads.`, isError: true, costUsd: s.costUsd, durationMs: 0, turns: 0 })
+        this.deliver(agent, {
+          text: `A definição do squad \`${squadCode}\` não está disponível em ${join(s.cwd, 'squads', squadCode, 'squad.yaml')}. Restaure ou corrija esse arquivo manualmente e tente novamente; o Agent Office não recria definições.`,
+          isError: true,
+          costUsd: s.costUsd,
+          durationMs: 0,
+          turns: 0,
+        })
+        return
+      }
+      try {
+        validateSquad(squad)
+      } catch (err) {
+        this.deliver(agent, {
+          text: `O squad \`${squadCode}\` está indisponível: ${err instanceof Error ? err.message : String(err)}. Corrija ${join(s.cwd, 'squads', squadCode, 'squad.yaml')} e tente novamente.`,
+          isError: true,
+          costUsd: s.costUsd,
+          durationMs: 0,
+          turns: 0,
+        })
         return
       }
       agent.squad = squad
-      // Squad cycles touch real systems: never without approvals, whatever was saved.
-      if (s.permissionMode === 'bypassPermissions') s.permissionMode = 'default'
+      // A corrupt/restored orchestrator record must never turn a squad into a bypass.
+      if (s.permissionMode === 'bypassPermissions') {
+        this.deliver(agent, {
+          text: 'Squads nunca podem rodar no modo "Sem pedir nada". Escolha outro modo e tente novamente.',
+          isError: true,
+          costUsd: s.costUsd,
+          durationMs: 0,
+          turns: 0,
+        })
+        return
+      }
     }
     if (this.overBudget(agent)) return
     const wt = s.worktree
@@ -56,7 +105,8 @@ export abstract class AgentSdk extends AgentOffice {
     // A new task (not a failover or a /compact): remember the folder as it is now, so the
     // card can show what this task changed. The CLI only starts once the snapshot is done:
     // anything it writes before that would count as the player's own earlier change.
-    if (!agent.task && !agent.compacting && !agent.demo) agent.task = { snapshot: takeSnapshot(workDir).catch(() => null), touched: new Map() }
+    if (!agent.task && !agent.compacting && !agent.demo)
+      agent.task = { snapshot: takeSnapshot(workDir).catch(() => null), touched: new Map() }
     const input = new InputQueue()
     input.push(prompt)
     agent.input = input
@@ -76,13 +126,215 @@ export abstract class AgentSdk extends AgentOffice {
     this.startQuery(agent, input, claude, workDir, squad)
   }
 
+  private async runOpenCode(agent: Agent, prompt: string): Promise<void> {
+    const summary = agent.summary
+    if (!this.store.settings.openCodeDataConsentAt) {
+      this.deliver(agent, {
+        text: 'Antes de usar OpenCode, aceite o aviso de envio de dados ao contratar um agente individual no modo OpenCode. Nenhum conteúdo foi enviado.',
+        isError: true,
+        costUsd: summary.costUsd,
+        costUnknown: true,
+        durationMs: 0,
+        turns: 0,
+      })
+      return
+    }
+    const controller = new AbortController()
+    agent.opencodeAbort = controller
+    agent.started = true
+    this.setStatus(agent, 'starting', 'Conectando ao OpenCode')
+    this.addLog(agent, 'system', 'Roteamento OpenCode: somente GPT-6 Luna high está aprovado. Se estiver indisponível, a execução pausa; não há troca silenciosa de modelo.')
+    let textBuffer = ''
+    const flushText = () => {
+      if (!textBuffer) return
+      this.addLog(agent, 'assistant', textBuffer)
+      textBuffer = ''
+    }
+    try {
+      const turn = await this.openCode.run(
+        summary,
+        prompt,
+        controller.signal,
+        (request) => this.askOpenCodePermission(agent, request),
+        (child) => this.updateOpenCodeChild(agent, child),
+        (delta) => {
+          textBuffer += delta
+          if (textBuffer.length >= 280 || textBuffer.includes('\n')) flushText()
+          else this.setStatus(agent, 'working', 'Escrevendo resposta')
+        },
+        this.store.settings.maxSubagents,
+        (audit) => {
+          this.addLog(agent, 'system', `Julgador selecionou ${audit.providerID}/${audit.model} · ${audit.variant}: ${audit.rationale}`)
+          for (const delegation of audit.decisions)
+            this.addLog(
+              agent,
+              'system',
+              `Julgador validou "${delegation.task}" para \`${delegation.profile}\` em ${delegation.providerID}/${delegation.modelID} (${delegation.variant}): ${delegation.rationale} · confiança ${(delegation.confidence * 100).toFixed(0)}%.`,
+            )
+          if (audit.decisions.length === 0)
+            this.addLog(agent, 'system', 'Julgador validou o plano: nenhuma delegação; o agente conduz a tarefa direto.')
+        },
+      )
+      flushText()
+      if (controller.signal.aborted || !this.agents.has(summary.id)) return
+      summary.model = turn.model
+      summary.effort = turn.variant as AgentSummary['effort']
+      if (!turn.streamed && turn.text) this.addLog(agent, 'assistant', turn.text)
+      summary.opencodeUsage = {
+        inputTokens: (summary.opencodeUsage?.inputTokens ?? 0) + turn.inputTokens,
+        outputTokens: (summary.opencodeUsage?.outputTokens ?? 0) + turn.outputTokens,
+        ...(turn.costUsd !== undefined ? { costUsd: (summary.opencodeUsage?.costUsd ?? 0) + turn.costUsd } : summary.opencodeUsage?.costUsd !== undefined ? { costUsd: summary.opencodeUsage.costUsd } : {}),
+      }
+      summary.costUnknown = turn.costUsd === undefined || summary.costUnknown === true
+      if (turn.costUsd !== undefined) {
+        summary.costUsd += turn.costUsd
+        summary.spentUsd = (summary.spentUsd ?? 0) + turn.costUsd
+      }
+      this.book?.recordOpenCode(
+        summary,
+        summary.sessionId ?? '',
+        `${turn.providerID}/${turn.model}`,
+        turn.inputTokens,
+        turn.outputTokens,
+        turn.costUsd,
+      )
+      this.deliver(agent, { text: turn.text, isError: false, costUsd: summary.costUsd, costUnknown: summary.costUnknown, durationMs: 0, turns: 1 })
+    } catch (err) {
+      if (!this.agents.has(summary.id)) return
+      const cancelled = controller.signal.aborted || (err instanceof Error && err.name === 'AbortError')
+      const text = cancelled ? 'Interrompido por você.' : err instanceof Error ? err.message : String(err)
+      if (!cancelled) summary.costUnknown = true
+      this.addLog(agent, cancelled ? 'system' : 'error', text)
+      if (cancelled) this.setStatus(agent, 'stopped', 'Interrompido')
+      else this.deliver(agent, { text: `A execução OpenCode foi pausada: ${text}`, isError: true, costUsd: summary.costUsd, costUnknown: true, durationMs: 0, turns: 0 })
+    } finally {
+      if (agent.opencodeAbort === controller) {
+        agent.opencodeAbort = undefined
+        const next = agent.opencodeQueue?.shift()
+        if (next && this.agents.has(summary.id)) this.run(agent, next)
+        else {
+          agent.opencodeQueue = []
+          agent.summary.subagents = undefined
+          this.upsert(agent)
+        }
+      }
+    }
+  }
+
+  private updateOpenCodeChild(agent: Agent, child: NonNullable<Agent['summary']['subagents']>[number]): void {
+    agent.opencodeChildren ??= new Map()
+    const previous = agent.opencodeChildren.get(child.id)
+    if (!previous) this.subLogs(agent).start(child.id)
+    agent.opencodeChildren.set(child.id, child)
+    const children = [...agent.opencodeChildren.values()]
+    agent.summary.subagents = children.filter((entry) => !entry.status)
+    agent.summary.subagentsDone = children.filter((entry) => !!entry.status).slice(-20)
+    if (child.status === 'completed' && child.summary && previous?.status !== 'completed') {
+      this.addLog(agent, 'assistant', `${child.description}: ${child.summary}`)
+      const entry = { id: randomUUID(), t: Date.now(), kind: 'assistant' as const, text: child.summary }
+      this.subLogs(agent).add(child.id, [entry])
+      this.send({ type: 'agent:sublog', agentId: agent.summary.id, logs: [{ subId: child.id, entries: [entry] }] })
+    }
+    if (child.status && previous?.status !== child.status && child.model) {
+      this.book?.recordOpenCode(
+        agent.summary,
+        child.id,
+        child.model,
+        child.inputTokens ?? 0,
+        child.outputTokens ?? 0,
+        child.costUsd,
+      )
+      if (child.costUnknown) agent.summary.costUnknown = true
+      agent.summary.opencodeUsage = {
+        inputTokens: (agent.summary.opencodeUsage?.inputTokens ?? 0) + (child.inputTokens ?? 0),
+        outputTokens: (agent.summary.opencodeUsage?.outputTokens ?? 0) + (child.outputTokens ?? 0),
+        ...(child.costUsd !== undefined
+          ? { costUsd: (agent.summary.opencodeUsage?.costUsd ?? 0) + child.costUsd }
+          : agent.summary.opencodeUsage?.costUsd !== undefined
+            ? { costUsd: agent.summary.opencodeUsage.costUsd }
+            : {}),
+      }
+      if (child.costUsd !== undefined) {
+        agent.summary.costUsd += child.costUsd
+        agent.summary.spentUsd = (agent.summary.spentUsd ?? 0) + child.costUsd
+      }
+    }
+    this.upsert(agent)
+  }
+
+  private async askOpenCodePermission(agent: Agent, request: OpenCodePermission): Promise<'once' | 'always' | 'reject'> {
+    const summary = agent.summary
+    const action = request.action.toLowerCase()
+    if (action === 'subagent' && request.approvedSubagent !== true) {
+      this.addLog(agent, 'error', request.rejectionReason ?? `Bloqueei o perfil filho OpenCode não aprovado: ${request.resources.join(', ') || '(desconhecido)'}.`)
+      return 'reject'
+    }
+    const mapped = mapOpenCodePermission(request.action, request.resources, summary.worktree?.path ?? summary.cwd)
+    const tool = mapped?.tool ?? `OpenCode:${request.action}`
+    const input = mapped?.input ?? { resources: request.resources, action: request.action }
+    const project = projectFor(this.store.settings.projects, summary.cwd)
+    const scope = { cwd: summary.worktree?.path ?? summary.cwd, realpath: lenientRealpath, rules: project?.alwaysAllow }
+    const verdict: PolicyDecision = mapped
+      ? decide(summary.permissionMode, tool, input, scope)
+      : { verdict: 'ask', why: 'Ação OpenCode não classificada pela política do Office.' }
+    if (verdict.verdict === 'allow') return 'once'
+    const canAlwaysAllow = !!project && !!mapped && summary.permissionMode !== 'plan' && decide('auto', tool, input, scope).verdict === 'allow'
+    return new Promise((resolve) => {
+      const req = {
+        kind: 'tool' as const,
+        toolName: `OpenCode:${request.action}`,
+        title: `OpenCode quer ${request.action}`,
+        detail: [request.message, ...request.resources].filter(Boolean).join('\n').slice(0, 1200),
+        input,
+        reason: verdict.why ?? request.message ?? 'Ação OpenCode não classificada pela política; revisão necessária.',
+        canAlwaysAllow,
+        ...(request.subagent ? { subagent: request.subagent } : {}),
+      }
+      this.requestDecision(
+        summary.id,
+        req,
+        (decision) => {
+          if (decision.behavior === 'deny') return resolve('reject')
+          if (decision.behavior === 'allow_always' && canAlwaysAllow && project && mapped)
+            this.saveOpenCodeAlwaysAllow(project.id, tool, input)
+          // Rules are stored only by the Office; never use OpenCode's persistent `always` reply.
+          resolve('once')
+        },
+      )
+    })
+  }
+
+  private saveOpenCodeAlwaysAllow(projectId: string, tool: string, input: Record<string, unknown>): void {
+    const settings = this.store.settings
+    const floor = settings.projects.find((project) => project.id === projectId)
+    if (!floor) return
+    const command = tool === 'Bash' && typeof input.command === 'string' ? input.command : undefined
+    const kind: 'command' | 'tool' = command ? 'command' : 'tool'
+    const value = command ?? tool
+    const rules = floor.alwaysAllow ?? []
+    if (rules.some((rule) => rule.kind === kind && rule.value === value)) return
+    const updated = { ...floor, alwaysAllow: [...rules, { id: randomUUID(), createdAt: Date.now(), kind, value }].slice(0, 100) }
+    this.store.settings = { ...settings, projects: settings.projects.map((project) => (project.id === projectId ? updated : project)) }
+    this.send({ type: 'settings', settings: this.store.settings })
+  }
+
   /** Starts the CLI process for `run`, reading `input`. */
   protected startQuery(agent: Agent, input: InputQueue, claude: string, workDir: string, squad: SquadDefinition | undefined): void {
     const s = agent.summary
     const wt = s.worktree
     // Each run starts a new CLI process, so it can move to another account between turns.
     const before = s.account
-    const account = this.accounts?.pick(s, agent.borrowed)
+    const account = squad && s.account && this.accounts ? this.accounts.get(s.account) : this.accounts?.pick(s, agent.borrowed)
+    if (squad && s.account && this.accounts && !account) {
+      this.deliver(agent, {
+        text: `A conta Claude fixa deste squad (${s.account}) não está mais configurada. Reconfigure a mesma conta antes de retomar; não vou trocar de conta automaticamente.`,
+        isError: true,
+        costUsd: s.costUsd,
+        durationMs: 0,
+        turns: 0,
+      })
+      return
+    }
     if (account) s.account = account.id
     const resumed = agent.started
     if (s.sessionId) {
@@ -101,6 +353,9 @@ export abstract class AgentSdk extends AgentOffice {
         effort: s.effort,
         pathToClaudeCodeExecutable: claude,
         permissionMode: s.permissionMode,
+        // Fontes de settings em arquivo ficam fechadas (modo isolado do SDK): regra
+        // salva de fora não executa antes do canUseTool — quem decide aqui é o Office.
+        settingSources: [],
         // Subagent text comes too (not only tools), for the helper's own log (AO-46).
         forwardSubagentText: true,
         allowDangerouslySkipPermissions: s.permissionMode === 'bypassPermissions',
@@ -158,7 +413,13 @@ export abstract class AgentSdk extends AgentOffice {
       const text = err instanceof Error ? err.message : String(err)
       this.addLog(agent, 'error', text)
       if (this.agents.has(agent.summary.id)) {
-        this.deliver(agent, { text: `Tive um problema e parei:\n\n${text}`, isError: true, costUsd: agent.summary.costUsd, durationMs: 0, turns: 0 })
+        this.deliver(agent, {
+          text: `Tive um problema e parei:\n\n${text}`,
+          isError: true,
+          costUsd: agent.summary.costUsd,
+          durationMs: 0,
+          turns: 0,
+        })
       }
     } finally {
       if (agent.query === q) {
@@ -166,7 +427,8 @@ export abstract class AgentSdk extends AgentOffice {
         agent.input = undefined
         // Subagents live inside the CLI process, so they ended with it.
         this.clearSubagents(agent)
-        if (agent.summary.status === 'working' || agent.summary.status === 'starting') this.setStatus(agent, 'idle', 'Aguardando instruções')
+        if (agent.summary.status === 'working' || agent.summary.status === 'starting')
+          this.setStatus(agent, 'idle', 'Aguardando instruções')
       }
     }
   }
@@ -182,7 +444,11 @@ export abstract class AgentSdk extends AgentOffice {
         } else if (msg.subtype === 'compact_boundary') {
           const { trigger, pre_tokens, post_tokens } = msg.compact_metadata
           const freed = post_tokens !== undefined ? ` de ${kTokens(pre_tokens)} para ${kTokens(post_tokens)}` : ''
-          this.addLog(agent, 'system', `${trigger === 'auto' ? 'O contexto encheu e foi compactado sozinho' : 'Conversa compactada'}${freed}.`)
+          this.addLog(
+            agent,
+            'system',
+            `${trigger === 'auto' ? 'O contexto encheu e foi compactado sozinho' : 'Conversa compactada'}${freed}.`,
+          )
           if (post_tokens !== undefined && agent.summary.context) this.setContext(agent, post_tokens, agent.summary.context.max)
         } else {
           this.trackSubagents(agent, msg)
@@ -201,7 +467,11 @@ export abstract class AgentSdk extends AgentOffice {
         // Live estimate between the exact readings taken after each turn.
         const u = msg.message.usage
         if (u && agent.summary.context) {
-          this.setContext(agent, u.input_tokens + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + u.output_tokens, agent.summary.context.max)
+          this.setContext(
+            agent,
+            u.input_tokens + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + u.output_tokens,
+            agent.summary.context.max,
+          )
         }
         for (const block of msg.message.content) {
           if (block.type === 'text' && block.text.trim()) {
@@ -212,7 +482,8 @@ export abstract class AgentSdk extends AgentOffice {
             const input = (block.input ?? {}) as Record<string, unknown>
             const line = describeTool(block.name, input)
             const file = input.file_path ?? input.notebook_path
-            if (agent.task && WRITE_TOOLS.has(block.name) && typeof file === 'string' && file.length < 4096) agent.task.touched.set(file, block.name)
+            if (agent.task && WRITE_TOOLS.has(block.name) && typeof file === 'string' && file.length < 4096)
+              agent.task.touched.set(file, block.name)
             this.addLog(agent, 'tool', toolDetail(block.name, input) || line, block.name)
             this.setActivity(agent, line)
           }
@@ -226,7 +497,8 @@ export abstract class AgentSdk extends AgentOffice {
         if (!Array.isArray(content)) return
         for (const block of content) {
           if (block.type !== 'tool_result') continue
-          const text = typeof block.content === 'string' ? block.content : (block.content ?? []).map((c) => ('text' in c ? c.text : '')).join('\n')
+          const text =
+            typeof block.content === 'string' ? block.content : (block.content ?? []).map((c) => ('text' in c ? c.text : '')).join('\n')
           if (text.trim()) this.addLog(agent, 'tool_result', text.slice(0, 1200), undefined, block.is_error === true)
         }
         return
@@ -255,7 +527,11 @@ export abstract class AgentSdk extends AgentOffice {
           this.setStatus(agent, 'idle', isError ? 'Não conseguiu compactar' : 'Memória organizada, esperando instruções')
           return
         }
-        if (hit && this.failover(agent, hit)) return
+        // A squad cycle is pinned to one Claude account for its whole lifecycle.
+        if (hit && agent.summary.role === 'orchestrator') {
+          if (agent.summary.account) this.accounts?.limitHit(agent.summary.account, hit.resetsAt)
+        }
+        else if (hit && this.failover(agent, hit)) return
         const limit = hit ? { accountId: agent.summary.account, resetsAt: hit.resetsAt } : undefined
         this.deliver(agent, { text, isError, costUsd: msg.total_cost_usd, durationMs: msg.duration_ms, turns: msg.num_turns, limit })
         return

@@ -232,7 +232,14 @@ export interface OfficeAPI {
   getSubagentLog(agentId: string, subId: string): Promise<LogEntry[]>
   hire(req: HireRequest): Promise<AgentSummary>
   /** A new agent in this folder with no task yet; it waits for your first message. */
-  summon(cwd: string, permissionMode: OfficePermissionMode, brain?: AgentBrain, worktree?: boolean): Promise<AgentSummary>
+  summon(
+    cwd: string,
+    permissionMode: OfficePermissionMode,
+    brain?: AgentBrain,
+    worktree?: boolean,
+    confirmPermissionOverride?: boolean,
+    engine?: 'claude' | 'opencode',
+  ): Promise<AgentSummary>
   send(agentId: string, text: string, attachments?: AttachmentInput[]): Promise<void>
   /** Disk path of a picked or dropped file; '' for pasted data. */
   pathForFile(file: File): string
@@ -287,7 +294,9 @@ export interface OfficeAPI {
   pickFolder(defaultPath?: string): Promise<string | null>
   installBridge(): Promise<BridgeStatus>
   uninstallBridge(): Promise<BridgeStatus>
-  saveSettings(patch: Partial<Settings>): Promise<Settings>
+  saveSettings(patch: Partial<Settings> & { confirmPermissionChanges?: boolean }): Promise<Settings>
+  /** Opens a user-chosen Claude settings file read-only; returns a preview, never imports it. */
+  previewClaudePermissions(): Promise<{ source: string; rules: Array<Pick<import('./settings').AlwaysAllowRule, 'kind' | 'value'>> } | null>
   /** Creates (unknown id) or replaces a template; returns it as stored. */
   saveTemplate(t: AgentTemplate): Promise<AgentTemplate>
   deleteTemplate(id: string): Promise<void>
@@ -314,7 +323,13 @@ export interface OfficeAPI {
   /** Squads found in squads/<code>/squad.yaml of a folder; empty when there are none. */
   listSquads(cwd: string): Promise<SquadInfo[]>
   /** An orchestrator that runs one cycle of the squad with its own team only. */
-  runSquad(cwd: string, code: string, permissionMode: OfficePermissionMode, note?: string): Promise<AgentSummary>
+  runSquad(
+    cwd: string,
+    code: string,
+    permissionMode: OfficePermissionMode,
+    note?: string,
+    confirmPermissionOverride?: boolean,
+  ): Promise<AgentSummary>
   /** The cost book, cut to the days and folder asked for (all of it when empty). */
   getLedger(query?: LedgerQuery): Promise<Ledger>
   /** Claude Code statistics as last read from disk (no API call). A stale copy starts a background read. */

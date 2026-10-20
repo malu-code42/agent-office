@@ -16,7 +16,7 @@ import { flushOnExit, setupData } from './data'
 import { guardWindow, installFatalHandlers, onFatalFlush } from './crash'
 import { captureConsole, initLog, log, secret } from './log'
 import { dropInheritedClaudeEnv, loadShellPath, stressDataDirError } from './env'
-import { isDir, loadSquads, squadInfo } from './squads'
+import { inspectSquads, isDir, loadSquads } from './squads'
 import { MacJobs } from './mac-jobs'
 import { RoutineScheduler, RoutineStore } from './routines'
 import { Store } from './store'
@@ -256,7 +256,7 @@ app.whenReady().then(async () => {
 
   // Each project floor shows the squads of its folder.
   const squadDefs = () => store.settings.projects.flatMap((p) => (isDir(p.cwd) ? loadSquads(p.cwd) : []))
-  const readSquads = () => squadDefs().map(squadInfo)
+  const readSquads = () => store.settings.projects.flatMap((p) => (isDir(p.cwd) ? inspectSquads(p.cwd) : []))
   let squads = readSquads()
 
   manager.on('event', (e: OfficeEvent) => {

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Referência visual do ticket 04 · andar de projeto</title>
+<style>
+:root {
+  --bg: #1c1d2e; --card: rgba(24, 25, 40, 0.92); --card-solid: #1a1b2b;
+  --line: rgba(255, 255, 255, 0.08); --line-strong: rgba(255, 255, 255, 0.14);
+  --text: #eceaf6; --muted: #b3b1cb; --dim: #9a98b4;
+  --accent: #d97757; --accent-hi: #e8896a; --accent-solid: #b4583a; --accent-solid-hi: #a84f33;
+  --radius: 14px; --shadow: 0 10px 40px rgba(5, 5, 15, 0.45), 0 2px 8px rgba(5, 5, 15, 0.3);
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+main { max-width: 860px; margin: 0 auto; padding: 40px 18px 60px; }
+h1 { font-size: 20px; margin: 0 0 6px; }
+.sub { color: var(--dim); margin-bottom: 24px; }
+.grid { display: grid; gap: 12px; }
+a.item { display: grid; gap: 4px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--card); padding: 14px 16px; text-decoration: none; color: var(--text); transition: background .15s; }
+a.item:hover { background: rgba(217, 119, 87, .07); border-color: rgba(217, 119, 87, .4); }
+a.item b { font-size: 14px; }
+a.item span { color: var(--muted); font-size: 12px; }
+a.item .tag { justify-self: start; font: 700 10px/1 var(--font); color: var(--accent-hi);
+  background: rgba(217, 119, 87, .14); border: 1px solid rgba(217, 119, 87, .3); padding: 3px 8px; border-radius: 8px; }
+.questions { border: 1px solid var(--line); border-radius: var(--radius); background: var(--card-solid);
+  padding: 14px 16px; color: var(--muted); font-size: 13px; }
+.questions b { color: var(--text); }
+ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Referência visual do ticket 04</h1>
+  <p class="sub">A direção visual canônica segue <code>claude design/HANDOFF.md</code>, §3.4, e o ticket 04. As quatro páginas abaixo são explorações anteriores, preservadas como histórico — não são opções pendentes nem gate de aprovação. A implementação deve usar o layout e os componentes reais do Agent Office.</p>
+  <div class="questions">
+    <b>Direção definida</b>
+    <ul>
+      <li>Salas dos squads à esquerda; à direita, uma grande sala de vidro para agentes individuais, com duas portas para a entrada.</li>
+      <li>Dez mesas em duas colunas de cinco, giradas 90° e alinhadas lado a lado; agentes principais permanecem nos seus lugares, inclusive quando ociosos.</li>
+      <li>Agentes individuais mostram nome, cor e estado (trabalhando, aguardando, disponível ou bloqueado). O Claude Design ainda não define como subagentes aparecem visualmente; não presumir assentos ou novos elementos sem atualizar essa referência.</li>
+      <li>Salas sem squad ficam apagadas, sem pessoas e com computadores desligados; clicar oferece “Atribuir um squad”. Andar novo mantém as mesas individuais e começa sem squads.</li>
+      <li>Não adicionar um novo botão à barra inferior para esta sala. Reutilizar a navegação e os componentes reais do app; não alterar o padrão aprovado de Tarefas em foco.</li>
+    </ul>
+  </div>
+  <p class="sub">As explorações antigas usam tokens de <code>tokens.css</code> e a geometria 32×24 de <code>layout.ts</code>, mas não substituem a referência definida acima.</p>
+  <div class="grid">
+    <a class="item" href="andar-sala-individual-01-lados.html">
+      <span class="tag">1 / 4</span>
+      <b>Exploração 1 · Lados opostos</b>
+      <span>Cabines de squads numa coluna, sala de individuais/OpenCode na coluna oposta com assentos temporários listados; botão fixo no topo do andar.</span>
+    </a>
+    <a class="item" href="andar-sala-individual-02-plano-atual.html">
+      <span class="tag">2 / 4</span>
+      <b>Exploração 2 · Plano atual</b>
+      <span>Squads seguem em frente como hoje; sala individuais nasce ao fundo na sala oposta; a vaga vazia da frente é, ela mesma, o botão.</span>
+    </a>
+    <a class="item" href="andar-sala-individual-03-atrio.html">
+      <span class="tag">3 / 4</span>
+      <b>Exploração 3 · Átrio central</b>
+      <span>Sala no miolo com mesa núcleo e anel de assentos temporários que cresce conforme o limite de concorrência; cabines nas laterais.</span>
+    </a>
+    <a class="item" href="andar-sala-individual-04-proposta.html">
+      <span class="tag">4 / 4</span>
+      <b>Exploração 4 · Estados da proposta</b>
+      <span>Sem squad pré-criado: vaga central chama o botão; os cinco estados (gerando, pronta para revisão, aprovada, cancelada, falhou) e a ficha somente leitura.</span>
+    </a>
+  </div>
+  <div class="questions">
+    <b>Escopo que ainda falta:</b> implementar a direção definida no layout real do andar e integrar estados/ações aos dados do Agent Office. Não é necessário escolher uma destas explorações para começar.
+    <ul>
+      <li>A proposta de squad continua somente leitura até aprovação explícita; cancelar ou falhar não grava estado parcial.</li>
+      <li>Esta página descreve a referência visual; não autoriza preencher a cena com dados fictícios na implementação real.</li>
+    </ul>
+  </div>
+</main>
+</body>
+</html>

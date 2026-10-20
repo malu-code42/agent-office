@@ -5,6 +5,8 @@ import type { Look } from './agents'
 /** Totals of a slice of the cost book. */
 export interface LedgerTotals {
   costUsd: number
+  /** True when some recorded usage in this slice has no trustworthy provider price. */
+  costUnknown?: boolean
   /** Replies the agents finished (SDK results, errors and /compact included). */
   results: number
   /** Model turns of those replies (num_turns of each result). */
@@ -16,6 +18,8 @@ export interface LedgerTotals {
 /** Spend of one model. Tokens are summed deltas of the SDK's modelUsage. */
 export interface LedgerModel {
   costUsd: number
+  /** True when one or more turns for this model have no provider-reported price. */
+  costUnknown?: boolean
   inputTokens: number
   outputTokens: number
   cacheReadTokens: number
@@ -28,6 +32,7 @@ export interface LedgerAgentDay extends LedgerTotals {
   models: Record<string, number>
   /** Account.id -> USD */
   accounts: Record<string, number>
+  costUnknown?: boolean
 }
 
 /** One project folder (an agent's cwd) on one local day. */
@@ -38,6 +43,7 @@ export interface LedgerDay extends LedgerTotals {
   models: Record<string, LedgerModel>
   /** Account.id the turns ran on -> totals. */
   accounts: Record<string, LedgerTotals>
+  costUnknown?: boolean
 }
 
 /** Who an agent id of the book was. Kept after the agent is dismissed. */
@@ -91,6 +97,8 @@ export interface LedgerQuery {
 export interface LedgerToday {
   day: string
   costByCwd: Record<string, number>
+  /** Folders with usage whose provider did not supply a trustworthy price. */
+  costUnknownByCwd?: Record<string, boolean>
   /** Agent id -> today's spend, across folders. */
-  agents: Record<string, { name: string; cwd: string; usd: number }>
+  agents: Record<string, { name: string; cwd: string; usd: number; costUnknown?: boolean }>
 }

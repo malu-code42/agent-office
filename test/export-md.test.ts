@@ -56,6 +56,12 @@ describe('conversationMarkdown', () => {
   it('conversa vazia avisa', () => {
     expect(conversationMarkdown({ agent: 'A', cwd: '/p' }, [])).toContain('_(conversa vazia)_')
   })
+
+  it('marca custo sem preço confiável como desconhecido, nunca como zero', () => {
+    const md = conversationMarkdown({ agent: 'A', cwd: '/p', costUsd: 0, costUnknown: true }, [])
+    expect(md).toContain('- **Custo:** desconhecido (provedor sem preço confiável)')
+    expect(md).not.toContain('$0,00')
+  })
 })
 
 describe('apoio', () => {

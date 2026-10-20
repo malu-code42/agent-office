@@ -1,4 +1,5 @@
 import { describeSchedule, formatWhen, isPast, MIN_INTERVAL_MIN, nextRuns, scheduleError } from '@shared/schedule'
+import { projectFor } from '@shared/projects'
 import { ROUTINE_LIMITS } from '@shared/types'
 import type { OfficePermissionMode, ProjectFloor, Routine, RoutineDraft, RoutineWho, Schedule } from '@shared/types'
 import type { State } from '../../state'
@@ -15,7 +16,8 @@ export const EXAMPLES: { title: string; hint: string; draft: Partial<RoutineDraf
     hint: 'Todo dia às 09:00, um resumo do que mudou no repositório.',
     draft: {
       name: 'Relatório diário',
-      prompt: 'Resuma o que mudou no repositório desde ontem: commits, PRs abertos e testes falhando. Entregue em tópicos curtos, com o mais importante primeiro.',
+      prompt:
+        'Resuma o que mudou no repositório desde ontem: commits, PRs abertos e testes falhando. Entregue em tópicos curtos, com o mais importante primeiro.',
       schedule: { kind: 'daily', time: '09:00' },
     },
   },
@@ -24,7 +26,8 @@ export const EXAMPLES: { title: string; hint: string; draft: Partial<RoutineDraf
     hint: 'Toda segunda às 10:00, o que atualizar primeiro. Sem mexer em arquivos.',
     draft: {
       name: 'Revisar dependências',
-      prompt: 'Liste as dependências desatualizadas ou com falhas de segurança conhecidas (npm outdated, npm audit) e diga quais atualizar primeiro e por quê. Não altere arquivos.',
+      prompt:
+        'Liste as dependências desatualizadas ou com falhas de segurança conhecidas (npm outdated, npm audit) e diga quais atualizar primeiro e por quê. Não altere arquivos.',
       schedule: { kind: 'weekly', days: [1], time: '10:00' },
     },
   },
@@ -53,7 +56,11 @@ const localDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pa
 
 /** The schedule part of the form: preset, its fields, and the preview below. */
 function scheduleFields(initial: Schedule | undefined): { el: HTMLElement; value(): Schedule; error(): string | null } {
-  const preset = h('select', { class: 'input', 'aria-label': 'Tipo de agenda' }, ...PRESETS.map((p) => h('option', { value: p.value }, p.label))) as HTMLSelectElement
+  const preset = h(
+    'select',
+    { class: 'input', 'aria-label': 'Tipo de agenda' },
+    ...PRESETS.map((p) => h('option', { value: p.value }, p.label)),
+  ) as HTMLSelectElement
   preset.value = initial?.kind ?? 'daily'
   const time = h('input', { class: 'input rt-time', type: 'time', value: '09:00', 'aria-label': 'Horário' }) as HTMLInputElement
   const tomorrow = new Date(Date.now() + 86_400_000)
@@ -63,9 +70,26 @@ function scheduleFields(initial: Schedule | undefined): { el: HTMLElement; value
     box.checked = d >= 1 && d <= 5
     return { d, box, el: h('label', { class: 'rt-day' }, box, h('span', {}, label)) }
   })
-  const every = h('input', { class: 'input rt-every', type: 'number', min: 1, step: 1, value: 2, 'aria-label': 'A cada' }) as HTMLInputElement
-  const unit = h('select', { class: 'input rt-unit', 'aria-label': 'Unidade' }, h('option', { value: 'hours' }, 'horas'), h('option', { value: 'minutes' }, 'minutos')) as HTMLSelectElement
-  const cron = h('input', { class: 'input rt-cron', placeholder: '0 9 * * 1-5', spellcheck: 'false', 'aria-label': 'Expressão cron' }) as HTMLInputElement
+  const every = h('input', {
+    class: 'input rt-every',
+    type: 'number',
+    min: 1,
+    step: 1,
+    value: 2,
+    'aria-label': 'A cada',
+  }) as HTMLInputElement
+  const unit = h(
+    'select',
+    { class: 'input rt-unit', 'aria-label': 'Unidade' },
+    h('option', { value: 'hours' }, 'horas'),
+    h('option', { value: 'minutes' }, 'minutos'),
+  ) as HTMLSelectElement
+  const cron = h('input', {
+    class: 'input rt-cron',
+    placeholder: '0 9 * * 1-5',
+    spellcheck: 'false',
+    'aria-label': 'Expressão cron',
+  }) as HTMLInputElement
   let anchor: number | undefined
 
   if (initial?.kind === 'daily' || initial?.kind === 'weekly') time.value = initial.time
@@ -80,10 +104,24 @@ function scheduleFields(initial: Schedule | undefined): { el: HTMLElement; value
 
   const rows: Record<Preset, HTMLElement> = {
     daily: h('div', { class: 'rt-row' }, h('span', {}, 'às'), time),
-    weekly: h('div', { class: 'rt-row rt-wrap' }, h('div', { class: 'rt-days', role: 'group', 'aria-label': 'Dias da semana' }, ...days.map((x) => x.el)), h('span', {}, 'às')),
+    weekly: h(
+      'div',
+      { class: 'rt-row rt-wrap' },
+      h('div', { class: 'rt-days', role: 'group', 'aria-label': 'Dias da semana' }, ...days.map((x) => x.el)),
+      h('span', {}, 'às'),
+    ),
     interval: h('div', { class: 'rt-row' }, h('span', {}, 'a cada'), every, unit),
     once: h('div', { class: 'rt-row' }, h('span', {}, 'em'), date, h('span', {}, 'às')),
-    cron: h('div', { class: 'rt-col' }, cron, h('span', { class: 'field-hint' }, 'Cinco campos: minuto hora dia mês dia-da-semana. Ex.: 0 9 * * 1-5 (dias úteis às 09:00), */30 8-18 * * * (a cada 30 min, das 8h às 18h).')),
+    cron: h(
+      'div',
+      { class: 'rt-col' },
+      cron,
+      h(
+        'span',
+        { class: 'field-hint' },
+        'Cinco campos: minuto hora dia mês dia-da-semana. Ex.: 0 9 * * 1-5 (dias úteis às 09:00), */30 8-18 * * * (a cada 30 min, das 8h às 18h).',
+      ),
+    ),
   }
   const slot = h('div', { class: 'rt-schedule' })
   const sentence = h('div', { class: 'rt-sentence' })
@@ -98,7 +136,12 @@ function scheduleFields(initial: Schedule | undefined): { el: HTMLElement; value
       case 'weekly':
         return { kind: 'weekly', days: days.filter((x) => x.box.checked).map((x) => x.d), time: time.value }
       case 'interval':
-        return { kind: 'interval', every: Number(every.value), unit: unit.value as 'hours' | 'minutes', ...(anchor !== undefined ? { anchor } : {}) }
+        return {
+          kind: 'interval',
+          every: Number(every.value),
+          unit: unit.value as 'hours' | 'minutes',
+          ...(anchor !== undefined ? { anchor } : {}),
+        }
       case 'once':
         return { kind: 'once', at: `${date.value}T${time.value}` }
       case 'cron':
@@ -108,7 +151,12 @@ function scheduleFields(initial: Schedule | undefined): { el: HTMLElement; value
   const error = (): string | null => {
     const s = value()
     if (s.kind === 'cron' && !s.expr.trim()) return 'Escreva a expressão cron, por exemplo 0 9 * * 1-5.'
-    return scheduleError(s) ?? (isPast(s) && s.kind === 'once' && (initial?.kind !== 'once' || initial.at !== s.at) ? 'Esse horário já passou. Escolha uma data no futuro.' : null)
+    return (
+      scheduleError(s) ??
+      (isPast(s) && s.kind === 'once' && (initial?.kind !== 'once' || initial.at !== s.at)
+        ? 'Esse horário já passou. Escolha uma data no futuro.'
+        : null)
+    )
   }
   const preview = () => {
     const kind = preset.value as Preset
@@ -132,7 +180,9 @@ function scheduleFields(initial: Schedule | undefined): { el: HTMLElement; value
     const shown: Schedule = s.kind === 'interval' && s.anchor === undefined ? { ...s, anchor: Math.floor(Date.now() / 60_000) * 60_000 } : s
     const next = nextRuns(shown, Date.now(), 3)
     sentence.textContent = describeSchedule(shown)
-    upcoming.replaceChildren(...(next.length ? next.map((t) => h('li', {}, formatWhen(t))) : [h('li', {}, 'Nenhuma execução pela frente.')]))
+    upcoming.replaceChildren(
+      ...(next.length ? next.map((t) => h('li', {}, formatWhen(t))) : [h('li', {}, 'Nenhuma execução pela frente.')]),
+    )
   }
   for (const el of [preset, time, date, every, unit, cron, ...days.map((x) => x.box)]) {
     el.addEventListener('input', preview)
@@ -156,10 +206,25 @@ function scheduleFields(initial: Schedule | undefined): { el: HTMLElement; value
 export function routineEditor(
   state: State,
   initial: Partial<Routine> | undefined,
-  opts: { project: ProjectFloor | null | undefined; onSaved: (r: Routine) => void; onCancel: () => void; toast: (t: string, k?: 'info' | 'ok' | 'err') => void; confirmBypass: () => Promise<boolean> },
+  opts: {
+    project: ProjectFloor | null | undefined
+    onSaved: (r: Routine) => void
+    onCancel: () => void
+    toast: (t: string, k?: 'info' | 'ok' | 'err') => void
+  },
 ): { body: HTMLElement; foot: HTMLElement[]; focus(): void } {
-  const name = h('input', { class: 'input', maxlength: ROUTINE_LIMITS.name, placeholder: 'Relatório diário', value: initial?.name ?? '' }) as HTMLInputElement
-  const prompt = h('textarea', { class: 'input', rows: 4, maxlength: ROUTINE_LIMITS.prompt, placeholder: 'O que o agente faz em cada execução.' }) as HTMLTextAreaElement
+  const name = h('input', {
+    class: 'input',
+    maxlength: ROUTINE_LIMITS.name,
+    placeholder: 'Relatório diário',
+    value: initial?.name ?? '',
+  }) as HTMLInputElement
+  const prompt = h('textarea', {
+    class: 'input',
+    rows: 4,
+    maxlength: ROUTINE_LIMITS.prompt,
+    placeholder: 'O que o agente faz em cada execução.',
+  }) as HTMLTextAreaElement
   prompt.value = initial?.prompt ?? ''
 
   // ---------- who ----------
@@ -172,20 +237,32 @@ export function routineEditor(
     h('option', { value: 'agent' }, 'Um agente do escritório'),
   ) as HTMLSelectElement
   kind.value = who.kind
-  const newName = h('input', { class: 'input', maxlength: 40, placeholder: 'Nome (opcional)', value: who.kind === 'new' ? (who.name ?? '') : '' }) as HTMLInputElement
-  const brain = brainFields({ model: who.kind === 'new' ? (who.model ?? '') : '', effort: who.kind === 'new' ? (who.effort ?? '') : '' }, true)
+  const newName = h('input', {
+    class: 'input',
+    maxlength: 40,
+    placeholder: 'Nome (opcional)',
+    value: who.kind === 'new' ? (who.name ?? '') : '',
+  }) as HTMLInputElement
+  const brain = brainFields(
+    { model: who.kind === 'new' ? (who.model ?? '') : '', effort: who.kind === 'new' ? (who.effort ?? '') : '' },
+    true,
+  )
   const templates = state.settings.templates ?? []
   const template = h(
     'select',
     { class: 'input', 'aria-label': 'Modelo salvo' },
-    ...(templates.length ? templates.map((t) => h('option', { value: t.id }, t.name)) : [h('option', { value: '' }, 'Nenhum modelo salvo (crie em Novo agente › Modelos)')]),
+    ...(templates.length
+      ? templates.map((t) => h('option', { value: t.id }, t.name))
+      : [h('option', { value: '' }, 'Nenhum modelo salvo (crie em Novo agente › Modelos)')]),
   ) as HTMLSelectElement
   if (who.kind === 'template') template.value = who.templateId
   const agents = [...state.agents.values()].filter((a) => a.source === 'office' && a.role !== 'orchestrator')
   const agent = h(
     'select',
     { class: 'input', 'aria-label': 'Agente' },
-    ...(agents.length ? agents.map((a) => h('option', { value: a.id }, `${a.name} · …/${a.cwd.split(/[\\/]/).filter(Boolean).slice(-2).join('/')}`)) : [h('option', { value: '' }, 'Nenhum agente do escritório agora')]),
+    ...(agents.length
+      ? agents.map((a) => h('option', { value: a.id }, `${a.name} · …/${a.cwd.split(/[\\/]/).filter(Boolean).slice(-2).join('/')}`))
+      : [h('option', { value: '' }, 'Nenhum agente do escritório agora')]),
   ) as HTMLSelectElement
   if (who.kind === 'agent') agent.value = who.agentId
   const whoNew = h('div', { class: 'rt-col' }, newName, field('Modelo', brain.model, brain.hint), meterField('Esforço', brain.meter))
@@ -215,7 +292,10 @@ export function routineEditor(
   // ---------- freedom ----------
   const mode = h('select', { class: 'input' }, ...MODES.map((m) => h('option', { value: m.value }, m.label))) as HTMLSelectElement
   // "Pedir permissão" unless the routine already says otherwise: never "Sem pedir nada" by default.
-  mode.value = initial?.permissionMode ?? 'default'
+  mode.value =
+    initial?.permissionMode ??
+    state.settings.projects.find((p) => p.id === where.value)?.permissionMode ??
+    state.settings.defaultPermissionMode
   const modeHint = h('span', {})
   const modeField = field('Permissões', mode, modeHint)
 
@@ -261,14 +341,19 @@ export function routineEditor(
         ? { kind: 'agent', agentId: agent.value }
         : k === 'template'
           ? { kind: 'template', templateId: template.value }
-          : { kind: 'new', ...(newName.value.trim() ? { name: newName.value.trim() } : {}), ...(b.model ? { model: b.model } : {}), ...(b.effort ? { effort: b.effort } : {}) }
+          : {
+              kind: 'new',
+              ...(newName.value.trim() ? { name: newName.value.trim() } : {}),
+              ...(b.model ? { model: b.model } : {}),
+              ...(b.effort ? { effort: b.effort } : {}),
+            }
     return {
       ...(initial?.id ? { id: initial.id } : {}),
       name: name.value,
       prompt: prompt.value,
       who: w,
       ...(k !== 'agent' ? (where.value ? { floor: where.value } : cwd ? { cwd } : {}) : {}),
-      permissionMode: mode.value as OfficePermissionMode,
+      ...(k !== 'agent' ? { permissionMode: mode.value as OfficePermissionMode } : {}),
       schedule: sched.value(),
       enabled: enabled.checked,
       missed: missedSkip.checked ? 'skip' : 'run',
@@ -280,7 +365,14 @@ export function routineEditor(
     const err = sched.error()
     if (err) return opts.toast(err, 'err')
     const d = draft()
-    if (d.permissionMode === 'bypassPermissions' && d.who.kind !== 'agent' && !(await opts.confirmBypass())) return
+    if (d.permissionMode && d.who.kind !== 'agent') {
+      const inherited =
+        (d.floor ? state.settings.projects.find((p) => p.id === d.floor)?.permissionMode : undefined) ??
+        (d.cwd ? projectFor(state.settings.projects, d.cwd)?.permissionMode : undefined) ??
+        state.settings.defaultPermissionMode
+      const order: OfficePermissionMode[] = ['plan', 'default', 'acceptEdits', 'auto', 'bypassPermissions']
+      d.confirmPermissionOverride = order.indexOf(d.permissionMode) > order.indexOf(inherited)
+    }
     save.setAttribute('disabled', '')
     try {
       const r = await window.office.saveRoutine(d)

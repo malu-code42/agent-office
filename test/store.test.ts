@@ -19,6 +19,7 @@ describe('Store: carga e migração das configurações', () => {
   it('sem arquivo: configurações padrão com a conta principal', () => {
     const s = new Store()
     expect(s.settings.playerName).toBe('Você')
+    expect(s.settings.defaultEngine).toBe('opencode')
     expect(s.settings.accounts.map((a) => a.id)).toEqual(['main'])
     expect(s.settings.projects).toEqual([])
     expect(s.agents).toEqual([])
@@ -68,6 +69,26 @@ describe('Store: carga e migração das configurações', () => {
     expect(s.maxSubagents).toBe(10)
     expect(s.agentBudgetUsd).toBe(0)
     expect(s.video).toEqual(DEFAULT_VIDEO)
+    expect(s.defaultEngine).toBe('claude')
+  })
+
+  it('modo e regras "Sempre permitir" quebrados num andar antigo somem na carga', () => {
+    write({
+      settings: {
+        projects: [
+          {
+            id: 'p1',
+            name: 'Loja',
+            cwd: '/x/y',
+            permissionMode: 'raiz',
+            alwaysAllow: [{ kind: 'tool', value: '' }, 'lixo', { id: 'r1', kind: 'command', value: 'npm test' }],
+          },
+        ],
+      },
+    })
+    const [p] = new Store().settings.projects
+    expect('permissionMode' in p).toBe(false)
+    expect(p.alwaysAllow).toEqual([{ id: 'r1', createdAt: expect.any(Number), kind: 'command', value: 'npm test' }])
   })
 
   it('vídeo: campo ruim volta ao padrão, os bons ficam', () => {

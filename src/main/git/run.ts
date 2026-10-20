@@ -39,7 +39,16 @@ interface Output {
 function cleanEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {}
   for (const [k, v] of Object.entries(process.env)) if (!k.startsWith('GIT_')) env[k] = v
-  return { ...env, GIT_CONFIG_NOSYSTEM: '1', GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0', GIT_PAGER: 'cat', PAGER: 'cat', GH_PROMPT_DISABLED: '1', ...extra }
+  return {
+    ...env,
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_TERMINAL_PROMPT: '0',
+    GIT_OPTIONAL_LOCKS: '0',
+    GIT_PAGER: 'cat',
+    PAGER: 'cat',
+    GH_PROMPT_DISABLED: '1',
+    ...extra,
+  }
 }
 
 function runFile(cmd: string, args: string[], cwd: string, opts: GitOptions, env: NodeJS.ProcessEnv = cleanEnv()): Promise<Output> {
@@ -105,7 +114,14 @@ async function filterOff(cwd: string): Promise<[string, string][]> {
   let names: string[] = []
   try {
     const raw = (await runFile('git', ['config', '--name-only', '--get-regexp', '^filter\\.'], cwd, { ok: [1] })).out.toString('utf8')
-    names = [...new Set(raw.split('\n').map((k) => /^filter\.(.+)\.(clean|smudge|process|required)$/i.exec(k.trim())?.[1]).filter((n): n is string => !!n))]
+    names = [
+      ...new Set(
+        raw
+          .split('\n')
+          .map((k) => /^filter\.(.+)\.(clean|smudge|process|required)$/i.exec(k.trim())?.[1])
+          .filter((n): n is string => !!n),
+      ),
+    ]
   } catch {
     // not a repo: nothing to switch off
   }
@@ -146,10 +162,56 @@ export async function safeGitEnv(cwd: string): Promise<NodeJS.ProcessEnv> {
 
 export const run = async (cmd: string, args: string[], cwd: string, opts: GitOptions = {}, env?: NodeJS.ProcessEnv) =>
   (await runFile(cmd, args, cwd, opts, env)).out.toString('utf8')
+
+/** Quote one token for cmd.exe, which parses the whole line itself even verbatim. */
+function cmdQuote(s: string): string {
+  return /[ \t"]/.test(s) ? `"${s.replace(/"/g, '')}"` : s
+}
+
+/**
+ * Launchers that are batch files on Windows (.cmd/.bat, like the editor's code.cmd and
+ * cursor.cmd) cannot be exec'd directly: current Node raises spawn EINVAL without a
+ * shell. Route those through cmd.exe as one hand-quoted line with verbatim arguments.
+ * Still not a user shell: the program comes from findOnPath and the arguments are paths
+ * the office builds from validated data (never agent text). Git and gh never hit this
+ * branch, they are real executables.
+ */
+export function runBatch(cmd: string, args: string[], cwd: string, timeoutMs: number, env?: NodeJS.ProcessEnv): Promise<string> {
+  if (process.platform !== 'win32' || !/\.(cmd|bat)$/i.test(cmd)) return run(cmd, args, cwd, { timeout: timeoutMs }, env)
+  // cmd.exe expands/interprets these even in quoted arguments. Refuse ambiguous
+  // values rather than letting a path or gh title become command syntax.
+  const unsafe = /[&|<>^()%!"\r\n]/
+  if ([cmd, ...args].some((value) => unsafe.test(value))) {
+    return Promise.reject(new GitError('Não é seguro passar esse caminho ou argumento para um launcher .cmd no Windows.'))
+  }
+  // /s requires the entire command in an outer quote pair when the executable or
+  // arguments contain quotes. The resulting `""program" "arg""` form lets cmd
+  // preserve spaces in both the batch path and its arguments.
+  const line = `"${[cmdQuote(cmd), ...args.map(cmdQuote)].join(' ')}"`
+  return new Promise((done, fail) => {
+    execFile(
+      'cmd.exe',
+      ['/d', '/s', '/c', line],
+      {
+        cwd,
+        timeout: timeoutMs,
+        maxBuffer: MAX_OUTPUT_BYTES,
+        windowsHide: true,
+        encoding: 'buffer',
+        windowsVerbatimArguments: true,
+        env: env ?? cleanEnv(),
+      },
+      (err, stdout, stderr) => {
+        if (!err) return done(stdout.toString('utf8'))
+        const msg = String(stderr ?? '').trim() || err.message
+        fail(new GitError(msg.split('\n').slice(0, 6).join('\n')))
+      },
+    )
+  })
+}
 export const git = async (cwd: string, args: string[], opts?: GitOptions) => (await runGit(cwd, args, opts)).out.toString('utf8')
 /** Raw bytes of a blob (binary files survive "Descartar"). */
 export const blobBytes = async (cwd: string, blob: string) => (await runGit(cwd, ['cat-file', 'blob', blob])).out
-
 
 /** NUL-separated output, without the trailing empty item. */
 export const zsplit = (s: string) => s.split('\0').filter(Boolean)
