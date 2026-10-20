@@ -2,6 +2,7 @@ import { clockText, type FocusItem, STEP_MAX, TIMER_MINUTES } from '@shared/plan
 import type { State } from '../state'
 import { arrowList, keepFocus, rove } from './a11y'
 import { h } from './dom'
+import { setFocusPopupOpen } from './focus-state'
 import { cleanError, modal } from './modals/common'
 import { openTasksBoard, refreshTasksBoard } from './tasks-board'
 import { offerUndo, type Toast } from './tasks-complete'
@@ -46,7 +47,7 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
         class: 'btn btn-primary',
         type: 'button',
         onclick: () => {
-          backdrop.remove()
+          close()
           void openTasksBoard(root, state, toast)
         },
       },
@@ -362,8 +363,17 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
   }, 1000)
 
   arrowList(list, '.focus-card')
-  const backdrop = modal('Tarefas em foco', [count, list, empty], [], () => backdrop.remove())
+  let closed = false
+  const close = (): void => {
+    if (closed) return
+    closed = true
+    backdrop.remove()
+    // The button in the dock shows that the popup is open: it stops showing it.
+    setFocusPopupOpen(false)
+  }
+  const backdrop = modal('Tarefas em foco', [count, list, empty], [], close)
   paint(items)
   root.append(backdrop)
+  setFocusPopupOpen(true)
   ;(list.querySelector<HTMLElement>('.focus-card') ?? empty.querySelector<HTMLElement>('button'))?.focus()
 }

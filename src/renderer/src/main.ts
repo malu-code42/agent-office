@@ -125,14 +125,7 @@ async function boot(): Promise<void> {
     const choice = await openNewAgent(ui, state, project, { toast, tab, hireSquad: project ? () => hireSquad(project) : undefined })
     if (choice?.kind !== 'summon') return
     try {
-      const a = await window.office.summon(
-        choice.cwd,
-        choice.permissionMode,
-        choice.brain,
-        choice.worktree,
-        choice.confirmPermissionOverride,
-        choice.engine,
-      )
+      const a = await window.office.summon(choice.cwd, choice.permissionMode, choice.brain, choice.worktree)
       const floor = state.settings.projects.find((p) => p.id === a.project)
       toast(
         floor && floor !== project
@@ -226,7 +219,9 @@ async function boot(): Promise<void> {
       accounts: () => openAccounts(ui, state, toast),
       reports: () => openReports(ui, state, { project: game.currentProject, toast }),
       openProposal: (id) => void openProposalReview(ui, toast, id),
-      review: () => void openReviewWizard(ui, toast),      board: (ticketId) => {
+      review: () => void openReviewWizard(ui, toast),
+      focus: () => void openFocusPopup(ui, state, toast),
+      board: (ticketId) => {
         if (ticketId) board.open(ticketId)
         else board.toggle()
       },
