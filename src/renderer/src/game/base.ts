@@ -9,7 +9,8 @@ import { Overlays, Tag } from '../world/overlays'
 import { Effects } from '../world/effects'
 import { FACE_CAMERA, skeleton } from '../world/skull'
 import { totem, type Totem } from '../world/totem'
-import { center, OVERFLOW_TILES, SKULL_HOME, TOTEM_TILE, tileOf, type Actor, type GameHooks, type Helper, type Member, type Upper } from './types'
+import { SeenFailures } from './failure-marks'
+import { center, OVERFLOW_TILES, SKULL_HOME, TOTEM_TILE, tileOf, type Actor, type FailureMark, type GameHooks, type Helper, type Member, type Upper } from './types'
 
 /**
  * State shared by every part of the office (game/*.ts), the floor lookups and the
@@ -23,6 +24,12 @@ export abstract class GameBase {
   protected uppers: Upper[] = []
   protected uppersKey = ''
   protected members = new Map<string, Member>()
+  /**
+   * Members of a squad with no place in the scene (their squad has no room and every
+   * spot is taken): squad code -> names. The notice of the floor names them, so the
+   * data never looks lost.
+   */
+  protected unplacedMembers = new Map<string, string[]>()
   protected pcTag: Tag
   /** Over the ground floor alarm. */
   protected alarmTag: Tag
@@ -35,6 +42,10 @@ export abstract class GameBase {
   protected playerTag: Tag
   protected actors = new Map<string, Actor>()
   protected helpers = new Map<string, Helper>()
+  /** The red marks left by the helpers that failed, until the owner's conversation is opened. */
+  protected failures = new Map<string, FailureMark>()
+  /** The failures the user already saw in the conversation of their owner. */
+  protected seenFailures = new SeenFailures()
   protected keys = new Set<string>()
   protected follow = true
   /** Agent the camera tracks until it settles (sits or stops); `until` drops it if it never shows up. */
@@ -133,10 +144,14 @@ export abstract class GameBase {
     this.moneyTag = this.moneyTagFor(this.office.money)
   }
 
-  /** Orchestrators of a floor by Diretoria desk. */
-  protected directorsOn(floor: number): Map<number, AgentSummary> {
+  /** Orchestrators of a floor by squad room. */
+  protected orchestratorsOn(floor: number): Map<number, AgentSummary> {
     const out = new Map<number, AgentSummary>()
-    for (const a of this.state.agents.values()) if (a.role === 'orchestrator' && this.homeFloor(a) === floor) out.set(a.desk, a)
+    for (const a of this.state.agents.values()) {
+      if (a.role !== 'orchestrator' || this.homeFloor(a) !== floor) continue
+      const room = this.upperOf(floor)?.scene.plan.rooms.findIndex((r) => r.squad === a.squad) ?? -1
+      if (room >= 0) out.set(room, a)
+    }
     return out
   }
 
@@ -145,9 +160,14 @@ export abstract class GameBase {
   }
 
   protected deskOf(a: AgentSummary): L.DeskSlot | undefined {
+    return this.deskOn(this.homeFloor(a), a)
+  }
+
+  /** The desk of an agent on a given floor: the one it works at now, not the one it is heading to. */
+  protected deskOn(floor: number, a: AgentSummary): L.DeskSlot | undefined {
     if (a.role === 'orchestrator') return undefined
-    const up = this.upperOf(this.homeFloor(a))
-    return up ? up.scene.plan.teamDesks[a.desk] : L.DESKS[a.desk]
+    const up = this.upperOf(floor)
+    return up ? up.scene.plan.agentDesks[a.desk] : L.DESKS[a.desk]
   }
 
   /** Floor an agent works on: its project's floor, or the ground floor. */
@@ -159,8 +179,15 @@ export abstract class GameBase {
     return n > 0 ? this.uppers[n - 1] : undefined
   }
 
-  protected directorDesk(a: AgentSummary): L.DirectorDesk | undefined {
-    return a.role === 'orchestrator' ? this.upperOf(this.homeFloor(a))?.scene.plan.directors[a.desk] : undefined
+  /** The desk of the coordinator of the agent's squad, in its squad room. */
+  protected coordinatorDesk(a: AgentSummary): L.CoordinatorDesk | undefined {
+    return this.coordinatorDeskOn(this.homeFloor(a), a)
+  }
+
+  /** The coordinator's desk of the agent's squad on a given floor. */
+  protected coordinatorDeskOn(floor: number, a: AgentSummary): L.CoordinatorDesk | undefined {
+    if (a.role !== 'orchestrator') return undefined
+    return this.upperOf(floor)?.scene.plan.rooms.find((r) => r.squad === a.squad)?.coordinator
   }
 
   floorOf(n: number): Office {
@@ -171,7 +198,7 @@ export abstract class GameBase {
   protected overflowTile(a: AgentSummary, floor: number): [number, number] {
     const plan = this.upperOf(floor)?.scene.plan
     if (!plan || a.role === 'orchestrator') return OVERFLOW_TILES[a.desk % OVERFLOW_TILES.length]
-    return plan.teamStand[(a.desk - plan.teamDesks.length) % plan.teamStand.length] ?? L.SPAWN_TILE
+    return plan.agentStand[(a.desk - plan.agentDesks.length) % plan.agentStand.length] ?? L.SPAWN_TILE
   }
 
   protected playerInBossRoom(): boolean {
@@ -229,6 +256,8 @@ export abstract class GameBase {
   // ---------- implemented by the later parts ----------
   protected abstract syncHelpers(): void
   protected abstract syncMembers(): void
+  /** The red marks of the failed helpers follow their owner when the floors change. */
+  protected abstract reflowFailureMarks(): void
   protected abstract syncBoards(): void
   protected abstract reconcile(actor: Actor, instant?: boolean): void
   protected abstract resting(a: AgentSummary): boolean

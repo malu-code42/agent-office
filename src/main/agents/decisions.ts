@@ -44,7 +44,7 @@ export abstract class AgentDecisions extends AgentSubagents {
     agent: Agent,
     tool: string,
     input: Record<string, unknown>,
-    opts: { signal: AbortSignal; suggestions?: PermissionUpdate[]; decisionReason?: string; agentID?: string },
+    opts: { signal: AbortSignal; suggestions?: PermissionUpdate[]; decisionReason?: string; agentID?: string; toolUseID?: string },
   ): Promise<PermissionResult> {
     // The board is the office's own tool: no need to walk over and ask.
     if (tool.startsWith('mcp__office__')) return Promise.resolve({ behavior: 'allow', updatedInput: input })
@@ -73,6 +73,8 @@ export abstract class AgentDecisions extends AgentSubagents {
     return new Promise((resolve) => {
       const id = this.requestDecision(agent.summary.id, req, (d) => {
         if (d.behavior === 'deny') {
+          // A spawn that never starts gives its slot at the desk back.
+          if (opts.toolUseID && (tool === 'Agent' || tool === 'Task')) this.releaseHelperSlot(agent, opts.toolUseID)
           resolve({ behavior: 'deny', message: d.message?.trim() || 'O usuário negou esta ação.' })
         } else if (tool === 'AskUserQuestion') {
           resolve({ behavior: 'allow', updatedInput: { ...input, answers: d.answers ?? {} } })

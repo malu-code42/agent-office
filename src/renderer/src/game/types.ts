@@ -5,6 +5,7 @@ import * as L from '../world/layout'
 import type { Tag, BubbleKind } from '../world/overlays'
 import type { UpperFloor } from '../world/upper-floor'
 import type { ScreenMode } from '../world/screens'
+import type { HelperReturn } from './helper-return'
 
 export type Goal = 'desk' | 'boss' | 'hang' | 'leave' | 'chat'
 
@@ -41,14 +42,14 @@ export interface Actor {
 export interface Upper {
   project: ProjectFloor
   scene: UpperFloor
-  /** "Contratar squad" on the Diretoria board; null when the project has no squads. */
-  boardTag: Tag | null
-  /** One "Passo 3/6 · Texto" line over each Diretoria desk. */
+  /** One "Passo 3/6 · Texto" line over each squad room that has a coordinator. */
   stepTags: Tag[]
   /** Over the alarm, while an account of this floor is at its limit. */
   alarmTag: Tag
   /** Over the spending board: the exact total. */
   moneyTag: Tag
+  /** What does not fit on this floor (more squads than rooms); null when everything fits. */
+  issueTag: Tag | null
 }
 
 /** A subagent shown as a small copy of its parent, standing by the parent's desk. */
@@ -57,17 +58,50 @@ export interface Helper {
   parentId: string
   avatar: Avatar
   tag: Tag
+  /** The fixed spot beside the owner's desk (0, 1 or 2). */
+  slot: number
+  /** The cord on the floor, in the shirt color of the owner. */
+  cord: THREE.Object3D
+  /** What the helper is doing; the mini label shows it. */
+  task: string
+  /** The middle of the owner's desk, where the helper and its cord belong. */
+  anchor: { x: number; z: number }
   tile: [number, number] | null
   bornAt: number
   /** Game time when it says goodbye; null while the subagent runs. */
   endAt: number | null
+  /** The way back to the desk of the owner; null while it is not going back yet. */
+  returning: HelperReturn | null
   gone: boolean
+  /** It failed: it walks back and leaves a red mark by the desk. */
+  failed: boolean
+  /** When the failure happened (wall clock); null while it did not fail. */
+  failedAt: number | null
+}
+
+/** The red mark left by the helpers of an agent that failed, until its conversation is opened. */
+export interface FailureMark {
+  /** The owner whose helpers failed. */
+  parentId: string
+  /** The subagent that failed last. */
+  id: string
+  /** How many helpers of this owner failed. */
+  count: number
+  /** The floor the mark stands on. */
+  floor: number
+  /** Where the pad stands on the floor. */
+  x: number
+  z: number
+  /** The red pad on the floor. */
+  pad: THREE.Object3D
+  /** The mini label beside it. */
+  tag: Tag
 }
 
 /**
  * A squad member at work: it comes up in the elevator, sits at a free desk of its
- * sector (inline members sit beside the orchestrator), hands the delivery over in
- * the Diretoria and leaves.
+ * squad room (inline members sit beside the coordinator), hands the delivery over at
+ * the coordinator's desk and leaves.
  */
 export interface Member {
   /** Subagent task id, or inline:<orchestrator>:<member>. */
@@ -99,14 +133,17 @@ export interface GameHooks {
   onSkull(): void
   /** Player clicked their own computer: open "Novo agente" on Conversar. */
   onComputer(): void
-  /** Player clicked the board in the Diretoria of a project floor. */
-  onRunSquad(project: ProjectFloor): void
   /** The player (and the camera) arrived on another floor. */
   onFloor(floor: number): void
   /** Player clicked the lounge TV: Claude FM on/off. */
   onTv(): void
   /** Player clicked the routines totem by their office. */
   onRoutines(): void
+  /** The floor has more squads than rooms (or a composition that does not fit): the user has to know. */
+  onIncompatible?(
+    project: ProjectFloor,
+    issues: { code: string; name: string; reason: string; unplaced?: string[] }[],
+  ): void
 }
 
 /** Tile outside the glass of the boss office, by its upper corner, where the routines totem stands. */
@@ -121,12 +158,18 @@ export const LOUNGE_AFTER_MS = 3 * 60_000
 export const HELPER_SCALE = 0.62
 /** Subagents can finish in a few seconds; keep each helper on screen at least this long. */
 export const HELPER_MIN_S = 4
-export const HELPER_BYE_S = 1.2
 
-export const SPAWN_POINT = { x: L.ELEVATOR.x, z: 0.45 }
+/** Where the elevator drops people on a floor: the hall of a project floor, the team room downstairs. */
+export function spawnPoint(floor: number): { x: number; z: number } {
+  return L.elevatorOf(floor).point
+}
+/** The tile the elevator door opens on. */
+export function spawnTile(floor: number): [number, number] {
+  return L.elevatorOf(floor).tile
+}
 /** Seconds inside the elevator between floors. */
 export const RIDE_S = 1.1
-/** Squad people walk briskly between sectors, the Diretoria and the elevator. */
+/** Squad people walk briskly between the squad room, the coordinator and the elevator. */
 export const SQUAD_SPEED = 4.4
 /** A member that finishes in a few seconds still gets to sit down for a moment. */
 export const MEMBER_MIN_S = 5

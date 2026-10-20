@@ -10,8 +10,8 @@ const RUN_MODES = MODES.filter((m) => m.value !== 'bypassPermissions')
 const LAST_RUN_MODE = 'agent-office:squad-mode'
 
 /**
- * "Contratar squad": pick a squad of the project and an orchestrator comes up to the
- * Diretoria with the whole team to run its pipeline. Hiring it again for the same
+ * "Contratar squad": pick a squad of the project and an orchestrator goes up to the
+ * squad room with the whole team to run its pipeline. Hiring it again for the same
  * squad just starts another cycle. Squad cycles never run with "Sem pedir nada".
  */
 export function openRunSquad(
@@ -141,7 +141,7 @@ export function openRunSquad(
       localStorage.setItem(LAST_RUN_MODE, mode.value)
       const a = await window.office.runSquad(chosen.cwd, chosen.code, mode.value as OfficePermissionMode, note.value, confirmOverride)
       close()
-      toast(`${a.name} subiu para a Diretoria com o squad e começou o ciclo.`, 'ok')
+      toast(`${a.name} subiu para a sala do squad e começou o ciclo.`, 'ok')
       onStarted(a)
     } catch (err) {
       go.removeAttribute('disabled')

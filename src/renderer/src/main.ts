@@ -118,12 +118,16 @@ async function boot(): Promise<void> {
 
   /**
    * "Novo agente". Conversar: pick a folder (and how free the agent is) and an agent shows
-   * up there, waiting for your first message. Com tarefa and Squad finish inside the
-   * dialog. On a project floor the folder is the project's.
+   * up there, waiting for your first message. Com tarefa hires right in the dialog.
+   * Squad hands over to the squad window. On a project floor the folder is the project's.
    */
   const newAgent = async (tab?: 'summon') => {
     const project = game.currentProject
-    const choice = await openNewAgent(ui, state, project, { toast, tab, hireSquad: project ? () => hireSquad(project) : undefined })
+    const choice = await openNewAgent(ui, state, project, {
+      toast,
+      tab,
+      hireSquad: project ? () => hireSquad(project) : undefined,
+    })
     if (choice?.kind !== 'summon') return
     try {
       const a = await window.office.summon(
@@ -141,7 +145,7 @@ async function boot(): Promise<void> {
           : `${a.name} chegou. Diga o que fazer.`,
         'ok',
       )
-      panel.open(a.id).then(() => panel.focusInput())
+      showAgent(a.id).then(() => panel.focusInput())
       game.focusAgent(a.id)
     } catch (err) {
       toast(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err), 'err')
@@ -149,13 +153,13 @@ async function boot(): Promise<void> {
   }
 
   const openItem = (agentId: string, itemId?: string) => {
-    if (!dialog.open(agentId, itemId)) panel.open(agentId)
+    if (!dialog.open(agentId, itemId)) showAgent(agentId)
   }
 
-  /** An orchestrator with its squad, in the Diretoria of the project's floor. */
+  /** An orchestrator with its squad, in the squad room of the project's floor. */
   const hireSquad = (project: ProjectFloor) =>
     openRunSquad(ui, state, project, toast, (a) => {
-      panel.open(a.id)
+      showAgent(a.id)
       game.focusAgent(a.id)
     })
 
@@ -174,7 +178,7 @@ async function boot(): Promise<void> {
     onAgentClick: (id, helper) => {
       const items = state.itemsFor(id)
       if (!helper && (items.permissions.length || items.results.length)) openItem(id)
-      panel.open(id, helper ?? null)
+      showAgent(id, helper ?? null)
     },
     onNear: (id) => {
       if (nearId && nearId !== id) {
@@ -189,14 +193,13 @@ async function boot(): Promise<void> {
     },
     onSkull: () => openSkull(ui, state, dismiss),
     onComputer: () => void newAgent('summon'),
-    onRunSquad: (project) => hireSquad(project),
     onFloor: (n) => hud.setFloors(game.floors, n),
     onTv: () => void radio.toggle(),
     onRoutines: () =>
       openRoutines(ui, state, {
         toast,
         openAgent: (id) => {
-          panel.open(id)
+          showAgent(id)
           game.focusAgent(id)
         },
         openResult: (agentId, resultId) => {
@@ -205,14 +208,32 @@ async function boot(): Promise<void> {
         },
         project: () => game.currentProject,
       }),
+    // Something of the project does not fit on its floor: the user has to know.
+    // The members with no place in the scene are named, so nobody thinks they are gone.
+    onIncompatible: (_project, issues) =>
+      toast(
+        issues
+          .map((i) => `${i.reason}${i.unplaced?.length ? ` Sem lugar na cena: ${i.unplaced.join(', ')}.` : ''}`)
+          .join(' '),
+        'err',
+      ),
   })
+
+  /**
+   * Opens the conversation of an agent. Opening it takes the red marks of its failed
+   * helpers off the scene; the error card stays in the conversation.
+   */
+  const showAgent = (id: string, helper?: string | null): Promise<void> => {
+    game.clearFailureMarks(id)
+    return panel.open(id, helper ?? null)
+  }
 
   const hud = new Hud(
     ui,
     state,
     {
       openAgent: (id) => {
-        panel.open(id)
+        showAgent(id)
         game.focusAgent(id)
       },
       focusAgent: (id) => game.focusAgent(id),
@@ -236,7 +257,7 @@ async function boot(): Promise<void> {
       resume: () =>
         openResume(ui, state, {
           openAgent: (id) => {
-            panel.open(id).then(() => panel.focusInput())
+            showAgent(id).then(() => panel.focusInput())
             game.focusAgent(id)
           },
           toast,
@@ -261,7 +282,7 @@ async function boot(): Promise<void> {
 
   const dialog = new Dialog(ui, state, {
     reply: (id) => {
-      panel.open(id).then(() => panel.focusInput())
+      showAgent(id).then(() => panel.focusInput())
     },
     toast,
     exportConversation: (id) => void exportConversation(state, id, toast),
@@ -270,7 +291,7 @@ async function boot(): Promise<void> {
   const board = new Board(ui, state, {
     currentProject: () => game.currentProject,
     openAgent: (id) => {
-      panel.open(id)
+      showAgent(id)
       game.focusAgent(id)
     },
     toast,

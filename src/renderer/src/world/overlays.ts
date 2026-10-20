@@ -53,7 +53,7 @@ export class Tag {
     if (this.helpersEl.textContent === text) return
     this.helpersEl.textContent = text
     this.helpersEl.className = n ? 'helpers' : 'helpers hidden'
-    this.helpersEl.title = n === 1 ? '1 ajudante trabalhando' : `${n} ajudantes trabalhando`
+    this.helpersEl.title = n === 1 ? '1 subagente trabalhando' : `${n} subagentes trabalhando`
   }
 
   /** The account the agent runs on, as a tinted chip; null hides it. */

@@ -13,7 +13,7 @@ export function registerSquadsIpc(ctx: IpcContext): void {
   )
   ipcMain.handle('office:runSquad', async (_e, cwd: unknown, code: unknown, mode: unknown, note: unknown, _confirmOverride: unknown) => {
     if (!pathSchema.safeParse(cwd).success || !isDir(cwd)) throw new Error('Essa pasta de squads não existe mais.')
-    // Orchestrators work in the Diretoria of their project's floor.
+    // Orchestrators work in the squad room of their project's floor.
     if (projectFor(store.settings.projects, cwd)?.cwd !== cwd)
       throw new Error('Crie um andar para esse projeto antes de contratar um squad.')
     const plain = squadCodeSchema.safeParse(code)

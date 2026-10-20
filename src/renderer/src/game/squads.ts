@@ -4,9 +4,10 @@ import { Avatar } from '../world/avatar'
 import * as L from '../world/layout'
 import { Tag } from '../world/overlays'
 import { GameSubagents } from './subagents'
-import { clip, MEMBER_EXIT_S, MEMBER_MIN_S, SPAWN_POINT, SQUAD_SPEED, type Member } from './types'
+import { memberPlace, deliverySpot, floorReservations, spotKey, type Spot } from './member-slots'
+import { clip, MEMBER_EXIT_S, MEMBER_MIN_S, spawnPoint, spawnTile, SQUAD_SPEED, type Member } from './types'
 
-/** Squad members: up the elevator, a desk in their sector, the delivery in the Diretoria, out. */
+/** Squad members: up the elevator, a desk in the squad room, the delivery at the coordinator, out. */
 export abstract class GameSquads extends GameSubagents {
   // ---------- squad members ----------
 
@@ -16,6 +17,9 @@ export abstract class GameSquads extends GameSubagents {
 
   protected syncMembers(): void {
     const live = new Set<string>()
+    // Members of a squad with no room in this floor, with no place to stand: they stay
+    // in the state, and the notice of the floor names them.
+    const unplaced = new Map<string, string[]>()
     for (const a of this.state.agents.values()) {
       if (a.role !== 'orchestrator' || !this.upperOf(this.homeFloor(a))) continue
       const parent = this.actors.get(a.id)
@@ -26,7 +30,24 @@ export abstract class GameSquads extends GameSubagents {
       for (const sub of a.subagents ?? []) {
         if (!sub.member) continue
         live.add(sub.id)
-        const m = this.members.get(sub.id) ?? this.addMember(a, find(sub.member), sub.id, false)
+        const already = this.members.get(sub.id)
+        if (already) {
+          already.sub = sub
+          this.memberBubble(already)
+          continue
+        }
+        const info = find(sub.member)
+        const spot = this.memberSpot(a)
+        if (!spot.desk && !spot.tile) {
+          // No place in the scene: the member keeps its place in the state, and the
+          // notice says who it is, so nobody thinks the data went missing.
+          const code = a.squad ?? sub.member
+          const names = unplaced.get(code) ?? []
+          if (!names.includes(info.name)) names.push(info.name)
+          unplaced.set(code, names)
+          continue
+        }
+        const m = this.addMember(a, info, sub.id, false, spot)
         m.sub = sub
         this.memberBubble(m)
       }
@@ -45,16 +66,24 @@ export abstract class GameSquads extends GameSubagents {
       // Inline members just go; subagents show their delivery after a minimum stay.
       m.endAt = m.inline || !this.actors.has(m.parentId) ? this.time : Math.max(this.time, m.bornAt + MEMBER_MIN_S)
     }
+    this.unplacedMembers = unplaced
+    this.refreshIssues()
     this.syncStepTags()
   }
 
-  protected addMember(a: AgentSummary, info: SquadMember, id: string, inline: boolean): Member {
+  protected addMember(
+    a: AgentSummary,
+    info: SquadMember,
+    id: string,
+    inline: boolean,
+    spot?: { desk: L.DeskSlot | null; tile: Spot | null },
+  ): Member {
     // The same person every cycle: the look comes from the squad and the member id.
     const avatar = new Avatar(lookFromSeed(L.memberKey(a.squad ?? '', info.id)), `member:${id}`)
     avatar.floor = this.homeFloor(a)
     this.dress(avatar, a)
     avatar.speed = SQUAD_SPEED
-    avatar.placeAt(SPAWN_POINT.x, SPAWN_POINT.z)
+    avatar.placeAt(spawnPoint(avatar.floor).x, spawnPoint(avatar.floor).z)
     avatar.face(0)
     this.engine.scene.add(avatar.root)
     const tag = this.overlays.add(new Tag(avatar.anchor, `${info.icon} ${info.name}`, false, () => this.memberClick(id)))
@@ -70,38 +99,52 @@ export abstract class GameSquads extends GameSubagents {
       if (m.desk) this.floorOf(avatar.floor).deskScreens[m.desk.index]?.setMode('working')
     }
     if (inline) {
-      const desk = this.directorDesk(a)
+      const desk = this.coordinatorDesk(a)
       if (desk) this.route(avatar, desk.sideApproach, desk.side, arrive)
       else arrive()
       return m
     }
-    const spot = this.memberSpot(a, info)
-    m.desk = spot.desk
-    m.tile = spot.tile
-    if (spot.desk) this.route(avatar, spot.desk.approach, spot.desk.seat, arrive)
-    else if (spot.tile) this.route(avatar, spot.tile, null, arrive)
+    const place = spot ?? this.memberSpot(a)
+    m.desk = place.desk
+    m.tile = place.tile
+    if (place.desk) this.route(avatar, place.desk.approach, place.desk.seat, arrive)
+    else if (place.tile) this.route(avatar, place.tile, null, arrive)
     else arrive()
     return m
   }
 
-  /** A free desk in the member's sector; when all are taken, a free spot standing in the room. */
-  protected memberSpot(a: AgentSummary, info: SquadMember): { desk: L.DeskSlot | null; tile: [number, number] | null } {
+  /**
+   * Where a member works: a free desk of its squad room, or a free tile to stand on.
+   * A squad with no room on this floor waits in the aisle of the agents' room, each
+   * one on a tile of its own: nobody stands on top of anybody else. When there is no
+   * free tile, there is no place: the member is not drawn.
+   */
+  protected memberSpot(a: AgentSummary): { desk: L.DeskSlot | null; tile: Spot | null } {
     const floor = this.homeFloor(a)
     const plan = this.upperOf(floor)!.scene.plan
-    const name = plan.sectorOf.get(L.memberKey(a.squad ?? '', info.id)) ?? info.sector
-    const room = plan.sectors.find((r) => r.name === name) ?? plan.sectors.find((r) => r.name === L.DEFAULT_SECTOR) ?? plan.sectors[0]
-    if (!room) return { desk: null, tile: null }
-    const taken = new Set<number>()
-    const tiles = new Set<string>()
-    for (const o of this.members.values()) {
-      if (o.phase === 'leaving') continue
-      if (o.desk) taken.add(o.desk.index)
-      if (o.tile) tiles.add(o.tile.join(','))
+    // The squad has one room: the one with its code. Without a room the members wait
+    // in the aisle, where the individual agents also stand when every desk is taken.
+    const room = plan.rooms.find((r) => r.squad === a.squad)
+    // Only the members of this floor hold a place here: every project floor numbers
+    // its desks the same way, so the other floors must not compete for them.
+    const { desks: taken, tiles } = floorReservations(
+      [...this.members.values()].map((o) => ({
+        floor: o.avatar.floor,
+        desk: o.desk,
+        tile: o.tile,
+        leaving: o.phase === 'leaving',
+      })),
+      floor,
+    )
+    for (const other of this.state.agents.values()) {
+      if (other.role === 'orchestrator' || this.homeFloor(other) !== floor) continue
+      if (other.desk < plan.agentDesks.length) continue
+      // The individual agents without a desk of their own stand in the same aisle.
+      const t = plan.agentStand[(other.desk - plan.agentDesks.length) % plan.agentStand.length]
+      if (t) tiles.add(spotKey(t[0], t[1]))
     }
-    const desk = room.desks.find((d) => !taken.has(d.index))
-    if (desk) return { desk, tile: null }
     const grid = this.floorOf(floor).grid
-    return { desk: null, tile: room.stand.find((t) => grid.walkable(t[0], t[1]) && !tiles.has(t.join(','))) ?? null }
+    return memberPlace(room ? room.desks : [], room ? room.stand : plan.agentStand, taken, tiles, (x, z) => grid.walkable(x, z))
   }
 
   protected memberPose(m: Member): void {
@@ -110,12 +153,12 @@ export abstract class GameSquads extends GameSubagents {
     if (m.inline) {
       const parent = this.actors.get(m.parentId)
       const a = this.state.agents.get(m.parentId)
-      const desk = a && this.directorDesk(a)
+      const desk = a && this.coordinatorDesk(a)
       if (parent?.avatar.floor === av.floor) av.faceTowards(parent.avatar.position.x, parent.avatar.position.z)
       else if (desk) av.faceTowards(desk.seat.x, desk.seat.z)
       av.pose = 'sit'
     } else if (m.desk) {
-      av.face(Math.PI)
+      av.face(m.desk.face ?? Math.PI)
       av.pose = 'type'
     } else {
       av.face(Math.PI)
@@ -131,7 +174,7 @@ export abstract class GameSquads extends GameSubagents {
     }
     if (m.phase === 'delivering') return m.tag.setBubble('✓ Entregando', 'done')
     if (m.phase === 'leaving') return m.tag.setBubble(null)
-    m.tag.setBubble(m.inline ? 'Neste passo com a Diretoria' : m.sub ? clip(m.sub.activity ? helperActivity(m.sub) : m.sub.description, 40) : null, 'work')
+    m.tag.setBubble(m.inline ? 'Neste passo com o coordenador' : m.sub ? clip(m.sub.activity ? helperActivity(m.sub) : m.sub.description, 40) : null, 'work')
   }
 
   /** Click: what the member is doing (task, tokens, last tool) for a few seconds, and the orchestrator's panel. */
@@ -172,14 +215,23 @@ export abstract class GameSquads extends GameSubagents {
     m.avatar.pose = 'stand'
     m.avatar.seatY = 0
     const a = this.state.agents.get(m.parentId)
-    const desk = a && this.directorDesk(a)
+    const desk = a && this.coordinatorDesk(a)
     if (m.failed || m.inline || !desk) return this.memberLeave(m)
+    // A free tile in front of the coordinator: the room has one per member, so a
+    // full room delivers all at once, and nobody stands on top of anybody else.
+    const taken = new Set(
+      [...this.members.values()]
+        .filter((o) => o !== m && o.phase === 'delivering' && o.tile)
+        .map((o) => spotKey(o.tile![0], o.tile![1])),
+    )
+    const grid = this.floorOf(m.avatar.floor).grid
+    const tile = deliverySpot(desk.deliver, taken, (x, z) => grid.walkable(x, z))
+    // Every tile is taken: the member leaves instead of standing on another one.
+    if (!tile) return this.memberLeave(m)
     m.phase = 'delivering'
     m.tag.setDot('done')
     m.avatar.setProp('paper')
     this.memberBubble(m)
-    const taken = new Set([...this.members.values()].filter((o) => o !== m && o.phase === 'delivering' && o.tile).map((o) => o.tile!.join(',')))
-    const tile = desk.deliver.find((t) => !taken.has(t.join(','))) ?? desk.deliver[0]
     m.tile = tile
     this.route(m.avatar, tile, null, () => {
       m.avatar.faceTowards(desk.seat.x, desk.seat.z)
@@ -201,7 +253,7 @@ export abstract class GameSquads extends GameSubagents {
     m.desk = null
     m.tile = null
     if (!m.failed) this.memberBubble(m)
-    this.route(m.avatar, L.SPAWN_TILE, SPAWN_POINT, () => {
+    this.route(m.avatar, spawnTile(m.avatar.floor), spawnPoint(m.avatar.floor), () => {
       this.ding(m.avatar.floor)
       setTimeout(() => this.memberGone(m), 500)
     })
@@ -215,12 +267,12 @@ export abstract class GameSquads extends GameSubagents {
     this.overlays.remove(m.tag)
   }
 
-  /** "Passo 3/6 · Texto" over the desk of each orchestrator, from squads/<code>/state.json. */
+  /** "Passo 3/6 · Texto" over the desk of each coordinator, from squads/<code>/state.json. */
   protected syncStepTags(): void {
     this.uppers.forEach((u, i) => {
-      const byDesk = this.directorsOn(i + 1)
-      u.stepTags.forEach((tag, d) => {
-        const st = byDesk.get(d)?.squadStep
+      const byRoom = this.orchestratorsOn(i + 1)
+      u.stepTags.forEach((tag, room) => {
+        const st = byRoom.get(room)?.squadStep
         const text =
           st?.status === 'completed' ? '✓ Ciclo concluído' : st?.current ? `${st.type === 'checkpoint' ? '⏸' : '▸'} Passo ${st.current}/${st.total} · ${clip(st.label, 32)}` : 'Aguardando o próximo ciclo'
         tag.setName(text)

@@ -46,6 +46,100 @@ const PLAN = JSON.stringify({
   ],
 })
 
+/** The same envelope, with four delegations: the cap of the desk stops the fourth. */
+const PLAN_FOUR = JSON.stringify({
+  objective: 'Concluir a tarefa em quatro subtarefas',
+  decisions: [1, 2, 3, 4].map((n) => ({
+    task: `Implementar subtarefa ${n} de código`,
+    profile: 'general',
+    providerID: 'openai',
+    modelID: 'gpt-6-luna',
+    variant: 'high',
+    rationale: 'General dimensiona bem a subtarefa de código',
+    confidence: 0.9,
+  })),
+})
+
+/** A persisted parent session with recovered children, as a resume sees it. */
+interface RecoveredChild {
+  id: string
+  /** The model the child is really running; the approved one unless said otherwise. */
+  model?: { providerID: string; id: string; variant: string }
+  /** When the child was created: the desk adopts the oldest ones first. */
+  created?: number
+}
+
+/**
+ * A client for a resumed session: the parent already exists in the service and
+ * the listed children may still be running. Returns the spies the tests read.
+ */
+const resumedClient = (parent: AgentSummary, recovered: RecoveredChild[], active: string[]) => {
+  const parentSession = parent.sessionId ?? ''
+  const update = vi.fn(async (_input: unknown) => undefined)
+  const interrupt = vi.fn(async (_input: unknown) => undefined)
+  const reply = vi.fn(async (_input: unknown) => undefined)
+  const pendingPermissions = vi.fn(async (_input: { sessionID: string }): Promise<unknown[]> => [])
+  let releaseEvents: (() => void) | undefined
+  let finishEvents: (() => void) | undefined
+  const eventReady = new Promise<void>((resolve) => (releaseEvents = resolve))
+  const eventsConsumed = new Promise<void>((resolve) => (finishEvents = resolve))
+  const prompt = vi.fn(async (_input: unknown) => {
+    releaseEvents?.()
+    await eventsConsumed
+  })
+  const listed = recovered.map((child, index) => ({
+    id: child.id,
+    parentID: parentSession,
+    agent: 'general',
+    title: `Subtarefa recuperada ${index + 1}`,
+    model: child.model ?? { providerID: 'openai', id: 'gpt-6-luna', variant: 'high' },
+    cost: 0,
+    tokens: { input: 0, output: 0 },
+    time: { created: child.created ?? index + 1, updated: 2 },
+  }))
+  mock.client = {
+    server: { info: async () => ({ version: '2.0.32' }) },
+    model: {
+      list: async () => ({
+        location: { directory: parent.cwd },
+        data: [{ id: 'gpt-6-luna', providerID: 'openai', enabled: true, status: 'active', capabilities: { tools: true }, variants: [{ id: 'high' }], cost: [] }],
+      }),
+    },
+    agent: { list: async () => ({ location: { directory: parent.cwd }, data: [{ id: 'general', name: 'General', mode: 'subagent', hidden: false, model: undefined }] }) },
+    session: {
+      get: async () => ({ ...parent, location: { directory: parent.cwd }, model: { providerID: 'openai', id: 'gpt-6-luna', variant: 'high' } }),
+      create: vi.fn(),
+      switchModel: vi.fn(),
+      update,
+      list: async () => ({ data: listed }),
+      active: async () => Object.fromEntries(active.map((id) => [id, { id }])),
+      prompt,
+      interrupt,
+    },
+    event: {
+      subscribe: ({ signal }: { signal: AbortSignal }) => ({
+        async *[Symbol.asyncIterator]() {
+          // The real stream ends when the runtime aborts it, even before any event.
+          const aborted = new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }))
+          await Promise.race([eventReady, aborted])
+          if (signal.aborted) return
+          yield { type: 'session.text.delta', data: { sessionID: parentSession, delta: 'Resumed.' } }
+          yield { type: 'session.execution.succeeded', data: { sessionID: parentSession } }
+          finishEvents?.()
+          if (!signal.aborted) await aborted
+        },
+      }),
+    },
+    permission: { list: pendingPermissions, reply },
+    message: {
+      list: async () => ({
+        data: [{ type: 'assistant', cost: 0, tokens: { input: 8, output: 3 }, content: [{ type: 'text', text: PLAN }] }],
+      }),
+    },
+  }
+  return { update, interrupt, prompt, reply, pendingPermissions }
+}
+
 describe('OpenCodeRuntime', () => {
   beforeEach(() => {
     mock.client = undefined
@@ -164,6 +258,77 @@ describe('OpenCodeRuntime', () => {
     expect(turn.plan).toHaveLength(1)
     expect(turn.plan[0]).toMatchObject({ profile: 'general', providerID: 'openai', modelID: 'gpt-6-luna', variant: 'high', confidence: 0.9 })
     expect(turn.costUsd).toBeUndefined()
+  })
+
+  it('stops at three subagents per desk, even when the plan asks for more', async () => {
+    const parent = agent()
+    const childIDs = ['session-c1', 'session-c2', 'session-c3', 'session-c4']
+    const stageTwo: Array<{ type: string; data: Record<string, unknown> }> = [
+      ...childIDs.map((id, i) => ({
+        type: 'session.created',
+        data: { sessionID: id, parentID: parent.sessionId, agent: 'general', title: `Subtarefa ${i + 1}`, model: { providerID: 'openai', id: 'gpt-6-luna', variant: 'high' } },
+      })),
+      { type: 'session.text.delta', data: { sessionID: parent.sessionId, delta: 'OK' } },
+      { type: 'session.execution.succeeded', data: { sessionID: parent.sessionId } },
+    ]
+    let releaseEvents: (() => void) | undefined
+    let openMidGate: (() => void) | undefined
+    let finishEvents: (() => void) | undefined
+    const eventReady = new Promise<void>((resolve) => (releaseEvents = resolve))
+    const midGate = new Promise<void>((resolve) => (openMidGate = resolve))
+    const eventsConsumed = new Promise<void>((resolve) => (finishEvents = resolve))
+    const interrupt = vi.fn(async () => undefined)
+    const prompt = vi.fn(async (_input: unknown) => {
+      if (prompt.mock.calls.length === 1) {
+        releaseEvents?.()
+        return
+      }
+      openMidGate?.()
+      await eventsConsumed
+    })
+    mock.client = {
+      server: { info: async () => ({ version: '2.0.32' }) },
+      model: {
+        list: async () => ({
+          location: { directory: parent.cwd },
+          data: [{ id: 'gpt-6-luna', providerID: 'openai', enabled: true, status: 'active', capabilities: { tools: true }, variants: [{ id: 'high' }], cost: [] }],
+        }),
+      },
+      agent: { list: async () => ({ location: { directory: parent.cwd }, data: [{ id: 'general', name: 'General', mode: 'subagent', hidden: false, model: undefined }] }) },
+      session: {
+        get: async () => { throw { status: 404 } },
+        create: vi.fn(async () => undefined),
+        switchModel: vi.fn(async () => undefined),
+        update: vi.fn(async () => undefined),
+        list: async () => ({ data: [] }),
+        active: async () => ({}),
+        prompt,
+        interrupt,
+      },
+      event: {
+        subscribe: ({ signal }: { signal: AbortSignal }) => ({
+          async *[Symbol.asyncIterator]() {
+            await eventReady
+            await midGate
+            for (const event of stageTwo) yield event
+            finishEvents?.()
+            if (!signal.aborted) await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }))
+          },
+        }),
+      },
+      permission: { list: async () => [], reply: vi.fn() },
+      message: { list: async () => ({ data: [{ type: 'assistant', content: [{ type: 'text', text: PLAN_FOUR }] }] }) },
+    }
+
+    const runtime = new OpenCodeRuntime()
+    const children: SubagentInfo[] = []
+    // No configured limit: the cap of the desk (three) is the one that applies.
+    await runtime.run(parent, 'Tarefa sintética', new AbortController().signal, async () => 'once', (child) => children.push(child), () => undefined)
+    const blocked = children.find((c) => c.id === 'session-c4')
+    expect(blocked?.status).toBe('failed')
+    expect(blocked?.summary).toContain('limite de 3')
+    expect(interrupt).toHaveBeenCalledWith({ sessionID: 'session-c4' })
+    for (const id of childIDs.slice(0, 3)) expect(children.some((c) => c.id === id && !c.status)).toBe(true)
   })
 
   it('does not resume a persisted OpenCode session from another worktree', async () => {
@@ -541,5 +706,330 @@ describe('OpenCodeRuntime', () => {
     expect(audit).toHaveBeenCalledTimes(1)
     const recorded = audit.mock.calls[0]?.[0] as { decisions: unknown[] }
     expect(recorded.decisions).toHaveLength(1)
+  })
+
+  it('adopts at most the cap of the desk when a resumed session has more active children', async () => {
+    const parent = agent()
+    const recovered = ['session-r1', 'session-r2', 'session-r3', 'session-r4', 'session-r5']
+    const { update, interrupt } = resumedClient(parent, recovered.map((id) => ({ id })), recovered)
+    const runtime = new OpenCodeRuntime()
+    const children: SubagentInfo[] = []
+    await runtime.run(parent, 'Continue safely', new AbortController().signal, async () => 'once', (child) => children.push(child), () => undefined)
+
+    // Only what fits the desk is adopted, and the order of the list decides who.
+    expect(children.filter((child) => !child.status).map((child) => child.id)).toEqual(['session-r1', 'session-r2', 'session-r3'])
+    // The excess is stopped and reported as a failure, with the reason of the cap.
+    const blocked = children.filter((child) => child.status === 'failed')
+    expect(blocked.map((child) => child.id)).toEqual(['session-r4', 'session-r5'])
+    for (const child of blocked) expect(child.summary).toContain('limite de 3')
+    expect(interrupt).toHaveBeenCalledWith({ sessionID: 'session-r4' })
+    expect(interrupt).toHaveBeenCalledWith({ sessionID: 'session-r5' })
+    // The cap never stops the parent session.
+    expect(interrupt).not.toHaveBeenCalledWith({ sessionID: parent.sessionId })
+    // The adopted children keep the Office permissions; the blocked ones get none.
+    const updated = update.mock.calls.map((call) => (call[0] as { sessionID: string }).sessionID)
+    expect(updated).toEqual(expect.arrayContaining(['session-r1', 'session-r2', 'session-r3']))
+    expect(updated).not.toContain('session-r4')
+    expect(updated).not.toContain('session-r5')
+  })
+
+  it('keeps the first recovered children when the configured limit is smaller than the cap of the desk', async () => {
+    const parent = agent()
+    const recovered = ['session-r1', 'session-r2', 'session-r3']
+    const { update, interrupt } = resumedClient(parent, recovered.map((id) => ({ id })), recovered)
+    const runtime = new OpenCodeRuntime()
+    const children: SubagentInfo[] = []
+    await runtime.run(parent, 'Continue safely', new AbortController().signal, async () => 'once', (child) => children.push(child), () => undefined, 1)
+
+    expect(children.filter((child) => !child.status).map((child) => child.id)).toEqual(['session-r1'])
+    const blocked = children.filter((child) => child.status === 'failed')
+    expect(blocked.map((child) => child.id)).toEqual(['session-r2', 'session-r3'])
+    for (const child of blocked) expect(child.summary).toContain('limite de 1')
+    expect(interrupt).toHaveBeenCalledWith({ sessionID: 'session-r2' })
+    expect(interrupt).toHaveBeenCalledWith({ sessionID: 'session-r3' })
+    expect(interrupt).not.toHaveBeenCalledWith({ sessionID: parent.sessionId })
+    const updated = update.mock.calls.map((call) => (call[0] as { sessionID: string }).sessionID)
+    expect(updated).toContain('session-r1')
+    expect(updated).not.toContain('session-r2')
+    expect(updated).not.toContain('session-r3')
+  })
+
+  it('adopts the oldest recovered children, whatever order the service lists them', async () => {
+    const parent = agent()
+    // The service answers in the opposite order: the desk decides by age, so the
+    // same children are always the ones adopted.
+    const recovered = ['session-r5', 'session-r4', 'session-r3', 'session-r2', 'session-r1'].map((id, index) => ({
+      id,
+      created: 5 - index,
+    }))
+    const { update, interrupt, pendingPermissions } = resumedClient(parent, recovered, recovered.map((child) => child.id))
+    const runtime = new OpenCodeRuntime()
+    const children: SubagentInfo[] = []
+    await runtime.run(parent, 'Continue safely', new AbortController().signal, async () => 'once', (child) => children.push(child), () => undefined)
+
+    // The three oldest are adopted; the two newest do not fit the desk.
+    expect(children.filter((child) => !child.status).map((child) => child.id)).toEqual(['session-r1', 'session-r2', 'session-r3'])
+    const blocked = children.filter((child) => child.status === 'failed')
+    expect(blocked.map((child) => child.id)).toEqual(['session-r4', 'session-r5'])
+    for (const child of blocked) expect(child.summary).toContain('limite de 3')
+    // Only the excess is stopped: the parent session keeps running.
+    expect(interrupt).toHaveBeenCalledWith({ sessionID: 'session-r4' })
+    expect(interrupt).toHaveBeenCalledWith({ sessionID: 'session-r5' })
+    expect(interrupt).not.toHaveBeenCalledWith({ sessionID: parent.sessionId })
+    // The excess gets no Office permission and no pending-approval replay.
+    const updated = update.mock.calls.map((call) => (call[0] as { sessionID: string }).sessionID)
+    expect(updated).not.toContain('session-r4')
+    expect(updated).not.toContain('session-r5')
+    const asked = pendingPermissions.mock.calls.map((call) => call[0].sessionID)
+    expect(asked).not.toContain('session-r4')
+    expect(asked).not.toContain('session-r5')
+  })
+
+  it('breaks a tie between children born at the same instant by their id', async () => {
+    const parent = agent()
+    // Two children share the same age: the id decides, so the desk always
+    // adopts the same ones.
+    const recovered = [
+      { id: 'session-b', created: 2 },
+      { id: 'session-a', created: 2 },
+      { id: 'session-c', created: 1 },
+      { id: 'session-d', created: 3 },
+    ]
+    const { interrupt } = resumedClient(parent, recovered, recovered.map((child) => child.id))
+    const runtime = new OpenCodeRuntime()
+    const children: SubagentInfo[] = []
+    await runtime.run(parent, 'Continue safely', new AbortController().signal, async () => 'once', (child) => children.push(child), () => undefined)
+
+    expect(children.filter((child) => !child.status).map((child) => child.id)).toEqual(['session-c', 'session-a', 'session-b'])
+    const blocked = children.filter((child) => child.status === 'failed')
+    expect(blocked.map((child) => child.id)).toEqual(['session-d'])
+    expect(blocked[0]?.summary).toContain('limite de 3')
+    expect(interrupt).toHaveBeenCalledWith({ sessionID: 'session-d' })
+    expect(interrupt).not.toHaveBeenCalledWith({ sessionID: parent.sessionId })
+  })
+
+  it('keeps a recovered child refused by the cap blocked when the stream reconnects', async () => {
+    const parent = agent()
+    const recovered = ['session-r1', 'session-r2', 'session-r3', 'session-r4', 'session-r5']
+    const refused = ['session-r4', 'session-r5']
+    // The mock remembers what the runtime stopped: a refused child really ends.
+    const stopped = new Set<string>()
+    const interrupt = vi.fn(async (input: unknown) => {
+      const id = (input as { sessionID: string }).sessionID
+      if (id !== parent.sessionId) stopped.add(id)
+    })
+    const update = vi.fn(async (_input: { sessionID: string }) => undefined)
+    const list = vi.fn(async () => ({
+      data: recovered.map((id, index) => ({
+        id,
+        parentID: parent.sessionId,
+        agent: 'general',
+        title: `Subtarefa recuperada ${index + 1}`,
+        model: { providerID: 'openai', id: 'gpt-6-luna', variant: 'high' },
+        cost: 0,
+        tokens: { input: 0, output: 0 },
+        time: { created: index + 1, updated: 2 },
+        ...(stopped.has(id) ? { outcome: 'interrupted' } : {}),
+      })),
+    }))
+    let releaseEvents: (() => void) | undefined
+    let finishEvents: (() => void) | undefined
+    const eventReady = new Promise<void>((resolve) => (releaseEvents = resolve))
+    const eventsConsumed = new Promise<void>((resolve) => (finishEvents = resolve))
+    let subscriptions = 0
+    const prompt = vi.fn(async (_input: unknown) => {
+      releaseEvents?.()
+      await eventsConsumed
+    })
+    mock.client = {
+      server: { info: async () => ({ version: '2.0.32' }) },
+      model: {
+        list: async () => ({
+          location: { directory: parent.cwd },
+          data: [{ id: 'gpt-6-luna', providerID: 'openai', enabled: true, status: 'active', capabilities: { tools: true }, variants: [{ id: 'high' }], cost: [] }],
+        }),
+      },
+      agent: { list: async () => ({ location: { directory: parent.cwd }, data: [{ id: 'general', name: 'General', mode: 'subagent', hidden: false, model: undefined }] }) },
+      session: {
+        get: async () => ({ ...parent, location: { directory: parent.cwd }, model: { providerID: 'openai', id: 'gpt-6-luna', variant: 'high' } }),
+        create: vi.fn(),
+        switchModel: vi.fn(),
+        update,
+        list,
+        active: async () => Object.fromEntries(recovered.filter((id) => !stopped.has(id)).map((id) => [id, { id }])),
+        prompt,
+        interrupt,
+      },
+      event: {
+        subscribe: ({ signal }: { signal: AbortSignal }) => ({
+          async *[Symbol.asyncIterator]() {
+            subscriptions++
+            const aborted = new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }))
+            if (subscriptions === 1) {
+              // The stream drops right away: the runtime reconnects and reconciles again.
+              throw new Error('O stream SSE do OpenCode foi encerrado.')
+            }
+            await Promise.race([eventReady, aborted])
+            if (signal.aborted) return
+            // The refused child really stops: the late event must not rewrite the failure.
+            yield { type: 'session.execution.interrupted', data: { sessionID: 'session-r4' } }
+            yield { type: 'session.text.delta', data: { sessionID: parent.sessionId, delta: 'Resumed.' } }
+            yield { type: 'session.execution.succeeded', data: { sessionID: parent.sessionId } }
+            finishEvents?.()
+            if (!signal.aborted) await aborted
+          },
+        }),
+      },
+      permission: { list: vi.fn(async () => []), reply: vi.fn(async () => undefined) },
+      message: {
+        list: async () => ({
+          data: [{ type: 'assistant', cost: 0, tokens: { input: 8, output: 3 }, content: [{ type: 'text', text: PLAN }] }],
+        }),
+      },
+    }
+
+    const runtime = new OpenCodeRuntime()
+    const children: SubagentInfo[] = []
+    await runtime.run(parent, 'Continue safely', new AbortController().signal, async () => 'once', (child) => children.push(child), () => undefined)
+
+    // The stream really dropped: the runtime reconciled a second time.
+    expect(list.mock.calls.length).toBeGreaterThan(1)
+    expect(children.filter((child) => !child.status).map((child) => child.id)).toEqual(['session-r1', 'session-r2', 'session-r3'])
+    // The refusal is told once, as a failure: the late "stopped" never replaces it.
+    const reports = children.filter((child) => refused.includes(child.id))
+    expect(reports).toHaveLength(2)
+    for (const report of reports) {
+      expect(report.status).toBe('failed')
+      expect(report.summary).toContain('limite de 3')
+    }
+    expect(children.some((child) => child.id === 'session-r4' && child.status === 'stopped')).toBe(false)
+    expect(children.some((child) => child.id === 'session-r5' && child.status === 'stopped')).toBe(false)
+    // The refused children are never adopted and never get the Office policy.
+    const updated = update.mock.calls.map((call) => (call[0] as { sessionID: string }).sessionID)
+    expect(updated).not.toContain('session-r4')
+    expect(updated).not.toContain('session-r5')
+    expect(interrupt).not.toHaveBeenCalledWith({ sessionID: parent.sessionId })
+  })
+
+  it('keeps a child refused during the run blocked when the stream reconnects', async () => {
+    const parent = agent()
+    const childIDs = ['session-c1', 'session-c2', 'session-c3', 'session-c4']
+    const created: string[] = []
+    const stopped = new Set<string>()
+    const interrupt = vi.fn(async (input: unknown) => {
+      const id = (input as { sessionID: string }).sessionID
+      if (id !== parent.sessionId) stopped.add(id)
+    })
+    const update = vi.fn(async () => undefined)
+    const list = vi.fn(async () => ({
+      data: created.map((id, index) => ({
+        id,
+        parentID: parent.sessionId,
+        agent: 'general',
+        title: `Subtarefa ${index + 1}`,
+        model: { providerID: 'openai', id: 'gpt-6-luna', variant: 'high' },
+        cost: 0,
+        tokens: { input: 0, output: 0 },
+        time: { created: index + 1, updated: 2 },
+        ...(stopped.has(id) ? { outcome: 'interrupted' } : {}),
+      })),
+    }))
+    let releaseEvents: (() => void) | undefined
+    let openMidGate: (() => void) | undefined
+    let finishEvents: (() => void) | undefined
+    const eventReady = new Promise<void>((resolve) => (releaseEvents = resolve))
+    const midGate = new Promise<void>((resolve) => (openMidGate = resolve))
+    const eventsConsumed = new Promise<void>((resolve) => (finishEvents = resolve))
+    let subscriptions = 0
+    const prompt = vi.fn(async (_input: unknown) => {
+      if (prompt.mock.calls.length === 1) {
+        releaseEvents?.()
+        return
+      }
+      openMidGate?.()
+      await eventsConsumed
+    })
+    mock.client = {
+      server: { info: async () => ({ version: '2.0.32' }) },
+      model: {
+        list: async () => ({
+          location: { directory: parent.cwd },
+          data: [{ id: 'gpt-6-luna', providerID: 'openai', enabled: true, status: 'active', capabilities: { tools: true }, variants: [{ id: 'high' }], cost: [] }],
+        }),
+      },
+      agent: { list: async () => ({ location: { directory: parent.cwd }, data: [{ id: 'general', name: 'General', mode: 'subagent', hidden: false, model: undefined }] }) },
+      session: {
+        get: async () => { throw { status: 404 } },
+        create: vi.fn(async () => undefined),
+        switchModel: vi.fn(async () => undefined),
+        update,
+        list,
+        active: async () => Object.fromEntries(created.filter((id) => !stopped.has(id)).map((id) => [id, { id }])),
+        prompt,
+        interrupt,
+      },
+      event: {
+        subscribe: ({ signal }: { signal: AbortSignal }) => ({
+          async *[Symbol.asyncIterator]() {
+            subscriptions++
+            const aborted = new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }))
+            await eventReady
+            await midGate
+            if (subscriptions === 1) {
+              for (const id of childIDs) {
+                created.push(id)
+                yield {
+                  type: 'session.created',
+                  data: { sessionID: id, parentID: parent.sessionId, agent: 'general', title: `Subtarefa ${id}`, model: { providerID: 'openai', id: 'gpt-6-luna', variant: 'high' } },
+                }
+              }
+              // The service announces the refused child again: the refusal stands.
+              yield {
+                type: 'session.created',
+                data: { sessionID: 'session-c4', parentID: parent.sessionId, agent: 'general', title: 'Subtarefa session-c4', model: { providerID: 'openai', id: 'gpt-6-luna', variant: 'high' } },
+              }
+              // The stream drops right after the spawns: the runtime reconnects.
+              throw new Error('O stream SSE do OpenCode foi encerrado.')
+            }
+            yield { type: 'session.text.delta', data: { sessionID: parent.sessionId, delta: 'OK' } }
+            yield { type: 'session.execution.succeeded', data: { sessionID: parent.sessionId } }
+            finishEvents?.()
+            if (!signal.aborted) await aborted
+          },
+        }),
+      },
+      permission: { list: vi.fn(async () => []), reply: vi.fn(async () => undefined) },
+      message: {
+        list: async () => ({
+          data: [{ type: 'assistant', cost: 0, tokens: { input: 8, output: 3 }, content: [{ type: 'text', text: PLAN_FOUR }] }],
+        }),
+      },
+    }
+
+    const runtime = new OpenCodeRuntime()
+    const children: SubagentInfo[] = []
+    await runtime.run(parent, 'Tarefa sintética', new AbortController().signal, async () => 'once', (child) => children.push(child), () => undefined)
+
+    // The stream really dropped: the runtime reconciled a second time.
+    expect(list.mock.calls.length).toBeGreaterThan(1)
+    const refusedReports = children.filter((child) => child.id === 'session-c4')
+    expect(refusedReports).toHaveLength(1)
+    expect(refusedReports[0]?.status).toBe('failed')
+    expect(refusedReports[0]?.summary).toContain('limite de 3')
+    // The late stop of the refused child never rewrites the failure.
+    expect(children.some((child) => child.id === 'session-c4' && child.status === 'stopped')).toBe(false)
+    expect(interrupt).toHaveBeenCalledWith({ sessionID: 'session-c4' })
+    expect(interrupt).not.toHaveBeenCalledWith({ sessionID: parent.sessionId })
+  })
+
+  it('still pauses a resumed run when a recovered child runs another model', async () => {
+    const parent = agent()
+    const { interrupt } = resumedClient(parent, [{ id: 'session-r-bad', model: { providerID: 'opencode', id: 'beam-free', variant: 'high' } }], ['session-r-bad'])
+    const runtime = new OpenCodeRuntime()
+    await expect(
+      runtime.run(parent, 'Continue safely', new AbortController().signal, async () => 'once', () => undefined, () => undefined),
+    ).rejects.toThrow(/modelo aprovado/)
+    expect(interrupt).toHaveBeenCalledWith({ sessionID: 'session-r-bad' })
+    expect(interrupt).toHaveBeenCalledWith({ sessionID: parent.sessionId })
   })
 })

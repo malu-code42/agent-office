@@ -1,21 +1,20 @@
 import * as THREE from 'three'
+import { directorSign } from '@shared/projects'
 import { brandSign, type Brand } from './brand'
 import * as F from './furniture'
 import { beacon, costBoard } from './props'
 import { workstation } from './workstation'
 import { box, panel } from './kit'
 import { mergeStatic } from './merge'
-import { DIRECTOR_RECT, ELEVATOR, H, W, type ProjectPlan, type SectorRoom } from './layout'
+import { AGENT_ROOM_RECT, DIRECTOR_RECT, H, UPPER_ELEVATOR, W, type ProjectPlan, type SquadRoom } from './layout'
 import { buildPartitions, buildShell, CALM_BEACON, type Office } from './office'
 import { Grid } from './pathfinding'
-import { arcadePainter, dashboardPainter, LoopScreen, Screen } from './screens'
-import { rugTexture } from './textures'
+import { arcadePainter, LoopScreen, Screen } from './screens'
+import { rugTexture, WindowSky } from './textures'
 
-/** A project floor. deskScreens holds the team desks first, then the sector desks (DeskSlot.index). */
+/** A project floor. deskScreens holds the agents' room first, then the member desks of each squad room. */
 export interface UpperFloor extends Office {
   plan: ProjectPlan
-  /** Big screen in the Diretoria: clicking it hires a squad. */
-  board: THREE.Object3D
 }
 
 const RUGS: [string, string, string][] = [
@@ -27,90 +26,141 @@ const RUGS: [string, string, string][] = [
   ['#e9eef0', '#8aa1ab', '#4f6d7a'],
 ]
 
-/** A project floor: Diretoria with the company's sign and the orchestrators' desks around the elevator, team and sector rooms. */
+type Placer = (o: THREE.Object3D, x: number, z: number, rot?: number, y?: number) => THREE.Object3D
+type Blocker = (x: number, z: number, w?: number, h?: number) => void
+
+/**
+ * A project floor: the hall with the elevator, three squad rooms on the west wall,
+ * the glass room with the individual agents on the east side and the director's room
+ * at the back (HANDOFF §3.4).
+ */
 export function buildUpperFloor(plan: ProjectPlan, brand: Brand): UpperFloor {
   const group = new THREE.Group()
   const grid = new Grid(W, H)
   const loops: LoopScreen[] = []
-  const place = (obj: THREE.Object3D, x: number, z: number, rot = 0, y = 0) => {
+  const skies: WindowSky[] = []
+  const deskScreens: Screen[] = []
+  const place: Placer = (obj, x, z, rot = 0, y = 0) => {
     obj.position.set(x, y, z)
     obj.rotation.y = rot
     group.add(obj)
     return obj
   }
+  const block: Blocker = (x, z, w = 1, h = 1) => grid.blockRect(Math.floor(x), Math.floor(z), w, h)
 
-  // planks in the Diretoria, carpet in the rooms (under their rugs), hall planks in the corridor
-  const floor = buildShell(group, [{ id: 'boss', label: '', rect: DIRECTOR_RECT }, ...[...plan.team, ...plan.sectors].map((r) => ({ id: 'team' as const, label: '', rect: r.rect })), ...plan.commons.map((rect, i) => ({ id: COMMONS[i % COMMONS.length] === 'cafe' ? ('cafe' as const) : ('lounge' as const), label: '', rect }))])
+  // planks in the hall, carpet in the rooms (under their rugs)
+  const floor = buildShell(group, [
+    { id: 'boss', label: '', rect: DIRECTOR_RECT },
+    ...plan.rooms.map((r) => ({ id: 'team' as const, label: '', rect: r.rect })),
+    { id: 'team' as const, label: '', rect: AGENT_ROOM_RECT },
+  ])
   buildPartitions(group, grid, plan.partitions)
 
-  // ---------- Diretoria ----------
-  const [dx0, , dx1, dz1] = DIRECTOR_RECT
-  const dcx = (dx0 + dx1) / 2
-  place(F.rug(8, 4, rugTexture(8, 4, '#2d3a5c', '#1d2742', brand.color)), dcx, 5.5)
-  for (const d of plan.directors) {
-    place(F.bossDesk(d.w), d.x + d.w / 2, d.z + 0.5)
-    grid.blockRect(d.x, d.z, d.w, 1)
-    place(F.monitorBack(0.85), d.seat.x - 0.2, d.z + 0.35, Math.PI, 0.78)
-    place(F.keyboard(), d.seat.x - 0.2, d.z + 0.1, Math.PI, 0.78)
-    place(F.paperStack(), d.x + 0.4, d.z + 0.6, 0.2, 0.78)
-    place(F.mug('#fdcb6e'), d.x + d.w - 0.4, d.z + 0.7, 0, 0.78)
-    place(F.bossChair(), d.seat.x, d.seat.z, 0)
-    place(F.simpleChair('#6c5ce7'), d.side.x, d.side.z, -Math.PI / 2)
-  }
-  // back wall, left to right: plant, the company's sign, cycle board, then the elevator
-  place(F.plant('tall', '#e9edf2'), dx0 + 0.5, 0.5)
-  grid.block(dx0, 0)
-  place(brandSign(brand, 2.4), dx0 + 2.4, 0.03, 0, 1.75)
-  place(F.plant('fern'), dx0 + 0.5, dz1 - 0.5)
-  grid.block(dx0, dz1 - 1)
-  place(F.plant('flower', '#f5f3ee'), dx1 - 0.5, dz1 - 0.5)
-  grid.block(dx1 - 1, dz1 - 1)
-  const dash = new LoopScreen(48, 26, dashboardPainter, 4)
-  loops.push(dash)
-  place(F.tv(dash.texture), dx0 + 5, 0.06, 0, 1.6)
-  const board = new THREE.Object3D()
-  board.position.set(dx0 + 5, 2.05, 0.3)
-  group.add(board)
-  // the elevator opens into the Diretoria
+  // ---------- hall: the elevator, the rest and the games ----------
   const elev = F.elevator()
-  place(elev.group, ELEVATOR.x, 0.04)
+  place(elev.group, UPPER_ELEVATOR.x, 0.04)
+  place(F.plant('tall'), 13.6, 0.6)
+  place(F.plant('tall'), 17.4, 0.6)
+  // west side: a rest corner (sofa, low table, two bean bags), then the foosball
+  place(F.rug(3.2, 4, rugTexture(3.2, 4, '#f3e4c4', '#c98b5e', '#d97757')), 12.7, 7)
+  place(F.sofa(3, '#d97757'), 11.6, 7, Math.PI / 2)
+  block(11, 5, 1, 3)
+  place(F.lowTable(0.4), 13.1, 7)
+  block(13, 7)
+  place(F.beanBag('#4a8fe0'), 13.1, 5.2, Math.atan2(12.7 - 13.1, 7 - 5.2))
+  block(13, 5)
+  place(F.beanBag('#2f8f83'), 13.1, 8.8, Math.atan2(12.7 - 13.1, 7 - 8.8))
+  block(13, 8)
+  place(F.foosball(), 12.4, 11.5, Math.PI / 2)
+  block(12, 11, 1, 2)
+  place(F.waterCooler(), 11.7, 14.5)
+  block(11, 14)
+  // east side: the ping-pong table and the arcades, then a second rest corner
+  place(F.pingPong(), 18.8, 4.6)
+  block(18, 4, 2, 1)
+  for (const [x, seed] of [
+    [18.4, 8],
+    [19.4, 7],
+  ] as const) {
+    const scr = new LoopScreen(24, 20, arcadePainter, seed)
+    loops.push(scr)
+    place(F.arcade(scr.texture), x, 0.9)
+    block(x, 0.9)
+  }
+  place(F.rug(3.2, 4, rugTexture(3.2, 4, '#e6eef7', '#7b9cc4', '#d97757')), 18.3, 11.5)
+  place(F.sofa(3, '#3d4a6b'), 19.4, 11.5, -Math.PI / 2)
+  block(19, 10, 1, 3)
+  place(F.lowTable(0.4), 18, 11.5)
+  block(18, 11)
+  place(F.beanBag('#f4a259'), 18, 9.7, Math.atan2(18.3 - 18, 11.5 - 9.7))
+  block(18, 9)
+  place(F.beanBag('#6c5ce7'), 18, 13.3, Math.atan2(18.3 - 18, 11.5 - 13.3))
+  block(18, 13)
+  place(F.plant('tall'), 19.6, 14.6)
+  block(19, 14)
 
-  // ---------- team and sector rooms ----------
-  const deskScreens: Screen[] = []
-  const rooms: [SectorRoom, number][] = [...plan.team.map((r): [SectorRoom, number] => [r, 0]), ...plan.sectors.map((r, i): [SectorRoom, number] => [r, i + 1])]
-  rooms.forEach(([r, rug]) => {
-    const [x0, z0, x1, z1] = r.rect
-    const cx = (x0 + x1) / 2
-    const [base, border, accent] = RUGS[rug % RUGS.length]
-    place(F.rug(x1 - x0 - 1, z1 - z0 - 1, rugTexture(x1 - x0 - 1, z1 - z0 - 1, base, border, accent)), cx, (z0 + z1) / 2)
-    for (const d of r.desks) {
-      const screen = new Screen()
-      deskScreens[d.index] = screen
-      const ws = workstation(d.index + 2, screen.texture, screen.led)
-      loops.push(...ws.loops)
-      place(ws.group, d.x + 1, d.z + 0.5)
-      grid.blockRect(d.x, d.z, 2, 1)
-    }
-    // the sign: on the back wall for rooms along it, over the door for the front ones
-    if (r.top) {
-      place(sign(r.name, '#2d3142', '#ffffff'), cx, 0.03, 0, 2.0)
-      place(F.plant('bush'), x0 + 0.5, 0.5)
-      grid.block(x0, 0)
-    } else {
-      place(sign(r.name, '#2d3142', '#ffffff'), cx, z0 + 0.06, 0, 1.62)
-      place(F.plant('fern'), x1 - 0.5, z1 - 0.5)
-      grid.block(x1 - 1, z1 - 1)
-    }
-  })
+  // ---------- the three squad rooms ----------
+  plan.rooms.forEach((room, i) => squadRoom(group, room, i, deskScreens, loops, place, block))
 
-  // ---------- common areas in the front rooms no sector took ----------
-  plan.commons.forEach((rect, i) => commons(COMMONS[i % COMMONS.length], rect, place, grid, loops, brand.color))
+  // ---------- the glass room with the individual agents ----------
+  place(F.rug(2, 22, rugTexture(2, 22, '#7f88b3', '#5d6591', '#d97757')), 27, 12)
+  for (const d of plan.agentDesks) {
+    const screen = new Screen()
+    deskScreens[d.index] = screen
+    const ws = workstation(d.index + 2, screen.texture, screen.led)
+    loops.push(...ws.loops)
+    place(ws.group, d.center!.x, d.center!.z, -Math.PI / 2)
+    block(d.x, d.z, 1, 2)
+  }
+  for (const x of [24, 29]) {
+    const sky = new WindowSky(x)
+    skies.push(sky)
+    place(F.wallWindow(2.2, 1.3, sky), x + 0.5, 0.02, 0, 1.6)
+  }
+  place(sign('Agentes individuais', 3, '#5f5a8c'), 26.8, 0.04, 0, 2.55)
+  place(F.plant('tall'), 31.3, 0.7)
+  block(31, 0)
+  place(F.plant('bush'), 21.7, 0.7)
+  block(21, 0)
+  place(F.plant('tall'), 31.3, 23.2)
+  block(31, 23)
+  place(F.plant('bush'), 21.7, 23.2)
+  block(21, 23)
+  place(F.waterCooler(), 30.4, 0.5)
+  block(30, 0)
 
-  // the company's spending board on the side wall, the alarm above it
+  // ---------- the director's room ----------
+  const dcx = (DIRECTOR_RECT[0] + DIRECTOR_RECT[2]) / 2
+  place(F.rug(6, 5, rugTexture(6, 5, '#2d3a5c', '#1d2742', brand.color)), dcx, 20.8)
+  // the desk against the south wall, with the director's chair behind it, facing the door
+  place(directorRig(3), dcx, 22.4, Math.PI)
+  block(14, 22, 3, 2)
+  place(F.simpleChair('#6c5ce7'), 14.6, 20.6)
+  place(F.simpleChair('#6c5ce7'), 16.4, 20.6)
+  place(F.bookshelf(2, 1.9, 5), 12.8, 16.3)
+  block(12, 16, 2, 1)
+  place(F.clock(), 18.2, 16.04, 0, 2.25)
+  place(F.cabinet(1.4), 18.2, 16.5)
+  block(17, 16, 2, 1)
+  place(F.plant('tall', '#e9edf2'), 11.8, 23)
+  block(11, 23)
+  place(F.plant('flower', '#f5f3ee'), 19.2, 23)
+  block(19, 23)
+  place(F.floorLamp(), 19.2, 18.2)
+  block(19, 18)
+  // The plate of the room, on the wall of the door: "Diretoria · <project>"
+  // (HANDOFF §3.4). One plate only: the room has no other sign, and the company
+  // logo rides on this same plate instead of hanging beside it.
+  place(brandSign(brand, 2.8, directorSign(brand.name)), 12.8, 16.04, 0, 2.05)
+  // No hiring screen here: the squad is proposed from an empty squad room, the
+  // only entry the design approves (HANDOFF §3.4.2).
+
+  // the spending board on the west wall of the director's room, the alarm above it
   const money = costBoard(brand.name, 2.2)
-  place(money.group, 0.06, 5, Math.PI / 2, 1.0)
+  place(money.group, 11.06, 18, Math.PI / 2, 1.0)
   const alarm = beacon()
-  place(alarm.group, 0.04, 7.6, Math.PI / 2, 1.85)
+  place(alarm.group, 11.04, 20, Math.PI / 2, 1.85)
+
   // every box that never moves becomes one mesh per material (AO-30)
   mergeStatic(group)
 
@@ -123,7 +173,6 @@ export function buildUpperFloor(plan: ProjectPlan, brand: Brand): UpperFloor {
     floor,
     deskScreens,
     plan,
-    board,
     money,
     alarm,
     reducedMotion: false,
@@ -132,6 +181,7 @@ export function buildUpperFloor(plan: ProjectPlan, brand: Brand): UpperFloor {
       alarm.update(this.reducedMotion ? dt * CALM_BEACON : dt)
       for (const s of deskScreens) s?.update(dt)
       for (const l of loops) l.update(dt)
+      for (const s of skies) s.update()
       doorTimer = Math.max(0, doorTimer - dt)
       doorOpen += ((doorTimer > 0 ? 1 : 0) - doorOpen) * Math.min(1, dt * 5)
       const w = 0.72 * (1 - doorOpen * 0.9)
@@ -148,88 +198,100 @@ export function buildUpperFloor(plan: ProjectPlan, brand: Brand): UpperFloor {
   }
 }
 
-type Common = 'lounge' | 'cafe' | 'games' | 'quiet'
-const COMMONS: Common[] = ['lounge', 'cafe', 'games', 'quiet']
-
-/** Furnishes an open front area (8 x 11 tiles); its back edge faces the corridor. */
-function commons(kind: Common, rect: [number, number, number, number], place: (o: THREE.Object3D, x: number, z: number, rot?: number, y?: number) => THREE.Object3D, grid: Grid, loops: LoopScreen[], accent: string): void {
-  const [x0, z0, x1, z1] = rect
+/**
+ * A squad room: the fixed furniture (coordinator's desk, whiteboard, bookshelf, plate)
+ * is always there; the member desks only exist when a squad is assigned to the room.
+ * An empty room keeps the furniture, but with the lights off and nobody inside.
+ */
+function squadRoom(
+  group: THREE.Group,
+  room: SquadRoom,
+  rug: number,
+  deskScreens: Screen[],
+  loops: LoopScreen[],
+  place: Placer,
+  block: Blocker,
+): void {
+  const [x0, z0, x1, z1] = room.rect
   const cx = (x0 + x1) / 2
-  const cz = (z0 + z1) / 2 + 0.5
-  const block = (x: number, z: number, w = 1, h = 1) => grid.blockRect(Math.floor(x), Math.floor(z), w, h)
-  switch (kind) {
-    case 'lounge':
-      place(F.rug(6, 5, rugTexture(6, 5, '#e6eef7', '#7b9cc4', accent)), cx, cz)
-      place(F.sofa(3, '#3d4a6b'), cx, cz - 1.55, 0)
-      block(cx - 1.5, cz - 2, 3)
-      place(F.coffeeTable(3), cx, cz)
-      block(cx - 1.5, cz, 3)
-      place(F.armchair('#f4a259'), cx - 2.05, cz, Math.PI / 2)
-      block(cx - 2.5, cz)
-      place(F.armchair('#f4a259'), cx + 2.05, cz, -Math.PI / 2)
-      block(cx + 1.5, cz)
-      place(F.floorLamp(), x0 + 0.5, z0 + 1.5)
-      block(x0, z0 + 1)
-      place(F.plant('tall'), x1 - 0.5, z1 - 0.5)
-      block(x1 - 1, z1 - 1)
-      place(F.plant('bush'), x0 + 0.5, z1 - 0.5)
-      block(x0, z1 - 1)
-      break
-    case 'cafe':
-      place(F.kitchenCounter(3), cx, z1 - 0.7, Math.PI)
-      block(cx - 1.5, z1 - 1, 3)
-      place(F.coffeeMachine(), cx - 0.8, z1 - 0.75, Math.PI, 0.91)
-      place(F.microwave(), cx + 0.3, z1 - 0.75, Math.PI, 0.91)
-      place(F.fridge(), cx + 2.2, z1 - 0.6, Math.PI)
-      block(cx + 1.5, z1 - 1)
-      place(F.barTable(), cx - 1.5, cz - 1.5)
-      block(cx - 2, cz - 2)
-      for (const [dx, dz, c] of [[-0.8, 0, '#d97757'], [0.8, 0, '#2f8f83'], [0, -0.8, accent]] as const) place(F.stool(c), cx - 1.5 + dx, cz - 1.5 + dz)
-      place(F.roundTable(0.55), cx + 1.5, cz)
-      block(cx + 1, cz)
-      for (const [dx, dz, r] of [[-1, 0, Math.PI / 2], [1, 0, -Math.PI / 2], [0, -1, 0]] as const) place(F.simpleChair('#f4a259'), cx + 1.5 + dx, cz + dz, r)
-      place(F.plant('fern'), x0 + 0.5, z1 - 0.5)
-      block(x0, z1 - 1)
-      break
-    case 'games': {
-      place(F.rug(6, 5, rugTexture(6, 5, '#f3e4c4', '#c98b5e', accent)), cx, cz)
-      place(F.foosball(), cx - 1.5, cz - 1)
-      block(cx - 2.5, cz - 1.5, 2)
-      place(F.pingPong(), cx + 1.5, cz + 1, Math.PI / 2)
-      block(cx + 1, cz + 0.5, 2)
-      const screen = new LoopScreen(24, 20, arcadePainter, 7)
-      loops.push(screen)
-      place(F.arcade(screen.texture), x1 - 0.5, z1 - 0.6, Math.PI)
-      block(x1 - 1, z1 - 1)
-      place(F.plant('tall'), x0 + 0.5, z1 - 0.5)
-      block(x0, z1 - 1)
-      break
-    }
-    case 'quiet':
-      place(F.rug(4, 4, rugTexture(4, 4, '#e3f1e6', '#6fae86', accent)), cx, cz)
-      place(F.lowTable(), cx, cz)
-      block(cx, cz)
-      for (const [dx, dz, c] of [[-1.2, 0, '#a29bfe'], [1.2, 0, '#ff7675'], [0, 1.2, '#55efc4'], [0, -1.2, '#fdcb6e']] as const) {
-        place(F.beanBag(c), cx + dx, cz + dz, Math.atan2(-dx, -dz))
-        block(cx + dx, cz + dz)
-      }
-      // against the side wall when there is one, else facing into the area from the back
-      if (x0 === 0) {
-        place(F.bookshelf(2, 1.7, 5), 0.3, z0 + 3, Math.PI / 2)
-        block(0, z0 + 2, 1, 2)
-      } else {
-        place(F.bookshelf(2, 1.7, 5), x0 + 1.2, z0 + 0.6)
-        block(x0, z0, 2)
-      }
-      place(F.plant('fern'), x1 - 0.5, z1 - 0.5)
-      block(x1 - 1, z1 - 1)
-      place(F.plant('flower', '#f5f3ee'), x1 - 0.5, z0 + 1.5)
-      block(x1 - 1, z0 + 1)
+  const cz = (z0 + z1) / 2
+  const lit = room.squad !== null
+  const [base, border, accent] = RUGS[rug % RUGS.length]
+  place(F.rug(x1 - x0 - 1, z1 - z0 - 1, rugTexture(x1 - x0 - 1, z1 - z0 - 1, base, border, accent)), cx, cz)
+  // the coordinator's desk: fixed furniture, in the corner by the door, facing the members
+  const c = room.coordinator
+  place(coordinatorRig(), c.at.x, c.at.z, c.rot)
+  block(c.at.x - 0.3, c.at.z - 1.2, 1, 3)
+  place(sign('Coordenação', 1.6, '#5f5a8c'), c.at.x - 0.95, c.at.z, c.rot, 0.05)
+  // one desk per member of the squad, in the order of the room
+  for (const d of room.desks) {
+    const screen = new Screen()
+    deskScreens[d.index] = screen
+    const ws = workstation(d.index + 2, screen.texture, screen.led)
+    loops.push(...ws.loops)
+    place(ws.group, d.center!.x, d.center!.z, -Math.PI / 2)
+    block(d.x, d.z, 1, 2)
   }
+  // the wall opposite the door: the whiteboard and a bookshelf
+  place(F.whiteboard(2.2, 1.2), 0.06, z0 + 2.4, Math.PI / 2, 2.0)
+  place(F.bookshelf(2, 1.9, 4), 0.3, z0 + 5.4, Math.PI / 2)
+  block(0, z0 + 5, 1, 2)
+  // the plate of the room, on its back wall
+  place(sign(lit ? room.name : 'Sala sem squad', 2.2), 3.4, z0 + 0.04, 0, 2.4)
+  place(F.plant('fern'), x1 - 0.7, z0 + 0.7)
+  block(x1 - 1, z0, 1, 1)
+  // a room without a squad is dark and empty
+  if (!lit) lightsOff(group, room.rect)
+}
+
+/** Lights off: a dim volume over the whole room. */
+function lightsOff(group: THREE.Group, rect: [number, number, number, number]): void {
+  const [x0, z0, x1, z1] = rect
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(x1 - x0 - 0.12, 1.9, z1 - z0 - 0.12),
+    new THREE.MeshBasicMaterial({ color: '#080916', transparent: true, opacity: 0.64, depthWrite: false }),
+  )
+  m.position.set((x0 + x1) / 2, 0.95, (z0 + z1) / 2)
+  m.renderOrder = 6
+  group.add(m)
+}
+
+/** The coordinator's desk: the boss-style desk of the app, so it reads as the head of the room. */
+function coordinatorRig(w = 2.4): THREE.Group {
+  const rig = new THREE.Group()
+  const put = (o: THREE.Object3D, x: number, z: number, rot = 0, y = 0) => {
+    o.position.set(x, y, z)
+    o.rotation.y = rot
+    rig.add(o)
+  }
+  put(F.bossDesk(w), 0, 0)
+  put(F.monitorBack(0.85), -0.1, -0.15, Math.PI, 0.78)
+  put(F.keyboard(), -0.1, -0.4, Math.PI, 0.78)
+  put(F.paperStack(), -w / 3, 0.1, 0.2, 0.78)
+  put(F.mug('#d97757'), w / 3, 0.2, 0, 0.78)
+  put(F.bossChair(), 0, -1.0, 0)
+  return rig
+}
+
+/** The director's desk: the same rig, wider, with the chair behind it. */
+function directorRig(w: number): THREE.Group {
+  const rig = new THREE.Group()
+  const put = (o: THREE.Object3D, x: number, z: number, rot = 0, y = 0) => {
+    o.position.set(x, y, z)
+    o.rotation.y = rot
+    rig.add(o)
+  }
+  put(F.bossDesk(w), 0, 0)
+  put(F.monitorBack(0.85), -0.2, -0.15, Math.PI, 0.78)
+  put(F.keyboard(), -0.2, -0.4, Math.PI, 0.78)
+  put(F.paperStack(), -w / 3, 0.1, 0.2, 0.78)
+  put(F.mug('#fdcb6e'), w / 3, 0.2, 0, 0.78)
+  put(F.bossChair(), 0, -1.0, 0)
+  return rig
 }
 
 /** A flat name plate (facing +z) for walls and doors. */
-function sign(text: string, bg: string, fg: string, width = 2.2): THREE.Group {
+function sign(text: string, width = 2.2, bg = '#2d3142', fg = '#ffffff'): THREE.Group {
   const g = new THREE.Group()
   const c = document.createElement('canvas')
   c.width = Math.round(116 * width)

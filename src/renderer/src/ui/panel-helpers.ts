@@ -43,11 +43,32 @@ export function helpersSection(a: AgentSummary, viewing: string | null, pick: (s
   const back = viewing
     ? h('button', { class: 'btn btn-small helpers-back', title: `Voltar ao log de ${a.name}`, onclick: () => pick(null) }, h('span', { class: 'arrow-back' }, icon('chevron', 13)), `Log de ${a.name}`)
     : null
+  // A failed helper keeps its card: the error stays in the conversation, never in the inbox.
+  const cards = done.filter((s) => s.status === 'failed').map((s) => helperErrorCard(s))
   return h(
     'div',
     { class: 'panel-helpers' },
     h('div', { class: 'helpers-bar' }, toggle, back),
-    open ? h('div', { class: 'helpers-list', role: 'list' }, ...[...running, ...done].map((s) => helperRow(s, s.id === viewing, () => pick(s.id === viewing ? null : s.id)))) : null,
+    open ? h('div', { class: 'helpers-list', role: 'list' }, ...[...running, ...done.filter((s) => s.status !== 'failed')].map((s) => helperRow(s, s.id === viewing, () => pick(s.id === viewing ? null : s.id)))) : null,
+    cards.length ? h('div', { class: 'helpers-cards' }, ...cards) : null,
+  )
+}
+
+/** The card of a helper that failed: the reason stays here, the character left the scene. */
+function helperErrorCard(s: SubagentInfo): HTMLElement {
+  const reason = s.error?.trim() || s.summary?.trim() || 'Falhou sem dizer por quê.'
+  return h(
+    'div',
+    { class: 'helper-card helper-card-error', role: 'listitem' },
+    h('span', { class: 'dot dot-error', 'aria-hidden': 'true' }),
+    h('span', { class: 'chip chip-err' }, 'falhou'),
+    h('span', { class: 'helper-card-title' }, s.description),
+    h('span', { class: 'helper-card-line' }, `Erro: ${reason}`),
+    h(
+      'span',
+      { class: 'helper-card-note' },
+      'O personagem saiu da cena. O resultado e o erro ficam só aqui; a Caixa de entrada não avisa.',
+    ),
   )
 }
 

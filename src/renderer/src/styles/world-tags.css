@@ -25,3 +25,11 @@
 .dot-money {
   background: var(--board-amber);
 }
+
+/* what does not fit on the floor (more squads than rooms): the user has to know */
+.tag-issue .tag-pill {
+  background: rgba(60, 14, 20, 0.92);
+  color: var(--red-text);
+  font-weight: 600;
+  cursor: default;
+}

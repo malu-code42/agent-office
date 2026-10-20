@@ -168,3 +168,40 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Cartão do ajudante que falhou (HANDOFF §3.4.1): o erro fica na conversa, nunca na Caixa de entrada. */
+.helpers-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+}
+
+.helper-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  border: 1px solid rgba(239, 91, 91, 0.35);
+  border-radius: 8px;
+  background: rgba(239, 91, 91, 0.12);
+  font-size: 12px;
+}
+
+.helper-card-title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.helper-card-line {
+  flex-basis: 100%;
+  color: var(--red-text);
+}
+
+.helper-card-note {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 11px;
+}

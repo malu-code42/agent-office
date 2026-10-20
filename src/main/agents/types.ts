@@ -81,6 +81,11 @@ export interface Agent {
   subFlush?: Coalescer
   /** A subagent card changed since the last burst: send the summary again. */
   subDirty?: boolean
+  /**
+   * Spawn calls the Office allowed and the CLI has not reported yet: each one already
+   * takes a slot at the desk, so four calls in the same message do not pass the cap.
+   */
+  helperReservations?: Set<string>
 }
 
 /** Tools whose file_path the card lists when the folder has no git. */

@@ -23,3 +23,11 @@ export function floorNameFor(cwd: string): string {
   const base = cwd.split(/[\\/]/).filter(Boolean).pop() ?? ''
   return base.replace(/[-_]+/g, ' ').replace(/\b\p{L}/gu, (c) => c.toUpperCase()).trim().slice(0, 32) || 'Projeto'
 }
+
+/**
+ * The plate of the director's room: "Diretoria · <project>" (HANDOFF §3.4).
+ * A floor without a name reads "Diretoria · Projeto novo".
+ */
+export function directorSign(name: string): string {
+  return `Diretoria · ${name.trim() || 'Projeto novo'}`
+}

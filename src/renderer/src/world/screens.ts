@@ -199,21 +199,3 @@ export const arcadePainter = (c: CanvasRenderingContext2D, t: number, w: number,
   c.fillStyle = '#ff7675'
   c.fillRect(px, h - 4 - (Math.floor(t * 20) % (h - 4)), 1, 2)
 }
-
-export const dashboardPainter = (c: CanvasRenderingContext2D, t: number, w: number, h: number): void => {
-  c.fillStyle = '#1e2233'
-  c.fillRect(0, 0, w, h)
-  c.fillStyle = '#d97757'
-  c.fillRect(2, 2, 10, 2)
-  c.fillStyle = '#5b6078'
-  c.fillRect(14, 2, 8, 2)
-  const bars = 8
-  for (let i = 0; i < bars; i++) {
-    const v = 0.5 + 0.5 * Math.sin(t * 0.8 + i * 0.9)
-    const bh = Math.floor(4 + v * (h - 12))
-    c.fillStyle = i % 2 ? '#82aaff' : '#c3e88d'
-    c.fillRect(3 + i * 4, h - 3 - bh, 3, bh)
-  }
-  c.fillStyle = '#ffcb6b'
-  for (let x = 0; x < w - 4; x++) c.fillRect(2 + x, Math.floor(h / 2 - Math.sin(t + x / 4) * 4), 1, 1)
-}
