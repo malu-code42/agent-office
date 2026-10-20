@@ -5,7 +5,7 @@
  * against the repo root before git or the disk sees it.
  */
 
-export { runGit } from './run'
+export { runBatch, runGit } from './run'
 export { displayPath, insideRoot, repoRoot } from './repo'
 export {
   createWorktree,
