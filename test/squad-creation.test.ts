@@ -18,6 +18,7 @@ import type { Account, ProjectFloor, Settings, SquadProposal, SquadProposalMembe
 let project: ProjectFloor
 let board: TicketBoard
 let creation: SquadCreation
+let queues: SquadQueueStore
 let dataDir: string
 let calls: number
 
@@ -39,9 +40,10 @@ beforeEach(() => {
   project = { id: 'p1', name: 'Loja Aurora', cwd }
   board = new TicketBoard(dataDir)
   calls = 0
+  queues = new SquadQueueStore(dataDir)
   creation = new SquadCreation({
     proposals: new SquadProposalStore(dataDir),
-    queues: new SquadQueueStore(dataDir),
+    queues,
     board,
     projects: () => [project],
     settings,
@@ -57,6 +59,92 @@ const propose = (room = 0, ticketIds: string[] = []) =>
   creation.propose({ id: 'prop-1', projectId: 'p1', room, brief: 'Refazer a busca da loja', ticketIds })
 
 describe('a proposta', () => {
+  it('guarda e limpa erro de startup no ciclo ativo sem perder o worktree salvo', () => {
+    const ticket = board.create({ title: 'Retomar ciclo', status: 'doing', cwd: project.cwd }, { kind: 'player', name: 'Malu' })
+    const worktree = {
+      path: 'C:/repo/.agent-office/worktrees/t1', root: 'C:/repo/.agent-office/worktrees/t1', repo: 'C:/repo',
+      branch: 'agent/squad-t1', base: 'a'.repeat(40),
+    }
+    queues.set({ code: 'squad-1', cwd: project.cwd, active: ticket.id, queue: [], cycle: { ticketId: ticket.id, worktree }, updatedAt: 1 })
+
+    creation.setStartupError('squad-1', ticket.id, 'não conseguiu preparar o runner')
+    expect(new SquadQueueStore(dataDir).get('squad-1')?.cycle).toMatchObject({
+      ticketId: ticket.id, startupError: 'não conseguiu preparar o runner', worktree,
+    })
+
+    creation.clearStartupError('squad-1', ticket.id)
+    expect(new SquadQueueStore(dataDir).get('squad-1')?.cycle).toEqual({ ticketId: ticket.id, worktree })
+  })
+
+  it('libera o ticket ativo para revisão só com URL real e promove o próximo atomicamente', () => {
+    const player = { kind: 'player' as const, name: 'Malu' }
+    const first = board.create({ title: 'Primeiro', status: 'doing', cwd: project.cwd }, player)
+    const second = board.create({ title: 'Segundo', status: 'todo', cwd: project.cwd }, player)
+    const queues = new SquadQueueStore(dataDir)
+    queues.set({ code: 'squad-1', cwd: project.cwd, active: first.id, queue: [second.id], updatedAt: 1 })
+    const lifecycle = new SquadCreation({
+      proposals: new SquadProposalStore(dataDir),
+      queues,
+      board,
+      projects: () => [project],
+      settings,
+      player: () => ({ kind: 'player', name: 'Malu' }),
+      generate: async () => team(),
+    })
+    const moved = lifecycle.releaseTicketForReview('squad-1', {
+      ticketId: first.id,
+      ticketKey: first.key,
+      title: first.title,
+      url: 'https://github.com/org/repo/pull/1',
+      branch: 'agent/squad-1-first',
+      createdAt: 2,
+    })
+    expect(moved).toMatchObject({ active: second.id, queue: [], pendingPRs: [{ ticketId: first.id }] })
+    expect(board.get(first.id)?.status).toBe('review')
+    expect(board.get(first.id)?.comments.at(-1)?.text).toContain('https://github.com/org/repo/pull/1')
+    expect(board.get(second.id)?.status).toBe('doing')
+    expect(() =>
+      lifecycle.releaseTicketForReview('squad-1', {
+        ticketId: first.id,
+        ticketKey: first.key,
+        title: first.title,
+        url: 'https://github.com/org/repo/pull/1',
+        branch: 'agent/squad-1-first',
+        createdAt: 3,
+      }),
+    ).not.toThrow()
+    expect(new SquadQueueStore(dataDir).get('squad-1')?.pendingPRs).toHaveLength(1)
+  })
+
+  it('reconcilia a revisão e o ticket promovido após crash depois da gravação da fila', () => {
+    const player = { kind: 'player' as const, name: 'Malu' }
+    const first = board.create({ title: 'Primeiro', status: 'doing', cwd: project.cwd }, player)
+    const second = board.create({ title: 'Segundo', status: 'todo', cwd: project.cwd }, player)
+    board.flush()
+    const pr = {
+      ticketId: first.id,
+      ticketKey: first.key,
+      title: first.title,
+      url: 'https://github.com/org/repo/pull/17',
+      branch: 'agent/squad-pr-recovery',
+      createdAt: 17,
+    }
+    new SquadQueueStore(dataDir).set({ code: 'squad-1', cwd: project.cwd, active: second.id, queue: [], pendingPRs: [pr], updatedAt: 17 })
+    const recoveredBoard = new TicketBoard(dataDir)
+    new SquadCreation({
+      proposals: new SquadProposalStore(dataDir),
+      queues: new SquadQueueStore(dataDir),
+      board: recoveredBoard,
+      projects: () => [project],
+      settings,
+      player: () => player,
+      generate: async () => team(),
+    })
+    expect(recoveredBoard.get(first.id)?.status).toBe('review')
+    expect(recoveredBoard.get(first.id)?.comments.at(-1)?.text).toContain(pr.url)
+    expect(recoveredBoard.get(second.id)?.status).toBe('doing')
+  })
+
   it('não cria nada no projeto antes da aprovação', async () => {
     const proposal = await propose()
     expect(proposal.status).toBe('pending')
@@ -142,9 +230,13 @@ describe('a proposta', () => {
     let finish!: (members: SquadProposalMember[]) => void
     let generation = 0
     const slow = new SquadCreation({
-      proposals: new SquadProposalStore(dataDir), queues: new SquadQueueStore(dataDir), board,
-      projects: () => [project], settings, player: () => ({ kind: 'player', name: 'Malu' }),
-      generate: async () => generation++ === 0 ? team() : new Promise((resolve) => (finish = resolve)),
+      proposals: new SquadProposalStore(dataDir),
+      queues: new SquadQueueStore(dataDir),
+      board,
+      projects: () => [project],
+      settings,
+      player: () => ({ kind: 'player', name: 'Malu' }),
+      generate: async () => (generation++ === 0 ? team() : new Promise((resolve) => (finish = resolve))),
     })
     const proposal = await slow.propose({ id: 'prop-adjust-approve', projectId: 'p1', room: 0, brief: 'x', ticketIds: [] })
     const adjusting = slow.adjust(proposal.id, 'Troque a equipe')
@@ -159,8 +251,12 @@ describe('a proposta', () => {
     let finish!: (members: SquadProposalMember[]) => void
     let generation = 0
     const slow = new SquadCreation({
-      proposals: new SquadProposalStore(dataDir), queues: new SquadQueueStore(dataDir), board,
-      projects: () => [project], settings, player: () => ({ kind: 'player', name: 'Malu' }),
+      proposals: new SquadProposalStore(dataDir),
+      queues: new SquadQueueStore(dataDir),
+      board,
+      projects: () => [project],
+      settings,
+      player: () => ({ kind: 'player', name: 'Malu' }),
       generate: async () => {
         if (generation++ === 0) return team()
         return new Promise((resolve) => (finish = resolve))
@@ -382,42 +478,50 @@ describe('a aprovação', () => {
     expect(restartedBoard.get(second.id)?.assignee?.id).toBe('squad:sala-1')
   })
 
-  it.each(['queue saved before assignment', 'one ticket durably assigned'])('retries safely when crash occurs with %s', async (crashPoint) => {
-    const first = board.create({ title: 'Primeiro', status: 'todo', cwd: project.cwd }, { kind: 'player', name: 'Malu' })
-    const second = board.create({ title: 'Segundo', status: 'todo', cwd: project.cwd }, { kind: 'player', name: 'Malu' })
-    board.flush()
-    const proposal = await propose(0, [first.id, second.id])
-    const durable = creation.get(proposal.id)!
-    durable.code = 'sala-1'
-    durable.name = 'Equipe da busca'
-    durable.status = 'created'
-    durable.ticketIds = [first.id, second.id]
-    durable.composition = { ...durable.composition!, name: durable.name }
-    new SquadProposalStore(dataDir).put(durable)
-    const plan = squadFilePlan(durable.composition!, durable.name, durable.brief)
-    plan.code = 'sala-1'
-    plan.proposalId = durable.id
-    writeSquad(project.cwd, plan)
-    const queues = new SquadQueueStore(dataDir)
-    queues.set({ code: 'sala-1', cwd: project.cwd, active: first.id, queue: [second.id], updatedAt: Date.now() })
-    if (crashPoint === 'one ticket durably assigned') {
-      board.assign(first.id, { kind: 'agent', name: durable.name, id: 'squad:sala-1' }, { kind: 'player', name: 'Malu' })
-      board.move(first.id, 'doing', undefined, { kind: 'player', name: 'Malu' })
+  it.each(['queue saved before assignment', 'one ticket durably assigned'])(
+    'retries safely when crash occurs with %s',
+    async (crashPoint) => {
+      const first = board.create({ title: 'Primeiro', status: 'todo', cwd: project.cwd }, { kind: 'player', name: 'Malu' })
+      const second = board.create({ title: 'Segundo', status: 'todo', cwd: project.cwd }, { kind: 'player', name: 'Malu' })
       board.flush()
-    }
-    const restartedBoard = new TicketBoard(dataDir)
-    const restarted = new SquadCreation({
-      proposals: new SquadProposalStore(dataDir), queues: new SquadQueueStore(dataDir), board: restartedBoard,
-      projects: () => [project], settings, player: () => ({ kind: 'player', name: 'Malu' }), generate: async () => team(),
-    })
-    expect(restarted.get(proposal.id)?.status).toBe('assigned')
-    expect(restarted.queues()[0]).toMatchObject({ active: first.id, queue: [second.id] })
-    expect(restartedBoard.get(first.id)?.assignee?.id).toBe('squad:sala-1')
-    expect(restartedBoard.get(second.id)?.assignee?.id).toBe('squad:sala-1')
-    // Retry after reconciliation is idempotent and leaves the initial queue unchanged.
-    const result = await restarted.approve(proposal.id, durable.name)
-    expect(result.queue).toMatchObject({ active: first.id, queue: [second.id] })
-  })
+      const proposal = await propose(0, [first.id, second.id])
+      const durable = creation.get(proposal.id)!
+      durable.code = 'sala-1'
+      durable.name = 'Equipe da busca'
+      durable.status = 'created'
+      durable.ticketIds = [first.id, second.id]
+      durable.composition = { ...durable.composition!, name: durable.name }
+      new SquadProposalStore(dataDir).put(durable)
+      const plan = squadFilePlan(durable.composition!, durable.name, durable.brief)
+      plan.code = 'sala-1'
+      plan.proposalId = durable.id
+      writeSquad(project.cwd, plan)
+      const queues = new SquadQueueStore(dataDir)
+      queues.set({ code: 'sala-1', cwd: project.cwd, active: first.id, queue: [second.id], updatedAt: Date.now() })
+      if (crashPoint === 'one ticket durably assigned') {
+        board.assign(first.id, { kind: 'agent', name: durable.name, id: 'squad:sala-1' }, { kind: 'player', name: 'Malu' })
+        board.move(first.id, 'doing', undefined, { kind: 'player', name: 'Malu' })
+        board.flush()
+      }
+      const restartedBoard = new TicketBoard(dataDir)
+      const restarted = new SquadCreation({
+        proposals: new SquadProposalStore(dataDir),
+        queues: new SquadQueueStore(dataDir),
+        board: restartedBoard,
+        projects: () => [project],
+        settings,
+        player: () => ({ kind: 'player', name: 'Malu' }),
+        generate: async () => team(),
+      })
+      expect(restarted.get(proposal.id)?.status).toBe('assigned')
+      expect(restarted.queues()[0]).toMatchObject({ active: first.id, queue: [second.id] })
+      expect(restartedBoard.get(first.id)?.assignee?.id).toBe('squad:sala-1')
+      expect(restartedBoard.get(second.id)?.assignee?.id).toBe('squad:sala-1')
+      // Retry after reconciliation is idempotent and leaves the initial queue unchanged.
+      const result = await restarted.approve(proposal.id, durable.name)
+      expect(result.queue).toMatchObject({ active: first.id, queue: [second.id] })
+    },
+  )
 
   it('cria a pasta do squad, que passa na validação do office', async () => {
     const proposal = await propose()
@@ -489,10 +593,17 @@ describe('a aprovação', () => {
     proposals.put(creation.get(proposal.id)!)
     const queues = new SquadQueueStore(dataDir)
     const setQueue = queues.set.bind(queues)
-    queues.set = () => { throw new Error('falha de fila injetada') }
+    queues.set = () => {
+      throw new Error('falha de fila injetada')
+    }
     const approving = new SquadCreation({
-      proposals, queues, board, projects: () => [project], settings,
-      player: () => ({ kind: 'player', name: 'Malu' }), generate: async () => team(),
+      proposals,
+      queues,
+      board,
+      projects: () => [project],
+      settings,
+      player: () => ({ kind: 'player', name: 'Malu' }),
+      generate: async () => team(),
     })
     const approval = approving.approve(proposal.id, 'Equipe da busca')
     expect(() => approving.discard(proposal.id)).toThrow(/aprovação|recuperação/)
@@ -502,8 +613,13 @@ describe('a aprovação', () => {
 
     queues.set = setQueue
     const recovered = new SquadCreation({
-      proposals: new SquadProposalStore(dataDir), queues, board, projects: () => [project], settings,
-      player: () => ({ kind: 'player', name: 'Malu' }), generate: async () => team(),
+      proposals: new SquadProposalStore(dataDir),
+      queues,
+      board,
+      projects: () => [project],
+      settings,
+      player: () => ({ kind: 'player', name: 'Malu' }),
+      generate: async () => team(),
     })
     expect(recovered.get(proposal.id)?.status).toBe('assigned')
     expect(queues.get('sala-1')).toMatchObject({ active: ticket.id, queue: [] })

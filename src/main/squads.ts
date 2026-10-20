@@ -1,5 +1,5 @@
-import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
-import { basename, isAbsolute, join, sep } from 'node:path'
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { basename, isAbsolute, join, relative, sep } from 'node:path'
 import type { AgentDefinition, HookCallbackMatcher } from '@anthropic-ai/claude-agent-sdk'
 import { parse } from 'yaml'
 import type { SquadInfo, SquadMember, SquadProgress, SquadStep } from '@shared/types'
@@ -63,7 +63,10 @@ export function inspectSquads(cwd: string): SquadInfo[] {
   const root = join(cwd, 'squads')
   let dirs: string[]
   try {
-    dirs = readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory() && SAFE_NAME.test(d.name)).map((d) => d.name).sort()
+    dirs = readdirSync(root, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && SAFE_NAME.test(d.name))
+      .map((d) => d.name)
+      .sort()
   } catch {
     return []
   }
@@ -156,7 +159,8 @@ export function squadInfo(s: SquadDefinition): SquadInfo {
 function loadSquad(cwd: string, dir: string): SquadDefinition {
   // squads/ must live in the project and the squad folder in squads/ (no squads/x -> /somewhere/else).
   const realRoot = realpathSync(join(cwd, 'squads'))
-  if (!within(realpathSync(cwd), realRoot) || !within(realRoot, realpathSync(dir))) throw new Error('squad folder points outside the project')
+  if (!within(realpathSync(cwd), realRoot) || !within(realRoot, realpathSync(dir)))
+    throw new Error('squad folder points outside the project')
   const yaml = inside(dir, 'squad.yaml')
   if (!yaml) throw new Error('squad.yaml points outside the squad folder')
   const y = (parse(readSmall(yaml)) ?? {}) as Record<string, unknown>
@@ -182,9 +186,10 @@ function loadSquad(cwd: string, dir: string): SquadDefinition {
       icon: str(a.icon) || str(meta.icon) || '•',
       title: str(meta.title),
       execution: str(meta.execution) === 'inline' ? 'inline' : 'subagent',
-      role: (str(a.role) || str(meta.role)) === 'implementer' || (str(a.role) || str(meta.role)) === 'reviewer'
-        ? ((str(a.role) || str(meta.role)) as 'implementer' | 'reviewer')
-        : undefined,
+      role:
+        (str(a.role) || str(meta.role)) === 'implementer' || (str(a.role) || str(meta.role)) === 'reviewer'
+          ? ((str(a.role) || str(meta.role)) as 'implementer' | 'reviewer')
+          : undefined,
       sector: str(a.setor) || DEFAULT_SECTOR,
     })
     prompts[id] = body.trim() || `Você é ${str(a.name) || id}, membro do squad ${str(y.name) || code}.`
@@ -238,7 +243,10 @@ export function outsideTeam(s: SquadDefinition, tool: string, input: unknown): s
   const type = String((input as { subagent_type?: unknown } | null)?.subagent_type ?? '') || 'general-purpose'
   const m = s.members.find((x) => x.id === type)
   if (m?.execution === 'subagent') return null
-  const team = s.members.filter((x) => x.execution === 'subagent').map((x) => x.id).join(', ')
+  const team = s.members
+    .filter((x) => x.execution === 'subagent')
+    .map((x) => x.id)
+    .join(', ')
   if (m) return `${m.name} (${m.id}) é membro inline: faça o passo dele aqui mesmo, nesta conversa, sem chamar subagente.`
   return `Bloqueado pelo Agent Office: "${type}" não é da equipe do squad ${s.name}. Chame só membros do squad pelo id (subagent_type): ${team}.`
 }
@@ -273,9 +281,11 @@ export function orchestratorPrompt(s: SquadDefinition): string {
   const inline = s.members.filter((m) => m.execution === 'inline')
   return [
     `You are the orchestrator of the Opensquad squad "${s.name}" (code ${s.code}). Your only job is to run its cycle: follow ${runner} and \`squads/${s.code}/squad.yaml\` + \`squads/${s.code}/pipeline/pipeline.yaml\` step by step.`,
-    'Your team is closed. Call members as subagents with the Agent tool, subagent_type = member id; any other subagent type (general-purpose, Explore, fork…) is blocked. Wherever the runner says to dispatch with the Task tool, use the Agent tool with the step agent\'s id. The member already has its .agent.md as system prompt, so your prompt carries the step: task files, inputs, transformed output paths, veto conditions, company context and squad memory. Members run in the foreground and you wait for each delivery; when steps can run in parallel, send all their Agent calls in one message.',
+    "Your team is closed. Call members as subagents with the Agent tool, subagent_type = member id; any other subagent type (general-purpose, Explore, fork…) is blocked. Wherever the runner says to dispatch with the Task tool, use the Agent tool with the step agent's id. The member already has its .agent.md as system prompt, so your prompt carries the step: task files, inputs, transformed output paths, veto conditions, company context and squad memory. Members run in the foreground and you wait for each delivery; when steps can run in parallel, send all their Agent calls in one message.",
     `Subagent members:\n${subs.map(line).join('\n') || '- (none)'}`,
-    inline.length ? `Inline members (you play them yourself, in this conversation, never as subagents):\n${inline.map(line).join('\n')}` : '',
+    inline.length
+      ? `Inline members (you play them yourself, in this conversation, never as subagents):\n${inline.map(line).join('\n')}`
+      : '',
     'Checkpoints: present EVERY checkpoint step (type: checkpoint) and every choice the runner asks the user for with the AskUserQuestion tool, never as plain text or a numbered list in a message. Put the step name in the question, keep the options short, and include the paths of files the user must review. Never pick an answer yourself or skip a checkpoint: without an answer the cycle waits. If the question is cancelled, stop and wait for instructions.',
     `Write \`squads/${s.code}/state.json\` exactly when the runner says to: the office reads it to show the current step.`,
     'Talk to the user in Brazilian Portuguese.',
@@ -314,6 +324,85 @@ export function readProgress(s: SquadInfo): SquadProgress | undefined {
 
 export function squadDir(s: SquadInfo): string {
   return join(s.cwd, 'squads', s.code)
+}
+
+/**
+ * Copies the canonical, possibly-untracked squad runtime into an isolated worktree.
+ * Symlinks and special files fail closed; mutable runtime state and reservation markers
+ * are intentionally excluded. The canonical project definition is never written.
+ */
+export function copySquadRuntime(cwd: string, code: string, worktreeRoot: string): void {
+  if (!SAFE_NAME.test(code)) throw new Error('Código de squad inválido para a cópia isolada.')
+  const project = realpathSync(cwd)
+  const sourceSquad = join(project, 'squads', code)
+  if (!existsSync(sourceSquad)) throw new Error(`A definição canônica squads/${code} não existe.`)
+  const destination = realpathSync(worktreeRoot)
+  const total = { bytes: 0, files: 0 }
+  const targetSquad = join(destination, 'squads', code)
+  copyTree(project, destination, sourceSquad, targetSquad, total, true)
+  const runner = join(project, '_opensquad')
+  const targetRunner = join(destination, '_opensquad')
+  if (!existsSync(join(destination, RUNNER)) && existsSync(runner)) {
+    copyTree(project, destination, runner, targetRunner, total, false)
+  }
+  if (!existsSync(join(destination, RUNNER))) throw new Error(`O runner ${RUNNER} não está disponível no projeto.`)
+}
+
+function copyTree(
+  project: string,
+  destination: string,
+  source: string,
+  target: string,
+  total: { bytes: number; files: number },
+  squad: boolean,
+): void {
+  const relativeSource = relative(project, source)
+  if (!relativeSource || relativeSource.startsWith('..') || isAbsolute(relativeSource))
+    throw new Error('Definição fora da pasta do projeto.')
+  assertCopyDestination(destination, target)
+  const stat = lstatSync(source)
+  if (stat.isSymbolicLink()) throw new Error(`Symlink recusado na definição do squad: ${relativeSource}`)
+  if (stat.isDirectory()) {
+    if (existsSync(target)) {
+      const existing = lstatSync(target)
+      if (!existing.isDirectory() || existing.isSymbolicLink()) throw new Error(`Destino incompatível na cópia da definição: ${target}`)
+    }
+    mkdirSync(target, { recursive: true })
+    for (const name of readdirSync(source)) {
+      if (squad && (name === 'state.json' || name === '.agent-office-proposal' || name === '.reserva')) continue
+      if (name.startsWith('.') || /(?:^|[._-])(secret|credential|token|private-key)(?:[._-]|$)/i.test(name))
+        throw new Error(`Arquivo oculto/sensível recusado na definição do squad: ${join(source, name)}`)
+      copyTree(project, destination, join(source, name), join(target, name), total, false)
+    }
+    return
+  }
+  if (!stat.isFile()) throw new Error(`Arquivo especial recusado na definição do squad: ${relativeSource}`)
+  if (/\.(?:pem|key|p12|pfx|keystore|sqlite|db)$/i.test(source))
+    throw new Error(`Arquivo potencialmente sensível recusado na definição do squad: ${relativeSource}`)
+  total.bytes += stat.size
+  total.files++
+  if (total.bytes > 10 * 1024 * 1024 || total.files > 500) throw new Error('A definição/runner do squad excede o limite seguro de cópia.')
+  mkdirSync(join(target, '..'), { recursive: true })
+  if (existsSync(target)) {
+    const existing = lstatSync(target)
+    if (!existing.isFile() || existing.isSymbolicLink() || !readFileSync(source).equals(readFileSync(target)))
+      throw new Error(`O destino já tem conteúdo diferente; nada foi sobrescrito: ${target}`)
+    return
+  }
+  copyFileSync(source, target)
+}
+
+function assertCopyDestination(root: string, target: string): void {
+  const rel = relative(root, target)
+  if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) throw new Error('Destino da cópia fora do worktree.')
+  let cursor = root
+  for (const part of rel.split(sep)) {
+    cursor = join(cursor, part)
+    if (!existsSync(cursor)) continue
+    const st = lstatSync(cursor)
+    if (st.isSymbolicLink()) throw new Error(`Symlink recusado no destino da definição: ${cursor}`)
+    if (cursor !== target && !st.isDirectory()) throw new Error(`Componente inválido no destino da definição: ${cursor}`)
+  }
 }
 
 export function isDir(p: unknown): p is string {

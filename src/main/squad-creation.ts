@@ -113,7 +113,8 @@ export class SquadCreation extends EventEmitter {
         const recoveryIds = savedQueue
           ? [savedQueue.active, ...savedQueue.queue].filter((id): id is string => !!id)
           : this.orderTicketIds(project, proposal.ticketIds)
-        if (recoveryIds.some((id) => !proposal.ticketIds.includes(id))) throw new Error('A fila referencia tickets fora da proposta; dados preservados.')
+        if (recoveryIds.some((id) => !proposal.ticketIds.includes(id)))
+          throw new Error('A fila referencia tickets fora da proposta; dados preservados.')
         const picked = recoveryIds.map((id) => this.deps.board.get(id)).filter((t): t is Ticket => !!t)
         const actor = { kind: 'agent' as const, name: proposal.name, id: `squad:${proposal.code}` }
         for (const t of picked) {
@@ -122,7 +123,13 @@ export class SquadCreation extends EventEmitter {
         }
         // The queue is persisted before assigning tickets. This state plus the proposal
         // is the recovery journal; repeating either write is idempotent.
-        const expectedQueue = { code: proposal.code, cwd: proposal.cwd, active: picked[0]?.id ?? null, queue: picked.slice(1).map((t) => t.id), updatedAt: this.now() }
+        const expectedQueue = {
+          code: proposal.code,
+          cwd: proposal.cwd,
+          active: picked[0]?.id ?? null,
+          queue: picked.slice(1).map((t) => t.id),
+          updatedAt: this.now(),
+        }
         const existingQueue = this.deps.queues.get(proposal.code)
         if (existingQueue) {
           if (
@@ -130,7 +137,8 @@ export class SquadCreation extends EventEmitter {
             existingQueue.active !== expectedQueue.active ||
             existingQueue.queue.length !== expectedQueue.queue.length ||
             existingQueue.queue.some((id, i) => id !== expectedQueue.queue[i])
-          ) throw new Error('A fila existente não pertence a esta transação; dados preservados.')
+          )
+            throw new Error('A fila existente não pertence a esta transação; dados preservados.')
         } else this.deps.queues.set(expectedQueue)
         for (const t of picked) if (!t.assignee) this.deps.board.assign(t.id, actor, this.deps.player())
         if (picked[0] && picked[0].status !== 'doing') this.deps.board.move(picked[0].id, 'doing', undefined, this.deps.player())
@@ -142,6 +150,33 @@ export class SquadCreation extends EventEmitter {
         log.warn(`Aprovação de squad ${proposal.id} requer reparo: ${err instanceof Error ? err.message : String(err)}`)
       }
     }
+    // Queue persistence is the PR-release journal. Repair board writes if the app died
+    // after saving the verified PR URL but before the ticket/history flush completed.
+    let repairedBoard = false
+    for (const queue of this.deps.queues.all()) {
+      const actor = { kind: 'agent' as const, name: `Squad ${queue.code}`, id: `squad:${queue.code}` }
+      for (const pr of queue.pendingPRs ?? []) {
+        const ticket = this.deps.board.get(pr.ticketId)
+        if (!ticket) continue
+        const line = `PR para revisão humana: ${pr.url}`
+        if (!ticket.comments.some((comment) => comment.text === line)) {
+          this.deps.board.comment(ticket.id, line, actor)
+          repairedBoard = true
+        }
+        if (ticket.status === 'doing') {
+          this.deps.board.move(ticket.id, 'review', undefined, actor)
+          repairedBoard = true
+        }
+      }
+      if (queue.active) {
+        const active = this.deps.board.get(queue.active)
+        if (active && (active.status === 'backlog' || active.status === 'todo')) {
+          this.deps.board.move(active.id, 'doing', undefined, actor)
+          repairedBoard = true
+        }
+      }
+    }
+    if (repairedBoard) this.deps.board.flush()
   }
 
   private now(): number {
@@ -160,6 +195,84 @@ export class SquadCreation extends EventEmitter {
   /** The queue of a squad; undefined when it has none. */
   queue(code: string) {
     return this.deps.queues.get(code)
+  }
+
+  setCycle(code: string, cycle: SquadQueue['cycle']): void {
+    this.deps.queues.setCycle(code, cycle)
+    this.changed()
+  }
+
+  setPublicationError(code: string, message: string, resultId?: string): void {
+    const cycle = this.deps.queues.get(code)?.cycle
+    if (!cycle) return
+    this.deps.queues.setCycle(code, { ...cycle, ...(resultId ? { resultId } : {}), publicationError: message.slice(0, 2000) })
+    this.changed()
+  }
+
+  clearPublicationError(code: string): void {
+    const cycle = this.deps.queues.get(code)?.cycle
+    if (!cycle?.publicationError) return
+    const { publicationError: _publicationError, ...next } = cycle
+    this.deps.queues.setCycle(code, next)
+    this.changed()
+  }
+
+  setStartupError(code: string, ticketId: string, message: string): void {
+    const queue = this.deps.queues.get(code)
+    if (!queue || queue.active !== ticketId) return
+    if (!queue.cycle || queue.cycle.ticketId !== ticketId) return
+    this.deps.queues.setCycle(code, { ...queue.cycle, startupError: message.slice(0, 2000) })
+    this.changed()
+  }
+
+  clearStartupError(code: string, ticketId: string): void {
+    const cycle = this.deps.queues.get(code)?.cycle
+    if (!cycle || cycle.ticketId !== ticketId || !cycle.startupError) return
+    const { startupError: _startupError, ...next } = cycle
+    this.deps.queues.setCycle(code, next)
+    this.changed()
+  }
+
+  /**
+   * Records a PR only after the caller verified its URL. The active ticket is retained
+   * until this single atomic queue write; failures before this point are safe to retry.
+   */
+  releaseTicketForReview(code: string, pr: NonNullable<SquadQueue['pendingPRs']>[number]): SquadQueue {
+    const queue = this.deps.queues.get(code)
+    if (!queue) throw new Error(`A fila do squad ${code} não existe.`)
+    const existing = queue.pendingPRs?.find((item) => item.ticketId === pr.ticketId || item.branch === pr.branch)
+    if (existing) {
+      if (existing.url !== pr.url) throw new Error('Este ticket já está associado a outro PR; estado preservado.')
+    } else {
+      if (queue.active !== pr.ticketId) throw new Error('O ticket do PR não é o ticket ativo do squad; fila preservada.')
+      const nextId = queue.queue[0] ?? null
+      const next = {
+        ...queue,
+        active: nextId,
+        queue: queue.queue.slice(1),
+        pendingPRs: [...(queue.pendingPRs ?? []), pr],
+        updatedAt: pr.createdAt,
+      }
+      delete next.cycle
+      // One atomic persisted state is the crash-recovery boundary: it cannot both skip a
+      // ticket and lose the review URL, or record the same release twice.
+      this.deps.queues.set(next)
+    }
+    const actor = { kind: 'agent' as const, name: `Squad ${code}`, id: `squad:${code}` }
+    const ticket = this.deps.board.get(pr.ticketId)
+    if (ticket) {
+      if (!ticket.comments.some((comment) => comment.text === `PR para revisão humana: ${pr.url}`))
+        this.deps.board.comment(ticket.id, `PR para revisão humana: ${pr.url}`, actor)
+      if (ticket.status === 'doing') this.deps.board.move(ticket.id, 'review', undefined, actor)
+    }
+    if (!existing && queue.queue[0]) {
+      const following = this.deps.board.get(queue.queue[0])
+      if (following && (following.status === 'backlog' || following.status === 'todo'))
+        this.deps.board.move(following.id, 'doing', undefined, actor)
+    }
+    this.deps.board.flush()
+    this.changed()
+    return this.deps.queues.get(code)!
   }
 
   /** The queue of every squad. */
@@ -287,8 +400,7 @@ export class SquadCreation extends EventEmitter {
     const proposal = this.deps.proposals.get(id)
     if (!proposal) throw new Error('Essa proposta não existe mais.')
     // Depois que o squad foi criado, o nome é o do squad: a proposta não muda mais.
-    if (proposal.status === 'assigned' || proposal.status === 'created')
-      throw new Error('Esse squad já foi criado: o nome não muda mais.')
+    if (proposal.status === 'assigned' || proposal.status === 'created') throw new Error('Esse squad já foi criado: o nome não muda mais.')
     this.applyName(proposal, name)
     proposal.updatedAt = this.now()
     this.deps.proposals.put(proposal)
@@ -440,8 +552,11 @@ export class SquadCreation extends EventEmitter {
       const existingQueue = this.deps.queues.get(code)
       if (
         existingQueue &&
-        (existingQueue.cwd !== queue.cwd || existingQueue.active !== queue.active || existingQueue.queue.join('\0') !== queue.queue.join('\0'))
-      ) throw new Error('A fila existente não pertence a esta aprovação; dados preservados.')
+        (existingQueue.cwd !== queue.cwd ||
+          existingQueue.active !== queue.active ||
+          existingQueue.queue.join('\0') !== queue.queue.join('\0'))
+      )
+        throw new Error('A fila existente não pertence a esta aprovação; dados preservados.')
       this.deps.queues.set(queue)
       for (const t of picked) this.deps.board.assign(t.id, actor, this.deps.player())
       if (picked[0]) this.deps.board.move(picked[0].id, 'doing', undefined, this.deps.player())
@@ -460,11 +575,7 @@ export class SquadCreation extends EventEmitter {
     return { squad: squadInfo(squad), queue: this.deps.queues.get(code) }
   }
 
-  private assertApprovalCurrent(
-    proposal: SquadProposal,
-    composition: SquadProposalComposition,
-    status: 'pending' | 'created',
-  ): void {
+  private assertApprovalCurrent(proposal: SquadProposal, composition: SquadProposalComposition, status: 'pending' | 'created'): void {
     const current = this.deps.proposals.get(proposal.id)
     if (current !== proposal || current.status !== status || current.composition !== composition)
       throw new Error('A proposta mudou durante a aprovação; nenhuma atribuição foi feita.')

@@ -2,6 +2,7 @@ import { dialog, ipcMain, shell } from 'electron'
 import { existsSync } from 'node:fs'
 import { commitChanges, discardChanges, fileDiff, insideRoot, openInEditor, openPullRequest, pendingLoss, removeWorktree, worktreeState } from '../git'
 import { changedPathSchema, commitMessageSchema, prTitleSchema, uuidSchema, parse } from '../validate'
+import { isSquadTicketResultAgent } from '@shared/squad-ticket-result'
 import { id, type IpcContext } from './context'
 
 /** Worktrees (AO-33) and the result card's changed files (AO-34). */
@@ -81,6 +82,10 @@ export function registerWorktreesIpc(ctx: IpcContext): void {
     if (!r.changes) throw new Error('Ainda não sei o que esse agente mudou.')
     return { r, c: r.changes }
   }
+  const assertManualPublishAllowed = (agentId: string) => {
+    if (isSquadTicketResultAgent(manager.agent(agentId)))
+      throw new Error('Resultados de tickets da squad são publicados pela fila de PR; use a revisão da squad ou da inbox.')
+  }
   ipcMain.handle('office:resultDiff', (_e, raw: unknown, path: unknown) => {
     const { c } = changesFor(raw)
     return fileDiff(c, parse(changedPathSchema, path, 'Caminho inválido.'))
@@ -98,6 +103,7 @@ export function registerWorktreesIpc(ctx: IpcContext): void {
   })
   ipcMain.handle('office:discardResult', async (_e, raw: unknown) => {
     const { r, c } = changesFor(raw)
+    assertManualPublishAllowed(r.agentId)
     if (!c.git || c.committed || c.discarded) throw new Error('Não há mudanças para descartar aqui.')
     const n = c.files.filter((f) => f.restorable).length
     const { response } = await dialog.showMessageBox(win()!, {
@@ -119,6 +125,7 @@ export function registerWorktreesIpc(ctx: IpcContext): void {
   })
   ipcMain.handle('office:commitResult', async (_e, raw: unknown, message: unknown) => {
     const { r, c } = changesFor(raw)
+    assertManualPublishAllowed(r.agentId)
     const msg = parse(commitMessageSchema, message, 'Escreva uma mensagem de commit (até 2000 caracteres).')
     if (!c.git || c.committed || c.discarded) throw new Error('Não há mudanças para commitar aqui.')
     const sha = await commitChanges(c, msg)
@@ -128,6 +135,7 @@ export function registerWorktreesIpc(ctx: IpcContext): void {
   })
   ipcMain.handle('office:openResultPR', async (_e, raw: unknown, title: unknown) => {
     const { r } = changesFor(raw)
+    assertManualPublishAllowed(r.agentId)
     const wt = manager.agent(r.agentId)?.worktree
     if (!wt) throw new Error('Só dá para abrir PR de um agente que trabalha numa cópia isolada (worktree).')
     const t = parse(prTitleSchema, title, 'Escreva um título para o PR.')

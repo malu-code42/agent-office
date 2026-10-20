@@ -46,6 +46,8 @@ export interface IpcContext {
   rereadSquads(): SquadInfo[]
   /** The proposals of squads the player has not approved yet. */
   creation: SquadCreation
+  retrySquadPublication(code: string): Promise<void>
+  startActiveSquadTicket(code: string): Promise<void>
   onBattery(): boolean
 }
 

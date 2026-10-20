@@ -1,7 +1,19 @@
 import { randomUUID } from 'node:crypto'
 import { watch } from 'node:fs'
 import { basename } from 'node:path'
-import type { AgentBrain, AgentStatus, AgentSummary, AttachmentInput, HireRequest, LogEntry, OfficePermissionMode, SquadInfo, SquadProgress, SubagentInfo, WorktreeInfo } from '@shared/types'
+import type {
+  AgentBrain,
+  AgentStatus,
+  AgentSummary,
+  AttachmentInput,
+  HireRequest,
+  LogEntry,
+  OfficePermissionMode,
+  SquadInfo,
+  SquadProgress,
+  SubagentInfo,
+  WorktreeInfo,
+} from '@shared/types'
 import { lookFromSeed } from '@shared/describe'
 import { buildMessage } from '../attachments'
 import { findSquad, readProgress, squadDir, type SquadDefinition } from '../squads'
@@ -56,13 +68,20 @@ export abstract class AgentOffice extends AgentBase {
    * when `cwd` is in a git repo. A folder without git just works as before; a repo where
    * the worktree can't be made (no commit yet…) also falls back, with a note in the log.
    */
-  protected async isolate(cwd: string, name: string, id: string, wanted: boolean | undefined): Promise<{ worktree?: WorktreeInfo; note?: string }> {
+  protected async isolate(
+    cwd: string,
+    name: string,
+    id: string,
+    wanted: boolean | undefined,
+  ): Promise<{ worktree?: WorktreeInfo; note?: string }> {
     if (wanted === false) return {}
     try {
       const worktree = await createWorktree(cwd, name, id)
       return worktree ? { worktree, note: `Trabalhando numa cópia isolada (worktree) no branch ${worktree.branch}: ${worktree.root}` } : {}
     } catch (err) {
-      return { note: `Não deu para criar a cópia isolada (${err instanceof Error ? err.message : String(err)}). Trabalhando direto na pasta do projeto.` }
+      return {
+        note: `Não deu para criar a cópia isolada (${err instanceof Error ? err.message : String(err)}). Trabalhando direto na pasta do projeto.`,
+      }
     }
   }
 
@@ -113,11 +132,30 @@ export abstract class AgentOffice extends AgentBase {
    * An orchestrator for a squad: one Claude Code session that runs the squad's cycle
    * and can only call its own members. It lives on the squad floor.
    */
-  runSquad(squad: SquadInfo, task: string, display: string, defaults: AgentBrain & { permissionMode: OfficePermissionMode }): AgentSummary {
-    const same = [...this.agents.values()].find((a) => a.summary.role === 'orchestrator' && a.summary.squad === squad.code && a.summary.cwd === squad.cwd)
+  runSquad(
+    squad: SquadInfo,
+    task: string,
+    display: string,
+    defaults: AgentBrain & { permissionMode: OfficePermissionMode },
+    worktree?: WorktreeInfo,
+    ticketId?: string,
+  ): AgentSummary {
+    const same = [...this.agents.values()].find((a) => {
+      const s = a.summary
+      return (
+        s.role === 'orchestrator' && s.squad === squad.code && s.cwd === squad.cwd && (ticketId ? s.ticketId === ticketId : !s.ticketId)
+      )
+    })
     if (same) {
       if (this.busy(same)) throw new Error(`${same.summary.name} já está rodando um ciclo. Espere terminar ou interrompa pelo painel.`)
+      if (worktree && same.summary.worktree?.branch !== worktree.branch)
+        throw new Error('O ticket já está vinculado a outra cópia isolada; preserve o branch existente.')
       same.summary.permissionMode = defaults.permissionMode
+      if (worktree) {
+        same.summary.worktree = worktree
+        same.summary.ticketId = ticketId
+        this.watchSquad(same)
+      }
       this.sendMessage(same.summary.id, task, display)
       return same.summary
     }
@@ -141,6 +179,8 @@ export abstract class AgentOffice extends AgentBase {
       sessionId: randomUUID(),
       role: 'orchestrator',
       squad: squad.code,
+      ...(worktree ? { worktree } : {}),
+      ...(ticketId ? { ticketId } : {}),
     }
     const agent: Agent = { summary, log: [], started: false }
     this.agents.set(id, agent)
@@ -224,7 +264,8 @@ export abstract class AgentOffice extends AgentBase {
   /** Follows squads/<code>/state.json, which the runner rewrites before every step. */
   protected watchSquad(agent: Agent): void {
     const s = agent.summary
-    const info = s.squad ? findSquad(s.cwd, s.squad) : undefined
+    agent.watcher?.close()
+    const info = s.squad ? findSquad(s.worktree?.path ?? s.cwd, s.squad) : undefined
     if (!info) return
     agent.squad = info
     let timer: NodeJS.Timeout | null = null

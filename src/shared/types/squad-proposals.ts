@@ -108,7 +108,27 @@ export interface SquadQueue {
   active: string | null
   /** Tickets waiting, in order. */
   queue: string[]
+  /** Pull requests already opened for this squad; each ticket keeps its own review record. */
+  pendingPRs?: SquadPullRequest[]
+  /** Durable pointer to the active ticket's isolated worktree, including startup gaps. */
+  cycle?: {
+    ticketId: string
+    resultId?: string
+    publicationError?: string
+    /** Startup/resume error for this ticket cycle; distinct from publication failure. */
+    startupError?: string
+    worktree: { path: string; root: string; repo: string; branch: string; base: string }
+  }
   updatedAt: number
+}
+
+export interface SquadPullRequest {
+  ticketId: string
+  ticketKey: string
+  title: string
+  url: string
+  branch: string
+  createdAt: number
 }
 
 /**

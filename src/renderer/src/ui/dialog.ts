@@ -6,6 +6,7 @@ import { formatCost, formatDuration, h, icon } from './dom'
 import { renderMarkdown } from './markdown'
 import { cleanError } from './modals/common'
 import { portrait } from './portrait'
+import { isSquadTicketResultAgent } from '@shared/squad-ticket-result'
 
 export interface DialogActions {
   reply(agentId: string): void
@@ -514,7 +515,7 @@ export class Dialog {
       if (c.truncated) list.append(h('div', { class: 'chg-note' }, `…e mais ${count - c.files.length} arquivo(s). Veja tudo no editor ou no terminal.`))
       parts.push(list)
     }
-    parts.push(this.changeActions(r))
+    parts.push(this.changeActions(agent, r))
     el.replaceChildren(...parts)
   }
 
@@ -551,7 +552,7 @@ export class Dialog {
     return [row, pre]
   }
 
-  private changeActions(r: AgentResult): HTMLElement {
+  private changeActions(agent: AgentSummary, r: AgentResult): HTMLElement {
     const c = r.changes!
     const busy = (b: HTMLButtonElement, p: Promise<unknown>) => {
       b.setAttribute('disabled', '')
@@ -559,6 +560,7 @@ export class Dialog {
     }
     const editor = h('button', { class: 'btn btn-small', type: 'button', onclick: () => this.openEditor(r) }, icon('edit', 13), 'Abrir no editor')
     if (!c.git || !c.files.length) return h('div', { class: 'chg-actions' }, c.files.length ? editor : null)
+    if (isSquadTicketResultAgent(agent)) return h('div', { class: 'chg-actions' }, editor)
     const live = !c.committed && !c.discarded
     const discard = h('button', { class: 'btn btn-small btn-danger-soft', type: 'button', disabled: !live, title: 'Volta os arquivos para como estavam antes da tarefa (pede confirmação)' }, icon('undo', 13), 'Descartar')
     discard.addEventListener('click', () =>

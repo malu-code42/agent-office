@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, nativeImage, Notification, powerMonitor, session, type NativeImage } from 'electron'
+import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -16,7 +17,7 @@ import { flushOnExit, setupData } from './data'
 import { guardWindow, installFatalHandlers, onFatalFlush } from './crash'
 import { captureConsole, initLog, log, secret } from './log'
 import { dropInheritedClaudeEnv, loadShellPath, stressDataDirError } from './env'
-import { inspectSquads, isDir, loadSquads } from './squads'
+import { copySquadRuntime, inspectSquads, isDir, loadSquads } from './squads'
 import { SquadCreation } from './squad-creation'
 import { SquadProposalStore } from './squad-proposals'
 import { SquadQueueStore } from './squad-queues'
@@ -27,7 +28,9 @@ import { SystemMonitor } from './system'
 import { StatsReader } from './stats'
 import { UsageMonitor } from './usage'
 import { TicketBoard } from './tickets'
-import { pruneWorktrees } from './git'
+import { changesSince, commitChanges, createWorktree, excludeSquadRuntime, openPullRequest, pruneWorktrees, pullRequestForBranch, pullRequestRemoteHost, worktreeState } from './git'
+import { publishSquadTicket, publishThenStartNext, SquadPublicationGate } from './squad-ticket-lifecycle'
+import { ticketBrief } from '@shared/tickets'
 import { Updater } from './updater'
 import { captureShots, forceCrash, runBench, seedAgents } from './dev-hooks'
 import type { IpcContext } from './ipc/context'
@@ -275,13 +278,133 @@ app.whenReady().then(async () => {
   creation.on('proposals', (proposals) => broadcast({ type: 'squadProposals', proposals }))
   creation.on('queues', (queues) => broadcast({ type: 'squadQueues', queues }))
 
+  const publishing = new SquadPublicationGate()
+  const starting = new Set<string>()
+  const startActiveSquadTicket = async (code: string): Promise<void> => {
+    if (starting.has(code)) return
+    starting.add(code)
+    try {
+      const queue = creation.queue(code)
+      if (!queue?.active) return
+      const ticket = board.get(queue.active)
+      const squad = loadSquads(queue.cwd).find((item) => item.code === code)
+      if (!ticket || !squad) throw new Error(`Não consegui localizar o ticket ativo ou a definição do squad ${code}.`)
+      if (ticket.closedAt || ticket.assignee?.id !== `squad:${code}` || ticket.status === 'done' || ticket.status === 'review')
+        throw new Error(`O ticket ${ticket.key} deixou de estar ativo para o squad; fila e branch foram preservados.`)
+      const prior = manager
+        .list()
+        .find((agent) => agent.role === 'orchestrator' && agent.squad === code && agent.cwd === queue.cwd && agent.ticketId === ticket.id)
+      if (prior && ['starting', 'working', 'waiting'].includes(prior.status)) return
+      if (prior && manager.pendingResults().some((result) => result.agentId === prior.id && !result.isError)) return
+      const inheritedMode =
+        store.settings.projects.find((project) => project.cwd === queue.cwd)?.permissionMode ?? store.settings.defaultPermissionMode
+      const requestedMode = prior?.permissionMode ?? inheritedMode
+      const permissionMode = requestedMode === 'bypassPermissions' ? 'default' : requestedMode
+      const defaults = prior
+        ? { model: prior.model, effort: prior.effort, accounts: prior.accounts, permissionMode }
+        : { ...defaultBrain(), model: 'claude-haiku-5-5', permissionMode }
+      let worktree = prior?.worktree ?? (queue.cycle?.ticketId === ticket.id ? queue.cycle.worktree : undefined)
+      if (!worktree) {
+        worktree = (await createWorktree(queue.cwd, `${squad.name}-${ticket.key}`, randomUUID())) ?? undefined
+        if (!worktree) throw new Error('O ciclo de tickets de squad exige um repositório git.')
+        creation.setCycle(code, { ticketId: ticket.id, worktree })
+      }
+      await excludeSquadRuntime(worktree, code)
+      copySquadRuntime(queue.cwd, code, worktree.path)
+      const instruction = `Rode um ciclo do squad ${squad.name} (squads/${code}) exclusivamente para o ticket ${ticket.key} (${ticket.title}).\n\n${ticketBrief(ticket)}\n\nNão trabalhe em nenhum outro ticket.`
+      manager.runSquad(squad, instruction, `Ciclo ${ticket.key} · ${ticket.title}`, defaults, worktree, ticket.id)
+      creation.clearStartupError(code, ticket.id)
+    } catch (err) {
+      const queue = creation.queue(code)
+      if (queue?.active && queue.cycle?.ticketId === queue.active)
+        creation.setStartupError(code, queue.active, err instanceof Error ? err.message : String(err))
+      throw err
+    } finally {
+      starting.delete(code)
+    }
+  }
+
+  const publishSquadResult = async (resultId: string, agentId: string): Promise<void> => {
+    // result:new is emitted before AgentManager starts/finishes attachChanges. Wait for
+    // that lifecycle before reading the result, so a late snapshot cannot race publish.
+    await manager.resultChangesSettled(resultId)
+    const result = manager.result(resultId)
+    const agent = manager.list().find((item) => item.id === agentId)
+    if (!result || result.isError || !agent?.ticketId || !agent.squad || !agent.worktree) return
+    const squadCode = agent.squad
+    const worktree = agent.worktree
+    const lock = `${squadCode}:${agent.ticketId}`
+    if (!publishing.enter(lock)) return
+    try {
+      const ticket = board.get(agent.ticketId)
+      if (!ticket) throw new Error('O ticket do ciclo não está mais no quadro; trabalho e branch foram preservados.')
+      const published = await publishThenStartNext({
+        publish: () => publishSquadTicket(
+          { changes: result.changes, worktree, ticket, squad: squadCode, result: result.text },
+          {
+          state: worktreeState,
+          existingPR: pullRequestForBranch,
+          remoteHost: pullRequestRemoteHost,
+          commit: commitChanges,
+          openPR: openPullRequest,
+          reconstruct: async (worktree) => {
+            if (!/^[0-9a-f]{40,64}$/i.test(worktree.base)) throw new Error('Base do worktree inválida; diff não reconstruído.')
+            return changesSince({ root: worktree.path, head: worktree.base, dirty: {}, index: {} }, { branch: worktree.branch })
+          },
+           changes: (changes) => manager.setChanges(result.id, changes),
+           committed: (changes, sha) => manager.setChanges(result.id, { ...changes, committed: sha }),
+            record: (pr) => creation.releaseTicketForReview(squadCode, pr),
+          },
+        ),
+        startNext: async () => {
+          const nextTicketId = creation.queue(squadCode)?.active
+          if (!nextTicketId) return
+          await startActiveSquadTicket(squadCode)
+          creation.clearStartupError(squadCode, nextTicketId)
+        },
+        publicationFailed: (err) => {
+          // Failure keeps the active ticket and branch. Restart rechecks for a created PR
+          // before attempting another commit or pull-request creation.
+          const message = err instanceof Error ? err.message : String(err)
+          log.warn(`PR do ticket ${agent.ticketId} não foi confirmado: ${message}`)
+          creation.setPublicationError(squadCode, message, result.id)
+        },
+        nextStartFailed: (err) => {
+          const message = err instanceof Error ? err.message : String(err)
+          const nextTicketId = creation.queue(squadCode)?.active
+          log.warn(`Não consegui iniciar o próximo ticket ${nextTicketId ?? '(sem ticket)'} do squad ${squadCode}: ${message}`)
+          if (nextTicketId) creation.setStartupError(squadCode, nextTicketId, message)
+        },
+      })
+      if (published) creation.clearPublicationError(squadCode)
+     } finally {
+      publishing.leave(lock)
+    }
+  }
+
+  const retrySquadPublication = async (code: string): Promise<void> => {
+    const queue = creation.queue(code)
+    if (!queue?.active || !queue.cycle) throw new Error('Não há ticket ativo com resultado salvo para tentar publicar.')
+    const result = manager.pendingResults().find((item) => item.id === queue.cycle?.resultId) ?? manager.pendingResults().find((item) => {
+      const agent = manager.agent(item.agentId)
+      return !item.isError && agent?.role === 'orchestrator' && agent.squad === code && agent.ticketId === queue.active
+    })
+    if (!result) throw new Error('Não encontrei o resultado salvo deste ticket; o agente não será executado novamente.')
+    await publishSquadResult(result.id, result.agentId)
+    const latest = creation.queue(code)
+    if (latest?.active === queue.active) throw new Error(latest.cycle?.publicationError ?? 'A publicação continua pendente.')
+  }
+
   manager.on('event', (e: OfficeEvent) => {
     broadcast(e)
-    if (e.type === 'permission:new') {
+    if (e.type === 'result:changes') {
+      void publishSquadResult(e.resultId, e.agentId)
+    } else if (e.type === 'permission:new') {
       notifyPermission(store, manager, e.request, callerOf(e.request.agentId), manager.list().find((a) => a.id === e.request.agentId)?.cwd)
       if (process.platform === 'darwin' && !win?.isFocused()) app.dock?.bounce('informational')
       flash()
     } else if (e.type === 'result:new') {
+      void publishSquadResult(e.result.id, e.result.agentId)
       // Runs before the scheduler's own listener, so the run is still on.
       const routine = routines.activeRun(e.result.agentId)?.routine
       const title = !routine ? `${nameOf(e.result.agentId)} terminou` : e.result.isError ? `Rotina ${routine.name} falhou` : `Rotina ${routine.name}: ${nameOf(e.result.agentId)} terminou`
@@ -291,6 +414,14 @@ app.whenReady().then(async () => {
     else if (e.type === 'result:acked') dropNotice(e.resultId)
     if (e.type.startsWith('permission:') || e.type.startsWith('result:')) updateBadge()
   })
+
+  for (const result of manager.pendingResults()) void publishSquadResult(result.id, result.agentId)
+  for (const queue of creation.queues()) {
+    if (queue.active)
+      void startActiveSquadTicket(queue.code).catch((err) =>
+        log.warn(`Não consegui retomar o ticket do squad ${queue.code}: ${err instanceof Error ? err.message : String(err)}`),
+      )
+  }
 
   board.on('event', broadcast)
 
@@ -424,6 +555,8 @@ app.whenReady().then(async () => {
     squads: () => squads,
     rereadSquads: () => (squads = readSquads()),
     creation,
+    retrySquadPublication,
+    startActiveSquadTicket,
     onBattery: () => onBattery,
   }
   registerAppIpc(ipc)

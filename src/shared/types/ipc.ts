@@ -347,6 +347,9 @@ export interface OfficeAPI {
   approveSquadProposal(id: string, name: string): Promise<SquadInfo>
   /** The queue of a squad: the ticket it works on and the ones waiting. */
   squadQueue(code: string): Promise<SquadQueue | undefined>
+  /** Retenta publicar o resultado já salvo do ticket ativo; nunca reexecuta o agente. */
+  retrySquadPublication(code: string): Promise<void>
+  retrySquadStart(code: string): Promise<void>
   /** The cost book, cut to the days and folder asked for (all of it when empty). */
   getLedger(query?: LedgerQuery): Promise<Ledger>
   /** Claude Code statistics as last read from disk (no API call). A stale copy starts a background read. */

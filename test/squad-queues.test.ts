@@ -45,8 +45,69 @@ describe('a fila dos squads', () => {
       cwd: '/projeto',
       active: 't1',
       queue: ['t2', 't3'],
+      pendingPRs: [],
       updatedAt: 10,
     })
+  })
+
+  it('persiste PRs de revisão separados da fila ativa', () => {
+    const store = new SquadQueueStore(dir)
+    const pr = {
+      ticketId: 't1',
+      ticketKey: 'AO-1',
+      title: 'Entrega',
+      url: 'https://github.com/org/repo/pull/12',
+      branch: 'agent/sala-1-t1',
+      createdAt: 11,
+    }
+    store.set({ code: 'sala-1', cwd: '/projeto', active: 't2', queue: ['t3'], pendingPRs: [pr], updatedAt: 10 })
+    expect(new SquadQueueStore(dir).get('sala-1')).toMatchObject({ active: 't2', queue: ['t3'], pendingPRs: [pr] })
+  })
+
+  it('persiste o worktree do ticket ativo como journal de recuperação', () => {
+    const store = new SquadQueueStore(dir)
+    const cycle = {
+      ticketId: 't1',
+      worktree: {
+        path: 'C:/repo/.agent-office/worktrees/t1',
+        root: 'C:/repo/.agent-office/worktrees/t1',
+        repo: 'C:/repo',
+        branch: 'agent/squad-t1',
+        base: 'a'.repeat(40),
+      },
+    }
+    store.set({ code: 'sala-1', cwd: '/projeto', active: 't1', queue: ['t2'], cycle, updatedAt: 10 })
+    expect(new SquadQueueStore(dir).get('sala-1')?.cycle).toEqual(cycle)
+  })
+
+  it('persiste resultado e erro de publicação em userData para retry após reinício', () => {
+    const store = new SquadQueueStore(dir)
+    const cycle = {
+      ticketId: 't1',
+      resultId: '123e4567-e89b-42d3-a456-426614174000',
+      publicationError: 'push falhou',
+      worktree: { path: 'C:/repo/.agent-office/worktrees/t1', root: 'C:/repo/.agent-office/worktrees/t1', repo: 'C:/repo', branch: 'agent/squad-t1', base: 'a'.repeat(40) },
+    }
+    store.set({ code: 'sala-1', cwd: '/projeto', active: 't1', queue: ['t2'], cycle, updatedAt: 10 })
+    expect(new SquadQueueStore(dir).get('sala-1')).toMatchObject({ active: 't1', cycle })
+  })
+
+  it('persiste erro de inicialização no ciclo sem perder worktree e permite limpá-lo', () => {
+    const store = new SquadQueueStore(dir)
+    const cycle = {
+      ticketId: 't1',
+      startupError: 'falha ao preparar runner',
+      worktree: {
+        path: 'C:/repo/.agent-office/worktrees/t1', root: 'C:/repo/.agent-office/worktrees/t1', repo: 'C:/repo',
+        branch: 'agent/squad-t1', base: 'a'.repeat(40),
+      },
+    }
+    store.set({ code: 'sala-1', cwd: '/projeto', active: 't1', queue: ['t2'], cycle, updatedAt: 10 })
+    expect(new SquadQueueStore(dir).get('sala-1')?.cycle).toEqual(cycle)
+    const { startupError: _error, ...retryableCycle } = cycle
+    store.setCycle('sala-1', retryableCycle)
+    expect(store.get('sala-1')?.cycle).toMatchObject({ ticketId: 't1', worktree: cycle.worktree })
+    expect(store.get('sala-1')?.cycle).not.toHaveProperty('startupError')
   })
 
   it('uma squad sem fila não tem nada guardado', () => {

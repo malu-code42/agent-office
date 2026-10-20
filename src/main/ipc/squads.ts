@@ -1,8 +1,10 @@
 import { ipcMain } from 'electron'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { projectFor } from '@shared/projects'
 import { ticketBrief } from '@shared/tickets'
-import { findSquad, inspectSquads, isDir, squadInfo, validateSquad } from '../squads'
+import { copySquadRuntime, findSquad, inspectSquads, isDir, squadInfo, validateSquad } from '../squads'
+import { createWorktree, excludeSquadRuntime } from '../git'
 import {
   checkedSquadMode,
   modeIsMorePermissive,
@@ -49,12 +51,39 @@ export function registerSquadsIpc(ctx: IpcContext): void {
     )
       throw new Error('Ciclo cancelado.')
     const extra = (squadNoteSchema.parse(note) ?? '').trim().slice(0, 2000)
-    // The squad with a queue starts by the ticket it owns: the first of the ones the
-    // player chose when the squad was created.
+    // A ticket cycle gets a fresh worktree from project HEAD. Squad definitions may be
+    // untracked, so copy their read-only runtime into the worktree without touching the
+    // canonical source or including it in result commits.
     const queue = ctx.creation.queue(squad.code)
     const active = queue?.active ? ctx.board.get(queue.active) : undefined
     const ticketNote = active ? `\n\nA equipe começa pelo ticket ${active.key} (${active.title}):\n${ticketBrief(active)}` : ''
-    return manager.runSquad(
+    let worktree
+    if (active) {
+      const running = manager
+        .list()
+        .find((a) => a.role === 'orchestrator' && a.squad === squad.code && a.cwd === cwd && a.ticketId === active.id && a.worktree)
+      if (running && manager.pendingResults().some((result) => result.agentId === running.id && !result.isError))
+        throw new Error(`O resultado do ticket ${active.key} está aguardando publicação segura; não vou substituí-lo.`)
+      worktree = running?.worktree ?? (queue?.cycle?.ticketId === active.id ? queue.cycle.worktree : undefined)
+      if (!worktree) {
+        worktree = await createWorktree(cwd, `${squad.name}-${active.key}`, randomUUID())
+        if (!worktree) throw new Error('O ciclo de tickets de squad exige um repositório git para criar uma cópia isolada.')
+        ctx.creation.setCycle(squad.code, { ticketId: active.id, worktree })
+      }
+      try {
+        await excludeSquadRuntime(worktree, squad.code)
+        copySquadRuntime(cwd, squad.code, worktree.path)
+      } catch (err) {
+        // Keep both the cycle journal and worktree so the exact copy can be repaired/retried.
+        ctx.creation.setStartupError(squad.code, active.id, err instanceof Error ? err.message : String(err))
+        throw new Error(
+          `Não consegui preparar a definição isolada do squad: ${err instanceof Error ? err.message : String(err)}. A cópia ficou em ${worktree.root}.`,
+          { cause: err },
+        )
+      }
+    }
+    try {
+      const agent = await manager.runSquad(
       squadInfo({ ...squad, cwd: projectFor(store.settings.projects, cwd)!.cwd }),
       `Rode um ciclo do squad ${squad.name} (squads/${squad.code}), do primeiro passo do pipeline até o fim.${ticketNote}${extra ? `\n\nRecado de ${store.settings.playerName}: ${extra}` : ''}`,
       `Rodar um ciclo de ${squad.icon} ${squad.name}${extra ? `\n\n${extra}` : ''}`,
@@ -64,7 +93,16 @@ export function registerSquadsIpc(ctx: IpcContext): void {
         // Same rule as tickets: a cycle reaches real systems, so it never runs with "bypass".
         permissionMode,
       },
-    )
+      worktree,
+      active?.id,
+      )
+      if (active) ctx.creation.clearStartupError(squad.code, active.id)
+      return agent
+    } catch (err) {
+      if (active && ctx.creation.queue(squad.code)?.cycle?.ticketId === active.id)
+        ctx.creation.setStartupError(squad.code, active.id, err instanceof Error ? err.message : String(err))
+      throw err
+    }
   })
 
   // ---------- a squad proposed for an empty room (ticket 04) ----------
@@ -96,5 +134,18 @@ export function registerSquadsIpc(ctx: IpcContext): void {
   ipcMain.handle('office:squadQueue', (_e, code: unknown) => {
     const plain = squadCodeSchema.safeParse(code)
     return plain.success ? ctx.creation.queue(plain.data) : undefined
+  })
+  ipcMain.handle('office:retrySquadPublication', async (_e, code: unknown) => {
+    const parsed = squadCodeSchema.safeParse(code)
+    if (!parsed.success) throw new Error('Squad inválido.')
+    return ctx.retrySquadPublication(parsed.data)
+  })
+  ipcMain.handle('office:retrySquadStart', async (_e, code: unknown) => {
+    const parsed = squadCodeSchema.safeParse(code)
+    if (!parsed.success) throw new Error('Squad inválido.')
+    const queue = ctx.creation.queue(parsed.data)
+    if (!queue?.active || queue.cycle?.ticketId !== queue.active)
+      throw new Error('Não há ciclo ativo salvo para retomar.')
+    await ctx.startActiveSquadTicket(parsed.data)
   })
 }

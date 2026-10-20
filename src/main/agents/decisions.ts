@@ -40,6 +40,7 @@ export function lenientRealpath(p: string): string {
 
 /** Permissions (asking the player, decisions) and results, shared by office and terminal agents. */
 export abstract class AgentDecisions extends AgentSubagents {
+  private readonly changesSettled = new Map<string, Promise<void>>()
   protected askPlayer(
     agent: Agent,
     tool: string,
@@ -188,6 +189,7 @@ export abstract class AgentDecisions extends AgentSubagents {
     if (!r) return
     this.results = this.results.filter((x) => x.id !== resultId)
     this.store.results = this.results
+    this.changesSettled.delete(resultId)
     this.send({ type: 'result:acked', resultId, agentId: r.agentId })
     const agent = this.agents.get(r.agentId)
     if (agent && (agent.summary.status === 'done' || agent.summary.status === 'error')) {
@@ -202,6 +204,7 @@ export abstract class AgentDecisions extends AgentSubagents {
   protected dropResults(agentId: string): void {
     for (const r of this.results.filter((x) => x.agentId === agentId)) {
       this.send({ type: 'result:acked', resultId: r.id, agentId })
+      this.changesSettled.delete(r.id)
     }
     this.results = this.results.filter((x) => x.agentId !== agentId)
     this.store.results = this.results
@@ -214,10 +217,19 @@ export abstract class AgentDecisions extends AgentSubagents {
     this.store.results = this.results
     this.addLog(agent, 'result', r.text, undefined, r.isError, undefined, r.limit)
     this.setStatus(agent, r.isError ? 'error' : 'done', r.isError ? 'Deu problema' : 'Trazendo o resultado')
+    let settleChanges!: () => void
+    const settled = new Promise<void>((resolve) => { settleChanges = resolve })
+    this.changesSettled.set(result.id, settled)
     this.send({ type: 'result:new', result })
     const task = agent.task
     agent.task = undefined
-    if (task) void this.attachChanges(agent, result, task)
+    if (task) void this.attachChanges(agent, result, task).finally(settleChanges)
+    else settleChanges()
+  }
+
+  /** Resolves after this run's late snapshot is attached, or immediately after restart. */
+  async resultChangesSettled(resultId: string): Promise<void> {
+    await this.changesSettled.get(resultId)
   }
 
   /** Works out what the task changed and hangs it on the result card (a moment after it arrives). */
@@ -256,6 +268,8 @@ export abstract class AgentDecisions extends AgentSubagents {
   setChanges(resultId: string, changes: ResultChanges): void {
     const r = this.results.find((x) => x.id === resultId)
     if (!r) return
+    // A delayed snapshot must not erase the commit marker already persisted for retry/recovery.
+    if (r.changes?.committed && !changes.committed) return
     r.changes = changes
     this.store.results = this.results
     this.send({ type: 'result:changes', resultId, agentId: r.agentId, changes })
