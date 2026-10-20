@@ -140,6 +140,21 @@
   letter-spacing: 0.01em;
 }
 
+/* A room of a floor: the name opens what the room is (a squad, or its proposal). */
+.zone-label-click {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.zone-label-click:hover {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.zone-label-click:focus-visible {
+  outline: 2px solid var(--accent-hi);
+  outline-offset: 2px;
+}
+
 /* ---------- status dots ---------- */
 
 .dot {

@@ -17,6 +17,9 @@ import { guardWindow, installFatalHandlers, onFatalFlush } from './crash'
 import { captureConsole, initLog, log, secret } from './log'
 import { dropInheritedClaudeEnv, loadShellPath, stressDataDirError } from './env'
 import { inspectSquads, isDir, loadSquads } from './squads'
+import { SquadCreation } from './squad-creation'
+import { SquadProposalStore } from './squad-proposals'
+import { SquadQueueStore } from './squad-queues'
 import { MacJobs } from './mac-jobs'
 import { RoutineScheduler, RoutineStore } from './routines'
 import { Store } from './store'
@@ -259,6 +262,19 @@ app.whenReady().then(async () => {
   const readSquads = () => store.settings.projects.flatMap((p) => (isDir(p.cwd) ? inspectSquads(p.cwd) : []))
   let squads = readSquads()
 
+  // The squads the player proposed for the empty rooms and has not approved yet. They
+  // live in the app's data: a proposal is not a squad and writes nothing in the project.
+  const creation = new SquadCreation({
+    proposals: new SquadProposalStore(app.getPath('userData')),
+    queues: new SquadQueueStore(app.getPath('userData')),
+    board,
+    projects: () => store.settings.projects,
+    settings: () => store.settings,
+    player,
+  })
+  creation.on('proposals', (proposals) => broadcast({ type: 'squadProposals', proposals }))
+  creation.on('queues', (queues) => broadcast({ type: 'squadQueues', queues }))
+
   manager.on('event', (e: OfficeEvent) => {
     broadcast(e)
     if (e.type === 'permission:new') {
@@ -407,6 +423,7 @@ app.whenReady().then(async () => {
     defaultBrain,
     squads: () => squads,
     rereadSquads: () => (squads = readSquads()),
+    creation,
     onBattery: () => onBattery,
   }
   registerAppIpc(ipc)

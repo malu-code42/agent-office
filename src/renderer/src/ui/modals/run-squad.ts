@@ -13,6 +13,7 @@ const LAST_RUN_MODE = 'agent-office:squad-mode'
  * "Contratar squad": pick a squad of the project and an orchestrator goes up to the
  * squad room with the whole team to run its pipeline. Hiring it again for the same
  * squad just starts another cycle. Squad cycles never run with "Sem pedir nada".
+ * `code` opens the window with that squad already chosen (the room the player clicked).
  */
 export function openRunSquad(
   root: HTMLElement,
@@ -20,6 +21,7 @@ export function openRunSquad(
   project: ProjectFloor,
   toast: (t: string, k?: 'info' | 'ok' | 'err') => void,
   onStarted: (a: AgentSummary) => void,
+  code?: string,
 ): void {
   const catalogue = state.squads.filter((q) => q.cwd === project.cwd)
   const squads = catalogue.filter((q) => q.availability !== 'unavailable')
@@ -74,7 +76,7 @@ export function openRunSquad(
     if (a.status === 'done') return 'concluído'
     return 'disponível'
   }
-  let chosen = squads[0]
+  let chosen = (code ? squads.find((q) => q.code === code) : undefined) ?? squads[0]
   const cards = squads.map((q) => {
     const boss = here.get(q.code)
     const inline = q.members.filter((m) => m.execution === 'inline').length
@@ -107,6 +109,7 @@ export function openRunSquad(
     card.addEventListener('click', () => {
       chosen = q
       paint()
+      void paintQueue()
     })
     return card
   })
@@ -132,7 +135,28 @@ export function openRunSquad(
     cards.forEach((c, i) => c.classList.toggle('on', squads[i] === chosen))
     go.textContent = here.has(chosen.code) ? '▶ Rodar ciclo' : '▶ Iniciar squad'
   }
+  // The queue of the squad: the ticket it works on and the ones waiting for it.
+  const queueBox = h('div', { class: 'panelbox' })
+  const ticketLine = (id: string | null): HTMLElement | null => {
+    if (!id) return null
+    const t = state.tickets.get(id)
+    return h('div', { class: 'squad-queue-line' }, h('b', {}, t ? `${t.key} · ` : ''), t ? t.title : 'ticket fora do quadro')
+  }
+  const paintQueue = async () => {
+    const queue = await window.office.squadQueue(chosen.code).catch(() => undefined)
+    if (!queue || (!queue.active && !queue.queue.length)) {
+      queueBox.replaceChildren(h('div', { class: 'sec-title' }, 'Fila do squad'), h('div', { class: 'hint' }, 'Sem ticket na fila.'))
+      return
+    }
+    queueBox.replaceChildren(
+      h('div', { class: 'sec-title' }, 'Fila do squad'),
+      h('div', { class: 'hint' }, 'Um ticket ativo por squad.'),
+      ...(queue.active ? [h('div', { class: 'squad-queue-line' }, h('span', { class: 'sbadge sb-working' }, 'ativo'), ticketLine(queue.active) as HTMLElement)] : []),
+      ...queue.queue.map((id) => h('div', { class: 'squad-queue-line' }, h('span', { class: 'sbadge sb-mute' }, 'espera'), ticketLine(id) as HTMLElement)),
+    )
+  }
   paint()
+  void paintQueue()
   go.addEventListener('click', async () => {
     go.setAttribute('disabled', '')
     try {
@@ -152,6 +176,7 @@ export function openRunSquad(
     `Contratar squad · ${project.name}`,
     [
       h('div', { class: 'squad-list' }, ...cards, ...invalidCards),
+      queueBox,
       field('Permissões', mode, modeHint),
       field('Recado', note, 'Os checkpoints do ciclo vêm até você como perguntas. Sem resposta, o ciclo espera.'),
     ],

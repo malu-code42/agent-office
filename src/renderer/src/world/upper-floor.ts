@@ -201,7 +201,8 @@ export function buildUpperFloor(plan: ProjectPlan, brand: Brand): UpperFloor {
 /**
  * A squad room: the fixed furniture (coordinator's desk, whiteboard, bookshelf, plate)
  * is always there; the member desks only exist when a squad is assigned to the room.
- * An empty room keeps the furniture, but with the lights off and nobody inside.
+ * An empty room keeps the furniture, but with the lights off and nobody inside. A room
+ * with a proposal waiting keeps the furniture and shows an amber outline on the floor.
  */
 function squadRoom(
   group: THREE.Group,
@@ -215,7 +216,7 @@ function squadRoom(
   const [x0, z0, x1, z1] = room.rect
   const cx = (x0 + x1) / 2
   const cz = (z0 + z1) / 2
-  const lit = room.squad !== null
+  const lit = room.state === 'live'
   const [base, border, accent] = RUGS[rug % RUGS.length]
   place(F.rug(x1 - x0 - 1, z1 - z0 - 1, rugTexture(x1 - x0 - 1, z1 - z0 - 1, base, border, accent)), cx, cz)
   // the coordinator's desk: fixed furniture, in the corner by the door, facing the members
@@ -237,11 +238,28 @@ function squadRoom(
   place(F.bookshelf(2, 1.9, 4), 0.3, z0 + 5.4, Math.PI / 2)
   block(0, z0 + 5, 1, 2)
   // the plate of the room, on its back wall
-  place(sign(lit ? room.name : 'Sala sem squad', 2.2), 3.4, z0 + 0.04, 0, 2.4)
+  place(sign(lit ? room.name : room.state === 'proposed' ? 'Equipe proposta' : 'Sala sem squad', 2.2), 3.4, z0 + 0.04, 0, 2.4)
   place(F.plant('fern'), x1 - 0.7, z0 + 0.7)
   block(x1 - 1, z0, 1, 1)
-  // a room without a squad is dark and empty
-  if (!lit) lightsOff(group, room.rect)
+  // a room without a squad is dark and empty; a room with a proposal shows the outline
+  if (room.state === 'proposed') proposalOutline(group, room.rect)
+  else if (!lit) lightsOff(group, room.rect)
+}
+
+/** A team waiting for the approval: only an amber outline on the floor. */
+function proposalOutline(group: THREE.Group, rect: [number, number, number, number]): void {
+  const [x0, z0, x1, z1] = rect
+  const w = x1 - x0
+  const d = z1 - z0
+  const cx = (x0 + x1) / 2
+  const cz = (z0 + z1) / 2
+  const edge = new THREE.MeshBasicMaterial({ color: '#ffd76a', transparent: true, opacity: 0.95, depthWrite: false })
+  const fill = new THREE.MeshBasicMaterial({ color: '#ffd76a', transparent: true, opacity: 0.26, depthWrite: false })
+  box(group, w - 0.2, 0.01, d - 0.2, fill, cx, 0.07, cz, false)
+  box(group, w - 0.1, 0.05, 0.24, edge, cx, 0.07, z0 + 0.05, false)
+  box(group, w - 0.1, 0.05, 0.24, edge, cx, 0.07, z1 - 0.05, false)
+  box(group, 0.24, 0.05, d - 0.1, edge, x0 + 0.05, 0.07, cz, false)
+  box(group, 0.24, 0.05, d - 0.1, edge, x1 - 0.05, 0.07, cz, false)
 }
 
 /** Lights off: a dim volume over the whole room. */

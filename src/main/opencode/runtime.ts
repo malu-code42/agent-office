@@ -612,6 +612,9 @@ async function makeClient() {
   return client
 }
 
+/** The official local-service client, for the paths that ask the approved model something. */
+export const openCodeClient = makeClient
+
 function isNotFound(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false
   const value = error as { detail?: unknown; cause?: unknown; status?: unknown }

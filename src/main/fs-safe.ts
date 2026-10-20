@@ -78,6 +78,23 @@ export function corruptPath(file: string, now = new Date()): string {
   return join(dirname(file), `${basename(file, ext)}.corrupt-${stamp}${ext}`)
 }
 
+/**
+ * Puts the parts of a data file that could not be used in a file next to it: the
+ * office goes on with what it can trust and nothing is lost — the player (or the
+ * next version) can look at the rest. The path of the file is returned.
+ */
+export function quarantineParts(file: string, parts: unknown[], now = new Date()): string | undefined {
+  if (!parts.length) return undefined
+  const target = corruptPath(file, now)
+  try {
+    writeJsonAtomic(target, parts)
+    return target
+  } catch {
+    // A file that cannot be written is not a reason to stop the office.
+    return undefined
+  }
+}
+
 /** What loadJson found. */
 export type LoadResult<T> =
   /** The file parsed. */
@@ -166,6 +183,8 @@ const LABELS: Record<string, string> = {
   'tickets-closed.json': 'arquivo de tickets fechados',
   'routines.json': 'rotinas',
   'planning.json': 'tarefas em foco',
+  'squad-proposals.json': 'propostas de squad',
+  'squad-queues.json': 'filas dos squads',
 }
 
 /** The warning the renderer shows for a restored or lost file; null when there is nothing to say. */

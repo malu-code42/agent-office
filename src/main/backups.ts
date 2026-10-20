@@ -14,7 +14,15 @@ import { parseJson, writeFileAtomic, writeJsonAtomic } from './fs-safe'
  * stats.json stays out: it is rebuilt from the transcripts and can be large.
  */
 
-export const DATA_FILES = ['office.json', 'tickets.json', 'tickets-closed.json', 'routines.json', 'planning.json'] as const
+export const DATA_FILES = [
+  'office.json',
+  'tickets.json',
+  'tickets-closed.json',
+  'routines.json',
+  'planning.json',
+  'squad-proposals.json',
+  'squad-queues.json',
+] as const
 export type DataFile = (typeof DATA_FILES)[number]
 
 export const KEEP_DAILY = 14
@@ -50,6 +58,10 @@ export const DATA_SHAPES: Record<DataFile, (v: unknown) => boolean> = {
     isMap(v.timer) &&
     isMap(v.archived) &&
     (v.proposals === undefined || Array.isArray(v.proposals)),
+  // The squads the player proposed and has not approved yet: they are not squads yet.
+  'squad-proposals.json': (v) => isObj(v) && (v.proposals === undefined || Array.isArray(v.proposals)),
+  // The queue of each squad: the ticket it works on and the ones waiting.
+  'squad-queues.json': (v) => isObj(v) && isMap(v.queues),
 }
 
 /** The `valid` option of loadJson for a data file. */

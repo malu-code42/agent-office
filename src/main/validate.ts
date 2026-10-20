@@ -7,6 +7,7 @@ import { IRIS_NOT_UNDERSTOOD, type IrisAnswer } from '@shared/iris'
 import { STEP_MAX, TIMER_MINUTES } from '@shared/planning'
 import { isIsoDay, REFUSED_KINDS, REFUSED_MESSAGE, type Proposal, type ProposalOperation } from '@shared/proposals'
 import { floorNameFor, MAX_PROJECT_FLOORS, projectFor } from '@shared/projects'
+import { SQUAD_NAME_MAX, SQUAD_ROOM_COUNT } from '@shared/types'
 import { REVIEW_STEPS, type FocusChoice, type ReviewChoices, type ReviewDraft, type ReviewPostpone } from '@shared/review'
 import { scheduleError } from '@shared/schedule'
 import {
@@ -267,6 +268,37 @@ export const squadCodeSchema = z.string().regex(/^[\w-]{1,64}$/)
 export const squadNoteSchema = z.string().max(20_000).optional().catch(undefined)
 export const accountNameSchema = z.string().max(200).catch('')
 
+// ---------- squads: a proposal for an empty room (ticket 04) ----------
+
+/** The room of a floor: 0, 1 or 2. */
+export const squadRoomSchema = z
+  .number()
+  .int()
+  .min(0)
+  .max(SQUAD_ROOM_COUNT - 1)
+/** A proposal of a squad: the id, the floor, the room, the brief and the tickets (optional). */
+export const squadProposalRequestSchema = z.object({
+  /** The id the page chose: it may throw the proposal away while it generates. */
+  id: z.string().regex(/^[A-Za-z0-9-]{8,64}$/),
+  projectId: z.string().min(1).max(40),
+  room: squadRoomSchema,
+  brief: z.string().trim().min(1).max(4_000),
+  ticketIds: z.array(idSchema).max(50).default([]),
+})
+/** The id of a proposal. The page never sends a path: only the proposal it means. */
+export const squadProposalIdSchema = z.object({ id: idSchema })
+/** What the player asked to change in the proposal. */
+export const squadAdjustmentSchema = z.object({
+  id: idSchema,
+  adjustment: z.string().trim().min(1).max(2_000),
+  /** The name the player edited, when it changed: it goes into the proposal before the adjustment. */
+  name: z.string().trim().min(1).max(SQUAD_NAME_MAX).optional(),
+})
+/** The name the player edited in the proposal: it may not be empty. */
+export const squadRenameSchema = z.object({ id: idSchema, name: z.string().trim().min(1).max(SQUAD_NAME_MAX) })
+/** The approval: the proposal and the name of the squad (it may have been edited). */
+export const squadApprovalSchema = z.object({ id: idSchema, name: z.string().trim().min(1).max(SQUAD_NAME_MAX) })
+
 /** Files sent with a message. buildMessage checks the bytes and the limits with friendly messages. */
 export const attachmentsSchema: z.ZodType<AttachmentInput[]> = z
   .array(
@@ -456,7 +488,10 @@ export function cleanLedgerQuery(raw: unknown): LedgerQuery {
  * for the most permissive ones is the form's job), otherwise the floor of the folder,
  * and only in the last case the office default.
  */
-export function cleanHire(raw: unknown, settings: Pick<Settings, 'accounts' | 'defaultEngine' | 'defaultPermissionMode' | 'projects'>): HireRequest {
+export function cleanHire(
+  raw: unknown,
+  settings: Pick<Settings, 'accounts' | 'defaultEngine' | 'defaultPermissionMode' | 'projects'>,
+): HireRequest {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   const cwd = pathSchema.safeParse(r.cwd)
   if (!cwd.success || !isDir(cwd.data)) throw new Error('Escolha uma pasta de projeto que exista.')
@@ -756,13 +791,19 @@ export function cleanRoutineDraft(
   if (d.floor) {
     const floor = ctx.settings.projects.find((p) => p.id === d.floor)
     if (!floor) throw new Error('Esse andar não existe mais. Escolha outro.')
-    if (modeIsMorePermissive(out.permissionMode, floor.permissionMode ?? ctx.settings.defaultPermissionMode) && d.confirmPermissionOverride !== true)
+    if (
+      modeIsMorePermissive(out.permissionMode, floor.permissionMode ?? ctx.settings.defaultPermissionMode) &&
+      d.confirmPermissionOverride !== true
+    )
       throw new Error('Confirme explicitamente o modo de permissões mais permissivo que o padrão do projeto.')
     return { ...out, floor: d.floor }
   }
   if (!d.cwd || !isAbsolute(d.cwd) || !isDir(d.cwd)) throw new Error('Escolha a pasta (ou o andar) onde a rotina roda.')
   if (
-    modeIsMorePermissive(out.permissionMode, projectFor(ctx.settings.projects, d.cwd)?.permissionMode ?? ctx.settings.defaultPermissionMode) &&
+    modeIsMorePermissive(
+      out.permissionMode,
+      projectFor(ctx.settings.projects, d.cwd)?.permissionMode ?? ctx.settings.defaultPermissionMode,
+    ) &&
     d.confirmPermissionOverride !== true
   )
     throw new Error('Confirme explicitamente o modo de permissões mais permissivo que o padrão do projeto.')

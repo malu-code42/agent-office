@@ -1,6 +1,9 @@
 // Office floor plan. One unit = one tile. x grows to the screen's lower right,
 // z grows to the screen's lower left; back walls run along x = 0 and z = 0.
 
+import { SQUAD_MAX_MEMBERS, SQUAD_MIN_MEMBERS, SQUAD_ROOM_COUNT } from '@shared/types'
+import { floorRooms } from '@shared/squad-rooms'
+
 export const W = 32
 export const H = 24
 export const WALL_H = 2.7
@@ -182,11 +185,6 @@ export function inBossRoom(x: number, z: number): boolean {
 
 export const DEFAULT_SECTOR = 'Equipe'
 export const TEAM_ROOM = 'Agentes'
-/** Squad rooms per project floor: three, and never more (ticket 04). */
-export const SQUAD_ROOM_COUNT = 3
-/** Members of a squad besides its coordinator: the room holds from two to six. */
-export const SQUAD_MIN_MEMBERS = 2
-export const SQUAD_MAX_MEMBERS = 6
 /** Desks of the glass room with the individual agents: two columns of five. */
 export const AGENT_DESK_COUNT = 10
 
@@ -252,6 +250,9 @@ export interface CoordinatorDesk {
   deliver: [number, number][]
 }
 
+/** What a squad room shows: nobody, a team proposed and waiting, or the squad itself. */
+export type SquadRoomState = 'empty' | 'proposed' | 'live'
+
 /** One of the three squad rooms of a project floor. */
 export interface SquadRoom {
   /** 0, 1 or 2: the room's place among the three. */
@@ -269,6 +270,8 @@ export interface SquadRoom {
   stand: [number, number][]
   /** The squad's members, in the order their desks are made. */
   members: string[]
+  /** What the room shows now. */
+  state: SquadRoomState
 }
 
 /** Something of the project that does not fit on the floor; the user has to know. */
@@ -388,6 +391,7 @@ function emptyRoom(rect: Rect, index: number): SquadRoom {
       [8, z0 + 4],
     ],
     members: [],
+    state: 'empty',
   }
 }
 
@@ -418,9 +422,14 @@ function projectPartitions(): Partition[] {
  * the individual agents on the east side, the director's room and the hall.
  * A project with more squads than rooms keeps every squad: the ones without a room
  * come back as issues, they never disappear.
+ *
+ * The squads the office created name their room in the code ("sala-2" is the second
+ * room); the others take the free rooms in order. A room with a proposal waiting is
+ * not free.
  */
 export function projectPlan(
   squads: { code: string; name?: string; members: { id: string; execution: string; sector?: string }[] }[],
+  proposedRooms: readonly number[] = [],
 ): ProjectPlan {
   const issues: ProjectIssue[] = []
   const rooms: SquadRoom[] = SQUAD_ROOM_RECTS.map((rect, index) => emptyRoom(rect, index))
@@ -428,11 +437,32 @@ export function projectPlan(
   // Every member of every squad is kept, even of the squads that get no room.
   for (const squad of squads) for (const m of squad.members) squadOf.set(memberKey(squad.code, m.id), squad.code)
 
-  squads.slice(0, SQUAD_ROOM_COUNT).forEach((squad, i) => {
-    const room = rooms[i]
+  // The rooms a proposal holds: nobody else takes them.
+  const reserved = new Set(proposedRooms.filter((r) => r >= 0 && r < SQUAD_ROOM_COUNT))
+  for (const room of reserved) rooms[room].state = 'proposed'
+
+  // The squads of the office name their room; the others take the free rooms, in order.
+  const floor = floorRooms(squads, [...reserved])
+  const placed = new Map<number, (typeof squads)[number]>()
+  for (const squad of squads) {
+    const room = floor.rooms.get(squad.code)
+    if (room !== undefined && !placed.has(room)) placed.set(room, squad)
+  }
+  for (const squad of squads) {
+    if (floor.rooms.has(squad.code)) continue
+    issues.push({
+      code: squad.code,
+      name: squad.name || squad.code,
+      reason: `Não há sala livre para ${squad.name || squad.code}: o andar tem ${SQUAD_ROOM_COUNT} salas de squad e elas já têm squad ou uma proposta em aberto.`,
+    })
+  }
+
+  for (const [roomIndex, squad] of placed) {
+    const room = rooms[roomIndex]
     const members = squad.members.filter((m) => m.execution === 'subagent')
     room.squad = squad.code
     room.name = squad.name || squad.code
+    room.state = 'live'
     if (members.length < SQUAD_MIN_MEMBERS || members.length > SQUAD_MAX_MEMBERS) {
       issues.push({
         code: squad.code,
@@ -445,15 +475,7 @@ export function projectPlan(
     const seated = members.slice(0, SQUAD_MAX_MEMBERS)
     room.members = seated.map((m) => memberKey(squad.code, m.id))
     // The screens of the floor are indexed by desk: the agents' room first, then each room.
-    room.desks = seated.map((_, k) => memberDesk(k, AGENT_DESK_COUNT + i * SQUAD_MAX_MEMBERS + k, room.rect))
-  })
-
-  for (const squad of squads.slice(SQUAD_ROOM_COUNT)) {
-    issues.push({
-      code: squad.code,
-      name: squad.name || squad.code,
-      reason: `O andar tem ${SQUAD_ROOM_COUNT} salas de squad e o projeto tem ${squads.length} squads: ${squad.name || squad.code} ficou sem sala.`,
-    })
+    room.desks = seated.map((_, k) => memberDesk(k, AGENT_DESK_COUNT + roomIndex * SQUAD_MAX_MEMBERS + k, room.rect))
   }
 
   const agentDesks = Array.from({ length: AGENT_DESK_COUNT }, (_, i) => agentDesk(i))
@@ -468,4 +490,10 @@ export function projectPlan(
     face: Math.PI,
   }
   return { rooms, agentDesks, agentStand, director, partitions: projectPartitions(), squadOf, issues }
+}
+
+/** The name of the plate of a room: the squad's, or what the room is waiting for. */
+export function roomLabel(room: SquadRoom): string {
+  if (room.state === 'proposed') return 'Equipe proposta'
+  return room.name
 }

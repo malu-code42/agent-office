@@ -9,6 +9,7 @@ import type { CostBook } from '../ledger'
 import type { MacJobs } from '../mac-jobs'
 import type { PlanningStore } from '../planning'
 import type { RoutineScheduler } from '../routines'
+import type { SquadCreation } from '../squad-creation'
 import type { StatsReader } from '../stats'
 import type { Store } from '../store'
 import type { SystemMonitor } from '../system'
@@ -43,6 +44,8 @@ export interface IpcContext {
   squads(): SquadInfo[]
   /** Reads the squads again (the floors changed) and returns them. */
   rereadSquads(): SquadInfo[]
+  /** The proposals of squads the player has not approved yet. */
+  creation: SquadCreation
   onBattery(): boolean
 }
 

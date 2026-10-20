@@ -1,4 +1,4 @@
-import type { ProjectFloor, SquadInfo } from '@shared/types'
+import type { ProjectFloor, SquadInfo, SquadQueue } from '@shared/types'
 import type { ProjectPlan } from '../world/layout'
 
 /** The logo of a project, as a short key: the data URL itself is long. */
@@ -15,15 +15,21 @@ const logoKey = (p: ProjectFloor) => (p.logo ? `${p.logo.length}:${p.logo.slice(
  * The order is the order of the data: the projects as they come, the rooms and the
  * issues as the plan lists them. The same data always gives the same key.
  */
-export function floorsKey(projects: ProjectFloor[], squads: SquadInfo[], plans: ProjectPlan[]): string {
+export function floorsKey(projects: ProjectFloor[], squads: SquadInfo[], plans: ProjectPlan[], queues: SquadQueue[] = []): string {
   return JSON.stringify(
     projects.map((p, i) => {
       const plan = plans[i]
+      const codes = squads.filter((q) => q.cwd === p.cwd).map((q) => q.code)
       return [
         p.id,
         p.name,
         squads.filter((q) => q.cwd === p.cwd).length,
-        plan.rooms.map((r) => [r.squad, r.name, r.desks.length, r.members.join(',')]),
+        plan.rooms.map((r) => [r.squad, r.name, r.desks.length, r.members.join(','), r.state]),
+        // The queue of each squad: the plate of the room says which ticket it works on.
+        codes.map((code) => {
+          const queue = queues.find((q) => q.code === code)
+          return [code, queue?.active ?? '', queue?.queue.join(',') ?? '']
+        }),
         plan.issues.map((issue) => [issue.code, issue.name, issue.reason]),
         logoKey(p),
         p.brandColor,

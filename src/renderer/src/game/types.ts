@@ -50,6 +50,8 @@ export interface Upper {
   moneyTag: Tag
   /** What does not fit on this floor (more squads than rooms); null when everything fits. */
   issueTag: Tag | null
+  /** Over the elevator, while a squad proposal waits for the approval. */
+  proposalTag: Tag | null
 }
 
 /** A subagent shown as a small copy of its parent, standing by the parent's desk. */
@@ -144,6 +146,8 @@ export interface GameHooks {
     project: ProjectFloor,
     issues: { code: string; name: string; reason: string; unplaced?: string[] }[],
   ): void
+  /** The player clicked a squad room: an empty room proposes a squad, a room with one opens its squad. */
+  onRoomClick?(project: ProjectFloor, room: L.SquadRoom): void
 }
 
 /** Tile outside the glass of the boss office, by its upper corner, where the routines totem stands. */

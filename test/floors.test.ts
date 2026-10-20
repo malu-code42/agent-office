@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ProjectFloor, SquadInfo } from '@shared/types'
+import { heldRooms, holdsRoom, type ProjectFloor, type SquadInfo, type SquadProposal } from '@shared/types'
 import { floorsKey, issuesToken } from '../src/renderer/src/game/floor-key'
 import { Grid } from '../src/renderer/src/world/pathfinding'
 import { PARTITIONS, projectPlan, rideBetween, SPAWN_TILE, UPPER_SPAWN_TILE } from '../src/renderer/src/world/layout'
@@ -96,6 +96,69 @@ describe('the key of the project floors', () => {
     const plan = projectPlan([...rooms, squad('delta', 'Delta', ['m1', 'm2', 'm3'])])
     expect(plan.issues.map((i) => i.code)).toEqual(['delta'])
     expect(plan.issues[0].reason).toContain('Delta')
+  })
+
+  it('changes when a room turns into a waiting proposal', () => {
+    const squads = [squad('alfa', 'Alfa', ['m1', 'm2', 'm3'])]
+    const before = floorsKey([project], squads, [projectPlan(squads)])
+    const after = floorsKey([project], squads, [projectPlan(squads, [1])])
+    expect(after).not.toBe(before)
+  })
+
+  it('changes when the queue of a squad changes', () => {
+    const squads = [squad('alfa', 'Alfa', ['m1', 'm2', 'm3'])]
+    const plans = [projectPlan(squads)]
+    const before = floorsKey([project], squads, plans, [])
+    const after = floorsKey([project], squads, plans, [{ code: 'alfa', cwd: '/proj', active: 't1', queue: [], updatedAt: 1 }])
+    expect(after).not.toBe(before)
+  })
+})
+
+describe('the room of a proposed squad', () => {
+  /** A proposal as the office keeps it. */
+  const proposal = (over: Partial<SquadProposal> = {}): SquadProposal => ({
+    id: 'prop-1',
+    projectId: 'p1',
+    cwd: '/proj',
+    room: 0,
+    createdAt: 1,
+    updatedAt: 1,
+    brief: 'Refazer a busca da loja',
+    ticketIds: [],
+    adjustments: [],
+    name: 'Squad da Sala 1',
+    composition: { name: 'Squad da Sala 1', members: [] },
+    status: 'pending',
+    ...over,
+  })
+
+  it('stays amber while the composition is redone', () => {
+    // During the adjustment the proposal is "generating", but it already has the
+    // composition: the room cannot go dark under the player's finger.
+    const adjusting = proposal({ status: 'generating' })
+    expect(holdsRoom(adjusting)).toBe(true)
+    expect(heldRooms('p1', [adjusting])).toEqual([0])
+    const plan = projectPlan([], heldRooms('p1', [adjusting]))
+    expect(plan.rooms[0]!.state).toBe('proposed')
+  })
+
+  it('stays dark on the first generation: there is no composition yet', () => {
+    const generating = proposal({ status: 'generating', composition: null })
+    expect(holdsRoom(generating)).toBe(false)
+    expect(heldRooms('p1', [generating])).toEqual([])
+    const plan = projectPlan([], heldRooms('p1', [generating]))
+    expect(plan.rooms[0]!.state).toBe('empty')
+  })
+
+  it('a proposal already published does not hold the room', () => {
+    expect(holdsRoom(proposal({ status: 'assigned' }))).toBe(false)
+    expect(holdsRoom(proposal({ status: 'created' }))).toBe(false)
+  })
+
+  it('a waiting proposal keeps the room amber', () => {
+    const waiting = proposal({ status: 'pending' })
+    expect(holdsRoom(waiting)).toBe(true)
+    expect(projectPlan([], heldRooms('p1', [waiting])).rooms[0]!.state).toBe('proposed')
   })
 })
 

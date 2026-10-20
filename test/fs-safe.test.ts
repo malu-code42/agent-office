@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { bakPath, loadJson, noticeFor, writeFileAtomic, writeJsonAtomic } from '../src/main/fs-safe'
+import { bakPath, loadJson, noticeFor, quarantineParts, writeFileAtomic, writeJsonAtomic } from '../src/main/fs-safe'
 
 let dir: string
 let file: string
@@ -32,6 +32,21 @@ describe('writeJsonAtomic', () => {
   it('formats when asked', () => {
     writeJsonAtomic(file, { a: 1 }, { space: 2, newline: true })
     expect(readFileSync(file, 'utf8')).toBe('{\n  "a": 1\n}\n')
+  })
+})
+
+describe('quarantineParts', () => {
+  it('guarda o que não pôde ser usado num arquivo ao lado', () => {
+    const kept = quarantineParts(file, [{ a: 1 }, null])
+    expect(kept).toBeDefined()
+    expect(JSON.parse(readFileSync(kept!, 'utf8'))).toEqual([{ a: 1 }, null])
+    // O arquivo original não é mexido.
+    expect(existsSync(file)).toBe(false)
+  })
+
+  it('sem nada para guardar, nenhum arquivo é criado', () => {
+    expect(quarantineParts(file, [])).toBeUndefined()
+    expect(readdirSync(dir)).toEqual([])
   })
 })
 

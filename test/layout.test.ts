@@ -1,15 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Grid } from '../src/renderer/src/world/pathfinding'
-import {
-  AGENT_DESK_COUNT,
-  AGENT_ROOM_RECT,
-  DIRECTOR_RECT,
-  SQUAD_MAX_MEMBERS,
-  SQUAD_MIN_MEMBERS,
-  SQUAD_ROOM_COUNT,
-  SQUAD_ROOM_RECTS,
-  projectPlan,
-} from '../src/renderer/src/world/layout'
+import { SQUAD_MAX_MEMBERS, SQUAD_MIN_MEMBERS, SQUAD_ROOM_COUNT } from '@shared/types'
+import { AGENT_DESK_COUNT, AGENT_ROOM_RECT, DIRECTOR_RECT, SQUAD_ROOM_RECTS, projectPlan } from '../src/renderer/src/world/layout'
 
 /** A squad with `n` members that each get a desk of their own. */
 function squad(code: string, n: number, name = code) {
@@ -116,6 +108,30 @@ describe('projectPlan', () => {
     expect(codes).toContain('a')
     expect(codes).toContain('d')
     expect(plan.issues.find((i) => i.code === 'a')!.reason).toContain('1')
+  })
+
+  it('a sala vazia fica vazia, a sala com proposta fica à espera, a sala com squad fica acesa', () => {
+    const plan = projectPlan([squad('sala-1', 3)], [1])
+    expect(plan.rooms[0]!.state).toBe('live')
+    expect(plan.rooms[1]!.state).toBe('proposed')
+    expect(plan.rooms[2]!.state).toBe('empty')
+    // A sala com proposta não tem mesas de membros: o time ainda não existe.
+    expect(plan.rooms[1]!.desks).toEqual([])
+    expect(plan.rooms[1]!.members).toEqual([])
+    // O móvel fixo continua lá.
+    expect(plan.rooms[1]!.coordinator.at).toBeDefined()
+  })
+
+  it('o squad do office fica na sala que o código nomeia', () => {
+    const plan = projectPlan([squad('sala-3', 2)])
+    expect(plan.rooms[2]!.squad).toBe('sala-3')
+    expect(plan.rooms[0]!.squad).toBeNull()
+  })
+
+  it('uma sala com proposta não fica livre para outro squad', () => {
+    const plan = projectPlan([squad('alfa', 2)], [0])
+    expect(plan.rooms[0]!.state).toBe('proposed')
+    expect(plan.rooms[1]!.squad).toBe('alfa')
   })
 
   it('puts the doors where the plan says: the squad rooms to the hall, the director room to the elevator', () => {

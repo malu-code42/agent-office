@@ -6,6 +6,7 @@ import type { AgentResult, AttachmentInput, LogEntry, PermissionDecision, Permis
 import type { Ledger, LedgerQuery, LedgerToday } from './ledger'
 import type { BridgeStatus, Settings, UpdateInstallResult, UpdateStatus } from './settings'
 import type { SquadInfo } from './squads'
+import type { SquadProposal, SquadQueue } from './squad-proposals'
 import type { MacJob, Routine, RoutineDraft } from './routines'
 import type { ClaudeStats } from './stats'
 import type { AgendaView } from '../agenda'
@@ -55,6 +56,10 @@ export interface OfficeState {
   system: SystemStats | null
   /** Squads of every project floor; each one's cwd is its project folder. */
   squads: SquadInfo[]
+  /** Squads the player proposed for an empty room and has not approved yet. */
+  squadProposals: SquadProposal[]
+  /** The queue of every squad: the ticket it works on and the ones waiting. */
+  squadQueues: SquadQueue[]
   /** Today's spend per folder, from the cost book. */
   ledgerToday: LedgerToday
   /** Data files found corrupt at startup (restored from a backup, or started over). */
@@ -119,6 +124,10 @@ export type OfficeEvent =
   | { type: 'ticket:upsert'; ticket: Ticket }
   | { type: 'ticket:removed'; ticketId: string }
   | { type: 'squads'; squads: SquadInfo[] }
+  /** The squads proposed for the empty rooms changed: the whole list. */
+  | { type: 'squadProposals'; proposals: SquadProposal[] }
+  /** The queue of the squads changed: the whole list. */
+  | { type: 'squadQueues'; queues: SquadQueue[] }
   /** A squad member (subagent) finished; failures carry what went wrong. */
   | { type: 'member:ended'; agentId: string; taskId: string; member: string; status: 'completed' | 'failed' | 'stopped'; summary?: string }
   /** The cost book changed, or a new local day began (then costByCwd starts empty). */
@@ -326,6 +335,18 @@ export interface OfficeAPI {
     note?: string,
     confirmPermissionOverride?: boolean,
   ): Promise<AgentSummary>
+  /** Proposes a squad for an empty room: the model plans the team, nothing is written yet. */
+  proposeSquad(input: { id: string; projectId: string; room: number; brief: string; ticketIds: string[] }): Promise<SquadProposal>
+  /** Asks for a new proposal with the player's changes; the brief and the tickets stay. */
+  adjustSquadProposal(id: string, adjustment: string, name?: string): Promise<SquadProposal>
+  /** Saves the name the player edited in the proposal: it survives the adjustments and the closing of the window. */
+  renameSquadProposal(id: string, name: string): Promise<SquadProposal>
+  /** Throws the proposal away: nothing was created for it. */
+  discardSquadProposal(id: string): Promise<void>
+  /** Approves the proposal: the squad is written and the chosen tickets are given to it. */
+  approveSquadProposal(id: string, name: string): Promise<SquadInfo>
+  /** The queue of a squad: the ticket it works on and the ones waiting. */
+  squadQueue(code: string): Promise<SquadQueue | undefined>
   /** The cost book, cut to the days and folder asked for (all of it when empty). */
   getLedger(query?: LedgerQuery): Promise<Ledger>
   /** Claude Code statistics as last read from disk (no API call). A stale copy starts a background read. */

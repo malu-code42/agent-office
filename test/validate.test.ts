@@ -25,6 +25,10 @@ import {
   permissionDecisionSchema,
   searchSchema,
   subagentLogArgsSchema,
+  squadAdjustmentSchema,
+  squadApprovalSchema,
+  squadProposalRequestSchema,
+  squadRenameSchema,
   ticketDraftSchema,
   ticketPatchSchema,
 } from '../src/main/validate'
@@ -308,7 +312,16 @@ describe('cleanHire', () => {
   })
   it('corta o nome, limpa o cérebro e descarta chaves extras', () => {
     const r = cleanHire({ name: 'x'.repeat(100), cwd: dir, task: 't', model: 'opus', accounts: ['ghost'], evil: true }, s)
-    expect(r).toEqual({ name: 'x'.repeat(40), cwd: dir, task: 't', model: 'opus', accounts: [], engine: 'claude', permissionMode: 'default', worktree: undefined })
+    expect(r).toEqual({
+      name: 'x'.repeat(40),
+      cwd: dir,
+      task: 't',
+      model: 'opus',
+      accounts: [],
+      engine: 'claude',
+      permissionMode: 'default',
+      worktree: undefined,
+    })
     expect(cleanHire({ name: 7, cwd: dir, task: 't' }, s).name).toBe('')
   })
 })
@@ -523,5 +536,44 @@ describe('schemas do IPC', () => {
     expect(assigneeSchema.parse(null)).toBeNull()
     expect(assigneeSchema.parse(undefined)).toBeUndefined()
     expect(assigneeSchema.safeParse('admin').success).toBe(false)
+  })
+})
+
+describe('a proposta de um squad', () => {
+  it('aceita o andar, a sala, o brief e os tickets', () => {
+    const parsed = squadProposalRequestSchema.parse({
+      id: 'proposta-1',
+      projectId: 'p1',
+      room: 2,
+      brief: '  Refazer a busca  ',
+      ticketIds: ['t1'],
+    })
+    expect(parsed.brief).toBe('Refazer a busca')
+    expect(parsed.room).toBe(2)
+    expect(parsed.ticketIds).toEqual(['t1'])
+  })
+  it('recusa uma sala fora do andar e um brief vazio', () => {
+    expect(squadProposalRequestSchema.safeParse({ id: 'proposta-1', projectId: 'p1', room: 3, brief: 'x' }).success).toBe(false)
+    expect(squadProposalRequestSchema.safeParse({ id: 'proposta-1', projectId: 'p1', room: 0, brief: '  ' }).success).toBe(false)
+  })
+  it('recusa um id que não serve para um arquivo', () => {
+    expect(squadProposalRequestSchema.safeParse({ id: '../fora', projectId: 'p1', room: 0, brief: 'x' }).success).toBe(false)
+    expect(squadProposalRequestSchema.safeParse({ id: 'a b', projectId: 'p1', room: 0, brief: 'x' }).success).toBe(false)
+  })
+  it('o ajuste e a aprovação são validados', () => {
+    expect(squadAdjustmentSchema.safeParse({ id: 'proposta-1', adjustment: 'mais um testador' }).success).toBe(true)
+    expect(squadAdjustmentSchema.safeParse({ id: 'proposta-1', adjustment: '  ' }).success).toBe(false)
+    expect(squadApprovalSchema.safeParse({ id: 'proposta-1', name: 'Equipe' }).success).toBe(true)
+    expect(squadApprovalSchema.safeParse({ id: 'proposta-1', name: '' }).success).toBe(false)
+  })
+  it('o ajuste leva o nome editado, e ele nunca é vazio', () => {
+    expect(squadAdjustmentSchema.safeParse({ id: 'proposta-1', adjustment: 'mais um testador', name: 'Equipe' }).success).toBe(true)
+    expect(squadAdjustmentSchema.safeParse({ id: 'proposta-1', adjustment: 'mais um testador', name: '  ' }).success).toBe(false)
+    expect(squadAdjustmentSchema.safeParse({ id: 'proposta-1', adjustment: 'mais um testador' }).success).toBe(true)
+  })
+  it('o nome da proposta é validado', () => {
+    expect(squadRenameSchema.safeParse({ id: 'proposta-1', name: 'Equipe da busca' }).success).toBe(true)
+    expect(squadRenameSchema.safeParse({ id: 'proposta-1', name: '  ' }).success).toBe(false)
+    expect(squadRenameSchema.safeParse({ id: 'proposta-1', name: 'x'.repeat(61) }).success).toBe(false)
   })
 })

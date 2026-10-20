@@ -7,7 +7,7 @@ import { AgentPanel } from './ui/panel'
 import { Dialog } from './ui/dialog'
 import { Hud, type ToastAction } from './ui/hud'
 import { Radio } from './ui/radio'
-import type { DataNotice, ProjectFloor } from '@shared/types'
+import { holdsRoom, type DataNotice, type ProjectFloor } from '@shared/types'
 import { DEFAULT_VIDEO, effectiveVideo, frameInterval } from '@shared/video'
 import { openAccounts } from './ui/accounts'
 import { openSkull } from './ui/skull'
@@ -25,7 +25,7 @@ import { announce, isTyping, mountLiveRegions } from './ui/a11y'
 import { openShortcuts } from './ui/shortcuts'
 import { Tour } from './ui/tour'
 import { autoStart, tourDone } from './ui/tour-plan'
-import { cleanError, confirmDialog, openNewAgent, openNewFloor, openResume, openRunSquad, openSettings } from './ui/modals'
+import { cleanError, confirmDialog, openCreateSquad, openNewAgent, openNewFloor, openResume, openRunSquad, openSettings } from './ui/modals'
 import { osText } from './ui/os-text'
 
 // Errors nobody caught go to the app log (userData/logs), so a broken screen leaves a trace.
@@ -157,17 +157,24 @@ async function boot(): Promise<void> {
   }
 
   /** An orchestrator with its squad, in the squad room of the project's floor. */
-  const hireSquad = (project: ProjectFloor) =>
-    openRunSquad(ui, state, project, toast, (a) => {
-      showAgent(a.id)
-      game.focusAgent(a.id)
-    })
+  const hireSquad = (project: ProjectFloor, code?: string) =>
+    openRunSquad(
+      ui,
+      state,
+      project,
+      toast,
+      (a) => {
+        showAgent(a.id)
+        game.focusAgent(a.id)
+      },
+      code,
+    )
 
   /** A project folder becomes a floor; the player rides up to it. */
   const newFloor = async () => {
     const floor = await openNewFloor(ui, state, toast)
     if (!floor) return
-    game.setProjects(state.settings.projects, state.squads)
+    game.setProjects(state.settings.projects, state.squads, state.squadProposals)
     game.goFloor(state.settings.projects.findIndex((p) => p.id === floor.id) + 1)
     toast(`Andar ${floor.name} pronto. Quem você contratar ou chamar aqui trabalha em ${floor.cwd}.`, 'ok')
   }
@@ -211,12 +218,15 @@ async function boot(): Promise<void> {
     // Something of the project does not fit on its floor: the user has to know.
     // The members with no place in the scene are named, so nobody thinks they are gone.
     onIncompatible: (_project, issues) =>
-      toast(
-        issues
-          .map((i) => `${i.reason}${i.unplaced?.length ? ` Sem lugar na cena: ${i.unplaced.join(', ')}.` : ''}`)
-          .join(' '),
-        'err',
-      ),
+      toast(issues.map((i) => `${i.reason}${i.unplaced?.length ? ` Sem lugar na cena: ${i.unplaced.join(', ')}.` : ''}`).join(' '), 'err'),
+    // A room of a squad: an empty one asks for a proposal, a room with a squad opens it.
+    onRoomClick: (project, room) => {
+      if (room.squad) return hireSquad(project, room.squad)
+      // A proposal waiting in the room (or one whose composition is being redone) is
+      // reopened where it was left, not started over.
+      const waiting = state.squadProposals.find((p) => p.projectId === project.id && p.room === room.index && holdsRoom(p))
+      openCreateSquad(ui, state, { project, room, proposal: waiting, toast })
+    },
   })
 
   /**
@@ -409,7 +419,7 @@ async function boot(): Promise<void> {
   let pixelSize = state.settings.pixelSize
   state.onChange(() => {
     applyVideo()
-    game.setProjects(state.settings.projects, state.squads)
+    game.setProjects(state.settings.projects, state.squads, state.squadProposals)
     hud.render()
     panel.render()
     dialog.sync()

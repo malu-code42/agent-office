@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import type { ProjectFloor, SquadInfo } from '@shared/types'
+import { heldRooms, type ProjectFloor, type SquadInfo, type SquadProposal } from '@shared/types'
 import { brandOf, releaseLogos } from '../world/brand'
 import { disposeTree } from '../world/dispose'
 import * as L from '../world/layout'
@@ -37,29 +37,35 @@ export abstract class GameFloors extends GameBase {
       if (actor.trip !== trip || actor.goal === 'leave') return
       this.ding(from)
       actor.riding = true
-      setTimeout(() => {
-        av.floor = floor
-        av.placeAt(ride.to.x, ride.to.z)
-        av.face(0)
-        this.ding(floor)
-        actor.riding = false
-        if (!this.actors.has(actor.id) || actor.goal === 'leave') return
-        if (actor.trip === trip) then()
-        else {
-          actor.goal = null
-          this.reconcile(actor)
-        }
-      }, RIDE_S * 1000 + 600)
+      setTimeout(
+        () => {
+          av.floor = floor
+          av.placeAt(ride.to.x, ride.to.z)
+          av.face(0)
+          this.ding(floor)
+          actor.riding = false
+          if (!this.actors.has(actor.id) || actor.goal === 'leave') return
+          if (actor.trip === trip) then()
+          else {
+            actor.goal = null
+            this.reconcile(actor)
+          }
+        },
+        RIDE_S * 1000 + 600,
+      )
     })
   }
 
   // ---------- floors ----------
 
   /** Builds the project floors again when the floors or their squads change. */
-  setProjects(projects: ProjectFloor[], squads: SquadInfo[], notify = true): void {
+  setProjects(projects: ProjectFloor[], squads: SquadInfo[], proposals: SquadProposal[] = [], notify = true): void {
     const squadsOf = (p: ProjectFloor) => squads.filter((q) => q.cwd === p.cwd)
-    const plans = projects.map((p) => L.projectPlan(squadsOf(p)))
-    const key = floorsKey(projects, squads, plans)
+    // A room with a proposal waiting keeps it: it is not free for a squad. A proposal
+    // whose composition is being redone holds the room too (the amber outline stays).
+    const proposedOf = (p: ProjectFloor) => heldRooms(p.id, proposals)
+    const plans = projects.map((p) => L.projectPlan(squadsOf(p), proposedOf(p)))
+    const key = floorsKey(projects, squads, plans, this.state.squadQueues)
     if (key === this.uppersKey) return
     this.uppersKey = key
     const playerOn = this.upperOf(this.player.floor)?.project.id
@@ -73,6 +79,7 @@ export abstract class GameFloors extends GameBase {
       if (u.issueTag) this.overlays.remove(u.issueTag)
       this.overlays.remove(u.alarmTag)
       this.overlays.remove(u.moneyTag)
+      if (u.proposalTag) this.overlays.remove(u.proposalTag)
       for (const t of u.stepTags) this.overlays.remove(t)
     })
     this.uppers = projects.map((project, i) => {
@@ -84,7 +91,8 @@ export abstract class GameFloors extends GameBase {
       this.overlays.label('Diretoria', 12.8, 20, n)
       this.overlays.label('Descanso e lazer', 15.5, 7.6, n)
       this.overlays.label('Agentes individuais', (L.AGENT_ROOM_RECT[0] + L.AGENT_ROOM_RECT[2]) / 2, 22.9, n)
-      for (const r of plan.rooms) this.overlays.label(r.name, (r.rect[0] + r.rect[2]) / 2, r.rect[1] + 0.6, n)
+      for (const r of plan.rooms)
+        this.overlays.label(this.roomPlate(r), (r.rect[0] + r.rect[2]) / 2, r.rect[1] + 0.6, n, () => this.hooks.onRoomClick?.(project, r))
       // one "Passo 3/6 · Texto" line over the coordinator's desk of each squad room
       const stepTags = plan.rooms.map((room) => {
         const anchor = new THREE.Object3D()
@@ -104,11 +112,23 @@ export abstract class GameFloors extends GameBase {
         issueTag.el.classList.add('tag-issue')
         issueTag.setDot('error')
       }
+      // A team waiting for the approval: an amber point by the elevator, and the room
+      // itself shows the outline.
+      let proposalTag: Tag | null = null
+      const waiting = plan.rooms.find((r) => r.state === 'proposed')
+      if (waiting) {
+        const anchor = new THREE.Object3D()
+        anchor.position.set(L.UPPER_ELEVATOR.x, 2.5, 0.5)
+        scene.group.add(anchor)
+        proposalTag = this.overlays.add(new Tag(anchor, 'Equipe proposta', false, () => this.hooks.onRoomClick?.(project, waiting)))
+        proposalTag.setDot('waiting')
+      }
       return {
         project,
         scene,
         stepTags,
         issueTag,
+        proposalTag,
         alarmTag: this.alarmTagFor(scene.alarm),
         moneyTag: this.moneyTagFor(scene.money),
       }
@@ -152,6 +172,17 @@ export abstract class GameFloors extends GameBase {
     // The notice of the floor: what does not fit, and who has no place in the scene.
     this.refreshIssues()
     if (notify) this.hooks.onFloor(this.player.floor)
+  }
+
+  /**
+   * The plate of a room: the name of the squad and the ticket it works on (or
+   * "Disponível"), what the room is waiting for, or the name of an empty room.
+   */
+  protected roomPlate(room: L.SquadRoom): string {
+    if (room.state !== 'live') return L.roomLabel(room)
+    const queue = this.state.squadQueues.find((q) => q.code === room.squad)
+    const ticket = queue?.active ? this.state.tickets.get(queue.active) : undefined
+    return `${room.name} · ${ticket ? ticket.key : 'Disponível'}`
   }
 
   /**
@@ -243,6 +274,7 @@ export abstract class GameFloors extends GameBase {
       const here = view === i + 1
       u.scene.group.visible = here
       if (u.issueTag) u.issueTag.hidden = !here
+      if (u.proposalTag) u.proposalTag.hidden = !here
       const seated = here ? this.orchestratorsOn(i + 1) : null
       u.stepTags.forEach((t, room) => (t.hidden = !seated?.has(room)))
     })
