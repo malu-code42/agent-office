@@ -354,7 +354,7 @@ export class Hud {
       h(
         'div',
         { class: 'roster-side' },
-        pending ? h('span', { class: 'badge' }, String(pending)) : h('span', { class: 'roster-cost' }, formatCost(a.costUsd)),
+        pending ? h('span', { class: 'badge' }, String(pending)) : h('span', { class: 'roster-cost' }, a.costUnknown ? 's/ preço' : formatCost(a.costUsd)),
         h('button', {
           class: 'icon-btn',
           title: 'Ver no mapa',

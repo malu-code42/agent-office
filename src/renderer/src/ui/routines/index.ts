@@ -61,7 +61,11 @@ const MAC_CHIP: Record<ReturnType<typeof macJobState>, [string, string]> = {
 function macChip(j: MacJob): HTMLElement {
   const st = macJobState(j)
   const [cls, text] = MAC_CHIP[st]
-  return h('span', { class: `chip ${cls}`, title: j.lastExit !== null ? `Código de saída da última vez: ${j.lastExit}` : '' }, st === 'fail' ? `${text} (código ${j.lastExit})` : text)
+  return h(
+    'span',
+    { class: `chip ${cls}`, title: j.lastExit !== null ? `Código de saída da última vez: ${j.lastExit}` : '' },
+    st === 'fail' ? `${text} (código ${j.lastExit})` : text,
+  )
 }
 
 /** "Próxima: hoje, 13:00 (em 2h14)"; interval jobs only know it from the log. */
@@ -76,10 +80,17 @@ function whoText(state: State, r: Routine): string {
   const who = r.who
   const agentId = who.kind === 'agent' ? who.agentId : r.agentId
   const a = agentId ? state.agents.get(agentId) : undefined
-  const where = r.floor ? `andar ${state.settings.projects.find((p) => p.id === r.floor)?.name ?? '(removido)'}` : r.cwd ? `…/${r.cwd.split(/[\\/]/).filter(Boolean).slice(-2).join('/')}` : ''
+  const where = r.floor
+    ? `andar ${state.settings.projects.find((p) => p.id === r.floor)?.name ?? '(removido)'}`
+    : r.cwd
+      ? `…/${r.cwd.split(/[\\/]/).filter(Boolean).slice(-2).join('/')}`
+      : ''
   const mode = MODES.find((m) => m.value === r.permissionMode)?.label ?? ''
   if (who.kind === 'agent') return a ? `${a.name}, na conversa atual dele` : 'Um agente que saiu do escritório'
-  const base = who.kind === 'template' ? `Modelo ${state.settings.templates.find((t) => t.id === who.templateId)?.name ?? '(apagado)'}` : 'Agente próprio'
+  const base =
+    who.kind === 'template'
+      ? `Modelo ${state.settings.templates.find((t) => t.id === who.templateId)?.name ?? '(apagado)'}`
+      : 'Agente próprio'
   return `${base}${a ? ` (${a.name})` : ''} em ${where} · ${mode}`
 }
 
@@ -114,11 +125,14 @@ export function openRoutines(root: HTMLElement, state: State, hooks: RoutinesHoo
     act(async () => {
       const after = await window.office.runRoutineNow(r.id)
       const run = after.history[0]
-      if (run?.status === 'failed' || run?.status === 'skipped') hooks.toast(`${r.name}: ${run.error ?? RUN_STATUS_LABEL[run.status]}`, 'err')
+      if (run?.status === 'failed' || run?.status === 'skipped')
+        hooks.toast(`${r.name}: ${run.error ?? RUN_STATUS_LABEL[run.status]}`, 'err')
       else hooks.toast(`${r.name} começou a rodar. O resultado vem até a sua sala.`, 'ok')
     })
-  const toggle = (r: Routine) => act(() => window.office.setRoutineEnabled(r.id, !r.enabled), r.enabled ? `${r.name} pausada.` : `${r.name} retomada.`)
-  const duplicate = (r: Routine) => act(() => window.office.duplicateRoutine(r.id), `Cópia de ${r.name} criada, pausada. Edite e ative quando quiser.`)
+  const toggle = (r: Routine) =>
+    act(() => window.office.setRoutineEnabled(r.id, !r.enabled), r.enabled ? `${r.name} pausada.` : `${r.name} retomada.`)
+  const duplicate = (r: Routine) =>
+    act(() => window.office.duplicateRoutine(r.id), `Cópia de ${r.name} criada, pausada. Edite e ative quando quiser.`)
   const remove = async (r: Routine) => {
     const yes = await confirmDialog(root, {
       title: `Apagar ${r.name}?`,
@@ -142,8 +156,23 @@ export function openRoutines(root: HTMLElement, state: State, hooks: RoutinesHoo
   const openMacLog = (j: MacJob) => act(() => window.office.openMacJobLog(j.label))
   const macActions = (j: MacJob, labels: boolean): HTMLElement[] => {
     const btn = (label: string, ic: string, fn: () => void, disabled = false) =>
-      h('button', { class: 'btn btn-small', type: 'button', title: label, 'aria-label': `${label}: ${j.name}`, disabled, onclick: (e: Event) => (e.stopPropagation(), fn()) }, icon(ic, 14), labels ? label : null)
-    return [btn('Rodar agora', 'send', () => void runMac(j), !j.loaded || j.running), btn('Abrir log', 'file', () => void openMacLog(j), !j.log)]
+      h(
+        'button',
+        {
+          class: 'btn btn-small',
+          type: 'button',
+          title: label,
+          'aria-label': `${label}: ${j.name}`,
+          disabled,
+          onclick: (e: Event) => (e.stopPropagation(), fn()),
+        },
+        icon(ic, 14),
+        labels ? label : null,
+      )
+    return [
+      btn('Rodar agora', 'send', () => void runMac(j), !j.loaded || j.running),
+      btn('Abrir log', 'file', () => void openMacLog(j), !j.log),
+    ]
   }
   const macSection = (): HTMLElement | null => {
     if (!state.macJobs.length) return null
@@ -155,7 +184,12 @@ export function openRoutines(root: HTMLElement, state: State, hooks: RoutinesHoo
         { class: `rt-item${j.loaded ? '' : ' rt-paused'}`, 'data-focus-key': `mac:${j.label}` },
         h(
           'button',
-          { class: 'rt-item-main', type: 'button', 'data-focus-key': `open-mac:${j.label}`, onclick: () => show({ kind: 'mac', label: j.label }) },
+          {
+            class: 'rt-item-main',
+            type: 'button',
+            'data-focus-key': `open-mac:${j.label}`,
+            onclick: () => show({ kind: 'mac', label: j.label }),
+          },
           h('span', { class: `rt-led rt-led-${led}`, 'aria-hidden': 'true' }),
           h(
             'span',
@@ -174,8 +208,17 @@ export function openRoutines(root: HTMLElement, state: State, hooks: RoutinesHoo
     return h(
       'section',
       { class: 'rt-mac', 'aria-label': 'Agendadas no Mac' },
-      h('div', { class: 'rt-section-head' }, h('span', { class: 'field-label' }, 'Agendadas no Mac'), h('span', { class: 'chip chip-muted' }, 'launchd')),
-      h('div', { class: 'field-hint' }, 'O macOS roda estas sozinho, mesmo com o app fechado. Aqui você acompanha e roda na hora; para mudar o horário, edite o plist em ~/Library/LaunchAgents.'),
+      h(
+        'div',
+        { class: 'rt-section-head' },
+        h('span', { class: 'field-label' }, 'Agendadas no Mac'),
+        h('span', { class: 'chip chip-muted' }, 'launchd'),
+      ),
+      h(
+        'div',
+        { class: 'field-hint' },
+        'O macOS roda estas sozinho, mesmo com o app fechado. Aqui você acompanha e roda na hora; para mudar o horário, edite o plist em ~/Library/LaunchAgents.',
+      ),
       list,
     )
   }
@@ -197,7 +240,12 @@ export function openRoutines(root: HTMLElement, state: State, hooks: RoutinesHoo
         h('div', { class: 'rt-sentence' }, describeMacJob(j)),
         h('div', { class: 'rt-item-next', 'data-mac-next': j.label }, macNextText(j)),
         upcoming.length ? h('div', { class: 'field-hint' }, `Próximas: ${upcoming.map((t) => formatWhen(t)).join(' · ')}`) : null,
-        h('div', { class: 'rt-run-head' }, macChip(j), j.lastLogAt ? h('span', { class: 'rt-run-when' }, `log escrito ${formatWhen(j.lastLogAt)}`) : null),
+        h(
+          'div',
+          { class: 'rt-run-head' },
+          macChip(j),
+          j.lastLogAt ? h('span', { class: 'rt-run-when' }, `log escrito ${formatWhen(j.lastLogAt)}`) : null,
+        ),
         h('div', { class: 'field-label' }, 'Comando'),
         h('div', { class: 'rt-prompt rt-mono' }, j.command || '(sem comando no plist)'),
         h('div', { class: 'field-hint' }, `${j.label}${j.log ? ` · log em ${j.log}` : ''}`),
@@ -218,7 +266,18 @@ export function openRoutines(root: HTMLElement, state: State, hooks: RoutinesHoo
 
   const actions = (r: Routine, labels: boolean, withEdit = true): HTMLElement[] => {
     const btn = (label: string, ic: string, fn: () => void, extra = '') =>
-      h('button', { class: `btn btn-small ${extra}`, type: 'button', title: label, 'aria-label': `${label}: ${r.name}`, onclick: (e: Event) => (e.stopPropagation(), fn()) }, icon(ic, 14), labels ? label : null)
+      h(
+        'button',
+        {
+          class: `btn btn-small ${extra}`,
+          type: 'button',
+          title: label,
+          'aria-label': `${label}: ${r.name}`,
+          onclick: (e: Event) => (e.stopPropagation(), fn()),
+        },
+        icon(ic, 14),
+        labels ? label : null,
+      )
     return [
       btn('Rodar agora', 'send', () => void runNow(r)),
       btn(r.enabled ? 'Pausar' : 'Retomar', r.enabled ? 'stop' : 'reset', () => void toggle(r)),
@@ -231,17 +290,33 @@ export function openRoutines(root: HTMLElement, state: State, hooks: RoutinesHoo
   // ---------- list ----------
   const listView = () => {
     title.textContent = 'Rotinas'
-    const routines = [...state.routines].sort((a, b) => (a.enabled === b.enabled ? (a.nextAt ?? Infinity) - (b.nextAt ?? Infinity) : a.enabled ? -1 : 1))
+    const routines = [...state.routines].sort((a, b) =>
+      a.enabled === b.enabled ? (a.nextAt ?? Infinity) - (b.nextAt ?? Infinity) : a.enabled ? -1 : 1,
+    )
     const add = h('button', { class: 'btn btn-primary', type: 'button' }, icon('plus', 15), 'Nova rotina')
     add.addEventListener('click', () => edit())
     if (!routines.length) {
       content.replaceChildren(
-        h('div', { class: 'rt-empty' }, h('div', { class: 'rt-empty-title' }, 'Nenhuma rotina ainda'), h('div', { class: 'field-hint' }, 'Uma rotina entrega uma tarefa a um agente num horário: todo dia, em certos dias da semana ou a cada tantas horas. Comece por um exemplo:')),
+        h(
+          'div',
+          { class: 'rt-empty' },
+          h('div', { class: 'rt-empty-title' }, 'Nenhuma rotina ainda'),
+          h(
+            'div',
+            { class: 'field-hint' },
+            'Uma rotina entrega uma tarefa a um agente num horário: todo dia, em certos dias da semana ou a cada tantas horas. Comece por um exemplo:',
+          ),
+        ),
         h(
           'div',
           { class: 'rt-examples' },
           ...EXAMPLES.map((x) =>
-            h('button', { class: 'rt-example', type: 'button', onclick: () => edit(x.draft as Partial<Routine>) }, h('span', { class: 'rt-example-title' }, x.title), h('span', { class: 'rt-example-hint' }, x.hint)),
+            h(
+              'button',
+              { class: 'rt-example', type: 'button', onclick: () => edit(x.draft as Partial<Routine>) },
+              h('span', { class: 'rt-example-title' }, x.title),
+              h('span', { class: 'rt-example-hint' }, x.hint),
+            ),
           ),
         ),
         macSection() ?? '',
@@ -253,7 +328,16 @@ export function openRoutines(root: HTMLElement, state: State, hooks: RoutinesHoo
       const last = r.history[0]
       const finished = lastFinished(r)
       const cost = finished?.costUsd
-      const led = last?.status === 'waiting' ? 'wait' : last?.status === 'running' ? 'run' : finished?.status === 'failed' ? 'fail' : finished ? 'ok' : 'none'
+      const led =
+        last?.status === 'waiting'
+          ? 'wait'
+          : last?.status === 'running'
+            ? 'run'
+            : finished?.status === 'failed'
+              ? 'fail'
+              : finished
+                ? 'ok'
+                : 'none'
       return h(
         'div',
         { class: `rt-item${r.enabled ? '' : ' rt-paused'}`, 'data-focus-key': r.id },
@@ -289,12 +373,36 @@ export function openRoutines(root: HTMLElement, state: State, hooks: RoutinesHoo
       const agentHere = run.agentId ? state.agents.get(run.agentId) : undefined
       const links: HTMLElement[] = []
       if (run.resultId && run.agentId && state.results.has(run.resultId)) {
-        links.push(h('button', { class: 'rt-link', type: 'button', onclick: () => (close(), hooks.openResult(run.agentId!, run.resultId!)) }, 'Ver resultado'))
+        links.push(
+          h(
+            'button',
+            { class: 'rt-link', type: 'button', onclick: () => (close(), hooks.openResult(run.agentId!, run.resultId!)) },
+            'Ver resultado',
+          ),
+        )
       } else if (run.resultId && agentHere) {
         // already read: the result stays in the agent's conversation
-        links.push(h('button', { class: 'rt-link', type: 'button', title: 'O resultado já foi lido; ele está na conversa do agente.', onclick: () => (close(), hooks.openAgent(agentHere.id)) }, 'Ver resultado na conversa'))
+        links.push(
+          h(
+            'button',
+            {
+              class: 'rt-link',
+              type: 'button',
+              title: 'O resultado já foi lido; ele está na conversa do agente.',
+              onclick: () => (close(), hooks.openAgent(agentHere.id)),
+            },
+            'Ver resultado na conversa',
+          ),
+        )
       }
-      if (agentHere) links.push(h('button', { class: 'rt-link', type: 'button', onclick: () => (close(), hooks.openAgent(agentHere.id)) }, `Ver ${agentHere.name}`))
+      if (agentHere)
+        links.push(
+          h(
+            'button',
+            { class: 'rt-link', type: 'button', onclick: () => (close(), hooks.openAgent(agentHere.id)) },
+            `Ver ${agentHere.name}`,
+          ),
+        )
       else if (run.agentName) links.push(h('span', { class: 'field-hint' }, `${run.agentName} saiu do escritório`))
       const when = run.scheduledFor ?? run.startedAt
       return h(
@@ -320,14 +428,25 @@ export function openRoutines(root: HTMLElement, state: State, hooks: RoutinesHoo
         h('div', { class: 'rt-sentence' }, describeSchedule(r.schedule)),
         h('div', { class: 'rt-item-next', 'data-next': r.id }, nextText(r)),
         upcoming.length ? h('div', { class: 'field-hint' }, `Próximas: ${upcoming.map((t) => formatWhen(t)).join(' · ')}`) : null,
-        h('div', { class: 'field-hint' }, whoText(state, r), ' · ', r.missed === 'run' ? 'Se o app estiver fechado, roda ao abrir.' : 'Se o app estiver fechado, pula.'),
+        h(
+          'div',
+          { class: 'field-hint' },
+          whoText(state, r),
+          ' · ',
+          r.missed === 'run' ? 'Se o app estiver fechado, roda ao abrir.' : 'Se o app estiver fechado, pula.',
+        ),
         h('div', { class: 'rt-prompt' }, r.prompt || '(só a instrução do modelo)'),
         h('div', { class: 'rt-item-actions' }, ...actions(r, true, false)),
         h('div', { class: 'field-label' }, 'Histórico (últimas 20)'),
-        r.history.length ? h('ul', { class: 'rt-history' }, ...r.history.map(runRow)) : h('div', { class: 'field-hint' }, 'Ainda não rodou.'),
+        r.history.length
+          ? h('ul', { class: 'rt-history' }, ...r.history.map(runRow))
+          : h('div', { class: 'field-hint' }, 'Ainda não rodou.'),
       ),
     )
-    foot.replaceChildren(h('button', { class: 'btn', onclick: () => show({ kind: 'list' }) }, 'Voltar'), h('button', { class: 'btn btn-primary', onclick: () => edit(r) }, icon('edit', 15), 'Editar'))
+    foot.replaceChildren(
+      h('button', { class: 'btn', onclick: () => show({ kind: 'list' }) }, 'Voltar'),
+      h('button', { class: 'btn btn-primary', onclick: () => edit(r) }, icon('edit', 15), 'Editar'),
+    )
   }
 
   // ---------- the form ----------
@@ -340,20 +459,16 @@ export function openRoutines(root: HTMLElement, state: State, hooks: RoutinesHoo
       toast: hooks.toast,
       onCancel: back,
       onSaved: (r) => {
-        hooks.toast(initial?.id ? `${r.name} salva.` : `${r.name} criada. ${r.enabled && r.nextAt ? `Próxima: ${formatWhen(r.nextAt)}.` : ''}`, 'ok')
+        hooks.toast(
+          initial?.id ? `${r.name} salva.` : `${r.name} criada. ${r.enabled && r.nextAt ? `Próxima: ${formatWhen(r.nextAt)}.` : ''}`,
+          'ok',
+        )
         // the routines event may come a moment later: show the saved copy right away
-        state.routines = state.routines.some((x) => x.id === r.id) ? state.routines.map((x) => (x.id === r.id ? r : x)) : [...state.routines, r]
+        state.routines = state.routines.some((x) => x.id === r.id)
+          ? state.routines.map((x) => (x.id === r.id ? r : x))
+          : [...state.routines, r]
         show({ kind: 'detail', id: r.id })
       },
-      confirmBypass: () =>
-        confirmDialog(root, {
-          title: 'Rodar sem pedir nada?',
-          text: 'No modo "Sem pedir nada" o agente da rotina roda qualquer comando sozinho, no horário, sem você por perto. Use só em pastas descartáveis.',
-          warn: 'Perigoso: nada passa por você antes de acontecer.',
-          confirm: 'Salvar assim mesmo',
-          cancel: 'Voltar',
-          danger: true,
-        }),
     })
     content.replaceChildren(form.body)
     foot.replaceChildren(...form.foot)
@@ -389,11 +504,14 @@ export function openRoutines(root: HTMLElement, state: State, hooks: RoutinesHoo
     }
   }, 1000)
   // the minute's read may be up to 60 s old: read the Mac's jobs again on opening
-  void window.office.listMacJobs().then((jobs) => {
-    if (stopped) return
-    state.macJobs = jobs
-    if (view.kind === 'list') keepFocus(content, () => show(view))
-  }, () => undefined)
+  void window.office.listMacJobs().then(
+    (jobs) => {
+      if (stopped) return
+      state.macJobs = jobs
+      if (view.kind === 'list') keepFocus(content, () => show(view))
+    },
+    () => undefined,
+  )
 
   show({ kind: 'list' })
   root.append(el)

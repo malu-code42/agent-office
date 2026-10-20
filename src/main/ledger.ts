@@ -90,18 +90,21 @@ export class CostBook extends EventEmitter {
   today(): LedgerToday {
     const day = localDay()
     const costByCwd: Record<string, number> = {}
+    const costUnknownByCwd: Record<string, boolean> = {}
     const agents: LedgerToday['agents'] = {}
     for (const [cwd, days] of Object.entries(this.book.days)) {
       const d = days[day]
-      if (!d?.costUsd) continue
+      if (!d || (!(d.costUsd > 0) && !d.costUnknown)) continue
       costByCwd[cwd] = d.costUsd
+      if (d.costUnknown) costUnknownByCwd[cwd] = true
       for (const [id, a] of Object.entries(d.agents)) {
-        if (!(a.costUsd > 0)) continue
+        if (!(a.costUsd > 0) && !a.costUnknown) continue
         const who = (agents[id] ??= { name: this.book.agents[id]?.name ?? 'Agente', cwd, usd: 0 })
         who.usd += a.costUsd
+        if (a.costUnknown) who.costUnknown = true
       }
     }
-    return { day, costByCwd, agents }
+    return { day, costByCwd, agents, ...(Object.keys(costUnknownByCwd).length ? { costUnknownByCwd } : {}) }
   }
 
   /**
@@ -193,6 +196,38 @@ export class CostBook extends EventEmitter {
     this.store.save()
     this.emit('today', this.today())
     return cost
+  }
+
+  /** Books a completed OpenCode turn without assuming an unreported price is zero. */
+  recordOpenCode(agent: AgentSummary, sessionId: string, model: string, inputTokens: number, outputTokens: number, costUsd?: number, at = Date.now()): number {
+    const cost = typeof costUsd === 'number' && Number.isFinite(costUsd) ? Math.max(0, costUsd) : undefined
+    const day = this.dayFor(agent.cwd, localDay(at))
+    const ag = (day.agents[agent.id] ??= { ...zeroTotals(), models: {}, accounts: {} })
+    const provider = (day.accounts.opencode ??= zeroTotals())
+    ag.accounts.opencode ??= 0
+    if (cost !== undefined) {
+      day.costUsd += cost
+      ag.costUsd += cost
+      provider.costUsd += cost
+      ag.accounts.opencode = (ag.accounts.opencode ?? 0) + cost
+      day.models[model] ??= zeroModel()
+      ag.models[model] = (ag.models[model] ?? 0) + cost
+      day.models[model].costUsd += cost
+    } else {
+      day.costUnknown = true
+      ag.costUnknown = true
+      provider.costUnknown = true
+      day.models[model] ??= zeroModel()
+      day.models[model].costUnknown = true
+    }
+    day.models[model] ??= zeroModel()
+    ag.models[model] ??= 0
+    day.models[model].inputTokens += Math.max(0, inputTokens)
+    day.models[model].outputTokens += Math.max(0, outputTokens)
+    this.remember(agent, at)
+    this.store.save()
+    this.emit('today', this.today())
+    return cost ?? 0
   }
 
   /** A run started on an account, or moved to another one mid-session. */

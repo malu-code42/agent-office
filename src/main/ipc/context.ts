@@ -1,4 +1,5 @@
 import type { BrowserWindow } from 'electron'
+import { dialog } from 'electron'
 import type { Actor, AgentBrain, OfficeEvent, SquadInfo } from '@shared/types'
 import type { Accounts } from '../accounts'
 import type { AgentManager } from '../agents'
@@ -49,3 +50,19 @@ export interface IpcContext {
 
 export const id = (raw: unknown) => parse(idSchema, raw, 'ID inválido.')
 export const ticketId = (raw: unknown) => parse(idSchema, raw, 'Esse ticket não existe mais.')
+
+/** Confirmation happens in the main process; renderer-provided booleans are not trusted. */
+export async function confirmPermissionOverride(win: BrowserWindow | null, detail: string, dangerous = false): Promise<boolean> {
+  if (!win) return false
+  const result = await dialog.showMessageBox(win, {
+    type: 'warning',
+    buttons: ['Confirmar modo', 'Cancelar'],
+    defaultId: 1,
+    cancelId: 1,
+    message: dangerous
+      ? 'PERIGOSO: “Sem pedir nada” deixa o agente executar qualquer ação sem perguntar.'
+      : 'Este modo de permissões é mais permissivo que o padrão do projeto.',
+    detail,
+  })
+  return result.response === 0
+}

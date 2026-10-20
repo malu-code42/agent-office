@@ -82,6 +82,8 @@ export interface AgentResult {
   text: string
   isError: boolean
   costUsd: number
+  /** Cost cannot be priced reliably by the provider. */
+  costUnknown?: boolean
   durationMs: number
   turns: number
   createdAt: number

@@ -284,6 +284,13 @@ export function sanitizeImportedOffice(office: unknown, home = homedir()): unkno
     })
   }
   if (settings.defaultPermissionMode === 'bypassPermissions') settings.defaultPermissionMode = 'default'
+  if (Array.isArray(settings.projects)) {
+    settings.projects = settings.projects.map((project) => {
+      if (!project || typeof project !== 'object') return project
+      const floor = project as Record<string, unknown>
+      return floor.permissionMode === 'bypassPermissions' ? { ...floor, permissionMode: 'default' } : floor
+    })
+  }
   return { ...o, settings }
 }
 

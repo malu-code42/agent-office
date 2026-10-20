@@ -8,6 +8,8 @@ export interface SquadMember {
   title: string
   /** subagent = called with the Agent tool; inline = the orchestrator plays the part in its own conversation. */
   execution: 'subagent' | 'inline'
+  /** The independent delivery responsibility assigned in squad.yaml or member frontmatter. */
+  role?: 'implementer' | 'reviewer'
   /** Sector on the project floor: `setor:` in squad.yaml, or "Equipe". */
   sector: string
 }
@@ -28,6 +30,12 @@ export interface SquadInfo {
   cwd: string
   members: SquadMember[]
   steps: SquadStep[]
+  /** Missing means available for older persisted renderer snapshots. */
+  availability?: 'available' | 'unavailable'
+  /** Validation reason shown to the user; never includes member prompts. */
+  unavailableReason?: string
+  /** Canonical file the user can inspect or restore manually. */
+  recoveryPath?: string
 }
 
 export interface SquadProgress {

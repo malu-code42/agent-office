@@ -2,7 +2,18 @@ import { randomUUID } from 'node:crypto'
 import { isPast, nextRun, runsBetween } from '@shared/schedule'
 import { renderInstruction } from '@shared/templates'
 import { ROUTINE_LIMITS } from '@shared/types'
-import type { AgentResult, AgentSummary, EffortLevel, HireRequest, OfficeEvent, OfficePermissionMode, PermissionRequest, Routine, RoutineRun, Settings } from '@shared/types'
+import type {
+  AgentResult,
+  AgentSummary,
+  EffortLevel,
+  HireRequest,
+  OfficeEvent,
+  OfficePermissionMode,
+  PermissionRequest,
+  Routine,
+  RoutineRun,
+  Settings,
+} from '@shared/types'
 import { isDir } from '../squads'
 import type { CleanRoutineDraft } from '../validate'
 import type { RoutineStore } from './store'
@@ -29,7 +40,7 @@ export interface RoutineHost {
 export interface SchedulerDeps {
   store: RoutineStore
   manager: RoutineHost
-  settings(): Pick<Settings, 'projects' | 'templates'>
+  settings(): Pick<Settings, 'projects' | 'templates' | 'defaultPermissionMode'>
   /** The list changed: send it to the renderer. */
   broadcast(routines: Routine[]): void
   /** System notification for a run that failed before an agent could answer. */
@@ -148,10 +159,15 @@ export class RoutineScheduler {
     const old = d.id ? this.get(d.id) : undefined
     const scheduleChanged = !old || JSON.stringify(old.schedule) !== JSON.stringify(d.schedule)
     if (scheduleChanged && d.enabled && isPast(d.schedule, now)) throw new Error('Esse horário já passou. Escolha uma data no futuro.')
-    if (!old && this.list().length >= ROUTINE_LIMITS.count) throw new Error(`Limite de ${ROUTINE_LIMITS.count} rotinas atingido. Apague alguma antes.`)
+    if (!old && this.list().length >= ROUTINE_LIMITS.count)
+      throw new Error(`Limite de ${ROUTINE_LIMITS.count} rotinas atingido. Apague alguma antes.`)
     // An interval keeps its old start unless its length changed.
     const schedule =
-      old && d.schedule.kind === 'interval' && old.schedule.kind === 'interval' && old.schedule.every === d.schedule.every && old.schedule.unit === d.schedule.unit
+      old &&
+      d.schedule.kind === 'interval' &&
+      old.schedule.kind === 'interval' &&
+      old.schedule.every === d.schedule.every &&
+      old.schedule.unit === d.schedule.unit
         ? { ...d.schedule, anchor: old.schedule.anchor }
         : d.schedule
     const r: Routine = {
@@ -201,7 +217,8 @@ export class RoutineScheduler {
   /** A paused copy with no history: two copies of a routine never start running together by surprise. */
   duplicate(id: string): Routine {
     const r = this.must(id)
-    if (this.list().length >= ROUTINE_LIMITS.count) throw new Error(`Limite de ${ROUTINE_LIMITS.count} rotinas atingido. Apague alguma antes.`)
+    if (this.list().length >= ROUTINE_LIMITS.count)
+      throw new Error(`Limite de ${ROUTINE_LIMITS.count} rotinas atingido. Apague alguma antes.`)
     const now = this.now()
     const copy: Routine = {
       ...structuredClone(r),
@@ -268,8 +285,11 @@ export class RoutineScheduler {
     if (r.who.kind === 'agent') {
       const a = m.agent(r.who.agentId)
       if (!a) throw new Error('O agente desta rotina não está mais no escritório. Edite a rotina e escolha outro.')
-      if (a.source !== 'office' || a.role === 'orchestrator') throw new Error(`${a.name} não recebe tarefas de rotinas. Edite a rotina e escolha outro agente.`)
+      if (a.source !== 'office' || a.role === 'orchestrator')
+        throw new Error(`${a.name} não recebe tarefas de rotinas. Edite a rotina e escolha outro agente.`)
       if (m.isBusy(a.id)) throw new Skip(`${a.name} estava ocupado com outra tarefa.`)
+      // A routine attached to an existing agent follows that agent's current mode; it
+      // must never mutate the agent's persistent permission mode for a scheduled task.
       this.send(active, a, `${header}\n\n${r.prompt}`)
       return
     }
@@ -281,7 +301,9 @@ export class RoutineScheduler {
     const who = r.who
     const template = who.kind === 'template' ? settings.templates.find((t) => t.id === who.templateId) : undefined
     if (who.kind === 'template' && !template) throw new Error('O modelo salvo desta rotina foi apagado. Edite a rotina e escolha outro.')
-    const task = [template?.instruction ? renderInstruction(template.instruction, { folder: cwd }) : '', r.prompt].filter(Boolean).join('\n\n')
+    const task = [template?.instruction ? renderInstruction(template.instruction, { folder: cwd }) : '', r.prompt]
+      .filter(Boolean)
+      .join('\n\n')
     const text = `${header}\n\n${task}`
     const brain = who.kind === 'new' ? { model: who.model, effort: who.effort } : { model: template?.model, effort: template?.effort }
 
@@ -295,7 +317,14 @@ export class RoutineScheduler {
       return
     }
     const base = who.kind === 'new' ? who.name || '' : (template?.name ?? '')
-    const a = await m.hire({ name: this.freeName(base), cwd, task: text, ...brain, permissionMode: r.permissionMode, ...(template?.look ? { look: template.look } : {}) })
+    const a = await m.hire({
+      name: this.freeName(base),
+      cwd,
+      task: text,
+      ...brain,
+      permissionMode: r.permissionMode,
+      ...(template?.look ? { look: template.look } : {}),
+    })
     r.agentId = a.id
     this.d.store.save()
     active.run.agentId = a.id
@@ -332,6 +361,12 @@ export class RoutineScheduler {
       if (a && a.run.status === 'running') {
         a.run.status = 'waiting'
         this.changed()
+        const routine = this.get(a.routineId)
+        if (routine)
+          this.d.notify(`Rotina ${routine.name} aguardando permissão`, 'Abra o Agent Office para aprovar ou negar a ação.', {
+            agentId: e.request.agentId,
+            itemId: e.request.id,
+          })
       }
     } else if (e.type === 'permission:resolved') {
       const a = this.byAgent(e.agentId)

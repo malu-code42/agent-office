@@ -1,5 +1,5 @@
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
-import { isAbsolute, join, sep } from 'node:path'
+import { basename, isAbsolute, join, sep } from 'node:path'
 import type { AgentDefinition, HookCallbackMatcher } from '@anthropic-ai/claude-agent-sdk'
 import { parse } from 'yaml'
 import type { SquadInfo, SquadMember, SquadProgress, SquadStep } from '@shared/types'
@@ -42,6 +42,65 @@ export function loadSquads(cwd: string): SquadDefinition[] {
   return out
 }
 
+/** User-facing catalogue: broken or missing definitions remain visible, but are never runnable. */
+export function inspectSquads(cwd: string): SquadInfo[] {
+  const root = join(cwd, 'squads')
+  let dirs: string[]
+  try {
+    dirs = readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory() && SAFE_NAME.test(d.name)).map((d) => d.name).sort()
+  } catch {
+    return []
+  }
+  return dirs.map((code) => {
+    const recoveryPath = join(root, code, 'squad.yaml')
+    try {
+      const squad = loadSquad(cwd, join(root, code))
+      validateSquad(squad)
+      return { ...squadInfo(squad), availability: 'available' }
+    } catch (err) {
+      return {
+        code,
+        name: code,
+        icon: '⚠️',
+        description: '',
+        cwd,
+        members: [],
+        steps: [],
+        availability: 'unavailable',
+        unavailableReason: err instanceof Error ? err.message : String(err),
+        recoveryPath,
+      }
+    }
+  })
+}
+
+/** Fail closed before execution; catalog inspection uses the same rule for its status. */
+export function validateSquad(s: SquadDefinition): void {
+  if (!SAFE_NAME.test(s.code)) throw new Error(`código inválido: ${s.code}`)
+  const roles = new Map<string, string>()
+  for (const m of s.members) {
+    if (m.role) {
+      if (roles.has(m.role)) throw new Error(`mais de um membro está definido como ${m.role}`)
+      roles.set(m.role, m.id)
+    }
+  }
+  const implementer = roles.get('implementer')
+  const reviewer = roles.get('reviewer')
+  if (!implementer || !reviewer || implementer === reviewer)
+    throw new Error('defina membros independentes com os papéis implementer e reviewer; o orquestrador é o coordenador')
+  const executableSteps = s.steps.filter((step) => step.type === 'agent')
+  if (!executableSteps.length) throw new Error('pipeline sem passos de agente válidos')
+  for (const step of s.steps) {
+    if (step.type === 'agent' && step.agent && !s.members.some((m) => m.id === step.agent))
+      throw new Error(`passo ${step.name} não aponta para um membro definido`)
+  }
+  if (!executableSteps.some((step) => step.agent === implementer)) throw new Error('pipeline não executa o implementer')
+  if (!executableSteps.some((step) => step.agent === reviewer)) throw new Error('pipeline não executa o reviewer')
+  const implementAt = executableSteps.findIndex((step) => step.agent === implementer)
+  const reviewAt = executableSteps.findIndex((step) => step.agent === reviewer)
+  if (reviewAt < implementAt) throw new Error('o passo do reviewer deve vir depois do implementer')
+}
+
 export function findSquad(cwd: string, code: string): SquadDefinition | undefined {
   return typeof code === 'string' && SAFE_NAME.test(code) ? loadSquads(cwd).find((s) => s.code === code) : undefined
 }
@@ -60,8 +119,12 @@ function loadSquad(cwd: string, dir: string): SquadDefinition {
   if (!yaml) throw new Error('squad.yaml points outside the squad folder')
   const y = (parse(readSmall(yaml)) ?? {}) as Record<string, unknown>
   // The code builds paths (state.json, the watcher) and goes into the orchestrator prompt: keep it plain.
-  const folder = dir.split(/[\\/]/).pop()!
-  const code = SAFE_NAME.test(str(y.code)) ? str(y.code) : folder
+  const folder = basename(dir)
+  const hasDeclaredCode = Object.hasOwn(y, 'code')
+  const declaredCode = hasDeclaredCode ? (typeof y.code === 'string' ? y.code : '') : folder
+  if (hasDeclaredCode && !SAFE_NAME.test(declaredCode)) throw new Error(`código inválido: ${declaredCode || '(vazio)'}`)
+  if (declaredCode !== folder) throw new Error(`o código ${declaredCode} não corresponde à pasta canônica ${folder}`)
+  const code = folder
   const members: SquadMember[] = []
   const prompts: Record<string, string> = {}
   for (const raw of Array.isArray(y.agents) ? y.agents : []) {
@@ -77,6 +140,9 @@ function loadSquad(cwd: string, dir: string): SquadDefinition {
       icon: str(a.icon) || str(meta.icon) || '•',
       title: str(meta.title),
       execution: str(meta.execution) === 'inline' ? 'inline' : 'subagent',
+      role: (str(a.role) || str(meta.role)) === 'implementer' || (str(a.role) || str(meta.role)) === 'reviewer'
+        ? ((str(a.role) || str(meta.role)) as 'implementer' | 'reviewer')
+        : undefined,
       sector: str(a.setor) || DEFAULT_SECTOR,
     })
     prompts[id] = body.trim() || `Você é ${str(a.name) || id}, membro do squad ${str(y.name) || code}.`
@@ -115,8 +181,8 @@ export function memberAgents(s: SquadDefinition): Record<string, AgentDefinition
   for (const m of s.members) {
     if (m.execution !== 'subagent') continue
     out[m.id] = {
-      description: `${m.icon} ${m.name}${m.title ? `, ${m.title}` : ''}. Membro do squad ${s.name}.`,
-      prompt: s.prompts[m.id],
+      description: `${m.icon} ${m.name}${m.title ? `, ${m.title}` : ''}${m.role ? ` (${m.role})` : ''}. Membro do squad ${s.name}.`,
+      prompt: `${s.prompts[m.id]}${m.role === 'implementer' ? '\n\nVocê é o implementador independente do squad; implemente a tarefa atribuída e registre decisões técnicas.' : m.role === 'reviewer' ? '\n\nVocê é o revisor independente do squad; revise criticamente o trabalho entregue e reporte problemas sem assumir a implementação.' : ''}`,
       // Members do their own step; only the orchestrator hands out work.
       disallowedTools: [...SPAWN_TOOLS],
     }

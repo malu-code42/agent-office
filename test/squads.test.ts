@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { findSquad, isDir, loadSquads, memberAgents, orchestratorPrompt, outsideTeam, readProgress, squadDir, squadInfo, teamGuard } from '../src/main/squads'
+import { findSquad, inspectSquads, isDir, loadSquads, memberAgents, orchestratorPrompt, outsideTeam, readProgress, squadDir, squadInfo, teamGuard } from '../src/main/squads'
 
 // Creating symlinks needs special rights on Windows (the CI runners lack them).
 const itWithSymlinks = it.skipIf(process.platform === 'win32')
@@ -32,7 +32,9 @@ function goodSquad() {
       '  - id: pm',
       '    name: Paula',
       '    setor: Produto',
+      '    role: implementer',
       '  - id: dev',
+      '    role: reviewer',
       '  - id: pm',
       '  - id: "a b"',
       'pipeline:',
@@ -41,7 +43,7 @@ function goodSquad() {
   )
   put('squads/produto/agents/pm.agent.md', '---\ntitle: Gerente\nicon: 📋\n---\nVocê é a PM.')
   put('squads/produto/agents/dev.agent.md', '---\nexecution: inline\n: : quebrado\n---\nDev inline.')
-  put('squads/produto/pipeline/pipeline.yaml', 'steps:\n  - id: spec\n    name: Spec\n    agent: pm\n  - type: checkpoint\n  - {}\n')
+  put('squads/produto/pipeline/pipeline.yaml', 'steps:\n  - id: spec\n    name: Spec\n    agent: pm\n  - id: review\n    name: Review\n    agent: dev\n  - type: checkpoint\n  - {}\n')
 }
 
 describe('loadSquads', () => {
@@ -50,14 +52,15 @@ describe('loadSquads', () => {
     const [s] = loadSquads(cwd)
     expect(s).toMatchObject({ code: 'produto', name: 'Ciclo de Produto', icon: '🚀', description: 'Faz produto', cwd })
     expect(s.members).toEqual([
-      { id: 'pm', name: 'Paula', icon: '📋', title: 'Gerente', execution: 'subagent', sector: 'Produto' },
-      { id: 'dev', name: 'dev', icon: '•', title: '', execution: 'subagent', sector: 'Equipe' },
+      { id: 'pm', name: 'Paula', icon: '📋', title: 'Gerente', execution: 'subagent', role: 'implementer', sector: 'Produto' },
+      { id: 'dev', name: 'dev', icon: '•', title: '', execution: 'subagent', role: 'reviewer', sector: 'Equipe' },
     ])
     expect(s.prompts.pm).toBe('Você é a PM.')
     expect(s.steps).toEqual([
       { id: 'spec', name: 'Spec', type: 'agent', agent: 'pm' },
-      { id: 'step-2', name: 'Passo 2', type: 'checkpoint', agent: undefined },
-      { id: 'step-3', name: 'Passo 3', type: 'agent', agent: undefined },
+      { id: 'review', name: 'Review', type: 'agent', agent: 'dev' },
+      { id: 'step-3', name: 'Passo 3', type: 'checkpoint', agent: undefined },
+      { id: 'step-4', name: 'Passo 4', type: 'agent', agent: undefined },
     ])
     expect(squadInfo(s)).not.toHaveProperty('prompts')
     expect(squadDir(s)).toBe(join(cwd, 'squads', 'produto'))
@@ -71,6 +74,63 @@ describe('loadSquads', () => {
     expect(spy).toHaveBeenCalled()
     spy.mockRestore()
   })
+
+  it('valida papéis independentes e mantém definições ausentes/corrompidas visíveis para recuperação', () => {
+    goodSquad()
+    put('squads/quebrado/squad.yaml', 'agents: [')
+    put('squads/sem-papel/squad.yaml', 'code: sem-papel\nname: Squad\nagents:\n  - id: dev\n    role: implementer\npipeline:\n  entry: pipeline/pipeline.yaml')
+    put('squads/sem-papel/pipeline/pipeline.yaml', 'steps:\n  - id: build\n    agent: dev')
+
+    const entries = inspectSquads(cwd)
+    expect(entries.find((x) => x.code === 'produto')).toMatchObject({ availability: 'available' })
+    expect(entries.find((x) => x.code === 'produto')?.members).toEqual([
+      expect.objectContaining({ id: 'pm', role: 'implementer' }),
+      expect.objectContaining({ id: 'dev', role: 'reviewer' }),
+    ])
+    expect(entries.find((x) => x.code === 'quebrado')).toMatchObject({
+      availability: 'unavailable',
+      recoveryPath: join(cwd, 'squads', 'quebrado', 'squad.yaml'),
+    })
+    expect(entries.find((x) => x.code === 'sem-papel')).toMatchObject({ availability: 'unavailable' })
+    expect(entries.filter((x) => x.availability !== 'unavailable').map((x) => x.code)).toEqual(['produto'])
+  })
+
+  it('recusa code do YAML que não corresponde à pasta canônica', () => {
+    goodSquad()
+    put(
+      'squads/produto/squad.yaml',
+      'code: outro\nname: Outro\nagents:\n  - id: dev\n    role: implementer\n  - id: reviewer\n    role: reviewer\npipeline:\n  entry: pipeline/pipeline.yaml',
+    )
+    put('squads/produto/pipeline/pipeline.yaml', 'steps:\n  - id: implement\n    agent: dev\n  - id: review\n    agent: reviewer')
+    const entry = inspectSquads(cwd).find((x) => x.code === 'produto')
+    expect(entry).toMatchObject({ availability: 'unavailable', recoveryPath: join(cwd, 'squads', 'produto', 'squad.yaml') })
+    expect(entry?.unavailableReason).toContain('produto')
+    expect(findSquad(cwd, 'outro')).toBeUndefined()
+  })
+
+  it('usa a pasta como code somente quando o campo code está ausente', () => {
+    put(
+      'squads/sem-code/squad.yaml',
+      'name: Squad\nagents:\n  - id: dev\n    role: implementer\n  - id: reviewer\n    role: reviewer\npipeline:\n  entry: pipeline/pipeline.yaml',
+    )
+    put('squads/sem-code/pipeline/pipeline.yaml', 'steps:\n  - id: implement\n    agent: dev\n  - id: review\n    agent: reviewer')
+    expect(findSquad(cwd, 'sem-code')?.code).toBe('sem-code')
+  })
+
+  it('checkpoint não conta como execução dos papéis implementer e reviewer', () => {
+    put(
+      'squads/checkpoint-role/squad.yaml',
+      'code: checkpoint-role\nname: Squad\nagents:\n  - id: dev\n    role: implementer\n  - id: reviewer\n    role: reviewer\npipeline:\n  entry: pipeline/pipeline.yaml',
+    )
+    put(
+      'squads/checkpoint-role/pipeline/pipeline.yaml',
+      'steps:\n  - id: implement\n    type: checkpoint\n    agent: dev\n  - id: review\n    type: checkpoint\n    agent: reviewer',
+    )
+    expect(inspectSquads(cwd).find((x) => x.code === 'checkpoint-role')).toMatchObject({
+      availability: 'unavailable',
+      unavailableReason: expect.stringContaining('pipeline'),
+    })
+  })
 })
 
 describe('squad.yaml com path traversal falha de forma segura', () => {
@@ -78,7 +138,7 @@ describe('squad.yaml com path traversal falha de forma segura', () => {
     put(
       'squads/hostil/squad.yaml',
       [
-        'code: ../../../etc',
+        'code: hostil',
         'agents:',
         '  - id: ladrao',
         '    file: ../../segredo.md',
@@ -91,10 +151,13 @@ describe('squad.yaml com path traversal falha de forma segura', () => {
     )
   })
 
-  it('code inválido vira o nome da pasta, e o caminho não sai de squads/', () => {
-    const [s] = loadSquads(cwd)
-    expect(s.code).toBe('hostil')
-    expect(squadDir(s)).toBe(join(cwd, 'squads', 'hostil'))
+  it('code declarado inválido deixa o squad indisponível, sem caminho alternativo', () => {
+    put('squads/hostil/squad.yaml', 'code: ../outro\nagents: []')
+    expect(findSquad(cwd, 'hostil')).toBeUndefined()
+    expect(inspectSquads(cwd).find((x) => x.code === 'hostil')).toMatchObject({
+      availability: 'unavailable',
+      recoveryPath: join(cwd, 'squads', 'hostil', 'squad.yaml'),
+    })
   })
 
   it('arquivo de membro fora da pasta do squad não é lido', () => {
@@ -163,9 +226,8 @@ describe('squad.yaml com path traversal falha de forma segura', () => {
 
   it.each(['../hostil', 'a/../hostil', '..\\hostil', 'a\\b', '.oculto', 'a\0b'])('code e id inválidos: %j (AO-41)', (bad) => {
     put('squads/v/squad.yaml', `code: ${JSON.stringify(bad)}\nagents:\n  - id: ${JSON.stringify(bad)}\n  - id: ok`)
-    const s = findSquad(cwd, 'v')!
-    expect(s.code).toBe('v')
-    expect(s.members.map((m) => m.id)).toEqual(['ok'])
+    expect(findSquad(cwd, 'v')).toBeUndefined()
+    expect(inspectSquads(cwd).find((s) => s.code === 'v')).toMatchObject({ availability: 'unavailable' })
     expect(findSquad(cwd, bad)).toBeUndefined()
   })
 
@@ -191,6 +253,7 @@ describe('equipe fechada', () => {
     expect(Object.keys(agents)).toEqual(['pm'])
     expect(agents.pm.disallowedTools).toEqual(['Agent', 'Task'])
     expect(agents.pm.description).toContain('Paula, Gerente')
+    expect(agents.pm.prompt).toContain('implementador independente')
   })
 
   it('outsideTeam bloqueia quem não é da equipe e membros inline', () => {
@@ -231,7 +294,7 @@ describe('readProgress', () => {
     const s = squadInfo(findSquad(cwd, 'produto')!)
     expect(readProgress(s)).toBeUndefined()
     put('squads/produto/state.json', JSON.stringify({ step: { current: 1 } }))
-    expect(readProgress(s)).toEqual({ current: 1, total: 3, label: 'Spec', status: 'running', type: 'agent', agent: 'pm' })
+    expect(readProgress(s)).toEqual({ current: 1, total: 4, label: 'Spec', status: 'running', type: 'agent', agent: 'pm' })
     put('squads/produto/state.json', JSON.stringify({ status: 'completed', step: { current: 9, total: 4, label: 'spec' } }))
     expect(readProgress(s)).toMatchObject({ current: 9, total: 4, label: 'Spec', status: 'completed' })
     put('squads/produto/state.json', JSON.stringify({ step: { label: 'Livre' } }))

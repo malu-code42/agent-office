@@ -20,16 +20,18 @@ export abstract class AgentOffice extends AgentBase {
    */
   async hire(req: HireRequest, display?: string): Promise<AgentSummary> {
     const id = randomUUID()
+    const engine = req.engine ?? this.store.settings.defaultEngine
     const name = req.name.trim() || this.freeName()
     const { worktree, note } = await this.isolate(req.cwd, name, id, req.worktree)
     const summary: AgentSummary = {
       id,
       name,
       source: 'office',
+      engine,
       cwd: req.cwd,
       model: req.model || undefined,
       effort: req.effort || undefined,
-      accounts: req.accounts?.length ? req.accounts : undefined,
+      accounts: engine === 'claude' && req.accounts?.length ? req.accounts : undefined,
       permissionMode: req.permissionMode,
       status: 'starting',
       activity: 'Chegando ao escritório',
@@ -37,7 +39,7 @@ export abstract class AgentOffice extends AgentBase {
       look: req.look ?? lookFromSeed(req.name + id),
       costUsd: 0,
       createdAt: Date.now(),
-      sessionId: randomUUID(),
+      sessionId: officeSessionId(engine),
       ...(worktree ? { worktree } : {}),
     }
     const agent: Agent = { summary, log: [], started: false }
@@ -92,11 +94,16 @@ export abstract class AgentOffice extends AgentBase {
   }
 
   /** A new agent with no task yet, like typing `claude` in a folder: it waits for your first message. */
-  async summon(cwd: string, defaults: AgentBrain & { permissionMode: OfficePermissionMode }, wantWorktree?: boolean): Promise<AgentSummary> {
-    const sessionId = randomUUID()
+  async summon(
+    cwd: string,
+    defaults: AgentBrain & { permissionMode: OfficePermissionMode },
+    wantWorktree?: boolean,
+    engine: 'claude' | 'opencode' = this.store.settings.defaultEngine,
+  ): Promise<AgentSummary> {
+    const sessionId = officeSessionId(engine)
     const name = this.freeName(basename(cwd) || 'Agente')
     const { worktree, note } = await this.isolate(cwd, name, sessionId, wantWorktree)
-    const summary = this.idleAgent(sessionId, cwd, [], false, 'Esperando a primeira instrução', defaults, worktree, name)
+    const summary = this.idleAgent(sessionId, cwd, [], false, 'Esperando a primeira instrução', defaults, worktree, name, engine)
     const agent = this.agents.get(summary.id)
     if (agent && note) this.addLog(agent, 'system', note)
     return summary
@@ -119,6 +126,7 @@ export abstract class AgentOffice extends AgentBase {
       id,
       name: squad.name,
       source: 'office',
+      engine: 'claude',
       cwd: squad.cwd,
       model: defaults.model || undefined,
       effort: defaults.effort || undefined,
@@ -248,12 +256,14 @@ export abstract class AgentOffice extends AgentBase {
     defaults: AgentBrain & { permissionMode: OfficePermissionMode },
     worktree?: WorktreeInfo,
     name?: string,
+    engine: 'claude' | 'opencode' = 'claude',
   ): AgentSummary {
     const id = randomUUID()
     const summary: AgentSummary = {
       id,
       name: name ?? this.freeName(basename(cwd) || 'Agente'),
       source: 'office',
+      engine,
       cwd,
       model: defaults.model || undefined,
       effort: defaults.effort || undefined,
@@ -286,6 +296,10 @@ export abstract class AgentOffice extends AgentBase {
     if (agent.input && (agent.query || agent.awaitingSnapshot)) {
       agent.input.push(content)
       this.setStatus(agent, 'working', 'Lendo suas instruções')
+    } else if (agent.opencodeAbort) {
+      agent.opencodeQueue ??= []
+      agent.opencodeQueue.push(text)
+      this.setStatus(agent, 'working', 'Sua próxima instrução está na fila')
     } else {
       this.run(agent, content)
     }
@@ -309,6 +323,7 @@ export abstract class AgentOffice extends AgentBase {
     this.cancelAgentRequests(id)
     this.dropResults(id)
     agent.input?.close()
+    agent.opencodeAbort?.abort()
     agent.query?.close()
     agent.input = undefined
     agent.query = undefined
@@ -333,8 +348,17 @@ export abstract class AgentOffice extends AgentBase {
 
   async interrupt(id: string): Promise<void> {
     const agent = this.agents.get(id)
-    if (!agent?.query) return
+    if (!agent) return
     this.cancelAgentRequests(id)
+    if (agent.opencodeAbort) {
+      const sessionId = agent.summary.sessionId
+      agent.opencodeAbort.abort()
+      if (sessionId) await this.interruptOpenCode(sessionId).catch(() => undefined)
+      agent.opencodeQueue = []
+      this.addLog(agent, 'system', 'Interrompido por você.')
+      return
+    }
+    if (!agent.query) return
     await agent.query.interrupt().catch(() => undefined)
     this.addLog(agent, 'system', 'Interrompido por você.')
   }
@@ -345,6 +369,7 @@ export abstract class AgentOffice extends AgentBase {
     this.cancelAgentRequests(id)
     this.dropResults(id)
     agent.input?.close()
+    agent.opencodeAbort?.abort()
     agent.query?.close()
     agent.watcher?.close()
     agent.subFlush?.cancel()
@@ -358,9 +383,17 @@ export abstract class AgentOffice extends AgentBase {
   shutdown(): void {
     for (const a of this.agents.values()) {
       a.input?.close()
+      a.opencodeAbort?.abort()
       a.query?.close()
       a.watcher?.close()
     }
     this.persist()
   }
+
+  protected abstract interruptOpenCode(sessionID: string): Promise<void>
+}
+
+function officeSessionId(engine: 'claude' | 'opencode'): string {
+  const id = randomUUID()
+  return engine === 'opencode' ? `ses_${id.replace(/-/g, '')}` : id
 }
