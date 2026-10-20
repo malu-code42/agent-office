@@ -1,10 +1,11 @@
 import { labelOf, PRIORITIES, STATUSES, ticketBrief, TYPES } from '@shared/tickets'
+import { projectFor } from '@shared/projects'
 import type { AgentSummary, OfficePermissionMode, Ticket, TicketPatch, TicketPriority, TicketType } from '@shared/types'
 import { h, icon, timeAgo } from '../dom'
 import { STATUS_LABEL } from '../hud'
 import { renderMarkdown } from '../markdown'
-import { brainFields, cleanError, field, LAST_CWD, worktreeToggle } from '../modals'
-import { DELEGATE_MODES, isBusy, select } from './helpers'
+import { brainFields, cleanError, field, LAST_CWD, MODES, worktreeToggle } from '../modals'
+import { isBusy, select } from './helpers'
 import { BoardColumns } from './columns'
 
 /** The detail drawer: edit, assign, delegate, criteria, comments and activity. */
@@ -35,7 +36,9 @@ export abstract class BoardDetail extends BoardColumns {
       else title.value = t.title
     })
 
-    const status = select(STATUSES, t.status, (v) => window.office.moveTicket(t.id, v).catch((err) => this.actions.toast(cleanError(err), 'err')))
+    const status = select(STATUSES, t.status, (v) =>
+      window.office.moveTicket(t.id, v).catch((err) => this.actions.toast(cleanError(err), 'err')),
+    )
     const type = select(TYPES, t.type, (v: TicketType) => set({ type: v }))
     const prio = select(PRIORITIES, t.priority, (v: TicketPriority) => set({ priority: v }))
 
@@ -53,13 +56,18 @@ export abstract class BoardDetail extends BoardColumns {
       'div',
       { class: 'path-row' },
       h('span', { class: 'path-label', title: t.cwd ?? '' }, t.cwd ?? 'Sem pasta: o agente não sabe onde trabalhar'),
-      h('button', {
-        class: 'btn btn-small',
-        onclick: async () => {
-          const p = await window.office.pickFolder(t.cwd ?? localStorage.getItem(LAST_CWD) ?? undefined)
-          if (p) set({ cwd: p })
+      h(
+        'button',
+        {
+          class: 'btn btn-small',
+          onclick: async () => {
+            const p = await window.office.pickFolder(t.cwd ?? localStorage.getItem(LAST_CWD) ?? undefined)
+            if (p) set({ cwd: p })
+          },
         },
-      }, icon('folder', 14), 'Escolher'),
+        icon('folder', 14),
+        'Escolher',
+      ),
     )
 
     const body = h(
@@ -79,7 +87,10 @@ export abstract class BoardDetail extends BoardColumns {
       field('Pasta do projeto', folder),
       this.assignSection(t),
       this.section('Contexto', this.descriptionView(t, set)),
-      this.section(`Critérios de aceite${t.acceptance.length ? ` · ${t.acceptance.filter((c) => c.done).length}/${t.acceptance.length}` : ''}`, this.criteriaView(t, set)),
+      this.section(
+        `Critérios de aceite${t.acceptance.length ? ` · ${t.acceptance.filter((c) => c.done).length}/${t.acceptance.length}` : ''}`,
+        this.criteriaView(t, set),
+      ),
       this.briefView(t),
       this.section(`Comentários${t.comments.length ? ` · ${t.comments.length}` : ''}`, this.commentsView(t)),
       this.activityView(t),
@@ -97,14 +108,18 @@ export abstract class BoardDetail extends BoardColumns {
         h('span', { class: 'tkey tkey-lg' }, t.key),
         h('span', { class: `ttype ttype-${t.type}` }, labelOf(TYPES, t.type)),
         h('span', { class: 'grow' }),
-        h('button', {
-          class: 'icon-btn',
-          title: 'Copiar a chave',
-          onclick: () => {
-            navigator.clipboard.writeText(t.key)
-            this.actions.toast(`${t.key} copiado.`, 'ok')
+        h(
+          'button',
+          {
+            class: 'icon-btn',
+            title: 'Copiar a chave',
+            onclick: () => {
+              navigator.clipboard.writeText(t.key)
+              this.actions.toast(`${t.key} copiado.`, 'ok')
+            },
           },
-        }, icon('copy', 15)),
+          icon('copy', 15),
+        ),
         h('button', { class: 'icon-btn', title: 'Fechar', onclick: () => this.select(null) }, icon('x', 18)),
       ),
       body,
@@ -131,7 +146,12 @@ export abstract class BoardDetail extends BoardColumns {
           h(
             'div',
             { class: 'tassignee-main' },
-            h('div', { class: 'tassignee-name' }, t.assignee.name, t.assignee.kind === 'agent' ? h('span', { class: 'chip' }, 'agente') : null),
+            h(
+              'div',
+              { class: 'tassignee-name' },
+              t.assignee.name,
+              t.assignee.kind === 'agent' ? h('span', { class: 'chip' }, 'agente') : null,
+            ),
             h(
               'div',
               { class: 'tassignee-sub' },
@@ -143,13 +163,18 @@ export abstract class BoardDetail extends BoardColumns {
             ),
           ),
           agent
-            ? h('button', {
-                class: 'btn btn-small',
-                onclick: () => {
-                  this.close()
-                  this.actions.openAgent(agent.id)
+            ? h(
+                'button',
+                {
+                  class: 'btn btn-small',
+                  onclick: () => {
+                    this.close()
+                    this.actions.openAgent(agent.id)
+                  },
                 },
-              }, icon('eye', 14), 'Ver conversa')
+                icon('eye', 14),
+                'Ver conversa',
+              )
             : null,
           h('button', { class: 'icon-btn', title: 'Tirar o responsável', onclick: () => this.unassign(t) }, icon('x', 15)),
         ),
@@ -157,7 +182,12 @@ export abstract class BoardDetail extends BoardColumns {
     }
 
     if (t.status === 'review') {
-      const ask = h('button', { class: 'btn btn-small' }, icon('message', 14), agent && !busy ? 'Pedir ajustes ao agente' : 'Devolver para A fazer')
+      const ask = h(
+        'button',
+        { class: 'btn btn-small' },
+        icon('message', 14),
+        agent && !busy ? 'Pedir ajustes ao agente' : 'Devolver para A fazer',
+      )
       ask.addEventListener('click', () => this.requestChanges(t, agent))
       rows.push(
         h(
@@ -167,7 +197,12 @@ export abstract class BoardDetail extends BoardColumns {
           h(
             'div',
             { class: 'treview-actions' },
-            h('button', { class: 'btn btn-small btn-primary', onclick: () => window.office.moveTicket(t.id, 'done') }, icon('check', 14), 'Aprovar'),
+            h(
+              'button',
+              { class: 'btn btn-small btn-primary', onclick: () => window.office.moveTicket(t.id, 'done') },
+              icon('check', 14),
+              'Aprovar',
+            ),
             ask,
           ),
           h('div', { class: 'field-hint' }, 'Para pedir ajustes, escreva o que mudar no campo de comentário abaixo e clique no botão.'),
@@ -183,7 +218,11 @@ export abstract class BoardDetail extends BoardColumns {
           'div',
           { class: 'treview' },
           h('div', { class: 'treview-text' }, this.autoCloseText(t)),
-          h('div', { class: 'treview-actions' }, h('button', { class: 'btn btn-small', onclick: () => void this.closeOne(t) }, icon('archive', 14), 'Fechar agora')),
+          h(
+            'div',
+            { class: 'treview-actions' },
+            h('button', { class: 'btn btn-small', onclick: () => void this.closeOne(t) }, icon('archive', 14), 'Fechar agora'),
+          ),
         ),
       )
     }
@@ -191,7 +230,9 @@ export abstract class BoardDetail extends BoardColumns {
   }
 
   protected delegateControls(t: Ticket, current: AgentSummary | undefined): HTMLElement {
-    const free = [...this.state.agents.values()].filter((a) => a.source === 'office' && a.permissionMode !== 'bypassPermissions' && !isBusy(a) && (!t.cwd || a.cwd === t.cwd))
+    const free = [...this.state.agents.values()].filter(
+      (a) => a.source === 'office' && a.permissionMode !== 'bypassPermissions' && !isBusy(a) && (!t.cwd || a.cwd === t.cwd),
+    )
     const who = h(
       'select',
       { class: 'input' },
@@ -199,8 +240,10 @@ export abstract class BoardDetail extends BoardColumns {
       ...free.map((a) => h('option', { value: a.id }, `${a.name} · ${STATUS_LABEL[a.status].toLowerCase()}`)),
     )
     if (current && free.includes(current)) who.value = current.id
-    const mode = h('select', { class: 'input' }, ...DELEGATE_MODES.map((m) => h('option', { value: m.value }, m.label)))
-    mode.value = DELEGATE_MODES.some((m) => m.value === this.state.settings.defaultPermissionMode) ? this.state.settings.defaultPermissionMode : 'default'
+    const mode = h('select', { class: 'input' }, ...MODES.map((m) => h('option', { value: m.value }, m.label)))
+    const inheritedMode =
+      (t.cwd ? projectFor(this.state.settings.projects, t.cwd)?.permissionMode : undefined) ?? this.state.settings.defaultPermissionMode
+    mode.value = inheritedMode
     const brain = brainFields({ model: this.state.settings.defaultModel, effort: this.state.settings.defaultEffort }, true)
     brain.model.title = 'Modelo do agente novo'
     const brainRow = h('div', { class: 'tdelegate-row' }, brain.model)
@@ -218,9 +261,24 @@ export abstract class BoardDetail extends BoardColumns {
     const go = h('button', { class: 'btn btn-primary btn-small' }, icon('walk', 14), 'Delegar')
     go.addEventListener('click', async () => {
       if (!t.cwd && !who.value) return this.actions.toast('Escolha a pasta do projeto antes de contratar um agente para o ticket.', 'err')
+      if (mode.value === 'bypassPermissions') return this.actions.toast('Tickets nunca podem rodar no modo "Sem pedir nada".', 'err')
+      const modeOrder: OfficePermissionMode[] = ['plan', 'default', 'acceptEdits', 'auto', 'bypassPermissions']
+      const confirmPermissionOverride = modeOrder.indexOf(mode.value as OfficePermissionMode) > modeOrder.indexOf(inheritedMode)
       go.setAttribute('disabled', '')
       try {
-        const a = await window.office.delegateTicket(t.id, who.value ? { agentId: who.value } : { hire: { ...brain.value(), permissionMode: mode.value as OfficePermissionMode, worktree: isolated.value() } })
+        const a = await window.office.delegateTicket(
+          t.id,
+          who.value
+            ? { agentId: who.value }
+            : {
+                hire: {
+                  ...brain.value(),
+                  permissionMode: mode.value as OfficePermissionMode,
+                  confirmPermissionOverride,
+                  worktree: isolated.value(),
+                },
+              },
+        )
         this.actions.toast(who.value ? `${a.name} pegou o ${t.key}.` : `${a.name} foi contratado para o ${t.key} e está subindo.`, 'ok')
       } catch (err) {
         this.actions.toast(cleanError(err), 'err')
@@ -230,11 +288,15 @@ export abstract class BoardDetail extends BoardColumns {
     const mine = t.assignee?.kind === 'player' && t.assignee.name === this.state.settings.playerName
     const take = mine
       ? null
-      : h('button', {
-          class: 'btn btn-small',
-          title: 'Você mesmo vai fazer este ticket',
-          onclick: () => window.office.assignTicket(t.id, 'me').catch((err) => this.actions.toast(cleanError(err), 'err')),
-        }, 'Eu pego')
+      : h(
+          'button',
+          {
+            class: 'btn btn-small',
+            title: 'Você mesmo vai fazer este ticket',
+            onclick: () => window.office.assignTicket(t.id, 'me').catch((err) => this.actions.toast(cleanError(err), 'err')),
+          },
+          'Eu pego',
+        )
     return h(
       'div',
       { class: 'tdelegate' },
@@ -242,7 +304,11 @@ export abstract class BoardDetail extends BoardColumns {
       brainRow,
       brainHint,
       isolated.el,
-      h('div', { class: 'field-hint' }, 'O agente recebe o ticket completo (veja "O que o agente lê"), o ticket vai para Fazendo e, quando ele termina, o relatório chega aqui e o ticket vai para Revisão.'),
+      h(
+        'div',
+        { class: 'field-hint' },
+        'O agente recebe o ticket completo (veja "O que o agente lê"), o ticket vai para Fazendo e, quando ele termina, o relatório chega aqui e o ticket vai para Revisão.',
+      ),
     )
   }
 
@@ -269,7 +335,11 @@ export abstract class BoardDetail extends BoardColumns {
 
   protected descriptionView(t: Ticket, set: (p: TicketPatch) => void): HTMLElement {
     if (this.descDraft !== null) {
-      const area = h('textarea', { class: 'input tdesc-edit', rows: 10, placeholder: 'Contexto, arquivos relevantes, passos para reproduzir, trechos de erro. Markdown funciona.' })
+      const area = h('textarea', {
+        class: 'input tdesc-edit',
+        rows: 10,
+        placeholder: 'Contexto, arquivos relevantes, passos para reproduzir, trechos de erro. Markdown funciona.',
+      })
       area.value = this.descDraft
       area.addEventListener('input', () => (this.descDraft = area.value))
       setTimeout(() => area.focus())
@@ -280,21 +350,29 @@ export abstract class BoardDetail extends BoardColumns {
         h(
           'div',
           { class: 'tdesc-actions' },
-          h('button', {
-            class: 'btn btn-small',
-            onclick: () => {
-              this.descDraft = null
-              this.renderDetail()
+          h(
+            'button',
+            {
+              class: 'btn btn-small',
+              onclick: () => {
+                this.descDraft = null
+                this.renderDetail()
+              },
             },
-          }, 'Cancelar'),
-          h('button', {
-            class: 'btn btn-small btn-primary',
-            onclick: () => {
-              set({ description: area.value })
-              this.descDraft = null
-              this.renderDetail()
+            'Cancelar',
+          ),
+          h(
+            'button',
+            {
+              class: 'btn btn-small btn-primary',
+              onclick: () => {
+                set({ description: area.value })
+                this.descDraft = null
+                this.renderDetail()
+              },
             },
-          }, 'Salvar'),
+            'Salvar',
+          ),
         ),
       )
     }
@@ -305,7 +383,9 @@ export abstract class BoardDetail extends BoardColumns {
     return h(
       'div',
       { class: 'tdesc' },
-      t.description.trim() ? renderMarkdown(t.description) : h('div', { class: 'field-hint' }, 'Sem contexto. O agente vai ter que descobrir sozinho o que você quer.'),
+      t.description.trim()
+        ? renderMarkdown(t.description)
+        : h('div', { class: 'field-hint' }, 'Sem contexto. O agente vai ter que descobrir sozinho o que você quer.'),
       h('button', { class: 'btn btn-small tdesc-btn', onclick: edit }, icon('edit', 13), t.description.trim() ? 'Editar' : 'Escrever'),
     )
   }
@@ -320,14 +400,18 @@ export abstract class BoardDetail extends BoardColumns {
         { class: 'tcrit' + (c.done ? ' done' : '') },
         box,
         h('span', { class: 'tcrit-text' }, c.text),
-        h('button', {
-          class: 'icon-btn tcrit-del',
-          title: 'Remover',
-          onclick: (e: Event) => {
-            e.preventDefault()
-            set({ acceptance: t.acceptance.filter((_, j) => j !== i) })
+        h(
+          'button',
+          {
+            class: 'icon-btn tcrit-del',
+            title: 'Remover',
+            onclick: (e: Event) => {
+              e.preventDefault()
+              set({ acceptance: t.acceptance.filter((_, j) => j !== i) })
+            },
           },
-        }, icon('x', 13)),
+          icon('x', 13),
+        ),
       )
     })
     const add = h('input', { class: 'input', placeholder: 'Novo critério verificável, Enter para adicionar' }) as HTMLInputElement
@@ -345,15 +429,24 @@ export abstract class BoardDetail extends BoardColumns {
       'details',
       { class: 'tbrief' },
       h('summary', {}, icon('bot', 14), 'O que o agente lê'),
-      h('div', { class: 'field-hint' }, 'É isto que o agente recebe ao pegar o ticket. Se algo importante falta aqui, falta para ele também.'),
+      h(
+        'div',
+        { class: 'field-hint' },
+        'É isto que o agente recebe ao pegar o ticket. Se algo importante falta aqui, falta para ele também.',
+      ),
       h('pre', { class: 'code' }, brief),
-      h('button', {
-        class: 'btn btn-small',
-        onclick: () => {
-          navigator.clipboard.writeText(brief)
-          this.actions.toast('Brief copiado. Cole em qualquer sessão do Claude Code.', 'ok')
+      h(
+        'button',
+        {
+          class: 'btn btn-small',
+          onclick: () => {
+            navigator.clipboard.writeText(brief)
+            this.actions.toast('Brief copiado. Cole em qualquer sessão do Claude Code.', 'ok')
+          },
         },
-      }, icon('copy', 13), 'Copiar'),
+        icon('copy', 13),
+        'Copiar',
+      ),
     )
     d.open = this.briefOpen
     d.addEventListener('toggle', () => (this.briefOpen = d.open))
@@ -397,7 +490,12 @@ export abstract class BoardDetail extends BoardColumns {
         'div',
         { class: 'tcomment-new' },
         this.commentBox,
-        h('button', { class: 'btn btn-small', title: 'Comentar (⌘/Ctrl + Enter)', onclick: () => void send() }, icon('send', 13), 'Comentar'),
+        h(
+          'button',
+          { class: 'btn btn-small', title: 'Comentar (⌘/Ctrl + Enter)', onclick: () => void send() },
+          icon('send', 13),
+          'Comentar',
+        ),
       ),
     )
   }

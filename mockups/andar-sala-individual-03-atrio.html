@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Protótipo 3 · Andar de projeto: átrio central de individuais</title>
+<style>
+:root {
+  --bg: #1c1d2e;
+  --card: rgba(24, 25, 40, 0.92);
+  --card-solid: #1a1b2b;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.14);
+  --text: #eceaf6;
+  --muted: #b3b1cb;
+  --dim: #9a98b4;
+  --accent: #d97757;
+  --accent-hi: #e8896a;
+  --accent-solid: #b4583a;
+  --accent-solid-hi: #a84f33;
+  --green: #3ecf8e;
+  --amber: #f5a524;
+  --blue: #5b9cf0;
+  --red: #ef5b5b;
+  --amber-text: #ffd38a;
+  --green-text: #8ff0c4;
+  --red-text: #ffb0b0;
+  --board-amber: #ffb347;
+  --radius: 14px;
+  --shadow: 0 10px 40px rgba(5, 5, 15, 0.45), 0 2px 8px rgba(5, 5, 15, 0.3);
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 13px/1.45 var(--font); -webkit-font-smoothing: antialiased; }
+svg.i { width: 14px; height: 14px; flex: none; stroke: currentColor; fill: none;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+header.top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 10px;
+  padding: 12px 18px; background: rgba(19, 20, 32, .92); backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line); }
+header.top h1 { font-size: 14px; margin: 0; font-weight: 700; }
+header.top .num { padding: 2px 8px; border-radius: 999px; background: rgba(217, 119, 87, .16);
+  color: var(--accent-hi); font-weight: 700; font-size: 12px; }
+header.top .sub { color: var(--dim); font-size: 12px; }
+
+main { max-width: 1180px; margin: 0 auto; padding: 24px 18px 40px; display: grid; gap: 26px; }
+.frame { display: grid; gap: 8px; }
+.frame-title { display: flex; align-items: baseline; gap: 10px; font-weight: 700; }
+.frame-title small { color: var(--dim); font-weight: 400; }
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+@media (max-width: 960px) { .cols { grid-template-columns: 1fr; } }
+
+.map { position: relative; aspect-ratio: 32 / 24; border: 1px solid var(--line-strong); border-radius: var(--radius);
+  box-shadow: var(--shadow); overflow: hidden; background:
+  repeating-linear-gradient(to right, rgba(255,255,255,.03) 0 1px, transparent 1px calc(100% / 32)),
+  repeating-linear-gradient(to bottom, rgba(255,255,255,.03) 0 1px, transparent 1px calc(100% / 24)),
+  #151626; }
+.corridor { position: absolute; background: rgba(255,255,255,.02); border-block: 1px dashed var(--line); }
+.corridor span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: var(--dim); font-size: 11px; letter-spacing: .4px; }
+.room { position: absolute; border: 1px solid var(--line-strong); border-radius: 10px;
+  background: rgba(255, 255, 255, .03); padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+.room.claude { background: rgba(91, 156, 240, .05); }
+.room.opencode { background: rgba(217, 119, 87, .06); }
+.room.common { background: rgba(62, 207, 142, .04); }
+.room-label { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 12px; white-space: nowrap; }
+.room-label .muted { color: var(--muted); font-weight: 500; font-size: 11px; }
+.engine-tag { margin-left: auto; font: 700 10px/1 var(--mono); padding: 3px 6px; border-radius: 8px; }
+.engine-tag.claude { color: var(--blue); background: rgba(91, 156, 240, .12); }
+.engine-tag.opencode { color: var(--accent-hi); background: rgba(217, 119, 87, .14); }
+.desks { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; flex: 1; justify-content: center; }
+.desk-c { display: grid; gap: 3px; justify-items: center; }
+.desk { width: 34px; height: 12px; border-radius: 4px; background: #c8925e; border-top: 3px solid #d8d2c4;
+  border-bottom: 2px solid #8a5a3b; }
+.desk.round { width: 46px; border-radius: 50%; }
+.doors { position: absolute; right: 10px; bottom: 6px; color: var(--dim); font-size: 10px; display: flex; gap: 4px; align-items: center; }
+.elevator { position: absolute; left: 0; top: 40%; transform: translateY(-50%); width: 10px; height: 16%;
+  background: rgba(255, 179, 71, .25); border: 1px solid var(--board-amber); border-left: 0; border-radius: 0 8px 8px 0;
+  display: grid; place-items: center; color: var(--board-amber); font-size: 9px; writing-mode: vertical-rl; letter-spacing: 2px; }
+
+.seat { width: 20px; height: 20px; border-radius: 50%; display: inline-grid; place-items: center;
+  font-size: 9px; font-weight: 700; color: #10111c; flex: none; }
+.seat.idle { background: var(--dim); }
+.seat.active { background: var(--green); box-shadow: 0 0 0 3px rgba(62, 207, 142, .25); }
+.seat.wait { background: var(--amber); box-shadow: 0 0 0 3px rgba(245, 165, 36, .22); }
+.seat.temp { background: rgba(217,119,87,.12); border: 1.5px dashed var(--accent); color: var(--accent-hi); box-shadow: none; }
+.seat.meta { position: absolute; z-index: 5; }
+.seat-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
+.who { display: inline-flex; align-items: center; gap: 6px; }
+.who b { color: var(--text); font-weight: 600; }
+.task-chip { font: 500 10px/1.3 var(--font); padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line);
+  background: rgba(20, 20, 34, .85); color: var(--muted); }
+.model-chip { font: 700 10px/1 var(--mono); padding: 2px 6px; border-radius: 999px;
+  color: var(--accent-hi); background: rgba(217, 119, 87, .12); border: 1px solid rgba(217, 119, 87, .25); }
+
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 10px; overflow: hidden; }
+.seg button { font: inherit; font-size: 11px; font-weight: 600; color: var(--muted); background: none; border: 0;
+  padding: 5px 10px; cursor: pointer; border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: 0; }
+.seg button.on { background: var(--accent-solid); color: #fff; }
+
+.btn { display: inline-flex; align-items: center; gap: 7px; font: inherit; font-weight: 600; cursor: pointer;
+  border-radius: 10px; padding: 8px 14px; border: 1px solid var(--line); background: rgba(255,255,255,.05); color: var(--text); }
+.btn.primary { background: var(--accent-solid); border-color: var(--accent-solid); color: #fff; }
+.btn.primary:hover { background: var(--accent-solid-hi); }
+header.top .btn { padding: 6px 12px; }
+
+.side { display: grid; gap: 10px; }
+.note { border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 10px 12px; }
+.note h3 { margin: 0 0 6px; font-size: 12px; }
+.note ul { margin: 0; padding-left: 16px; color: var(--muted); display: grid; gap: 4px; font-size: 12px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 12px; color: var(--muted); font-size: 11px; align-items: center; }
+.legend .seat { width: 12px; height: 12px; font-size: 0; }
+
+.phone { width: 300px; border: 1px solid var(--line-strong); border-radius: 24px; padding: 10px;
+  background: #14141f; box-shadow: var(--shadow); display: grid; gap: 8px; justify-self: center; }
+.mouse { width: 84px; height: 4px; border-radius: 999px; background: var(--line-strong); margin: 0 auto; }
+.p-card { border: 1px solid var(--line); border-radius: 12px; padding: 9px 10px; background: var(--card-solid); display: grid; gap: 5px; }
+.p-card .t { font-weight: 700; font-size: 12px; display: flex; gap: 6px; align-items: center; }
+.p-cta { display: flex; align-items: center; justify-content: space-between; border: 1px solid rgba(217, 119, 87, .35);
+  border-radius: 12px; padding: 9px 10px; background: rgba(217, 119, 87, .08); }
+.p-cta b { font-size: 12px; }
+footer.decider { color: var(--muted); font-size: 12px; border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 5px; }
+footer.decider b { color: var(--text); }
+</style>
+</head>
+<body>
+<header class="top">
+  <span class="num">Protótipo 3/4</span>
+  <h1>Andar de projeto — átrio central de individuais</h1>
+  <span class="sub">sala OpenCode no miolo com anel de assentos temporários; cabines de squads nas duas laterais</span>
+  <span style="flex:1"></span>
+  <button class="btn primary"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Propor squad com IA</button>
+</header>
+
+<main>
+  <section class="frame">
+    <div class="frame-title">Andar · janela larga <small>foco na expansão de assentos pelo limite de concorrência</small></div>
+    <div class="cols">
+      <div class="map">
+        <div class="elevator">ELEVADOR</div>
+
+        <div class="room" style="left:3.125%; top:4.167%; width:25%; height:30%;">
+          <div class="room-label">Diretoria <span class="muted">· 2 mesas</span></div>
+          <div class="desks">
+            <div class="desk-c"><div class="desk"></div><div class="seat active">A1</div></div>
+            <div class="desk-c"><div class="desk"></div><div class="seat idle">A2</div></div>
+          </div>
+        </div>
+
+        <!-- ÁTRIO CENTRAL -->
+        <div class="room opencode" style="left:28.125%; top:33.33%; width:43.75%; height:37.5%;">
+          <div class="room-label">Sala de agentes individuais <span class="muted">· mesa núcleo</span>
+            <span class="engine-tag opencode">OpenCode · gpt-6-luna #high</span></div>
+          <div class="desks">
+            <div class="desk-c"><div class="desk round"></div><div class="seat active">T1</div></div>
+            <div class="desk-c"><div class="desk round"></div><div class="seat idle">T2</div></div>
+            <div class="desk-c"><div class="desk round"></div><div class="seat wait">T3</div></div>
+          </div>
+          <div class="who" style="justify-content:center;"><b>Theo</b> <span class="model-chip">gpt-6-luna</span> <span class="task-chip">“migrar testes para vitest”</span></div>
+        </div>
+
+        <!-- assentos temporários em anel (borda externa da sala) -->
+        <span class="seat meta temp" style="left:29.9%; top:31.5%;"></span>
+        <span class="seat meta temp" style="left:47%; top:31.5%;"></span>
+        <span class="seat meta temp" style="left:64%; top:31.5%;"></span>
+        <span class="seat meta temp" style="left:29.9%; top:70.5%;"></span>
+        <span class="seat meta temp" style="left:47%; top:70.5%;"></span>
+        <span class="seat meta temp" style="left:64%; top:70.5%;"></span>
+
+        <!-- legenda do anel -->
+        <div style="position:absolute; left:28.5%; top:75.5%; width:42.5%; display:flex; gap:6px; justify-content:center; flex-wrap:wrap;">
+          <span class="task-chip">teardown · lint ✓ concluir → libera</span>
+        </div>
+
+        <!-- cabines laterais -->
+        <div class="room claude" style="left:24.5%; top:4.167%; width:19%; height:26%;">
+          <div class="room-label">Cabine <span class="muted">docs</span>
+            <span class="engine-tag claude">claude</span></div>
+          <div class="desks">
+            <div class="desk-c"><div class="desk"></div><div class="seat idle">S1</div></div>
+          </div>
+        </div>
+        <div class="room claude" style="left:45%; top:4.167%; width:19%; height:26%;">
+          <div class="room-label">Cabine <span class="muted">frontend</span>
+            <span class="engine-tag claude">claude</span></div>
+          <div class="desks">
+            <div class="desk-c"><div class="desk"></div><div class="seat active">S1</div></div>
+          </div>
+        </div>
+        <div class="room common" style="left:65.625%; top:4.167%; width:31.25%; height:26%;">
+          <div class="room-label">Lounge <span class="muted">comum</span></div>
+          <div class="doors">porta</div>
+        </div>
+        <div class="room common" style="left:3.125%; top:40%; width:21%; height:30%;">
+          <div class="room-label">Copa <span class="muted">comum</span></div>
+        </div>
+
+        <div class="corridor" style="left:0; top:75%; width:100%; height:7%;"><span>corredor da frente</span></div>
+      </div>
+
+      <aside class="side">
+        <div class="note">
+          <h3>Expansão de assentos temporários</h3>
+          <div class="seg" style="margin:6px 0 8px;">
+            <button>2</button><button>4</button><button class="on">6</button><button>8</button>
+          </div>
+          <ul>
+            <li>O anel nasce do <b>limite de concorrência de subagentes configurado no Office</b> — o desenho se dimensiona junto.</li>
+            <li>Assento temp livre fica pontilhado; ao concluir o subagente, ele some imediatamente e o resultado fica no painel/log do pai.</li>
+            <li>Anel dentro da sala: mais “vida de equipe”; anel fora (protótipo 1) deixa a sala só de assentos fixos.</li>
+          </ul>
+        </div>
+        <div class="note">
+          <h3>Estados dos assentos</h3>
+          <div class="legend">
+            <span class="seat idle"></span> ocioso ·
+            <span class="seat active"></span> ativo ·
+            <span class="seat wait"></span> aguardando ·
+            <span class="seat temp"></span> temporário
+          </div>
+        </div>
+        <div class="note">
+          <h3>Propor squad com IA</h3>
+          <ul>
+            <li>Entra por qualquer andar: botão do topo fixo (este arquivo) e/ou vaga na frente do protótipo 2.</li>
+          </ul>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="frame">
+    <div class="frame-title">Andar · janela estreita <small>átrio vira card com anel em linha</small></div>
+    <div class="phone">
+      <div class="mouse"></div>
+      <div class="p-card" style="border-color:rgba(217,119,87,.35)">
+        <span class="t">🧠 Sala de individuais <span class="task-chip">OpenCode</span></span>
+        <span class="who"><span class="seat active"></span><b>Theo</b> <span class="model-chip">gpt-6-luna</span> <span class="task-chip">vitest</span></span>
+        <span class="seat-row" style="gap:4px;">
+          <span class="seat temp"></span><span class="seat temp"></span><span class="seat idle"></span>
+          <span style="font-size:10px;color:var(--dim);">anel 6 · limite de concorrência</span>
+        </span>
+      </div>
+      <div class="p-card claude" style="border-color:rgba(91,156,240,.35)">
+        <span class="t">🪟 Cabine frontend <span class="task-chip">claude</span></span>
+        <span class="who"><span class="seat active"></span><b>S1</b> <span class="task-chip">implementação</span></span>
+      </div>
+      <div class="p-cta">
+        <b>Propor squad com IA</b>
+        <button class="btn primary" style="padding:6px 10px;">Abrir</button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="decider">
+    <b>Decisões pedidas à usuária neste protótipo:</b>
+    (1) Anel de assentos temporários dentro da sala (este) ou fora, anexa (protótipo 1)?
+    (2) Mesa núcleo central agrada, ou prefere fileiras (1/2)?
+    (3) Mostrar a contagem de concorrência do anel como controle no andar, ou só no painel de configurações?
+  </footer>
+</main>
+</body>
+</html>

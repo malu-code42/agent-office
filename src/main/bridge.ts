@@ -32,7 +32,6 @@ type HookInput = {
   prompt?: string
   tool_name?: string
   tool_input?: Record<string, unknown>
-  permission_suggestions?: unknown[]
   notification_type?: string
   message?: string
   last_assistant_message?: string
@@ -193,13 +192,16 @@ export class Bridge {
   private permission(agentId: string, input: HookInput, res: ServerResponse, reply: (code: number, body?: unknown) => void): void {
     const tool = input.tool_name ?? 'tool'
     const toolInput = input.tool_input ?? {}
-    const suggestions = input.permission_suggestions ?? []
     let done = false
-    const requestId = this.manager.requestDecision(agentId, permissionFromTool(tool, toolInput, undefined, suggestions.length > 0), (d: PermissionDecision) => {
-      if (done) return
-      done = true
-      reply(200, hookDecision(tool, toolInput, suggestions, d))
-    })
+    const requestId = this.manager.requestDecision(
+      agentId,
+      permissionFromTool(tool, toolInput, undefined, false),
+      (d: PermissionDecision) => {
+        if (done) return
+        done = true
+        reply(200, hookDecision(tool, toolInput, d))
+      },
+    )
     // Claude Code hung up before we answered (timeout, Esc, session killed): drop the request.
     // (Listen on the response: the request's own 'close' fires as soon as its body is read.)
     res.on('close', () => {
@@ -282,14 +284,14 @@ export class Bridge {
   }
 }
 
-function hookDecision(tool: string, toolInput: Record<string, unknown>, suggestions: unknown[], d: PermissionDecision): unknown {
+function hookDecision(tool: string, toolInput: Record<string, unknown>, d: PermissionDecision): unknown {
   let decision: Record<string, unknown>
   if (d.behavior === 'deny') {
     decision = { behavior: 'deny', message: d.message?.trim() || 'O usuário negou esta ação no Agent Office.' }
   } else if (tool === 'AskUserQuestion') {
     decision = { behavior: 'allow', updatedInput: { ...toolInput, answers: d.answers ?? {} } }
   } else {
-    decision = { behavior: 'allow', ...(d.behavior === 'allow_always' && suggestions.length ? { updatedPermissions: suggestions } : {}) }
+    decision = { behavior: 'allow' }
   }
   return { hookSpecificOutput: { hookEventName: 'PermissionRequest', decision } }
 }

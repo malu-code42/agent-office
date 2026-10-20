@@ -77,7 +77,17 @@ export abstract class PanelHead extends PanelSearch {
           h(
             'div',
             { class: 'ab-id' },
-            h('div', { class: 'ab-name-row' }, name, a.source === 'terminal' ? h('span', { class: 'chip chip-term' }, 'terminal') : null, branchChip(a), open ? null : accountChip(this.state, a), helpersChip(a, !open)),
+            h(
+              'div',
+              { class: 'ab-name-row' },
+              name,
+              a.source === 'terminal'
+                ? h('span', { class: 'chip chip-term' }, 'terminal')
+                : h('span', { class: 'chip' }, a.engine === 'opencode' ? 'OpenCode' : 'Claude'),
+              branchChip(a),
+              open ? null : accountChip(this.state, a),
+              helpersChip(a, !open),
+            ),
             open ? h('div', { class: 'ab-role' }, a.role === 'orchestrator' ? 'Orquestrador' : 'Agente', accountChip(this.state, a)) : led(false),
           ),
           office && busy ? h('button', { class: 'icon-btn', title: 'Interromper', onclick: () => window.office.interrupt(a.id) }, icon('stop', 15)) : null,
@@ -177,8 +187,9 @@ export abstract class PanelHead extends PanelSearch {
         h('button', { class: 'ab-stamp', title: `${a.cwd}\n${osText(this.state.platform).revealTitle}`, onclick: () => window.office.revealPath(a.cwd) }, icon('folder', 12), shortPath(a.cwd)),
         a.worktree ? h('button', { class: 'ab-stamp', title: `Cópia isolada (worktree)\n${a.worktree.root}\n${osText(this.state.platform).revealTitle}`, onclick: () => window.office.revealPath(a.worktree!.root) }, icon('branch', 12), a.worktree.branch) : null,
         a.model ? h('span', { class: 'ab-stamp', title: a.model }, icon('cpu', 12), modelLabel(a.model)) : null,
+        a.opencodeUsage ? h('span', { class: 'ab-stamp', title: 'Tokens reportados pelo OpenCode' }, `${(a.opencodeUsage.inputTokens + a.opencodeUsage.outputTokens).toLocaleString()} tokens`) : null,
         effort ? h('span', { class: 'ab-stamp', title: 'Esforço' }, icon('gauge', 12), effort) : null,
-        a.costUsd ? h('span', { class: 'ab-stamp', title: 'Gasto nesta sessão' }, icon('coin', 12), formatCost(a.costUsd)) : null,
+        a.costUnknown ? h('span', { class: 'ab-stamp', title: 'O provedor não informou preço confiável' }, icon('coin', 12), 's/ preço') : a.costUsd ? h('span', { class: 'ab-stamp', title: 'Gasto nesta sessão' }, icon('coin', 12), formatCost(a.costUsd)) : null,
       ),
       office && a.context ? this.memoryBlocks(a, busy) : null,
       h(

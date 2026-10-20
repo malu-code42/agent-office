@@ -6,7 +6,7 @@ import { HAIR_STYLES } from '@shared/describe'
 import { IRIS_NOT_UNDERSTOOD, type IrisAnswer } from '@shared/iris'
 import { STEP_MAX, TIMER_MINUTES } from '@shared/planning'
 import { isIsoDay, REFUSED_KINDS, REFUSED_MESSAGE, type Proposal, type ProposalOperation } from '@shared/proposals'
-import { floorNameFor, MAX_PROJECT_FLOORS } from '@shared/projects'
+import { floorNameFor, MAX_PROJECT_FLOORS, projectFor } from '@shared/projects'
 import { REVIEW_STEPS, type FocusChoice, type ReviewChoices, type ReviewDraft, type ReviewPostpone } from '@shared/review'
 import { scheduleError } from '@shared/schedule'
 import {
@@ -30,6 +30,7 @@ import type {
   DelegateTarget,
   EffortLevel,
   HireRequest,
+  AlwaysAllowRule,
   LedgerQuery,
   OfficePermissionMode,
   PermissionDecision,
@@ -50,7 +51,6 @@ import { isDir } from './squads'
 
 export const PERMISSION_MODES: readonly OfficePermissionMode[] = ['default', 'acceptEdits', 'auto', 'plan', 'bypassPermissions']
 /** Work someone else wrote (tickets, squad cycles) never runs with "bypass". */
-export const DELEGATE_MODES: readonly OfficePermissionMode[] = ['default', 'acceptEdits', 'auto', 'plan']
 const STATUS_VALUES = STATUSES.map((s) => s.value) as [TicketStatus, ...TicketStatus[]]
 
 const MAX_PATH = 4096
@@ -73,7 +73,11 @@ export const copyTextSchema = z.string().max(2_000_000)
 
 /** Nome sugerido no diálogo de salvar: sem pastas, sem caracteres estranhos, sempre .md. */
 export function markdownFileName(raw: string): string {
-  const name = basename(raw.replace(/\\/g, '/')).replace(/[^\p{L}\p{N}._ -]+/gu, '-').replace(/^[.\s-]+/, '').slice(0, 100) || 'agent-office'
+  const name =
+    basename(raw.replace(/\\/g, '/'))
+      .replace(/[^\p{L}\p{N}._ -]+/gu, '-')
+      .replace(/^[.\s-]+/, '')
+      .slice(0, 100) || 'agent-office'
   return name.toLowerCase().endsWith('.md') ? name : `${name}.md`
 }
 
@@ -252,7 +256,10 @@ export const ticketIdsSchema = z.array(idSchema).max(10_000).optional()
 /** 'me' = the player; null or missing = nobody. */
 export const assigneeSchema = z.literal('me').nullish()
 /** Web links only: file:// or custom schemes could run things. */
-export const externalUrlSchema = z.string().max(8192).regex(/^https?:\/\//i)
+export const externalUrlSchema = z
+  .string()
+  .max(8192)
+  .regex(/^https?:\/\//i)
 /** Floor id of setAccountPool; null = folders outside every floor. */
 export const floorIdSchema = z.string().min(1).max(40).nullable()
 /** A squad code as squads.ts accepts it. */
@@ -267,7 +274,10 @@ export const attachmentsSchema: z.ZodType<AttachmentInput[]> = z
       name: z.string().max(1000),
       mime: z.string().max(200).optional(),
       path: z.string().max(MAX_PATH).optional(),
-      dataBase64: z.string().max(Math.ceil((ATTACH_LIMITS.total * 4) / 3) + 16).optional(),
+      dataBase64: z
+        .string()
+        .max(Math.ceil((ATTACH_LIMITS.total * 4) / 3) + 16)
+        .optional(),
     }),
   )
   .max(100)
@@ -343,6 +353,40 @@ export function cleanAccounts(raw: unknown, current: Account[]): Account[] {
 const LOGO_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/
 export const MAX_LOGO_CHARS = 400_000
 
+// ---------- regras "Sempre permitir" ----------
+
+/** Cap by project: the list has to stay readable in the settings form. */
+export const MAX_ALWAYS_ALLOW_RULES = 100
+const RULE_VALUE_LIMIT = 500
+const RULE_ID_RE = /^[\w-]{1,64}$/
+
+/**
+ * The project's "Sempre permitir" rules, with everything bad removed: unknown kind,
+ * empty or overlong value, repeated id and repeated action. A rule sent without an id
+ * (a new one from the settings form) gets one. Garbage in the place of the list clears
+ * nothing: without the key the floor keeps the rules it already had — when the form
+ * sends the key again (even empty), the clean result stands.
+ */
+export function cleanAlwaysAllowRules(raw: unknown, previous: AlwaysAllowRule[] = []): AlwaysAllowRule[] {
+  if (!Array.isArray(raw)) return previous.length ? [...previous] : []
+  const out: AlwaysAllowRule[] = []
+  for (const item of raw) {
+    const r = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>
+    const kind = r.kind === 'tool' || r.kind === 'command' ? r.kind : undefined
+    const value = typeof r.value === 'string' ? r.value.trim().slice(0, RULE_VALUE_LIMIT) : ''
+    if (!kind || !value) continue
+    if (out.some((o) => o.kind === kind && o.value === value)) continue
+    const id = typeof r.id === 'string' && RULE_ID_RE.test(r.id) && !out.some((o) => o.id === r.id) ? r.id : `r-${randomUUID().slice(0, 8)}`
+    out.push({
+      id,
+      createdAt: typeof r.createdAt === 'number' && Number.isFinite(r.createdAt) && r.createdAt >= 0 ? r.createdAt : Date.now(),
+      kind,
+      value,
+    })
+  }
+  return out.slice(0, MAX_ALWAYS_ALLOW_RULES)
+}
+
 function cleanBrand(p: Record<string, unknown>): Pick<ProjectFloor, 'logo' | 'brandColor' | 'uniform'> {
   const out: Pick<ProjectFloor, 'logo' | 'brandColor' | 'uniform'> = {}
   if (typeof p.logo === 'string' && p.logo.length <= MAX_LOGO_CHARS && LOGO_RE.test(p.logo)) out.logo = p.logo
@@ -361,11 +405,33 @@ export function cleanProjects(raw: unknown, previous: ProjectFloor[]): ProjectFl
     const p = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>
     const cwd = typeof p.cwd === 'string' ? p.cwd : ''
     if (!isAbsolute(cwd) || !isDir(cwd) || out.some((o) => o.cwd === cwd)) continue
-    const id = typeof p.id === 'string' && /^[\w-]{1,40}$/.test(p.id) && !out.some((o) => o.id === p.id) ? p.id : `p-${randomUUID().slice(0, 8)}`
+    const id =
+      typeof p.id === 'string' && /^[\w-]{1,40}$/.test(p.id) && !out.some((o) => o.id === p.id) ? p.id : `p-${randomUUID().slice(0, 8)}`
     const name = (typeof p.name === 'string' ? p.name.trim().slice(0, 32) : '') || floorNameFor(cwd)
+    const known = previous.find((o) => o.id === id)
+    const sameProject = known?.cwd === cwd ? known : undefined
     // A floor's accounts change only through setAccountPool: the settings form may hold an old copy.
-    const accounts = previous.find((o) => o.id === id)?.accounts
-    out.push({ id, name, cwd, ...(accounts?.length ? { accounts } : {}), ...cleanBrand(p) })
+    const accounts = known?.accounts
+    // The project's permission mode follows the same rule: what the form sends stays
+    // only when it is on the list; an old form (or a bad value) keeps the floor's own.
+    const mode = permissionModeSchema.safeParse(p.permissionMode)
+    const modeField = mode.success
+      ? { permissionMode: mode.data }
+      : sameProject?.permissionMode
+        ? { permissionMode: sameProject.permissionMode }
+        : {}
+    // The rules list is always sent by the new form (clearing sends []); an old form
+    // that omits the key leaves the rules that already existed untouched.
+    const rules = Object.hasOwn(p, 'alwaysAllow') ? cleanAlwaysAllowRules(p.alwaysAllow) : (sameProject?.alwaysAllow ?? [])
+    out.push({
+      id,
+      name,
+      cwd,
+      ...(accounts?.length ? { accounts } : {}),
+      ...modeField,
+      ...(rules.length ? { alwaysAllow: rules } : {}),
+      ...cleanBrand(p),
+    })
     if (out.length === MAX_PROJECT_FLOORS) break
   }
   return out
@@ -386,21 +452,33 @@ export function cleanLedgerQuery(raw: unknown): LedgerQuery {
 
 /**
  * A hire from the renderer: an existing folder, a task, a short name, a clean brain.
- * A permission mode outside the list falls back to the office default.
+ * A permission mode follows the project: an explicit mode on the list stays (the warning
+ * for the most permissive ones is the form's job), otherwise the floor of the folder,
+ * and only in the last case the office default.
  */
-export function cleanHire(raw: unknown, settings: Pick<Settings, 'accounts' | 'defaultPermissionMode'>): HireRequest {
+export function cleanHire(raw: unknown, settings: Pick<Settings, 'accounts' | 'defaultEngine' | 'defaultPermissionMode' | 'projects'>): HireRequest {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   const cwd = pathSchema.safeParse(r.cwd)
   if (!cwd.success || !isDir(cwd.data)) throw new Error('Escolha uma pasta de projeto que exista.')
   const task = messageSchema.safeParse(r.task)
   if (!task.success || !task.data.trim()) throw new Error('Descreva a tarefa do agente.')
+  const inherited = projectFor(settings.projects, cwd.data)?.permissionMode ?? settings.defaultPermissionMode
   const mode = permissionModeSchema.safeParse(r.permissionMode)
+  const requested = mode.success ? mode.data : inherited
+  const engine = r.engine === 'claude' || r.engine === 'opencode' ? r.engine : settings.defaultEngine
+  const brain = cleanBrain(r, settings.accounts)
+  if (engine === 'opencode') delete brain.accounts
+  if (modeIsMorePermissive(requested, inherited) && r.confirmPermissionOverride !== true) {
+    throw new Error('Confirme explicitamente o modo de permissões mais permissivo que o padrão do projeto.')
+  }
   return {
     name: typeof r.name === 'string' ? r.name.slice(0, 40) : '',
     cwd: cwd.data,
     task: task.data,
-    ...cleanBrain(r, settings.accounts),
-    permissionMode: mode.success ? mode.data : settings.defaultPermissionMode,
+    engine,
+    ...brain,
+    permissionMode: requested,
+    ...(r.confirmPermissionOverride === true ? { confirmPermissionOverride: true } : {}),
     worktree: worktreeFlagSchema.parse(r.worktree),
   }
 }
@@ -412,28 +490,56 @@ export const worktreeFlagSchema = z.boolean().optional().catch(undefined)
 /** Agent and result ids are randomUUID()s. */
 export const uuidSchema = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
 /** A file of a result card: git.ts still checks it is listed and inside the repo. */
-export const changedPathSchema = z.string().min(1).max(MAX_PATH).refine((p) => !p.includes('\0'))
+export const changedPathSchema = z
+  .string()
+  .min(1)
+  .max(MAX_PATH)
+  .refine((p) => !p.includes('\0'))
 export const commitMessageSchema = z.string().trim().min(1).max(2000)
 /** First line only, short enough for a PR title. */
-export const prTitleSchema = z.string().transform((s) => s.trim().split('\n')[0].slice(0, 200)).pipe(z.string().min(1))
+export const prTitleSchema = z
+  .string()
+  .transform((s) => s.trim().split('\n')[0].slice(0, 200))
+  .pipe(z.string().min(1))
 
 /** Who takes a ticket: an agent already here, or a new hire that never runs with "bypass". */
 export function cleanDelegateTarget(raw: unknown, accounts: Account[]): DelegateTarget {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
-  if ('agentId' in r) return { agentId: parse(idSchema, r.agentId, 'Agente inválido.') }
+  if ('agentId' in r)
+    return { agentId: parse(idSchema, r.agentId, 'Agente inválido.'), confirmPermissionOverride: r.confirmPermissionOverride === true }
   const hire = (r.hire && typeof r.hire === 'object' ? r.hire : {}) as Record<string, unknown>
   return {
     hire: {
       ...cleanBrain(hire, accounts),
-      permissionMode: DELEGATE_MODES.includes(hire.permissionMode as never) ? (hire.permissionMode as OfficePermissionMode) : undefined,
+      ...(hire.engine === 'claude' || hire.engine === 'opencode' ? { engine: hire.engine } : {}),
+      permissionMode: permissionModeSchema.safeParse(hire.permissionMode).success
+        ? (hire.permissionMode as OfficePermissionMode)
+        : undefined,
+      confirmPermissionOverride: hire.confirmPermissionOverride === true,
       worktree: worktreeFlagSchema.parse(hire.worktree),
     },
   }
 }
 
-/** Mode for a squad cycle: it reaches real systems, so never "bypass". */
-export function delegateMode(raw: unknown): OfficePermissionMode {
-  return DELEGATE_MODES.includes(raw as never) ? (raw as OfficePermissionMode) : 'default'
+/** A conservative total order: moving right increases the set of actions that can run unattended. */
+const MODE_ACCESS: readonly OfficePermissionMode[] = ['plan', 'default', 'acceptEdits', 'auto', 'bypassPermissions']
+
+export function modeIsMorePermissive(candidate: OfficePermissionMode, inherited: OfficePermissionMode): boolean {
+  if (candidate === inherited || candidate === 'plan' || inherited === 'bypassPermissions') return false
+  // Auto and acceptEdits authorize different action sets; either explicit switch needs consent.
+  if ((candidate === 'auto' && inherited === 'acceptEdits') || (candidate === 'acceptEdits' && inherited === 'auto')) return true
+  return MODE_ACCESS.indexOf(candidate) > MODE_ACCESS.indexOf(inherited)
+}
+
+/** Reject bypass for workflows where the task may originate from another agent or user. */
+export function checkedSquadMode(raw: unknown, inherited: OfficePermissionMode, confirmedOverride = false): OfficePermissionMode {
+  const parsed = permissionModeSchema.safeParse(raw)
+  const mode = parsed.success ? parsed.data : inherited
+  if (mode === 'bypassPermissions') throw new Error('Squads nunca podem rodar no modo "Sem pedir nada".')
+  if (modeIsMorePermissive(mode, inherited) && !confirmedOverride) {
+    throw new Error('Confirme explicitamente o modo de permissões mais permissivo que o padrão do projeto.')
+  }
+  return mode
 }
 
 // ---------- settings ----------
@@ -441,7 +547,11 @@ export function delegateMode(raw: unknown): OfficePermissionMode {
 const lookSchema = z.object({
   skin: z.string().regex(HEX),
   hair: z.string().regex(HEX),
-  hairStyle: z.number().int().min(0).max(HAIR_STYLES - 1),
+  hairStyle: z
+    .number()
+    .int()
+    .min(0)
+    .max(HAIR_STYLES - 1),
   shirt: z.string().regex(HEX),
   pants: z.string().regex(HEX),
   shoes: z.string().regex(HEX),
@@ -452,7 +562,14 @@ const lookSchema = z.object({
  * false would become 0 and true 1, and saving {ticketAutoCloseDays: null} would turn
  * auto-close off. Anything else keeps the current value (AO-44).
  */
-const numberField = z.union([z.number(), z.string().trim().regex(/^\d+(\.\d+)?$/).transform(Number)])
+const numberField = z.union([
+  z.number(),
+  z
+    .string()
+    .trim()
+    .regex(/^\d+(\.\d+)?$/)
+    .transform(Number),
+])
 
 /**
  * One schema per field the settings form may change. bridgePort and the lists
@@ -463,14 +580,13 @@ const settingsFields = {
   playerLook: lookSchema,
   pixelSize: z.number().int().min(2).max(5),
   defaultModel: z.union([z.literal(''), z.string().regex(MODEL_RE)]),
+  defaultEngine: z.enum(['claude', 'opencode']),
   defaultEffort: z.union([z.literal(''), z.enum(EFFORT_LEVELS as [EffortLevel, ...EffortLevel[]])]),
   defaultPermissionMode: permissionModeSchema,
   notifications: z.boolean(),
   ticketAutoCloseDays: numberField.pipe(z.number().int().min(0).max(365)),
   maxSubagents: numberField.pipe(z.number().int().min(0).max(100)),
-  agentBudgetUsd: numberField
-    .pipe(z.number().finite().min(0).max(100_000))
-    .transform((n) => Math.round(n * 100) / 100),
+  agentBudgetUsd: numberField.pipe(z.number().finite().min(0).max(100_000)).transform((n) => Math.round(n * 100) / 100),
   updateChannel: z.enum(['stable', 'beta']),
 } satisfies { [K in keyof Settings]?: z.ZodType<unknown> }
 
@@ -512,6 +628,16 @@ export function cleanSettings(raw: unknown, current: Settings): Settings {
   if (Object.hasOwn(patch, 'accounts')) next.accounts = cleanAccounts(patch.accounts, current.accounts)
   if (Object.hasOwn(patch, 'defaultAccounts')) next.defaultAccounts = cleanAccountIds(patch.defaultAccounts, next.accounts)
   if (Object.hasOwn(patch, 'projects')) next.projects = cleanProjects(patch.projects, current.projects)
+  if (patch.confirmPermissionChanges !== true) {
+    if (next.defaultPermissionMode === 'bypassPermissions' && current.defaultPermissionMode !== 'bypassPermissions')
+      next.defaultPermissionMode = current.defaultPermissionMode
+    next.projects = next.projects.map((floor) => {
+      const old = current.projects.find((p) => p.id === floor.id)
+      return floor.permissionMode === 'bypassPermissions' && old?.permissionMode !== 'bypassPermissions'
+        ? { ...floor, permissionMode: old?.permissionMode }
+        : floor
+    })
+  }
   if (Object.hasOwn(patch, 'video')) next.video = cleanVideo(patch.video, current.video)
   return next
 }
@@ -545,27 +671,37 @@ const routineWhoSchema: z.ZodType<RoutineWho> = z.discriminatedUnion('kind', [
 ])
 
 export const routineDraftSchema = z.object({
-  id: z.string().regex(/^[\w-]{1,64}$/).optional(),
+  id: z
+    .string()
+    .regex(/^[\w-]{1,64}$/)
+    .optional(),
   name: z.string().max(2000),
   prompt: z.string().max(ROUTINE_LIMITS.prompt),
   who: routineWhoSchema,
   cwd: pathSchema.optional(),
   floor: z.string().min(1).max(40).optional(),
   permissionMode: permissionModeSchema.optional(),
+  confirmPermissionOverride: z.boolean().optional(),
   schedule: scheduleSchema,
   enabled: z.boolean().optional(),
   missed: z.enum(['run', 'skip']).optional(),
 })
 
 /** A routine draft that passed every check: one place to run (cwd, or the floor's), defaults filled. */
-export type CleanRoutineDraft = Required<Pick<RoutineDraft, 'name' | 'prompt' | 'who' | 'permissionMode' | 'schedule' | 'enabled' | 'missed'>> & Pick<RoutineDraft, 'id' | 'cwd' | 'floor'>
+export type CleanRoutineDraft = Required<
+  Pick<RoutineDraft, 'name' | 'prompt' | 'who' | 'permissionMode' | 'schedule' | 'enabled' | 'missed'>
+> &
+  Pick<RoutineDraft, 'id' | 'cwd' | 'floor'>
 
 /**
  * A routine from the renderer. Throws a message the form can show: a name, a task, a
  * schedule that runs, a runner that exists and a folder or floor for agents it hires.
  * Nothing says "Sem pedir nada" unless the form sent it (the default is "Pedir permissão").
  */
-export function cleanRoutineDraft(raw: unknown, ctx: { settings: Pick<Settings, 'projects' | 'templates'>; agents: AgentSummary[]; now?: number }): CleanRoutineDraft {
+export function cleanRoutineDraft(
+  raw: unknown,
+  ctx: { settings: Pick<Settings, 'projects' | 'templates' | 'defaultPermissionMode'>; agents: AgentSummary[]; now?: number },
+): CleanRoutineDraft {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   const name = typeof r.name === 'string' ? r.name.trim() : ''
   if (!name || name.length > ROUTINE_LIMITS.name) throw new Error(`Dê um nome à rotina (até ${ROUTINE_LIMITS.name} letras).`)
@@ -573,11 +709,15 @@ export function cleanRoutineDraft(raw: unknown, ctx: { settings: Pick<Settings, 
   const who = d.who
   const prompt = d.prompt.trim()
   const template = who.kind === 'template' ? ctx.settings.templates.find((t) => t.id === who.templateId) : undefined
+  const existingAgent = who.kind === 'agent' ? ctx.agents.find((a) => a.id === who.agentId) : undefined
   if (who.kind === 'template' && !template) throw new Error('Esse modelo salvo não existe mais. Escolha outro.')
   if (!prompt && !template?.instruction) throw new Error('Descreva a tarefa da rotina.')
   const problem = scheduleError(d.schedule)
   if (problem) throw new Error(problem)
-  const schedule: Schedule = d.schedule.kind === 'interval' ? { ...d.schedule, anchor: d.schedule.anchor ?? Math.floor((ctx.now ?? Date.now()) / 60_000) * 60_000 } : d.schedule
+  const schedule: Schedule =
+    d.schedule.kind === 'interval'
+      ? { ...d.schedule, anchor: d.schedule.anchor ?? Math.floor((ctx.now ?? Date.now()) / 60_000) * 60_000 }
+      : d.schedule
   if (schedule.kind === 'weekly') schedule.days = [...new Set(schedule.days)].sort((a, b) => a - b)
   if (schedule.kind === 'cron') schedule.expr = schedule.expr.trim().replace(/\s+/g, ' ')
 
@@ -585,23 +725,46 @@ export function cleanRoutineDraft(raw: unknown, ctx: { settings: Pick<Settings, 
     ...(d.id ? { id: d.id } : {}),
     name,
     prompt,
-    who: who.kind === 'new' ? { kind: 'new', ...(who.name?.trim() ? { name: who.name.trim() } : {}), ...(who.model ? { model: who.model } : {}), ...(who.effort ? { effort: who.effort } : {}) } : who,
-    permissionMode: d.permissionMode ?? 'default',
+    who:
+      who.kind === 'new'
+        ? {
+            kind: 'new',
+            ...(who.name?.trim() ? { name: who.name.trim() } : {}),
+            ...(who.model ? { model: who.model } : {}),
+            ...(who.effort ? { effort: who.effort } : {}),
+          }
+        : who,
+    permissionMode:
+      existingAgent?.permissionMode ??
+      d.permissionMode ??
+      (d.floor ? ctx.settings.projects.find((p) => p.id === d.floor)?.permissionMode : undefined) ??
+      (d.cwd ? projectFor(ctx.settings.projects, d.cwd)?.permissionMode : undefined) ??
+      ctx.settings.defaultPermissionMode,
     schedule,
     enabled: d.enabled ?? true,
     missed: d.missed ?? 'run',
   }
   if (who.kind === 'agent') {
-    const a = ctx.agents.find((x) => x.id === who.agentId)
+    const a = existingAgent
     if (!a) throw new Error('Esse agente não está mais no escritório. Escolha outro.')
     if (a.source !== 'office') throw new Error('Sessões do terminal não recebem tarefas do escritório. Escolha um agente do escritório.')
     if (a.role === 'orchestrator') throw new Error(`${a.name} só roda o ciclo do squad. Escolha outro agente.`)
+    if (d.permissionMode !== undefined && d.permissionMode !== a.permissionMode)
+      throw new Error('Uma rotina ligada a um agente existente usa o modo atual dele. Altere o modo do agente separadamente.')
     return out
   }
   if (d.floor) {
-    if (!ctx.settings.projects.some((p) => p.id === d.floor)) throw new Error('Esse andar não existe mais. Escolha outro.')
+    const floor = ctx.settings.projects.find((p) => p.id === d.floor)
+    if (!floor) throw new Error('Esse andar não existe mais. Escolha outro.')
+    if (modeIsMorePermissive(out.permissionMode, floor.permissionMode ?? ctx.settings.defaultPermissionMode) && d.confirmPermissionOverride !== true)
+      throw new Error('Confirme explicitamente o modo de permissões mais permissivo que o padrão do projeto.')
     return { ...out, floor: d.floor }
   }
   if (!d.cwd || !isAbsolute(d.cwd) || !isDir(d.cwd)) throw new Error('Escolha a pasta (ou o andar) onde a rotina roda.')
+  if (
+    modeIsMorePermissive(out.permissionMode, projectFor(ctx.settings.projects, d.cwd)?.permissionMode ?? ctx.settings.defaultPermissionMode) &&
+    d.confirmPermissionOverride !== true
+  )
+    throw new Error('Confirme explicitamente o modo de permissões mais permissivo que o padrão do projeto.')
   return { ...out, cwd: d.cwd }
 }

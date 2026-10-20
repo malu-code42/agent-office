@@ -353,13 +353,44 @@ export class Dialog {
       agent,
       'parou no limite do plano',
       [h('div', { class: 'dialog-title' }, `${this.state.account(limit.accountId)?.name ?? 'A conta'} chegou ao limite.${renews}`), this.accountChoice(agent, limit)],
-      [h('div', { class: 'grow' }), h('button', { class: 'btn', onclick: () => this.close() }, 'Esperar')],
+      [
+        h('div', { class: 'grow' }),
+        h('button', { class: 'btn', onclick: () => this.close() }, agent.role === 'orchestrator' ? 'Aguardar renovação' : 'Esperar'),
+      ],
       'err',
     )
   }
 
   /** Buttons to carry on the same conversation on another account, pool or not. */
   private accountChoice(agent: AgentSummary, limit: AccountLimit): HTMLElement {
+    if (agent.role === 'orchestrator') {
+      const fixedId = agent.account ?? limit.accountId
+      if (!fixedId) return h('div', { class: 'dialog-note' }, 'A conta fixa deste squad não está disponível. Reconfigure essa conta para continuar o ciclo.')
+      const account = this.state.account(fixedId)
+      if (!account) return h('div', { class: 'dialog-note' }, 'A conta fixa deste squad não está disponível. Reconfigure essa conta para continuar o ciclo.')
+      const status = this.state.accounts.find((a) => a.id === fixedId)
+      const now = Date.now()
+      const limitedUntil = Math.max(status?.limitedUntil ?? 0, limit.accountId === fixedId ? limit.resetsAt ?? 0 : 0)
+      const limited = limitedUntil > now
+      return h(
+        'div',
+        { class: 'limit-choice' },
+        h('div', { class: 'limit-choice-title' }, 'Este squad mantém a conta Claude escolhida ao iniciar.'),
+        h('div', { class: 'dialog-note' }, limited ? `A conta ${account.name} renova às ${clock(limitedUntil)}.` : `Retomar na mesma conta: ${account.name}.`),
+        h(
+          'button',
+          {
+            class: 'btn limit-account',
+            style: `--acct:${account.color}`,
+            disabled: limited || status?.loggedIn === false,
+            onclick: () => void this.continueOn(agent, fixedId),
+          },
+          h('span', { class: 'limit-dot' }),
+          'Continuar com a conta fixa',
+        ),
+        h('div', { class: 'dialog-note' }, 'Quando a quota renovar, continue aqui ou reabra o squad e rode o próximo ciclo. Para usar outra conta, encerre este ciclo e inicie outro.'),
+      )
+    }
     const others = this.state.settings.accounts.filter((a) => a.id !== limit.accountId)
     if (!others.length) return h('div', { class: 'dialog-note' }, 'Para continuar sem esperar, adicione outra conta em Configurações › Contas.')
     const pool = accountPool(this.state.settings, agent.cwd, agent.accounts)
@@ -401,7 +432,7 @@ export class Dialog {
   private showResult(agent: AgentSummary, r: AgentResult): void {
     this.itemId = r.id
     this.agentId = agent.id
-    const meta = [formatDuration(r.durationMs), r.turns ? `${r.turns} turnos` : '', formatCost(r.costUsd)].filter(Boolean).join(' · ')
+    const meta = [formatDuration(r.durationMs), r.turns ? `${r.turns} turnos` : '', r.costUnknown ? 's/ preço' : formatCost(r.costUsd)].filter(Boolean).join(' · ')
     const ack = async () => {
       this.close()
       await window.office.ackResult(r.id)

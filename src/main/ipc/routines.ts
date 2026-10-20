@@ -1,13 +1,34 @@
 import { ipcMain } from 'electron'
-import { cleanRoutineDraft } from '../validate'
-import { id, type IpcContext } from './context'
+import { projectFor } from '@shared/projects'
+import { cleanRoutineDraft, modeIsMorePermissive } from '../validate'
+import { confirmPermissionOverride, id, type IpcContext } from './context'
 
 /** Rotinas: tarefas agendadas, controladas pelo totem do térreo. */
 export function registerRoutinesIpc(ctx: IpcContext): void {
   const { store, manager, routines, macJobs } = ctx
   const routineId = (raw: unknown) => id(raw)
   ipcMain.handle('office:listRoutines', () => routines.list())
-  ipcMain.handle('office:saveRoutine', (_e, raw: unknown) => routines.save(cleanRoutineDraft(raw, { settings: store.settings, agents: manager.list() })))
+  ipcMain.handle('office:saveRoutine', async (_e, raw: unknown) => {
+    const draft = cleanRoutineDraft(
+      { ...(raw && typeof raw === 'object' ? raw : {}), confirmPermissionOverride: true },
+      { settings: store.settings, agents: manager.list() },
+    )
+    const agent = draft.who.kind === 'agent' ? manager.agent(draft.who.agentId) : undefined
+    const floor = draft.floor ? store.settings.projects.find((p) => p.id === draft.floor) : undefined
+    const cwd = agent?.cwd ?? floor?.cwd ?? draft.cwd
+    const inherited = (cwd ? projectFor(store.settings.projects, cwd)?.permissionMode : undefined) ?? store.settings.defaultPermissionMode
+    if (
+      modeIsMorePermissive(draft.permissionMode, inherited) &&
+      !(await confirmPermissionOverride(
+        ctx.win(),
+        `A rotina ${draft.name} executará tarefas em ${cwd ?? 'seu projeto'}.`,
+        draft.permissionMode === 'bypassPermissions',
+      ))
+    ) {
+      throw new Error('Rotina não salva.')
+    }
+    return routines.save(draft)
+  })
   ipcMain.handle('office:deleteRoutine', (_e, raw: unknown) => routines.remove(routineId(raw)))
   ipcMain.handle('office:setRoutineEnabled', (_e, raw: unknown, on: unknown) => {
     if (typeof on !== 'boolean') throw new Error('Valor inválido.')

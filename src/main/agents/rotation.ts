@@ -39,6 +39,8 @@ export abstract class AgentRotation extends AgentSdk {
     if (!agent || agent.summary.source !== 'office' || agent.demo || !accounts) return
     const next = accounts.get(accountId)
     if (!next) throw new Error('Essa conta não existe mais. Escolha outra.')
+    if (agent.summary.role === 'orchestrator' && agent.summary.account !== accountId)
+      throw new Error('Este ciclo de squad está fixado à conta Claude escolhida ao iniciar. Retome com a mesma conta; uma troca exige encerrar o ciclo e iniciar outro.')
     if (this.busy(agent)) throw new Error(`${agent.summary.name} já voltou ao trabalho.`)
     if (accounts.out(accountId)) throw new Error(`${next.name} também está sem espaço ou sem login agora. Escolha outra conta.`)
     this.dropResults(id)

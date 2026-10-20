@@ -2,7 +2,7 @@
 
 import type { VideoSettings } from '../video'
 import type { Account } from './accounts'
-import type { AgentTemplate, EffortLevel, Look, OfficePermissionMode } from './agents'
+import type { AgentEngine, AgentTemplate, EffortLevel, Look, OfficePermissionMode } from './agents'
 
 export interface BridgeStatus {
   installed: boolean
@@ -16,6 +16,10 @@ export interface Settings {
   playerLook: Look
   pixelSize: number
   defaultModel: string
+  /** New installs use OpenCode for individual agents; squads remain Claude-only. */
+  defaultEngine: AgentEngine
+  /** Main-process timestamp of explicit first-use consent for OpenCode data transfer. */
+  openCodeDataConsentAt?: number
   /** '' = the model's default effort. */
   defaultEffort: EffortLevel | ''
   defaultPermissionMode: OfficePermissionMode
@@ -82,10 +86,30 @@ export interface ProjectFloor {
   cwd: string
   /** Accounts its agents run on (Account.id); two or more take turns. Missing or empty = Settings.defaultAccounts. */
   accounts?: string[]
+  /** Modo padrão dos agentes deste projeto. Missing = Settings.defaultPermissionMode. */
+  permissionMode?: OfficePermissionMode
+  /** Regras "Sempre permitir" do projeto (por ação exata, nunca por categoria de risco). */
+  alwaysAllow?: AlwaysAllowRule[]
   /** The company's logo as a PNG data URL (re-encoded and capped at 256 px by the settings form). */
   logo?: string
   /** Brand color (#rrggbb): signs and uniforms. Missing = the office orange. */
   brandColor?: string
   /** Its agents wear the company uniform: shirt in the brand color with the logo on the chest. */
   uniform?: boolean
+}
+
+/**
+ * Regra "Sempre permitir" de um projeto: vale para os dois motores (Claude e OpenCode).
+ * O contrato quer regra por categoria comum aos motores; enquanto isso não fecha, fica a
+ * regra exata conservadora de baixo: alcança só ação classificada como segura, jamais
+ * categoria de risco ou ação desconhecida — "Sem pedir" (bypass) é a única exceção.
+ */
+export interface AlwaysAllowRule {
+  id: string
+  /** Momento da aprovação, para a lista de regras do projeto. */
+  createdAt?: number
+  /** 'tool' = ferramenta exata (Read, WebSearch, mcp__servidor__ação); 'command' = comando Bash exato. */
+  kind: 'tool' | 'command'
+  /** A ferramenta ou o comando inteiro, as palavras iguais. */
+  value: string
 }

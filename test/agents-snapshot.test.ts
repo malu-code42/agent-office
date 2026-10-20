@@ -54,7 +54,7 @@ const flush = () => new Promise((r) => setTimeout(r, 10))
 describe('snapshot antes do CLI (AO-34)', () => {
   it('a query só começa depois que o snapshot termina', async () => {
     const m = new AgentManager(new Store())
-    const a = await m.hire({ name: 'Ada', cwd: tmpdir(), task: 'faça x', permissionMode: 'default', worktree: false })
+    const a = await m.hire({ name: 'Ada', cwd: tmpdir(), task: 'faça x', engine: 'claude', permissionMode: 'default', worktree: false })
     await flush()
     expect(calls).toEqual(['snapshot:start'])
     // Mensagem enviada enquanto espera: vai na mesma fila, sem abrir outro CLI.
@@ -69,7 +69,7 @@ describe('snapshot antes do CLI (AO-34)', () => {
 
   it('agente dispensado enquanto espera não abre o CLI', async () => {
     const m = new AgentManager(new Store())
-    const a = await m.hire({ name: 'Bob', cwd: tmpdir(), task: 'faça x', permissionMode: 'default', worktree: false })
+    const a = await m.hire({ name: 'Bob', cwd: tmpdir(), task: 'faça x', engine: 'claude', permissionMode: 'default', worktree: false })
     m.fire(a.id)
     finishSnapshot()
     await flush()

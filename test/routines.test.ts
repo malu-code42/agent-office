@@ -5,7 +5,17 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AgentResult, AgentSummary, AgentTemplate, HireRequest, OfficeEvent, PermissionRequest, Routine, RoutineDraft, Settings } from '@shared/types'
+import type {
+  AgentResult,
+  AgentSummary,
+  AgentTemplate,
+  HireRequest,
+  OfficeEvent,
+  PermissionRequest,
+  Routine,
+  RoutineDraft,
+  Settings,
+} from '@shared/types'
 import { routinesLed, totemView } from '@shared/routines'
 import { RoutineScheduler, RoutineStore, type RoutineHost } from '../src/main/routines'
 import { cleanRoutineDraft } from '../src/main/validate'
@@ -28,7 +38,20 @@ class FakeManager extends EventEmitter implements RoutineHost {
   private n = 0
 
   add(name: string, extra: Partial<AgentSummary> = {}): AgentSummary {
-    const a = { id: `a${++this.n}`, name, source: 'office', cwd: project, permissionMode: 'default', status: 'idle', activity: '', desk: 0, look: {}, costUsd: 0, createdAt: 0, ...extra } as AgentSummary
+    const a = {
+      id: `a${++this.n}`,
+      name,
+      source: 'office',
+      cwd: project,
+      permissionMode: 'default',
+      status: 'idle',
+      activity: '',
+      desk: 0,
+      look: {},
+      costUsd: 0,
+      createdAt: 0,
+      ...extra,
+    } as AgentSummary
     this.agents.set(a.id, a)
     return a
   }
@@ -58,12 +81,31 @@ class FakeManager extends EventEmitter implements RoutineHost {
   finish(agentId: string, isError = false, spent = 0): AgentResult {
     const a = this.agents.get(agentId)!
     a.spentUsd = (a.spentUsd ?? 0) + spent
-    const result = { id: `r-${agentId}-${Date.now()}`, agentId, text: isError ? 'Deu errado\nno meio' : 'Feito', isError, costUsd: 0, durationMs: 0, turns: 1, createdAt: Date.now() }
+    const result = {
+      id: `r-${agentId}-${Date.now()}`,
+      agentId,
+      text: isError ? 'Deu errado\nno meio' : 'Feito',
+      isError,
+      costUsd: 0,
+      durationMs: 0,
+      turns: 1,
+      createdAt: Date.now(),
+    }
     this.emit('event', { type: 'result:new', result } satisfies OfficeEvent)
     return result
   }
   ask(agentId: string): void {
-    const request = { id: `p-${agentId}`, agentId, kind: 'tool', toolName: 'Bash', title: 'Rodar', detail: '', input: {}, canAlwaysAllow: false, createdAt: 0 } as PermissionRequest
+    const request = {
+      id: `p-${agentId}`,
+      agentId,
+      kind: 'tool',
+      toolName: 'Bash',
+      title: 'Rodar',
+      detail: '',
+      input: {},
+      canAlwaysAllow: false,
+      createdAt: 0,
+    } as PermissionRequest
     this.pending.push(request)
     this.emit('event', { type: 'permission:new', request } satisfies OfficeEvent)
   }
@@ -77,17 +119,41 @@ class FakeManager extends EventEmitter implements RoutineHost {
   }
 }
 
-const templates: AgentTemplate[] = [{ id: 'tpl', name: 'Revisor', permissionMode: 'bypassPermissions', instruction: 'Você revisa {pasta}.', model: 'sonnet' }]
-const settings = (): Pick<Settings, 'projects' | 'templates'> => ({ projects: [{ id: 'p1', name: 'Loja', cwd: project }], templates })
+const templates: AgentTemplate[] = [
+  { id: 'tpl', name: 'Revisor', permissionMode: 'bypassPermissions', instruction: 'Você revisa {pasta}.', model: 'sonnet' },
+]
+const settings = (): Pick<Settings, 'projects' | 'templates' | 'defaultPermissionMode'> => ({
+  projects: [{ id: 'p1', name: 'Loja', cwd: project }],
+  templates,
+  defaultPermissionMode: 'default',
+})
 
 function setup() {
   const manager = new FakeManager()
   const store = new RoutineStore(dir)
   const notices: string[] = []
   const broadcasts: Routine[][] = []
-  const scheduler = new RoutineScheduler({ store, manager, settings, broadcast: (l) => broadcasts.push(l), notify: (title, body) => notices.push(`${title}: ${body}`) })
+  const scheduler = new RoutineScheduler({
+    store,
+    manager,
+    settings,
+    broadcast: (l) => broadcasts.push(l),
+    notify: (title, body, target) => notices.push(`${title}: ${body}${target?.itemId ? ` [${target.itemId}]` : ''}`),
+  })
   const save = (draft: Partial<RoutineDraft>) =>
-    scheduler.save(cleanRoutineDraft({ name: 'Relatório', prompt: 'Resuma o dia.', who: { kind: 'new' }, cwd: project, schedule: { kind: 'daily', time: '09:00' }, ...draft }, { settings: settings(), agents: manager.list() }))
+    scheduler.save(
+      cleanRoutineDraft(
+        {
+          name: 'Relatório',
+          prompt: 'Resuma o dia.',
+          who: { kind: 'new' },
+          cwd: project,
+          schedule: { kind: 'daily', time: '09:00' },
+          ...draft,
+        },
+        { settings: settings(), agents: manager.list() },
+      ),
+    )
   return { manager, store, scheduler, notices, broadcasts, save }
 }
 
@@ -150,13 +216,14 @@ describe('running on time', () => {
   })
 
   it('waits for you while a permission is open, then goes on', async () => {
-    const { manager, scheduler, save } = setup()
+    const { manager, scheduler, save, notices } = setup()
     const r = save({})
     scheduler.start()
     await vi.advanceTimersByTimeAsync(60 * 60_000 + 1000)
     const id = scheduler.get(r.id)!.history[0].agentId!
     manager.ask(id)
     expect(scheduler.get(r.id)!.history[0].status).toBe('waiting')
+    expect(notices.some((n) => n.includes('aguardando permissão') && n.includes(`p-${id}`))).toBe(true)
     expect(totemView(scheduler.list()).led).toBe('wait')
     manager.answer(id)
     expect(scheduler.get(r.id)!.history[0].status).toBe('running')
@@ -309,7 +376,18 @@ describe('changes survive a restart', () => {
   it('a run the app was following when it closed reads as failed', () => {
     writeFileSync(
       join(dir, 'routines.json'),
-      JSON.stringify({ routines: [{ id: 'x', name: 'R', prompt: 'p', who: { kind: 'new' }, schedule: { kind: 'daily', time: '09:00' }, history: [{ id: 'h', startedAt: 1, status: 'running' }] }] }),
+      JSON.stringify({
+        routines: [
+          {
+            id: 'x',
+            name: 'R',
+            prompt: 'p',
+            who: { kind: 'new' },
+            schedule: { kind: 'daily', time: '09:00' },
+            history: [{ id: 'h', startedAt: 1, status: 'running' }],
+          },
+        ],
+      }),
     )
     expect(new RoutineStore(dir).routines[0].history[0]).toMatchObject({ status: 'failed', error: /fechou/ })
   })
@@ -317,7 +395,9 @@ describe('changes survive a restart', () => {
 
 describe('corrupt routines.json', () => {
   it('is moved aside, never written over, and the .bak loads', () => {
-    const good = JSON.stringify({ routines: [{ id: 'x', name: 'R', prompt: 'p', who: { kind: 'new' }, schedule: { kind: 'daily', time: '09:00' }, history: [] }] })
+    const good = JSON.stringify({
+      routines: [{ id: 'x', name: 'R', prompt: 'p', who: { kind: 'new' }, schedule: { kind: 'daily', time: '09:00' }, history: [] }],
+    })
     writeFileSync(join(dir, 'routines.json.bak'), good)
     writeFileSync(join(dir, 'routines.json'), good.slice(0, 30))
     const store = new RoutineStore(dir)
@@ -337,7 +417,16 @@ describe('corrupt routines.json', () => {
   })
 
   it('a broken entry is dropped, the others load', () => {
-    writeFileSync(join(dir, 'routines.json'), JSON.stringify({ routines: [{ id: 'ok', name: 'R', prompt: '', who: { kind: 'new' }, schedule: { kind: 'daily', time: '09:00' } }, { id: 2 }, { id: 'y', name: 'S' }] }))
+    writeFileSync(
+      join(dir, 'routines.json'),
+      JSON.stringify({
+        routines: [
+          { id: 'ok', name: 'R', prompt: '', who: { kind: 'new' }, schedule: { kind: 'daily', time: '09:00' } },
+          { id: 2 },
+          { id: 'y', name: 'S' },
+        ],
+      }),
+    )
     expect(new RoutineStore(dir).routines.map((r) => r.id)).toEqual(['ok'])
   })
 })
@@ -348,6 +437,44 @@ describe('IPC validation', () => {
 
   it('fills the defaults: "Pedir permissão", active, run when opening', () => {
     expect(cleanRoutineDraft(base(), ctx())).toMatchObject({ permissionMode: 'default', enabled: true, missed: 'run', cwd: project })
+    const outsideFloor = { projects: [], templates, defaultPermissionMode: 'auto' as const }
+    expect(cleanRoutineDraft(base(), { settings: outsideFloor, agents: [] }).permissionMode).toBe('auto')
+  })
+
+  it('inherits the project mode and requires an explicit confirmation for a looser routine override', () => {
+    const projectSettings = { ...settings(), projects: [{ id: 'p1', name: 'Loja', cwd: project, permissionMode: 'plan' as const }] }
+    expect(cleanRoutineDraft(base(), { ...ctx(), settings: projectSettings })).toMatchObject({ permissionMode: 'plan' })
+    expect(() => cleanRoutineDraft({ ...base(), permissionMode: 'auto' }, { ...ctx(), settings: projectSettings })).toThrow(
+      /Confirme explicitamente/,
+    )
+    expect(
+      cleanRoutineDraft({ ...base(), permissionMode: 'auto', confirmPermissionOverride: true }, { ...ctx(), settings: projectSettings }),
+    ).toMatchObject({ permissionMode: 'auto' })
+    const agent = { id: 'a1', name: 'Ada', source: 'office', cwd: project, status: 'idle' } as AgentSummary
+    const agentCtx = { ...ctx(), settings: projectSettings, agents: [agent] }
+    expect(cleanRoutineDraft({ ...base(), who: { kind: 'agent', agentId: 'a1' } }, agentCtx)).toMatchObject({ permissionMode: 'plan' })
+    expect(() => cleanRoutineDraft({ ...base(), who: { kind: 'agent', agentId: 'a1' }, permissionMode: 'auto' }, agentCtx)).toThrow(
+      /usa o modo atual dele/,
+    )
+  })
+
+  it('routine for an existing agent inherits that agent mode, not the more permissive floor mode', async () => {
+    const { manager, scheduler } = setup()
+    const agent = manager.add('Ada', { permissionMode: 'plan' })
+    const projectSettings = {
+      projects: [{ id: 'p1', name: 'Loja', cwd: project, permissionMode: 'auto' as const }],
+      templates,
+      defaultPermissionMode: 'default' as const,
+    }
+    const draft = cleanRoutineDraft(
+      { ...base(), who: { kind: 'agent', agentId: agent.id } },
+      { settings: projectSettings, agents: manager.list() },
+    )
+    expect(draft.permissionMode).toBe('plan')
+    const routine = scheduler.save(draft)
+    agent.permissionMode = 'auto'
+    await scheduler.runNow(routine.id)
+    expect(manager.agent(agent.id)?.permissionMode).toBe('auto')
   })
 
   it('refuses what the form could never send', () => {
@@ -398,7 +525,10 @@ describe('import', () => {
       JSON.stringify({
         format: 'agent-office-dados',
         version: 1,
-        files: { 'office.json': { settings: {} }, 'routines.json': { routines: [{ id: 'r', enabled: true, nextAt: 5, permissionMode: 'bypassPermissions' }] } },
+        files: {
+          'office.json': { settings: {} },
+          'routines.json': { routines: [{ id: 'r', enabled: true, nextAt: 5, permissionMode: 'bypassPermissions' }] },
+        },
       }),
     )
     const r = JSON.parse(importSet(exp, '/home/x')['routines.json']!).routines[0]
