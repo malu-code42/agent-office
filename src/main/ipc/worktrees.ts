@@ -1,6 +1,6 @@
 import { dialog, ipcMain, shell } from 'electron'
 import { existsSync } from 'node:fs'
-import { commitChanges, discardChanges, fileDiff, insideRoot, openInEditor, openPullRequest, pendingLoss, pullRequestRemoteIdentity, removeWorktree, worktreeState } from '../git'
+import { commitChanges, discardChanges, fileDiff, insideRoot, openInEditor, openPullRequest, pendingLoss, pullRequestRemoteIdentity, pullRequestRemoteIdentityForRepo, removeWorktree, worktreeState } from '../git'
 import { changedPathSchema, commitMessageSchema, prTitleSchema, uuidSchema, parse } from '../validate'
 import { isSquadTicketResultAgent } from '@shared/squad-ticket-result'
 import { id, type IpcContext } from './context'
@@ -140,6 +140,14 @@ export function registerWorktreesIpc(ctx: IpcContext): void {
     const wt = manager.agent(r.agentId)?.worktree
     if (!wt) throw new Error('Só dá para abrir PR de um agente que trabalha numa cópia isolada (worktree).')
     const t = parse(prTitleSchema, title, 'Escreva um título para o PR.')
+    const candidates = ctx.board.list().filter((item) => item.assignee?.id === r.agentId && item.status === 'review' && !item.pullRequestUrl)
+    const ticket = r.ticketId ? ctx.board.get(r.ticketId) : candidates.length === 1 ? candidates[0] : undefined
+    const remote = await pullRequestRemoteIdentity(wt)
+    const ticketRemote = ticket?.cwd ? await pullRequestRemoteIdentityForRepo(ticket.cwd).catch(() => null) : null
+    if (ticket?.blockedBy?.length && !ticketRemote)
+      throw new Error('Não consigo validar o remoto atual do ticket; nenhum bloqueio será liberado.')
+    if (ticketRemote && (ticketRemote.host.toLowerCase() !== remote.host.toLowerCase() || ticketRemote.repository !== remote.repository))
+      throw new Error('O remoto do ticket mudou desde o resultado; não vou abrir um PR no repositório errado.')
     const { response } = await dialog.showMessageBox(win()!, {
       type: 'question',
       buttons: ['Enviar e abrir PR', 'Cancelar'],
@@ -150,12 +158,17 @@ export function registerWorktreesIpc(ctx: IpcContext): void {
     })
     if (response !== 0) return null
     const body = `${r.text.slice(0, 6000)}\n\n---\nAberto pelo Agent Office (${nameOf(r.agentId)}, branch \`${wt.branch}\`).`
-    const remote = await pullRequestRemoteIdentity(wt)
     const url = await openPullRequest(wt, t, body)
-    if (!isPullRequestUrl(url, remote.host, remote.repository)) throw new Error('A URL do PR não corresponde ao repositório remoto; nenhum bloqueio foi liberado.')
-    const candidates = ctx.board.list().filter((item) => item.assignee?.id === r.agentId && item.status === 'review' && !item.pullRequestUrl)
-    const ticket = r.ticketId ? ctx.board.get(r.ticketId) : candidates.length === 1 ? candidates[0] : undefined
-    if (ticket && ticket.assignee?.id === r.agentId && ticket.status === 'review' && !ticket.pullRequestUrl) {
+    const currentTicketRemote = ticket?.cwd ? await pullRequestRemoteIdentityForRepo(ticket.cwd).catch(() => null) : null
+    if (
+      !isPullRequestUrl(url, remote.host, remote.repository) ||
+      (currentTicketRemote &&
+        (!isPullRequestUrl(url, currentTicketRemote.host, currentTicketRemote.repository) ||
+          currentTicketRemote.host.toLowerCase() !== remote.host.toLowerCase() ||
+          currentTicketRemote.repository !== remote.repository))
+    )
+      throw new Error('A URL do PR não corresponde ao repositório atual do ticket; nenhum bloqueio foi liberado.')
+    if (ticket && currentTicketRemote && ticket.assignee?.id === r.agentId && ticket.status === 'review' && !ticket.pullRequestUrl) {
       ctx.board.recordPullRequest(ticket.id, url, { kind: 'agent', name: nameOf(r.agentId), id: r.agentId })
       ctx.board.flush()
       const started = ctx.creation.reconcileBlockedQueues()
