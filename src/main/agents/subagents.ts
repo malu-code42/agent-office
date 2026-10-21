@@ -13,6 +13,8 @@ export abstract class AgentSubagents extends AgentRotation {
     const subs = agent.summary.subagents ?? []
     switch (msg.subtype) {
       case 'task_started': {
+        // The spawn the CLI reported: its reserved slot at the desk is the running one.
+        this.startHelperSlot(agent, msg.tool_use_id)
         // Workflow tool runs get the same treatment: a helper with its own log.
         const workflow = msg.task_type === 'local_workflow'
         const isAgent = msg.task_type === 'local_agent' || !!msg.subagent_type || workflow
@@ -70,6 +72,8 @@ export abstract class AgentSubagents extends AgentRotation {
         if (msg.usage?.total_tokens) sub.tokens = msg.usage.total_tokens
         if (msg.usage?.tool_uses) sub.toolUses = msg.usage.tool_uses
         const verb = msg.status === 'completed' ? 'terminou' : msg.status === 'failed' ? 'falhou' : 'foi interrompido'
+        // The reason of a failure stays in the card of the conversation (AO-46).
+        if (msg.status === 'failed' && msg.summary?.trim()) sub.error = msg.summary.slice(0, 300)
         const ms = msg.usage?.duration_ms ?? Date.now() - sub.startedAt
         const stats = [sub.tokens ? `${kTokens(sub.tokens)} tokens` : '', `${(ms / 1000).toFixed(1).replace('.', ',')} s`].filter(Boolean).join(' · ')
         const member = sub.member ? agent.squad?.members.find((m) => m.id === sub.member) : undefined
@@ -166,8 +170,21 @@ export abstract class AgentSubagents extends AgentRotation {
     this.upsert(agent)
   }
 
+  /**
+   * The spawn the CLI reported: the reserved slot at the desk becomes the running
+   * helper. Without the id of the call, the oldest reservation is the one that started.
+   */
+  protected startHelperSlot(agent: Agent, toolUseId?: string): void {
+    const set = agent.helperReservations
+    if (!set?.size) return
+    if (toolUseId && set.delete(toolUseId)) return
+    const oldest = set.values().next()
+    if (!oldest.done) set.delete(oldest.value)
+  }
+
   protected clearSubagents(agent: Agent): void {
     const subs = agent.summary.subagents
+    agent.helperReservations?.clear()
     if (!subs?.length) return
     for (const sub of subs) this.retire(agent, sub, 'stopped', 'Parou junto com a sessão.')
     this.addLog(agent, 'system', subs.length === 1 ? 'O ajudante parou junto com a sessão.' : `${subs.length} ajudantes pararam junto com a sessão.`)

@@ -1,4 +1,4 @@
-import type { Account, AccountStatus, AgentResult, AgentSummary, BridgeStatus, LedgerToday, LogEntry, MacJob, OfficeEvent, OfficeState, PermissionRequest, PlanUsage, Routine, Settings, SquadInfo, SystemStats, Ticket } from '@shared/types'
+import type { Account, AccountStatus, AgentResult, AgentSummary, BridgeStatus, LedgerToday, LogEntry, MacJob, OfficeEvent, OfficeState, PermissionRequest, PlanUsage, Routine, Settings, SquadInfo, SquadProposal, SquadQueue, SystemStats, Ticket } from '@shared/types'
 
 import type { Proposal } from '@shared/proposals'
 
@@ -24,6 +24,10 @@ export class State {
   accounts: AccountStatus[]
   system: SystemStats | null
   squads: SquadInfo[]
+  /** Squads proposed for the empty rooms and not approved yet. */
+  squadProposals: SquadProposal[]
+  /** The queue of every squad: the ticket it works on and the ones waiting. */
+  squadQueues: SquadQueue[]
   /** Today's spend from the cost book: it survives dismissals and zeroes at local midnight. */
   ledgerToday: LedgerToday
   /** Running on battery (the scene may be in Economia). */
@@ -54,6 +58,8 @@ export class State {
     this.accounts = initial.accounts
     this.system = initial.system
     this.squads = initial.squads
+    this.squadProposals = initial.squadProposals ?? []
+    this.squadQueues = initial.squadQueues ?? []
     this.ledgerToday = initial.ledgerToday ?? { day: '', costByCwd: {}, agents: {} }
     this.onBattery = initial.onBattery ?? false
     this.routines = initial.routines ?? []
@@ -156,6 +162,12 @@ export class State {
         break
       case 'squads':
         this.squads = e.squads
+        break
+      case 'squadProposals':
+        this.squadProposals = e.proposals
+        break
+      case 'squadQueues':
+        this.squadQueues = e.queues
         break
       case 'ledger:today':
         this.ledgerToday = e.today

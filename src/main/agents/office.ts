@@ -133,7 +133,7 @@ export abstract class AgentOffice extends AgentBase {
       accounts: defaults.accounts?.length ? defaults.accounts : undefined,
       permissionMode: defaults.permissionMode,
       status: 'starting',
-      activity: 'Subindo para a Diretoria',
+      activity: 'Subindo para a sala do squad',
       ...this.seat(squad.cwd, true),
       look: lookFromSeed(`orquestrador:${squad.code}`),
       costUsd: 0,

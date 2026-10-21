@@ -75,7 +75,7 @@ export interface AgentSummary {
   subagentsDone?: SubagentInfo[]
   /** Project floor the agent works on: its cwd is inside that project's folder. Missing = ground floor. */
   project?: string
-  /** Runs a squad cycle in the Diretoria of its project floor instead of working at a desk. */
+  /** Runs a squad cycle in the squad room of its project floor instead of working at a desk. */
   role?: 'orchestrator'
   /** Squad code, for orchestrators. */
   squad?: string
@@ -175,6 +175,8 @@ export interface SubagentInfo {
   workflow?: boolean
   /** Missing while it runs. */
   status?: 'completed' | 'failed' | 'stopped'
+  /** Why it failed (the reason of the notification); missing while it runs or when it ended well. */
+  error?: string
   endedAt?: number
 }
 

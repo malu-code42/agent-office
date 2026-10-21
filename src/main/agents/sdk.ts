@@ -1,9 +1,10 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { query, type Query, type SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import { query, type HookCallbackMatcher, type Query, type SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import { describeTool, toolDetail } from '@shared/describe'
 import { MAIN_ACCOUNT } from '@shared/accounts'
 import { projectFor } from '@shared/projects'
+import { HELPER_MAX, helperLimit, helperLimitReason } from '@shared/subagents'
 import type { AgentSummary } from '@shared/types'
 import { accountEnv } from '../accounts'
 import { claudeNotFoundMessage } from '../claude-messages'
@@ -343,6 +344,9 @@ export abstract class AgentSdk extends AgentOffice {
     }
     const limits = this.store.settings
     const budget = limits.agentBudgetUsd > 0 ? limits.agentBudgetUsd - (s.spentUsd ?? 0) : undefined
+    // The cap of the desk, enforced in the runtime: a spawn that would put a fourth
+    // helper at the desk is refused, and the reason shows up in the conversation.
+    const helperMax = helperLimit(limits.maxSubagents)
     this.setStatus(agent, 'starting', s.status === 'starting' ? s.activity : 'Voltando ao trabalho')
 
     const q = query({
@@ -375,14 +379,17 @@ export abstract class AgentSdk extends AgentOffice {
               : '') +
             (squad ? `\n\n${orchestratorPrompt(squad)}` : ''),
         },
-        ...(squad ? { agents: memberAgents(squad), hooks: { PreToolUse: teamGuard(squad) } } : {}),
+        ...(squad ? { agents: memberAgents(squad) } : {}),
+        hooks: { PreToolUse: [...(squad ? teamGuard(squad) : []), this.helperCapHook(agent, helperMax)] },
         ...(this.officeTools ? { mcpServers: { office: this.officeTools(s) } } : {}),
         // Lets the terminal bridge ignore hook events coming from office-managed sessions.
         env: {
           ...accountEnv(account),
           AGENT_OFFICE_MANAGED: '1',
           // The cap the CLI enforces on subagents running at once (its default is 20).
-          ...(limits.maxSubagents > 0 ? { CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: String(limits.maxSubagents) } : {}),
+          // Only when the player set one tighter than the room: otherwise the Office
+          // refuses the call itself, so the reason is never silent.
+          ...(helperMax < HELPER_MAX ? { CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: String(helperMax) } : {}),
         },
         canUseTool: (tool, toolInput, opts) => this.askPlayer(agent, tool, toolInput, opts),
         stderr: (data) => {
@@ -402,6 +409,51 @@ export abstract class AgentSdk extends AgentOffice {
         .catch(() => undefined)
     }
     this.consume(agent, q)
+  }
+
+  /**
+   * The cap of the desk, applied to the real runtime: a spawn call that would put a
+   * fourth helper at the desk is refused, and the reason is written in the
+   * conversation of the agent (the model reads it in the refusal of the call).
+   * The team of an orchestrator is closed and its members have a desk of their own
+   * in the squad room, so they never take a slot here.
+   */
+  protected helperCapHook(agent: Agent, limit: number): HookCallbackMatcher {
+    return {
+      matcher: '^(Agent|Task)$',
+      hooks: [
+        async (input) => {
+          if (input.hook_event_name !== 'PreToolUse') return {}
+          if (agent.squad) return {}
+          // Calls in the same message come before the CLI reports any of them: the
+          // reserved ones already take a slot at the desk.
+          const active = this.runningHelpers(agent) + (agent.helperReservations?.size ?? 0)
+          if (active < limit) {
+            if (input.tool_use_id) (agent.helperReservations ??= new Set()).add(input.tool_use_id)
+            return {}
+          }
+          const reason = helperLimitReason(limit, active)
+          this.addLog(agent, 'error', reason)
+          return {
+            hookSpecificOutput: {
+              hookEventName: 'PreToolUse',
+              permissionDecision: 'deny',
+              permissionDecisionReason: reason,
+            },
+          }
+        },
+      ],
+    }
+  }
+
+  /** Subagents that stand at the agent's desk: a squad member has a desk of its own. */
+  protected runningHelpers(agent: Agent): number {
+    return (agent.summary.subagents ?? []).filter((s) => !s.member).length
+  }
+
+  /** Gives back the slot of a spawn the CLI refused to start. */
+  protected releaseHelperSlot(agent: Agent, toolUseId: string): void {
+    agent.helperReservations?.delete(toolUseId)
   }
 
   protected async consume(agent: Agent, q: Query): Promise<void> {
@@ -506,6 +558,8 @@ export abstract class AgentSdk extends AgentOffice {
       case 'result': {
         const hit = agent.limitHit
         agent.limitHit = undefined
+        // The turn is over: no spawn is waiting for a slot at the desk anymore.
+        agent.helperReservations?.clear()
         const isError = msg.subtype !== 'success' || msg.is_error
         if (agent.summary.sessionId && this.book) {
           const spent = this.book.record(agent.summary, agent.summary.sessionId, agent.summary.account, msg)

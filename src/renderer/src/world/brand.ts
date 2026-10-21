@@ -100,8 +100,10 @@ export function inkOn(hex: string): string {
 /**
  * The company sign (facing +z): logo on a white tile, then the name, on the brand
  * color. Without a logo it is just the name. Origin at the bottom center.
+ * `label` replaces the name of the company: the plate of the director's room
+ * carries the floor, not the company.
  */
-export function brandSign(b: Brand, width = 2.6): THREE.Group {
+export function brandSign(b: Brand, width = 2.6, label?: string): THREE.Group {
   const g = new THREE.Group()
   const c = document.createElement('canvas')
   c.width = Math.round(116 * width)
@@ -110,6 +112,7 @@ export function brandSign(b: Brand, width = 2.6): THREE.Group {
   const tex = new THREE.CanvasTexture(c)
   tex.colorSpace = THREE.SRGBColorSpace
   const img = b.logo ? logoImage(b.logo) : null
+  const text = label ?? b.name
   const draw = () => {
     ctx.fillStyle = b.color
     ctx.fillRect(0, 0, c.width, c.height)
@@ -121,13 +124,20 @@ export function brandSign(b: Brand, width = 2.6): THREE.Group {
       x = 70
     }
     ctx.fillStyle = inkOn(b.color)
-    ctx.font = 'bold 26px -apple-system, "Segoe UI", sans-serif'
     ctx.textBaseline = 'middle'
     const room = c.width - x - 14
-    let label = b.name
-    while (ctx.measureText(label).width > room && label.length > 4) label = label.slice(0, -2) + '…'
+    // The text fits the plate: the letters shrink before the words are cut.
+    const font = (size: number) => `bold ${size}px -apple-system, "Segoe UI", sans-serif`
+    let size = 26
+    ctx.font = font(size)
+    while (size > 16 && ctx.measureText(text).width > room) {
+      size -= 2
+      ctx.font = font(size)
+    }
+    let out = text
+    while (ctx.measureText(out).width > room && out.length > 4) out = out.slice(0, -2) + '…'
     ctx.textAlign = img ? 'left' : 'center'
-    ctx.fillText(label, img ? x : c.width / 2, c.height / 2 + 1)
+    ctx.fillText(out, img ? x : c.width / 2, c.height / 2 + 1)
   }
   if (img) drawWhenReady(img, tex, draw)
   else draw()

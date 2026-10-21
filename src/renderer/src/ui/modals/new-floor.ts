@@ -33,8 +33,8 @@ export function openNewFloor(root: HTMLElement, state: State, toast: (t: string,
       if (cwd !== p) return
       hint.className = ''
       hint.textContent = found.length
-        ? `${found.length === 1 ? '1 squad' : `${found.length} squads`} para contratar na Diretoria: ${found.map((q) => `${q.icon} ${q.name}`).join(' · ')}`
-        : 'Sem squads (squads/<code>/squad.yaml). O andar funciona igual: só não tem orquestrador para contratar.'
+        ? `${found.length === 1 ? '1 squad' : `${found.length} squads`} para o andar: ${found.map((q) => `${q.icon} ${q.name}`).join(' · ')}`
+        : 'Sem squads (squads/<code>/squad.yaml). O andar funciona igual: as salas de squad ficam vazias.'
     }
     pick.addEventListener('click', async () => {
       const p = await window.office.pickFolder(cwd || undefined)

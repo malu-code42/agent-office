@@ -14,7 +14,7 @@ export type { GameHooks } from './types'
 export class Game extends GameInput {
   constructor(container: HTMLElement, overlayRoot: HTMLElement, state: State, hooks: GameHooks) {
     super(container, overlayRoot, state, hooks)
-    this.setProjects(state.settings.projects, state.squads, false)
+    this.setProjects(state.settings.projects, state.squads, state.squadProposals, false)
     for (const a of state.agents.values()) this.addActor(a, false)
     state.onChange(() => {
       this.sync()

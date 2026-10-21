@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
 import { OpenCode } from '@opencode/client'
 import { Service } from '@opencode/client/service'
+import { helperLimit, helperLimitReason } from '@shared/subagents'
 import type { AgentSummary, SubagentInfo } from '@shared/types'
 import { APPROVED_MODELS, decisionPrompt, executionPrompt, isApprovedAgentProfile, parseJudgePlan, selectModel, trustedReportedCost, validateJudgePlan, type JudgeDelegation, type ModelAvailability } from './judge'
 
@@ -125,13 +126,17 @@ export class OpenCodeRuntime {
     let decisionText = ''
     /** Remaining spawn budget per profile, built from the locally validated plan. */
     const planBudget = new Map<string, number>()
-    const childLimit = maxSubagents > 0 ? maxSubagents : 20
+    // The cap of the desk: the room holds three helpers, and a tighter limit the
+    // player configured wins over it.
+    const childLimit = helperLimit(maxSubagents)
     let activeChildren = 0
     let reservedChildren = 0
     const childText = new Map<string, string>()
     const childUsage = new Map<string, { cost: number; inputTokens: number; outputTokens: number }>()
     const related = new Set([sessionID])
     const children = new Map<string, SubagentInfo>()
+    /** Recovered children the desk had no room for: interrupted, never adopted. */
+    const blockedChildren = new Set<string>()
     const permissionReplies = new Map<string, Promise<void>>()
     const dispatchPermission = (rawPermission: Record<string, unknown>): Promise<void> => {
       const requestID = String(rawPermission.id ?? '')
@@ -158,7 +163,7 @@ export class OpenCodeRuntime {
         ...(isSubagent && !approvedSubagent
           ? { rejectionReason: `Perfil filho OpenCode não aprovado: ${resources.join(', ') || '(desconhecido)'}.` }
           : overLimit
-            ? { rejectionReason: `Limite de ${childLimit} subagentes simultâneos atingido.` }
+            ? { rejectionReason: helperLimitReason(childLimit, activeChildren + reservedChildren) }
             : {}),
       }
       const reply = (async () => {
@@ -173,10 +178,17 @@ export class OpenCodeRuntime {
       const permissionSessions = [sessionID]
       const [activeSessions, listed] = await Promise.all([
         client.session.active(),
-        client.session.list({ parentID: sessionID, directory: cwd, limit: 100 }),
+        client.session.list({ parentID: sessionID, directory: cwd, limit: 100, order: 'asc' }),
       ])
-      for (const childSession of listed.data) {
-          if (childSession.parentID !== sessionID) continue
+      // The order of the service is not a contract: the desk decides by age, so
+      // the same children are always adopted in the same run, whatever the
+      // service answered.
+      const recovered = listed.data
+        .filter((childSession) => childSession.parentID === sessionID)
+        .sort(byCreation)
+      for (const childSession of recovered) {
+          // A child already blocked by the cap stays blocked: it never comes back.
+          if (blockedChildren.has(childSession.id)) continue
           const isActive = !!activeSessions[childSession.id]
           const childAgent = childSession.agent ?? ''
           if (!allowedSubagents.has(childAgent)) {
@@ -225,6 +237,21 @@ export class OpenCodeRuntime {
             variant: selection.variant,
             startedAt: childSession.time.created,
             background: true,
+          }
+          if (isActive && activeChildren >= childLimit) {
+            // A retomada adota no máximo childLimit filhos ativos: a mesa não
+            // ganha ajudantes extras. O excedente é interrompido (a sessão pai
+            // nunca é interrompida) e entra na conversa do agente como falha,
+            // com o mesmo motivo dos outros bloqueios por limite.
+            blockedChildren.add(childSession.id)
+            await client.session.interrupt({ sessionID: childSession.id }).catch(() => undefined)
+            onChild({
+              ...child,
+              status: 'failed',
+              endedAt: Date.now(),
+              summary: helperLimitReason(childLimit, activeChildren),
+            })
+            continue
           }
           children.set(childSession.id, child)
           related.add(childSession.id)
@@ -291,6 +318,8 @@ export class OpenCodeRuntime {
         if (raw.type === 'session.created' && typeof raw.data.sessionID === 'string' && raw.data.parentID && related.has(String(raw.data.parentID))) {
           const childID = raw.data.sessionID
           if (children.has(childID)) continue
+          // A child the cap already refused stays refused: it never comes back.
+          if (blockedChildren.has(childID)) continue
           const childAgent = String(raw.data.agent ?? '')
           if (deciding) {
             await client.session.interrupt({ sessionID: childID }).catch(() => undefined)
@@ -327,6 +356,9 @@ export class OpenCodeRuntime {
             throw new FatalPolicyError(`OpenCode criou um perfil filho não aprovado (${childAgent || 'desconhecido'}); execução interrompida.`)
           }
           if (reservedChildren === 0 && activeChildren >= childLimit) {
+            // The cap refused this child: it is interrupted, reported as failed
+            // and remembered, so a later reconcile never adopts it again.
+            blockedChildren.add(childID)
             await client.session.interrupt({ sessionID: childID }).catch(() => undefined)
             onChild({
               id: childID,
@@ -338,7 +370,7 @@ export class OpenCodeRuntime {
               endedAt: Date.now(),
               background: true,
               status: 'failed',
-              summary: `Bloqueado pelo Agent Office: limite de ${childLimit} subagentes simultâneos atingido.`,
+              summary: helperLimitReason(childLimit, activeChildren),
             })
             continue
           }
@@ -415,7 +447,9 @@ export class OpenCodeRuntime {
           const status = raw.type === 'session.execution.succeeded' ? 'completed' : raw.type === 'session.execution.failed' ? 'failed' : raw.type === 'session.execution.interrupted' ? 'stopped' : undefined
           if (status && raw.data.sessionID !== sessionID) {
             const child = children.get(raw.data.sessionID)
-            if (child) {
+            // A child refused by the cap keeps its failure: a late "stopped"
+            // never rewrites the reason the player was told.
+            if (child && !blockedChildren.has(raw.data.sessionID)) {
               const summary = childText.get(raw.data.sessionID)?.trim()
               const usage = childUsage.get(raw.data.sessionID)
               const costUsd = usage ? trustedReportedCost(pricingEntries, usage.cost) : undefined
@@ -578,6 +612,9 @@ async function makeClient() {
   return client
 }
 
+/** The official local-service client, for the paths that ask the approved model something. */
+export const openCodeClient = makeClient
+
 function isNotFound(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false
   const value = error as { detail?: unknown; cause?: unknown; status?: unknown }
@@ -589,6 +626,19 @@ function isNotFound(error: unknown): boolean {
 function normalizeDirectory(path: string): string {
   const normalized = resolve(path).replace(/[\\/]+$/, '')
   return process.platform === 'win32' ? normalized.toLowerCase() : normalized
+}
+
+/**
+ * The order of the recovered children: the oldest first, the id breaking a tie.
+ * The service does not promise an order, so the desk decides here — the same
+ * children are always adopted in the same run, and the ones already working
+ * longest are the ones kept.
+ */
+function byCreation(a: { id: string; time?: { created?: number } }, b: { id: string; time?: { created?: number } }): number {
+  const created = (a.time?.created ?? 0) - (b.time?.created ?? 0)
+  if (created !== 0) return created
+  if (a.id === b.id) return 0
+  return a.id < b.id ? -1 : 1
 }
 
 class FatalPolicyError extends Error {

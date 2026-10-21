@@ -10,6 +10,10 @@
     "src/main/**/*",
     "src/shared/**/*",
     "src/renderer/src/world/pathfinding.ts",
+    "src/renderer/src/world/layout.ts",
+    "src/renderer/src/game/floor-key.ts",
+    "src/renderer/src/game/helper-slots.ts",
+    "src/renderer/src/game/member-slots.ts",
     "src/renderer/src/ui/tour-plan.ts",
     "src/renderer/src/ui/result-rules.ts"
   ]

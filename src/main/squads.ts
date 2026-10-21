@@ -3,6 +3,7 @@ import { basename, isAbsolute, join, sep } from 'node:path'
 import type { AgentDefinition, HookCallbackMatcher } from '@anthropic-ai/claude-agent-sdk'
 import { parse } from 'yaml'
 import type { SquadInfo, SquadMember, SquadProgress, SquadStep } from '@shared/types'
+import { clearReservation, reservationState } from './squad-reservation'
 
 // Opensquad squads: squads/<code>/squad.yaml + agents/<id>.agent.md + pipeline/pipeline.yaml.
 // Read as they are; the office never writes to a squad folder.
@@ -22,12 +23,27 @@ export interface SquadDefinition extends SquadInfo {
   prompts: Record<string, string>
 }
 
-/** Every squad under `cwd`/squads. A folder without squads gives an empty list, never an error. */
+/**
+ * Every squad under `cwd`/squads. A folder without squads gives an empty list, never an error.
+ *
+ * A folder that is being written right now (the office is creating that squad) is not
+ * a squad yet and is not listed: it is a creation in progress, not a broken squad.
+ */
 export function loadSquads(cwd: string): SquadDefinition[] {
   const root = join(cwd, 'squads')
   let dirs: string[]
   try {
-    dirs = readdirSync(root).filter((d) => SAFE_NAME.test(d) && existsSync(join(root, d, 'squad.yaml')))
+    dirs = readdirSync(root)
+      .filter((d) => SAFE_NAME.test(d) && existsSync(join(root, d, 'squad.yaml')))
+      .filter((d) => {
+        const state = reservationState(join(root, d))
+        // A squad whose cleanup was lost is whole: it is recovered and listed.
+        if (state === 'complete') {
+          clearReservation(join(root, d))
+          return true
+        }
+        return state === 'none'
+      })
   } catch {
     return []
   }
@@ -51,14 +67,39 @@ export function inspectSquads(cwd: string): SquadInfo[] {
   } catch {
     return []
   }
-  return dirs.map((code) => {
+  const out: SquadInfo[] = []
+  for (const code of dirs) {
     const recoveryPath = join(root, code, 'squad.yaml')
+    const dir = join(root, code)
+    const reservation = reservationState(dir)
+    // A creation in progress is not a squad: it is not shown as broken either.
+    if (reservation === 'active') continue
+    // A squad whose cleanup was lost is whole: the leftover marker goes away.
+    if (reservation === 'complete') {
+      clearReservation(dir)
+    } else if (reservation === 'stale') {
+      // The creation was interrupted: the player has to know and to clean it up.
+      out.push({
+        code,
+        name: code,
+        icon: '⚠️',
+        description: '',
+        cwd,
+        members: [],
+        steps: [],
+        availability: 'unavailable',
+        unavailableReason:
+          'A criação deste squad foi interrompida e a pasta ficou pela metade. Apague a pasta (ou o marcador .reserva dentro dela) e tente de novo.',
+        recoveryPath,
+      })
+      continue
+    }
     try {
-      const squad = loadSquad(cwd, join(root, code))
+      const squad = loadSquad(cwd, dir)
       validateSquad(squad)
-      return { ...squadInfo(squad), availability: 'available' }
+      out.push({ ...squadInfo(squad), availability: 'available' })
     } catch (err) {
-      return {
+      out.push({
         code,
         name: code,
         icon: '⚠️',
@@ -69,9 +110,10 @@ export function inspectSquads(cwd: string): SquadInfo[] {
         availability: 'unavailable',
         unavailableReason: err instanceof Error ? err.message : String(err),
         recoveryPath,
-      }
+      })
     }
-  })
+  }
+  return out
 }
 
 /** Fail closed before execution; catalog inspection uses the same rule for its status. */

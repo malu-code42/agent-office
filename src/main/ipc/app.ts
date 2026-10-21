@@ -51,6 +51,8 @@ export function registerAppIpc(ctx: IpcContext): void {
     accounts: accounts.statuses(),
     system: system.current(),
     squads: squads(),
+    squadProposals: ctx.creation.list(),
+    squadQueues: ctx.creation.queues(),
     ledgerToday: book.today(),
     dataNotices: dataNotices(),
     onBattery: onBattery(),

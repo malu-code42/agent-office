@@ -87,8 +87,9 @@ export abstract class AgentBase extends EventEmitter {
 
   /**
    * Floor and desk for a new agent in `cwd`: the project floor holding the folder
-   * (ground floor when none does) and the first free desk there. Orchestrators take
-   * the desks of the Diretoria, everyone else the team desks.
+   * (ground floor when none does) and the first free number there. Orchestrators get
+   * their own number (they sit at the coordinator's desk of their squad room),
+   * everyone else a desk of the agents' room.
    */
   protected seat(cwd: string, orchestrator = false, except?: Agent): { project?: string; desk: number } {
     const project = projectFor(this.store.settings.projects, cwd)?.id
@@ -181,7 +182,7 @@ export abstract class AgentBase extends EventEmitter {
     agent: Agent,
     tool: string,
     input: Record<string, unknown>,
-    opts: { signal: AbortSignal; suggestions?: PermissionUpdate[]; decisionReason?: string; agentID?: string },
+    opts: { signal: AbortSignal; suggestions?: PermissionUpdate[]; decisionReason?: string; agentID?: string; toolUseID?: string },
   ): Promise<PermissionResult>
   protected abstract overBudget(agent: Agent): boolean
   protected abstract budgetText(agent: Agent): string

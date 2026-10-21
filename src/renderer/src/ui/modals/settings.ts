@@ -413,7 +413,7 @@ export function openSettings(
         h(
           'div',
           { class: 'field-hint' },
-          'Cada andar é uma pasta de projeto: quem você contrata ou chama lá trabalha nela. Se a pasta tiver squads (squads/<code>/squad.yaml), a Diretoria do andar contrata um orquestrador com o squad.',
+          'Cada andar é uma pasta de projeto: quem você contrata ou chama lá trabalha nela. Se a pasta tiver squads (squads/<code>/squad.yaml), eles ocupam as salas de squad do andar.',
         ),
         h(
           'div',
@@ -430,7 +430,7 @@ export function openSettings(
         h(
           'div',
           { class: 'field-row' },
-          field('Subagentes ao mesmo tempo', maxSubs, 'Por agente. 0 = limite do Claude Code (20).'),
+          field('Subagentes ao mesmo tempo', maxSubs, 'Por agente. A mesa comporta 3; um valor menor aperta esse limite. 0 = o limite da mesa (3).'),
           field('Teto de custo por agente (US$)', budget, 'Ao chegar nele, o agente para e avisa. 0 = sem teto.'),
         ),
       ),

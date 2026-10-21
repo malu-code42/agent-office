@@ -3,6 +3,7 @@
 export * from './agents'
 export * from './accounts'
 export * from './squads'
+export * from './squad-proposals'
 export * from './conversation'
 export * from './settings'
 export * from './tickets'

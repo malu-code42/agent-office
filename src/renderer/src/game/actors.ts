@@ -4,7 +4,7 @@ import { DEFAULT_BRAND } from '../world/brand'
 import * as L from '../world/layout'
 import { Tag } from '../world/overlays'
 import { GameBoards } from './boards'
-import { LOUNGE_AFTER_MS, screenMode, seatKey, SPAWN_POINT, SQUAD_SPEED, type Actor, type Goal } from './types'
+import { LOUNGE_AFTER_MS, screenMode, seatKey, spawnPoint, spawnTile, SQUAD_SPEED, type Actor, type Goal } from './types'
 
 /** The agents: arriving, choosing where to be (desk, boss, lounge), posing and leaving. */
 export abstract class GameActors extends GameBoards {
@@ -20,6 +20,9 @@ export abstract class GameActors extends GameBoards {
     }
     this.syncHelpers()
     this.syncMembers()
+    // The red marks of the failed helpers follow their owner: an owner that left
+    // takes its mark with it.
+    this.reflowFailureMarks()
     this.syncBoards()
     this.playerTag.setName(this.state.settings.playerName)
     if (this.player.look !== this.state.settings.playerLook) this.player.setLook(this.state.settings.playerLook)
@@ -37,7 +40,9 @@ export abstract class GameActors extends GameBoards {
     this.actors.set(a.id, actor)
     this.engine.scene.add(avatar.root)
     if (animate) {
-      avatar.placeAt(SPAWN_POINT.x, SPAWN_POINT.z)
+      // The agent comes out of the elevator of its own floor.
+      const spawn = spawnPoint(avatar.floor)
+      avatar.placeAt(spawn.x, spawn.z)
       avatar.face(0)
       this.ding(avatar.floor)
     }
@@ -55,7 +60,8 @@ export abstract class GameActors extends GameBoards {
     }
     actor.tag.setBubble('Tchau!', 'idle')
     if (actor.riding) return this.vanish(actor, 0)
-    this.route(actor.avatar, L.SPAWN_TILE, SPAWN_POINT, () => {
+    // It leaves by the elevator of the floor it is on.
+    this.route(actor.avatar, spawnTile(actor.avatar.floor), spawnPoint(actor.avatar.floor), () => {
       this.ding(actor.avatar.floor)
       this.vanish(actor, 500)
     })
@@ -80,7 +86,7 @@ export abstract class GameActors extends GameBoards {
 
   protected desired(actor: Actor, a: AgentSummary): Goal {
     if (a.role === 'orchestrator') {
-      // The Diretoria is home: no lounge between cycles.
+      // The squad room is home: no lounge between cycles.
       const items = this.state.itemsFor(a.id)
       return items.permissions.length || items.results.length || a.status === 'waiting' ? 'boss' : 'desk'
     }
@@ -102,7 +108,8 @@ export abstract class GameActors extends GameBoards {
     if (this.time < actor.chatUntil) return
     actor.tag.setName(a.name)
     actor.tag.setDot(a.status)
-    actor.tag.setHelpers(a.subagents?.length ?? 0)
+    // The chip counts the subagents working for it, not the squad members (they have their own desks).
+    actor.tag.setHelpers((a.subagents ?? []).filter((s) => !s.member).length)
     if (actor.avatar.look !== a.look && JSON.stringify(actor.avatar.look) !== JSON.stringify(a.look)) actor.avatar.setLook(a.look)
     this.dress(actor.avatar, a)
     this.showAccount(actor, a)
@@ -177,9 +184,9 @@ export abstract class GameActors extends GameBoards {
     })
   }
 
-  /** The orchestrator's chair in the Diretoria. */
+  /** The orchestrator's chair: the coordinator's desk of its squad room. */
   protected goDirector(actor: Actor, a: AgentSummary, instant: boolean): void {
-    const desk = this.directorDesk(a)
+    const desk = this.coordinatorDesk(a)
     const done = () => {
       actor.arrived = true
       const now = this.state.agents.get(actor.id)
@@ -187,7 +194,7 @@ export abstract class GameActors extends GameBoards {
     }
     const floor = this.homeFloor(a)
     if (!desk) {
-      // floor gone (downstairs) or both Diretoria desks taken: wait by the elevator
+      // the squad has no room on this floor: the orchestrator waits by the elevator
       const tile = this.overflowTile(a, floor)
       return this.travel(actor, floor, instant, () => {
         if (instant) {
@@ -209,21 +216,23 @@ export abstract class GameActors extends GameBoards {
     const av = actor.avatar
     if (av.isWalking) return
     if (actor.goal === 'desk' && a.role === 'orchestrator') {
-      if (!this.directorDesk(a)) {
+      const desk = this.coordinatorDesk(a)
+      if (!desk) {
         av.pose = 'stand'
         av.face(Math.PI)
         return
       }
-      av.face(0)
+      av.face(desk.rot)
       av.pose = a.status === 'working' || a.status === 'starting' ? 'type' : 'sit'
       av.seatY = 0
     } else if (actor.goal === 'desk') {
-      if (!this.deskOf(a)) {
+      const desk = this.deskOf(a)
+      if (!desk) {
         av.pose = 'stand'
         av.face(Math.PI)
         return
       }
-      av.face(Math.PI)
+      av.face(desk.face ?? Math.PI)
       av.pose = a.status === 'working' ? 'type' : 'sit'
       av.seatY = 0
     } else if (actor.goal === 'boss') {

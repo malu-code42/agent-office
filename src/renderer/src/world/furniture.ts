@@ -303,13 +303,6 @@ export function elevator(): { group: THREE.Group; doors: [THREE.Mesh, THREE.Mesh
   return { group: g, doors: [left, right], light, buttons }
 }
 
-export function tv(screen: THREE.Texture): THREE.Group {
-  const g = new THREE.Group()
-  box(g, 1.6, 0.92, 0.06, DARK, 0, -0.46, 0, false)
-  panel(g, 1.5, 0.82, screen, 0, 0, 0.035)
-  return g
-}
-
 export interface MonitorTv {
   group: THREE.Group
   /** Screen plane; the radio lays the live video over it. */

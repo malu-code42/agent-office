@@ -53,7 +53,7 @@ export class Tag {
     if (this.helpersEl.textContent === text) return
     this.helpersEl.textContent = text
     this.helpersEl.className = n ? 'helpers' : 'helpers hidden'
-    this.helpersEl.title = n === 1 ? '1 ajudante trabalhando' : `${n} ajudantes trabalhando`
+    this.helpersEl.title = n === 1 ? '1 subagente trabalhando' : `${n} subagentes trabalhando`
   }
 
   /** The account the agent runs on, as a tinted chip; null hides it. */
@@ -113,10 +113,22 @@ export class Overlays {
     tag.el.remove()
   }
 
-  label(text: string, x: number, z: number, floor = 0): void {
+  label(text: string, x: number, z: number, floor = 0, onClick?: () => void): void {
     const el = document.createElement('div')
     el.className = 'zone-label'
     el.textContent = text
+    if (onClick) {
+      el.classList.add('zone-label-click')
+      el.setAttribute('role', 'button')
+      el.tabIndex = 0
+      el.addEventListener('click', onClick)
+      el.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return
+        e.preventDefault()
+        e.stopPropagation()
+        onClick()
+      })
+    }
     this.root.prepend(el)
     this.labels.push({ el, pos: new THREE.Vector3(x, 0, z), floor })
   }

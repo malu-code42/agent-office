@@ -116,7 +116,14 @@ describe('restore', () => {
     dailyBackup(dir, new Date(2026, 9, 1))
     put('tickets.json', { seq: 9, tickets: [] })
     put('tickets-closed.json', { tickets: [{ key: 'AO-8' }] })
-    expect(keptBy(readBackup(dir, '2026-10-01'))).toEqual(['tickets.json', 'tickets-closed.json', 'routines.json', 'planning.json'])
+    expect(keptBy(readBackup(dir, '2026-10-01'))).toEqual([
+      'tickets.json',
+      'tickets-closed.json',
+      'routines.json',
+      'planning.json',
+      'squad-proposals.json',
+      'squad-queues.json',
+    ])
     restoreBackup(dir, '2026-10-01')
     expect(read('office.json')).toEqual({ v: 'old' })
     expect(read('tickets.json')).toEqual({ seq: 9, tickets: [] })

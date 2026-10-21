@@ -14,6 +14,8 @@ const WHAT: Record<DataFile, string> = {
   'tickets-closed.json': 'arquivo de tickets fechados',
   'routines.json': 'rotinas',
   'planning.json': 'tarefas em foco',
+  'squad-proposals.json': 'propostas de squad',
+  'squad-queues.json': 'filas dos squads',
 }
 
 /** What a restore or import leaves as it is, for the confirmation (AO-25). */
