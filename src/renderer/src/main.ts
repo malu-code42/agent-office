@@ -14,7 +14,6 @@ import { openSkull } from './ui/skull'
 import { openRoutines } from './ui/routines'
 import { openTasksBoard } from './ui/tasks-board'
 import { openFocusPopup } from './ui/focus-popup'
-import { openIris } from './ui/iris'
 import { openProposalReview } from './ui/proposals'
 import { openReviewOffer, openReviewWizard } from './ui/review'
 import { openReports } from './ui/reports'
@@ -130,14 +129,7 @@ async function boot(): Promise<void> {
     })
     if (choice?.kind !== 'summon') return
     try {
-      const a = await window.office.summon(
-        choice.cwd,
-        choice.permissionMode,
-        choice.brain,
-        choice.worktree,
-        choice.confirmPermissionOverride,
-        choice.engine,
-      )
+      const a = await window.office.summon(choice.cwd, choice.permissionMode, choice.brain, choice.worktree)
       const floor = state.settings.projects.find((p) => p.id === a.project)
       toast(
         floor && floor !== project
@@ -249,7 +241,7 @@ async function boot(): Promise<void> {
       reports: () => openReports(ui, state, { project: game.currentProject, toast }),
       openProposal: (id) => void openProposalReview(ui, toast, id),
       review: () => void openReviewWizard(ui, toast),
-      iris: () => openIris(ui, toast),
+      focus: () => void openFocusPopup(ui, state, toast),
       board: (ticketId) => {
         if (ticketId) board.open(ticketId)
         else board.toggle()

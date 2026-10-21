@@ -6,6 +6,7 @@ import { DEFAULT_BRAND } from '../../world/brand'
 import { arrowList, asDialog, keepFocus, rove } from '../a11y'
 import { accountChip } from '../accounts'
 import { formatCost, h, icon, timeAgo } from '../dom'
+import { isFocusPopupOpen, onFocusPopup } from '../focus-state'
 import { contextLevel, helpersChip } from '../panel'
 import { portrait } from '../portrait'
 import type { Radio } from '../radio'
@@ -42,8 +43,8 @@ export interface HudActions {
   openProposal(id: string): void
   /** The review of today, from its draft (AO-12). */
   review(): void
-  /** Pedir à Íris (AO-13): a request in words, sent only after the user reads it. */
-  iris(): void
+  /** "Tarefas em foco": the popup of the tasks in the focus (the key F does the same). */
+  focus(): void
 }
 
 const COMPACT_KEY = 'roster-compact'
@@ -74,6 +75,12 @@ export const STATUS_LABEL: Record<AgentStatus, string> = {
   stopped: 'Parado',
 }
 
+/** The name the screen reader reads for the focus button: what it does and how many tasks it has. */
+function focusLabel(n: number): string {
+  if (n === 0) return 'Tarefas em foco (F): nenhuma tarefa em foco'
+  return `Tarefas em foco (F): ${n} ${n === 1 ? 'tarefa' : 'tarefas'} em foco`
+}
+
 /** Brand bar, agent roster, bottom dock, inbox popover and toasts. */
 export class Hud {
   private roster: HTMLDivElement
@@ -93,6 +100,9 @@ export class Hud {
   private infoCard: InfoCard
   private boardBtn: HTMLButtonElement
   private boardBadge: HTMLSpanElement
+  /** The alfinete of "Tarefas em foco" in the dock, with the count of the tasks in the focus. */
+  private focusBtn: HTMLButtonElement
+  private focusBadge: HTMLSpanElement
   private floorsEl: HTMLDivElement
   private floorNames: string[] = ['Térreo']
   private floor = 0
@@ -110,7 +120,13 @@ export class Hud {
     const brand = h(
       'div',
       { class: 'brand' + (mac ? ' brand-mac' : '') },
-      h('div', { class: 'brand-row' }, h('span', { class: 'brand-mark' }, '✳'), h('span', { class: 'brand-name' }, 'Agent Office'), h('span', { class: 'brand-version', title: `Build de ${__APP_BUILD__}` }, `v${__APP_VERSION__}`)),
+      h(
+        'div',
+        { class: 'brand-row' },
+        h('span', { class: 'brand-mark' }, '✳'),
+        h('span', { class: 'brand-name' }, 'Agent Office'),
+        h('span', { class: 'brand-version', title: `Build de ${__APP_BUILD__}` }, `v${__APP_VERSION__}`),
+      ),
       this.stats,
     )
 
@@ -122,16 +138,20 @@ export class Hud {
       if (row) this.rosterActive = row.dataset.focusKey ?? null
     })
     const compact = localStorage.getItem(COMPACT_KEY) === '1'
-    const compactBtn = h('button', {
-      class: 'icon-btn roster-compact-btn',
-      title: 'Modo compacto',
-      'aria-pressed': String(compact),
-      onclick: () => {
-        const on = this.roster.classList.toggle('compact')
-        compactBtn.setAttribute('aria-pressed', String(on))
-        localStorage.setItem(COMPACT_KEY, on ? '1' : '0')
+    const compactBtn = h(
+      'button',
+      {
+        class: 'icon-btn roster-compact-btn',
+        title: 'Modo compacto',
+        'aria-pressed': String(compact),
+        onclick: () => {
+          const on = this.roster.classList.toggle('compact')
+          compactBtn.setAttribute('aria-pressed', String(on))
+          localStorage.setItem(COMPACT_KEY, on ? '1' : '0')
+        },
       },
-    }, icon('compact', 14))
+      icon('compact', 14),
+    )
     this.roster = h(
       'div',
       { class: 'roster card' + (compact ? ' compact' : ''), 'data-tour': 'roster' },
@@ -140,11 +160,48 @@ export class Hud {
     )
 
     this.inboxBadge = h('span', { class: 'badge hidden' })
-    this.inboxBtn = h('button', { class: 'dock-btn', 'data-tour': 'inbox', title: 'Caixa de entrada (I)', 'aria-haspopup': 'dialog', 'aria-expanded': 'false', onclick: () => this.toggleInbox() }, icon('inbox'), this.inboxBadge)
+    this.inboxBtn = h(
+      'button',
+      {
+        class: 'dock-btn',
+        'data-tour': 'inbox',
+        title: 'Caixa de entrada (I)',
+        'aria-haspopup': 'dialog',
+        'aria-expanded': 'false',
+        onclick: () => this.toggleInbox(),
+      },
+      icon('inbox'),
+      this.inboxBadge,
+    )
     this.gearAlert = h('span', { class: 'dock-alert hidden' })
-    this.gearBtn = h('button', { class: 'dock-btn', title: 'Configurações', onclick: () => actions.settings(this.bridgeFailing() ? 'bridge' : undefined) }, icon('gear'), this.gearAlert)
+    this.gearBtn = h(
+      'button',
+      { class: 'dock-btn', title: 'Configurações', onclick: () => actions.settings(this.bridgeFailing() ? 'bridge' : undefined) },
+      icon('gear'),
+      this.gearAlert,
+    )
     this.boardBadge = h('span', { class: 'badge badge-review hidden' })
-    this.boardBtn = h('button', { class: 'dock-btn', 'data-tour': 'board', title: 'Quadro de tickets (T)', onclick: () => actions.board() }, icon('kanban'), this.boardBadge)
+    this.boardBtn = h(
+      'button',
+      { class: 'dock-btn', 'data-tour': 'board', title: 'Quadro de tickets (T)', onclick: () => actions.board() },
+      icon('kanban'),
+      this.boardBadge,
+    )
+    // Tarefas em foco: the pin and the count, next to "Novo agente" and before the inbox.
+    this.focusBadge = h('span', { class: 'badge' })
+    this.focusBtn = h(
+      'button',
+      {
+        class: 'dock-btn dock-focus',
+        title: 'Tarefas em foco (F)',
+        'aria-label': 'Tarefas em foco (F)',
+        'aria-haspopup': 'dialog',
+        'aria-expanded': 'false',
+        onclick: () => actions.focus(),
+      },
+      icon('pin'),
+      this.focusBadge,
+    )
     this.dockName = h('span', { class: 'dock-name' })
     this.dockPortrait = h('span', { class: 'dock-portrait' })
     const dock = h(
@@ -153,11 +210,30 @@ export class Hud {
       // Identity only: Configurações has one door, the gear.
       h('span', { class: 'dock-me', title: 'Você' }, this.dockPortrait, h('span', { class: 'dot dot-you' }), this.dockName),
       h('div', { class: 'dock-sep' }),
-      h('button', { class: 'dock-primary', 'data-tour': 'new-agent', title: 'Conversar, dar uma tarefa ou subir um squad (N)', onclick: () => actions.newAgent() }, icon('plus'), 'Novo agente'),
+      h(
+        'button',
+        {
+          class: 'dock-primary',
+          'data-tour': 'new-agent',
+          title: 'Conversar, dar uma tarefa ou subir um squad (N)',
+          onclick: () => actions.newAgent(),
+        },
+        icon('plus'),
+        'Novo agente',
+      ),
+      this.focusBtn,
       this.inboxBtn,
       this.boardBtn,
-      h('button', { class: 'dock-btn', title: 'Relatórios: gasto por projeto, agente e modelo (R)', onclick: () => actions.reports() }, icon('report')),
-      h('button', { class: 'dock-btn', 'data-tour': 'resume', title: 'Central de resume: retomar sessões recentes', onclick: () => actions.resume() }, icon('history')),
+      h(
+        'button',
+        { class: 'dock-btn', title: 'Relatórios: gasto por projeto, agente e modelo (R)', onclick: () => actions.reports() },
+        icon('report'),
+      ),
+      h(
+        'button',
+        { class: 'dock-btn', 'data-tour': 'resume', title: 'Central de resume: retomar sessões recentes', onclick: () => actions.resume() },
+        icon('history'),
+      ),
       h('button', { class: 'dock-btn', 'data-tour': 'home', title: 'Ir para minha sala', onclick: () => actions.goHome() }, icon('home')),
       radio.button,
       this.gearBtn,
@@ -170,7 +246,9 @@ export class Hud {
     )
     this.floorsEl = h('div', { class: 'floors card', 'data-tour': 'floors' })
     // The roster ends above the elevator panel, which grows with every floor.
-    new ResizeObserver(() => document.documentElement.style.setProperty('--floors-h', `${this.floorsEl.offsetHeight}px`)).observe(this.floorsEl)
+    new ResizeObserver(() => document.documentElement.style.setProperty('--floors-h', `${this.floorsEl.offsetHeight}px`)).observe(
+      this.floorsEl,
+    )
     this.infoCard = new InfoCard(state, actions)
     const side = h('div', { class: 'hud-side' + (mac ? ' hud-side-mac' : '') }, this.infoCard.info)
     this.inbox = h('div', { class: 'inbox card hidden' })
@@ -191,6 +269,8 @@ export class Hud {
         this.hideInbox()
       }
     })
+    // The popup says when it opens and closes: the alfinete shows it.
+    onFocusPopup(() => this.renderFocus())
     this.render()
   }
 
@@ -223,6 +303,7 @@ export class Hud {
     this.inboxBadge.textContent = String(n)
     this.inboxBadge.classList.toggle('hidden', n === 0)
     this.inboxBtn.classList.toggle('pulse', n > 0)
+    this.renderFocus()
     const review = this.state.reviewCount
     this.boardBadge.textContent = String(review)
     this.boardBadge.classList.toggle('hidden', review === 0)
@@ -242,6 +323,16 @@ export class Hud {
     this.floorNames = names
     this.floor = current
     this.renderFloors()
+  }
+
+  /** The alfinete of the focus: how many tasks are in it, and whether the popup is open. */
+  private renderFocus(): void {
+    const n = this.state.focusCount
+    this.focusBadge.textContent = String(n)
+    this.focusBtn.setAttribute('aria-label', focusLabel(n))
+    const open = isFocusPopupOpen()
+    this.focusBtn.classList.toggle('open', open)
+    this.focusBtn.setAttribute('aria-expanded', String(open))
   }
 
   /** Agents busy or waiting on a floor: each one on its project's floor, or downstairs. */
@@ -267,10 +358,24 @@ export class Hud {
     const rows = names
       .map((name, n) => {
         const act = this.floorActivity(n)
-        const badge = n !== this.floor && act.count ? h('span', { class: `badge${act.waiting ? '' : ' badge-review'}`, title: act.waiting ? 'Alguém esperando você neste andar' : 'Agentes trabalhando neste andar' }, String(act.count)) : null
+        const badge =
+          n !== this.floor && act.count
+            ? h(
+                'span',
+                {
+                  class: `badge${act.waiting ? '' : ' badge-review'}`,
+                  title: act.waiting ? 'Alguém esperando você neste andar' : 'Agentes trabalhando neste andar',
+                },
+                String(act.count),
+              )
+            : null
         return h(
           'button',
-          { class: `floor-btn${n === this.floor ? ' on' : ''}${badge && act.waiting ? ' pulse' : ''}`, title: n === this.floor ? `Você está no ${name}` : `Ir para ${name} pelo elevador`, onclick: () => this.actions.goFloor(n) },
+          {
+            class: `floor-btn${n === this.floor ? ' on' : ''}${badge && act.waiting ? ' pulse' : ''}`,
+            title: n === this.floor ? `Você está no ${name}` : `Ir para ${name} pelo elevador`,
+            onclick: () => this.actions.goFloor(n),
+          },
           h('span', { class: 'floor-num' }, n === 0 ? 'T' : String(n)),
           h('span', { class: 'floor-name' }, name),
           badge,
@@ -279,7 +384,16 @@ export class Hud {
       .reverse()
     const add =
       names.length - 1 < MAX_PROJECT_FLOORS
-        ? h('button', { class: 'floor-btn floor-add', title: 'Um andar para um projeto: quem você contrata ou chama lá trabalha na pasta dele', onclick: () => this.actions.newFloor() }, h('span', { class: 'floor-num' }, icon('plus', 12)), h('span', { class: 'floor-name' }, 'Andar de projeto'))
+        ? h(
+            'button',
+            {
+              class: 'floor-btn floor-add',
+              title: 'Um andar para um projeto: quem você contrata ou chama lá trabalha na pasta dele',
+              onclick: () => this.actions.newFloor(),
+            },
+            h('span', { class: 'floor-num' }, icon('plus', 12)),
+            h('span', { class: 'floor-name' }, 'Andar de projeto'),
+          )
         : null
     this.floorsEl.replaceChildren(h('div', { class: 'floors-head' }, 'Elevador'), ...rows, ...(add ? [add] : []))
   }
@@ -293,14 +407,18 @@ export class Hud {
   private ticketChip(agentId: string): HTMLElement | null {
     const t = this.state.ticketFor(agentId)
     if (!t) return null
-    return h('button', {
-      class: 'chip chip-ticket',
-      title: `Trabalhando em ${t.key}: ${t.title}`,
-      onclick: (e: Event) => {
-        e.stopPropagation()
-        this.actions.board(t.id)
+    return h(
+      'button',
+      {
+        class: 'chip chip-ticket',
+        title: `Trabalhando em ${t.key}: ${t.title}`,
+        onclick: (e: Event) => {
+          e.stopPropagation()
+          this.actions.board(t.id)
+        },
       },
-    }, t.key)
+      t.key,
+    )
   }
 
   /** Project floor the agent works on, in the company color; click takes the elevator there. Nothing on the ground floor. */
@@ -308,15 +426,20 @@ export class Hud {
     const n = this.state.floorOf(a)
     const p = this.state.settings.projects[n - 1]
     if (!p) return null
-    return h('button', {
-      class: 'chip chip-floor',
-      style: `--floor:${p.brandColor ?? DEFAULT_BRAND}`,
-      title: `Trabalhando no ${n}º andar: ${p.name} (${p.cwd})`,
-      onclick: (e: Event) => {
-        e.stopPropagation()
-        this.actions.goFloor(n)
+    return h(
+      'button',
+      {
+        class: 'chip chip-floor',
+        style: `--floor:${p.brandColor ?? DEFAULT_BRAND}`,
+        title: `Trabalhando no ${n}º andar: ${p.name} (${p.cwd})`,
+        onclick: (e: Event) => {
+          e.stopPropagation()
+          this.actions.goFloor(n)
+        },
       },
-    }, h('span', { class: 'chip-floor-num' }, String(n)), h('span', { class: 'chip-floor-name' }, p.name))
+      h('span', { class: 'chip-floor-num' }, String(n)),
+      h('span', { class: 'chip-floor-name' }, p.name),
+    )
   }
 
   private rosterRow(a: AgentSummary): HTMLElement {
@@ -350,21 +473,29 @@ export class Hud {
         ),
         h('div', { class: 'roster-activity' }, activity),
         a.context
-          ? h('div', { class: `ctx-mini ctx-${contextLevel(a.context.percent)}`, title: `Contexto: ${a.context.percent}%` }, h('div', { class: 'ctx-fill', style: `width:${Math.min(100, a.context.percent)}%` }))
+          ? h(
+              'div',
+              { class: `ctx-mini ctx-${contextLevel(a.context.percent)}`, title: `Contexto: ${a.context.percent}%` },
+              h('div', { class: 'ctx-fill', style: `width:${Math.min(100, a.context.percent)}%` }),
+            )
           : null,
       ),
       h(
         'div',
         { class: 'roster-side' },
-        pending ? h('span', { class: 'badge' }, String(pending)) : h('span', { class: 'roster-cost' }, a.costUnknown ? 's/ preço' : formatCost(a.costUsd)),
-        h('button', {
-          class: 'icon-btn',
-          title: 'Ver no mapa',
-          onclick: (e: Event) => {
-            e.stopPropagation()
-            this.actions.focusAgent(a.id)
+        pending ? h('span', { class: 'badge' }, String(pending)) : h('span', { class: 'roster-cost' }, formatCost(a.costUsd)),
+        h(
+          'button',
+          {
+            class: 'icon-btn',
+            title: 'Ver no mapa',
+            onclick: (e: Event) => {
+              e.stopPropagation()
+              this.actions.focusAgent(a.id)
+            },
           },
-        }, icon('eye', 15)),
+          icon('eye', 15),
+        ),
       ),
     )
     row.addEventListener('keydown', (e) => {
@@ -404,7 +535,17 @@ export class Hud {
           'button',
           { class: 'inbox-row', 'data-focus-key': p.id, onclick: () => this.pick(p.agentId, p.id) },
           portrait(a.look, 30),
-          h('div', { class: 'inbox-main' }, h('div', { class: 'inbox-name' }, a.name, h('span', { class: 'chip chip-wait' }, p.kind === 'question' ? 'pergunta' : p.kind === 'plan' ? 'plano' : 'permissão')), h('div', { class: 'inbox-text' }, p.title)),
+          h(
+            'div',
+            { class: 'inbox-main' },
+            h(
+              'div',
+              { class: 'inbox-name' },
+              a.name,
+              h('span', { class: 'chip chip-wait' }, p.kind === 'question' ? 'pergunta' : p.kind === 'plan' ? 'plano' : 'permissão'),
+            ),
+            h('div', { class: 'inbox-text' }, p.title),
+          ),
           h('span', { class: 'inbox-time' }, timeAgo(p.createdAt)),
         ),
       )
@@ -417,7 +558,17 @@ export class Hud {
           'button',
           { class: 'inbox-row', 'data-focus-key': r.id, onclick: () => this.pick(r.agentId, r.id) },
           portrait(a.look, 30),
-          h('div', { class: 'inbox-main' }, h('div', { class: 'inbox-name' }, a.name, h('span', { class: r.isError ? 'chip chip-err' : 'chip chip-done' }, r.isError ? 'erro' : 'resultado')), h('div', { class: 'inbox-text' }, r.text.slice(0, 90))),
+          h(
+            'div',
+            { class: 'inbox-main' },
+            h(
+              'div',
+              { class: 'inbox-name' },
+              a.name,
+              h('span', { class: r.isError ? 'chip chip-err' : 'chip chip-done' }, r.isError ? 'erro' : 'resultado'),
+            ),
+            h('div', { class: 'inbox-text' }, r.text.slice(0, 90)),
+          ),
           h('span', { class: 'inbox-time' }, timeAgo(r.createdAt)),
         ),
       )
@@ -458,12 +609,7 @@ export class Hud {
     }
     keepFocus(this.inbox, () =>
       this.inbox.replaceChildren(
-        h(
-          'div',
-          { class: 'inbox-head' },
-          h('span', {}, 'Caixa de entrada'),
-          h('button', { class: 'btn btn-small inbox-iris', type: 'button', onclick: () => this.actions.iris() }, 'Pedir à Íris'),
-        ),
+        h('div', { class: 'inbox-head' }, h('span', {}, 'Caixa de entrada')),
         ...(rows.length ? rows : [h('div', { class: 'inbox-empty' }, 'Nada pendente. Seus agentes estão trabalhando.')]),
       ),
     )
