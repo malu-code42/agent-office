@@ -2,7 +2,8 @@ import { dialog, ipcMain, type MessageBoxOptions } from 'electron'
 import { isAbsolute } from 'node:path'
 import { isDir } from '../squads'
 import { cleanLook } from '../templates'
-import { repoRoot } from '../git'
+import { pullRequestRemoteHost, repoRoot } from '../git'
+import { isPullRequestUrl } from '@shared/pull-request-url'
 import {
   worktreeFlagSchema,
   attachmentsSchema,
@@ -87,8 +88,31 @@ export function registerAgentsIpc(ctx: IpcContext): void {
 
   ipcMain.handle('office:respond', (_e, d: unknown) => manager.respond(parse(permissionDecisionSchema, d, 'Resposta inválida.')))
   ipcMain.handle('office:continueOn', (_e, raw: unknown, account: unknown) => manager.continueOn(id(raw), id(account)))
-  ipcMain.handle('office:ackResult', (_e, raw: unknown) => {
-    manager.ackResult(id(raw))
+  ipcMain.handle('office:ackResult', async (_e, raw: unknown) => {
+    const resultId = id(raw)
+    const result = manager.result(resultId)
+    const agent = result ? manager.agent(result.agentId) : undefined
+    if (result && !result.isError && agent?.role === 'orchestrator' && agent.squad && agent.ticketId) {
+      const expectedHost = agent.worktree ? await pullRequestRemoteHost(agent.worktree).catch(() => null) : null
+      const queue = ctx.creation.queue(agent.squad)
+      const pendingPRs = queue && Array.isArray(queue.pendingPRs) ? queue.pendingPRs : []
+      const hasVerifiedPR = pendingPRs.some(
+        (pr) =>
+          pr &&
+          typeof pr === 'object' &&
+          pr.ticketId === agent.ticketId &&
+          typeof pr.ticketKey === 'string' &&
+          typeof pr.title === 'string' &&
+          typeof pr.branch === 'string' &&
+          /^agent\/[a-z0-9][a-z0-9-]{0,60}$/.test(pr.branch) &&
+          Number.isFinite(pr.createdAt) &&
+          typeof pr.url === 'string' &&
+          isPullRequestUrl(pr.url, expectedHost),
+      )
+      if (!hasVerifiedPR)
+        throw new Error('O resultado do ticket continua guardado até existir uma fila íntegra com o PR verificado registrado.')
+    }
+    manager.ackResult(resultId)
     updateBadge()
   })
 }

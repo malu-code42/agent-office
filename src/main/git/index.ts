@@ -9,6 +9,7 @@ export { runBatch, runGit } from './run'
 export { displayPath, insideRoot, repoRoot } from './repo'
 export {
   createWorktree,
+  excludeSquadRuntime,
   pendingLoss,
   pruneWorktrees,
   removeWorktree,
@@ -20,4 +21,4 @@ export {
   type WorktreeState,
 } from './worktrees'
 export { changesSince, discardChanges, fileDiff, takeSnapshot, type Snapshot } from './changes'
-export { commitChanges, findOnPath, openInEditor, openPullRequest } from './publish'
+export { commitChanges, findOnPath, openInEditor, openPullRequest, pullRequestForBranch, pullRequestRemoteHost } from './publish'

@@ -24,11 +24,41 @@ const queueSchema = z
     cwd: z.string().min(1).max(4096),
     active: z.string().min(1).max(200).nullable(),
     queue: z.array(z.string().min(1).max(200)).max(500),
+    pendingPRs: z
+      .array(
+        z.object({
+          ticketId: z.string().min(1).max(200),
+          ticketKey: z.string().min(1).max(40),
+          title: z.string().min(1).max(200),
+          url: z.string().url().max(2048),
+          branch: z.string().regex(/^agent\/[a-z0-9][a-z0-9-]{0,60}$/),
+          createdAt: z.number().finite(),
+        }),
+      )
+      .max(500)
+      .optional(),
+    cycle: z
+      .object({
+        ticketId: z.string().min(1).max(200),
+        resultId: z.string().uuid().optional(),
+        publicationError: z.string().max(2000).optional(),
+        startupError: z.string().max(2000).optional(),
+        worktree: z.object({
+          path: z.string().min(1).max(4096),
+          root: z.string().min(1).max(4096),
+          repo: z.string().min(1).max(4096),
+          branch: z.string().regex(/^agent\/[a-z0-9][a-z0-9-]{0,60}$/),
+          base: z.string().regex(/^[0-9a-f]{40,64}$/i),
+        }),
+      })
+      .optional(),
     updatedAt: z.number().finite(),
   })
   .superRefine((queue, ctx) => {
     const ids = [queue.active, ...queue.queue].filter((id): id is string => id !== null)
     if (new Set(ids).size !== ids.length) ctx.addIssue({ code: 'custom', path: ['queue'], message: 'duplicate ticket id' })
+    if (queue.cycle && queue.cycle.ticketId !== queue.active)
+      ctx.addIssue({ code: 'custom', path: ['cycle'], message: 'active cycle does not match queue active ticket' })
   })
 
 export class SquadQueueStore {
@@ -67,7 +97,7 @@ export class SquadQueueStore {
         dropped.push({ code, value })
         continue
       }
-      queues[code] = parsed.data
+      queues[code] = { ...parsed.data, pendingPRs: parsed.data.pendingPRs ?? [] }
     }
     // A queue that does not fit is left out, not used: o office abre com as filas
     // em que pode confiar. O que ficou de fora é guardado para o jogador.
@@ -92,6 +122,17 @@ export class SquadQueueStore {
   set(queue: SquadQueue): void {
     this.data.queues[queue.code] = queue
     this.save()
+  }
+
+  setCycle(code: string, cycle: SquadQueue['cycle']): SquadQueue {
+    const queue = this.data.queues[code]
+    if (!queue) throw new Error(`A fila do squad ${code} não existe.`)
+    if (cycle && queue.active !== cycle.ticketId) throw new Error('A cópia isolada não corresponde ao ticket ativo.')
+    if (cycle) queue.cycle = cycle
+    else delete queue.cycle
+    queue.updatedAt = Date.now()
+    this.save()
+    return queue
   }
 
   /** Forgets the queue of a squad. */

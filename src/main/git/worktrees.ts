@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
-import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync } from 'node:fs'
-import { dirname, isAbsolute, join, relative, sep } from 'node:path'
+import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync } from 'node:fs'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { WorktreeInfo } from '@shared/types'
 import { headOf, insideRoot, repoRoot } from './repo'
 import { git, SHA_RE, zsplit } from './run'
@@ -49,7 +49,10 @@ export async function createWorktree(cwd: string, name: string, id: string): Pro
   if (!repo) return null
   const base = await headOf(repo)
   if (!base) throw new Error('o repositório ainda não tem nenhum commit')
-  const slug = `${slugify(name)}-${id.replace(/[^0-9a-f]/gi, '').slice(0, 8).toLowerCase()}`
+  const slug = `${slugify(name)}-${id
+    .replace(/[^0-9a-f]/gi, '')
+    .slice(0, 8)
+    .toLowerCase()}`
   const branch = `agent/${slug}`
   if (!validBranch(branch)) throw new Error(`nome de branch inválido: ${branch}`)
   await git(repo, ['check-ref-format', '--branch', branch])
@@ -66,6 +69,34 @@ export async function createWorktree(cwd: string, name: string, id: string): Pro
   const sub = relative(repo, cwd)
   const path = sub && !sub.startsWith('..') ? join(root, sub) : root
   return { path, root, repo, branch, base }
+}
+
+/** Keeps transient squad definitions out of git status without touching the source repo. */
+export async function excludeSquadRuntime(wt: WorktreeInfo, code: string): Promise<void> {
+  if (!/^[\w-]{1,64}$/.test(code)) throw new Error('Código de squad inválido para exclusão local.')
+  checkWorktree(wt)
+  const common = (await git(wt.root, ['rev-parse', '--git-common-dir'])).trim()
+  const commonDir = resolve(wt.root, common)
+  const excludeRel = (await git(wt.root, ['rev-parse', '--git-path', 'info/exclude'])).trim()
+  const excludeFile = resolve(wt.root, excludeRel)
+  if (!insideRoot(commonDir, relative(commonDir, excludeFile)))
+    throw new Error('O arquivo de exclusões locais do git está fora do repositório comum.')
+  mkdirSync(dirname(excludeFile), { recursive: true })
+  const gitInfo = realpathSync(dirname(excludeFile))
+  if (!gitInfo.startsWith(realpathSync(commonDir) + sep) && gitInfo !== realpathSync(commonDir))
+    throw new Error('O arquivo de exclusões locais do git está fora do repositório comum.')
+  const projectDir = relative(wt.root, wt.path).replace(/\\/g, '/')
+  if (projectDir === '..' || projectDir.startsWith('../') || isAbsolute(projectDir))
+    throw new Error('A pasta de trabalho do squad saiu do worktree.')
+  const prefix = projectDir ? `/${projectDir}/` : '/'
+  const lines = [`${prefix}squads/${code}/`, `${prefix}_opensquad/`]
+  const current = existsSync(excludeFile) ? readFileSync(excludeFile, 'utf8') : ''
+  const missing = lines.filter((line) => !current.split(/\r?\n/).includes(line))
+  if (!missing.length) return
+  appendFileSync(
+    excludeFile,
+    `${current && !current.endsWith('\n') ? '\n' : ''}# Agent Office: definição isolada do squad\n${missing.join('\n')}\n`,
+  )
 }
 
 /**
@@ -86,7 +117,10 @@ export async function worktreeFromPath(cwd: string): Promise<{ cwd: string; work
     const repoHead = await headOf(repo)
     const base = repoHead ? (await git(root, ['merge-base', 'HEAD', repoHead])).trim() : ''
     const sub = relative(root, cwd)
-    return { cwd: sub ? join(repo, sub) : repo, worktree: { path: cwd, root, repo, branch, base: SHA_RE.test(base) ? base : (await headOf(root)) ?? '' } }
+    return {
+      cwd: sub ? join(repo, sub) : repo,
+      worktree: { path: cwd, root, repo, branch, base: SHA_RE.test(base) ? base : ((await headOf(root)) ?? '') },
+    }
   } catch {
     return null
   }
@@ -189,9 +223,14 @@ export async function removeWorktree(wt: WorktreeInfo, force: boolean): Promise<
   } else {
     await git(wt.repo, ['branch', '-d', wt.branch]).catch(() => '')
   }
-  const kept = await git(wt.repo, ['rev-parse', '--verify', '-q', `refs/heads/${wt.branch}`], { ok: [1] }).then((o) => !!o.trim(), () => true)
+  const kept = await git(wt.repo, ['rev-parse', '--verify', '-q', `refs/heads/${wt.branch}`], { ok: [1] }).then(
+    (o) => !!o.trim(),
+    () => true,
+  )
   const copy = st.exists ? 'Cópia removida' : 'A cópia já não existia'
-  return kept ? `${copy}. O branch ${wt.branch} ficou no repositório, porque pode ter commits só dele.` : `${copy}. Branch ${wt.branch} removido.`
+  return kept
+    ? `${copy}. O branch ${wt.branch} ficou no repositório, porque pode ter commits só dele.`
+    : `${copy}. Branch ${wt.branch} removido.`
 }
 
 /** Forgets worktrees whose folder is gone (`git worktree prune`), in every repo given. */

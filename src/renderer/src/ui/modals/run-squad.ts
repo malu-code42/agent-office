@@ -50,12 +50,19 @@ export function openRunSquad(
   }
   if (!squads.length) {
     if (!unavailable.length)
-      return toast(`${project.name} não tem squads definidos. Crie ou restaure manualmente uma definição em ${project.cwd}/squads/<código>/squad.yaml.`, 'err')
+      return toast(
+        `${project.name} não tem squads definidos. Crie ou restaure manualmente uma definição em ${project.cwd}/squads/<código>/squad.yaml.`,
+        'err',
+      )
     const closeButton = h('button', { class: 'btn', type: 'button', onclick: () => recoveryDialog.remove() }, 'Fechar')
     const recoveryDialog = modal(
       `Squads indisponíveis · ${project.name}`,
       [
-        h('div', { class: 'field-hint' }, 'Nenhuma definição pode ser executada. Restaure manualmente os arquivos indicados; o Agent Office não os recria nem sobrescreve.'),
+        h(
+          'div',
+          { class: 'field-hint' },
+          'Nenhuma definição pode ser executada. Restaure manualmente os arquivos indicados; o Agent Office não os recria nem sobrescreve.',
+        ),
         h('div', { class: 'squad-list' }, ...unavailable.map(recoveryCard)),
       ],
       [closeButton],
@@ -129,7 +136,6 @@ export function openRunSquad(
   syncHint()
   const note = h('textarea', { class: 'input', rows: 2, placeholder: 'Recado para o orquestrador (opcional)' })
 
-  const close = () => el.remove()
   const go = h('button', { class: 'btn btn-primary' })
   const paint = () => {
     cards.forEach((c, i) => c.classList.toggle('on', squads[i] === chosen))
@@ -137,13 +143,72 @@ export function openRunSquad(
   }
   // The queue of the squad: the ticket it works on and the ones waiting for it.
   const queueBox = h('div', { class: 'panelbox' })
+  const reviewBox = h('div', { class: 'panelbox' })
+  let queuePaint = 0
   const ticketLine = (id: string | null): HTMLElement | null => {
     if (!id) return null
     const t = state.tickets.get(id)
     return h('div', { class: 'squad-queue-line' }, h('b', {}, t ? `${t.key} · ` : ''), t ? t.title : 'ticket fora do quadro')
   }
   const paintQueue = async () => {
+    const paint = ++queuePaint
+    const codeAtRequest = chosen.code
     const queue = await window.office.squadQueue(chosen.code).catch(() => undefined)
+    if (paint !== queuePaint || chosen.code !== codeAtRequest) return
+    reviewBox.replaceChildren(
+      h('div', { class: 'sec-title' }, 'PRs aguardando revisão'),
+      h('div', { class: 'hint' }, 'Revisão, merge e análise final de compatibilidade são feitos fora do Agent Office.'),
+      ...(queue?.pendingPRs?.length
+        ? queue.pendingPRs.map((pr) => {
+            const line = h(
+              'div',
+              { class: 'squad-queue-line' },
+              h('span', { class: 'sbadge sb-mute' }, 'revisão'),
+              h('span', {}, `${pr.ticketKey} · ${pr.title}`),
+            )
+            const link = h('button', { class: 'btn', type: 'button', 'aria-label': `Abrir PR de ${pr.ticketKey} no navegador` }, 'Abrir PR')
+            link.addEventListener('click', () => void window.office.openExternal(pr.url))
+            line.append(link)
+            return line
+          })
+        : [h('div', { class: 'hint' }, 'Nenhum PR aguardando revisão.')]),
+      ...(queue?.cycle?.publicationError
+        ? [
+            h('div', { class: 'hint', role: 'alert' }, `A publicação falhou: ${queue.cycle.publicationError}`),
+            (() => {
+              const retry = h('button', { class: 'btn btn-primary', type: 'button' }, 'Tentar publicar novamente')
+              retry.addEventListener('click', () => {
+                retry.disabled = true
+                void window.office.retrySquadPublication(codeAtRequest).catch((err: unknown) => {
+                  window.office.reportError({ kind: 'rejection', message: err instanceof Error ? err.message : String(err) })
+                }).finally(() => {
+                  retry.disabled = false
+                  void paintQueue()
+                })
+              })
+              return retry
+            })(),
+          ]
+        : []),
+      ...(queue?.cycle?.startupError && queue.cycle.ticketId === queue.active
+        ? [
+            h('div', { class: 'hint', role: 'alert' }, `Não consegui iniciar o ticket ativo: ${queue.cycle.startupError}`),
+            (() => {
+              const retryStart = h('button', { class: 'btn btn-primary', type: 'button' }, 'Tentar iniciar novamente')
+              retryStart.addEventListener('click', () => {
+                retryStart.disabled = true
+                void window.office.retrySquadStart(codeAtRequest).catch((err: unknown) => {
+                  window.office.reportError({ kind: 'rejection', message: err instanceof Error ? err.message : String(err) })
+                }).finally(() => {
+                  retryStart.disabled = false
+                  void paintQueue()
+                })
+              })
+              return retryStart
+            })(),
+          ]
+        : []),
+    )
     if (!queue || (!queue.active && !queue.queue.length)) {
       queueBox.replaceChildren(h('div', { class: 'sec-title' }, 'Fila do squad'), h('div', { class: 'hint' }, 'Sem ticket na fila.'))
       return
@@ -151,12 +216,28 @@ export function openRunSquad(
     queueBox.replaceChildren(
       h('div', { class: 'sec-title' }, 'Fila do squad'),
       h('div', { class: 'hint' }, 'Um ticket ativo por squad.'),
-      ...(queue.active ? [h('div', { class: 'squad-queue-line' }, h('span', { class: 'sbadge sb-working' }, 'ativo'), ticketLine(queue.active) as HTMLElement)] : []),
-      ...queue.queue.map((id) => h('div', { class: 'squad-queue-line' }, h('span', { class: 'sbadge sb-mute' }, 'espera'), ticketLine(id) as HTMLElement)),
+      ...(queue.active
+        ? [
+            h(
+              'div',
+              { class: 'squad-queue-line' },
+              h('span', { class: 'sbadge sb-working' }, 'ativo'),
+              ticketLine(queue.active) as HTMLElement,
+            ),
+          ]
+        : []),
+      ...queue.queue.map((id) =>
+        h('div', { class: 'squad-queue-line' }, h('span', { class: 'sbadge sb-mute' }, 'espera'), ticketLine(id) as HTMLElement),
+      ),
     )
   }
   paint()
   void paintQueue()
+  const unsubscribe = state.onChange(() => void paintQueue())
+  const close = () => {
+    unsubscribe()
+    el.remove()
+  }
   go.addEventListener('click', async () => {
     go.setAttribute('disabled', '')
     try {
@@ -177,6 +258,7 @@ export function openRunSquad(
     [
       h('div', { class: 'squad-list' }, ...cards, ...invalidCards),
       queueBox,
+      reviewBox,
       field('Permissões', mode, modeHint),
       field('Recado', note, 'Os checkpoints do ciclo vêm até você como perguntas. Sem resposta, o ciclo espera.'),
     ],

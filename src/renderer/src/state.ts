@@ -1,4 +1,24 @@
-import type { Account, AccountStatus, AgentResult, AgentSummary, BridgeStatus, LedgerToday, LogEntry, MacJob, OfficeEvent, OfficeState, PermissionRequest, PlanUsage, Routine, Settings, SquadInfo, SquadProposal, SquadQueue, SystemStats, Ticket } from '@shared/types'
+import type {
+  Account,
+  AccountStatus,
+  AgentResult,
+  AgentSummary,
+  BridgeStatus,
+  LedgerToday,
+  LogEntry,
+  MacJob,
+  OfficeEvent,
+  OfficeState,
+  PermissionRequest,
+  PlanUsage,
+  Routine,
+  Settings,
+  SquadInfo,
+  SquadProposal,
+  SquadQueue,
+  SystemStats,
+  Ticket,
+} from '@shared/types'
 
 import type { Proposal } from '@shared/proposals'
 
@@ -237,6 +257,11 @@ export class State {
   }
 
   get inboxCount(): number {
-    return this.permissions.size + this.results.size + this.proposals.length
+    return (
+      this.permissions.size +
+      this.results.size +
+      this.proposals.length +
+      this.squadQueues.reduce((sum, q) => sum + (q.pendingPRs?.length ?? 0), 0)
+    )
   }
 }

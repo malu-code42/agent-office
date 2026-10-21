@@ -6,6 +6,7 @@ import { formatCost, formatDuration, h, icon } from './dom'
 import { renderMarkdown } from './markdown'
 import { cleanError } from './modals/common'
 import { portrait } from './portrait'
+import { isSquadTicketResultAgent } from '@shared/squad-ticket-result'
 import { changeButtons, editorMissingNote } from './result-rules'
 
 export interface DialogActions {
@@ -515,7 +516,7 @@ export class Dialog {
       if (c.truncated) list.append(h('div', { class: 'chg-note' }, `…e mais ${count - c.files.length} arquivo(s). Veja tudo no editor ou no terminal.`))
       parts.push(list)
     }
-    parts.push(this.changeActions(r))
+    parts.push(this.changeActions(agent, r))
     el.replaceChildren(...parts)
   }
 
@@ -552,7 +553,7 @@ export class Dialog {
     return [row, pre]
   }
 
-  private changeActions(r: AgentResult): HTMLElement {
+  private changeActions(agent: AgentSummary, r: AgentResult): HTMLElement {
     const c = r.changes!
     const rules = changeButtons(c)
     const editor = h(
@@ -562,6 +563,7 @@ export class Dialog {
       'Abrir no editor',
     )
     if (!c.git || !c.files.length) return h('div', { class: 'chg-actions' }, c.files.length ? editor : null)
+    if (isSquadTicketResultAgent(agent)) return h('div', { class: 'chg-actions' }, editor)
     const discard = h(
       'button',
       {

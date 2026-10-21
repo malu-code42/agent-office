@@ -483,7 +483,9 @@ export class Hud {
       h(
         'div',
         { class: 'roster-side' },
-        pending ? h('span', { class: 'badge' }, String(pending)) : h('span', { class: 'roster-cost' }, formatCost(a.costUsd)),
+        pending
+          ? h('span', { class: 'badge' }, String(pending))
+          : h('span', { class: 'roster-cost' }, a.costUnknown ? 's/ preço' : formatCost(a.costUsd)),
         h(
           'button',
           {
@@ -590,6 +592,34 @@ export class Hud {
           h('span', { class: 'inbox-time' }, timeAgo(row.createdAt)),
         ),
       )
+    }
+    // Each real squad PR is its own human-review inbox item; opening is external and
+    // the Office has no merge action.
+    for (const queue of this.state.squadQueues) {
+      for (const pr of queue.pendingPRs ?? []) {
+        const row = h(
+          'button',
+          {
+            class: 'inbox-row',
+            'data-focus-key': `squad-pr:${queue.code}:${pr.ticketId}`,
+            'aria-label': `Abrir PR de ${pr.ticketKey} no navegador`,
+          },
+          h('span', { class: 'inbox-mark', 'aria-hidden': 'true' }, icon('list', 18)),
+          h(
+            'div',
+            { class: 'inbox-main' },
+            h('div', { class: 'inbox-name' }, pr.ticketKey, h('span', { class: 'chip chip-wait' }, 'revisão humana')),
+            h('div', { class: 'inbox-text' }, `${pr.title} · Squad ${queue.code}`),
+          ),
+          h('span', { class: 'inbox-time' }, timeAgo(pr.createdAt)),
+        )
+        row.addEventListener('click', () => {
+          if (this.inbox.contains(document.activeElement)) this.inboxBtn.focus()
+          this.hideInbox()
+          void window.office.openExternal(pr.url)
+        })
+        rows.push(row)
+      }
     }
     // The review of today, while its draft is not confirmed: it comes back from here (AO-12).
     if (this.state.reviewDraft) {
