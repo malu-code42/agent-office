@@ -6,6 +6,7 @@ import { DEFAULT_BRAND } from '../../world/brand'
 import { arrowList, asDialog, keepFocus, rove } from '../a11y'
 import { accountChip } from '../accounts'
 import { formatCost, h, icon, timeAgo } from '../dom'
+import { isFocusPopupOpen, onFocusPopup } from '../focus-state'
 import { contextLevel, helpersChip } from '../panel'
 import { portrait } from '../portrait'
 import type { Radio } from '../radio'
@@ -42,8 +43,8 @@ export interface HudActions {
   openProposal(id: string): void
   /** The review of today, from its draft (AO-12). */
   review(): void
-  /** Pedir à Íris (AO-13): a request in words, sent only after the user reads it. */
-  iris(): void
+  /** "Tarefas em foco": the popup of the tasks in the focus (the key F does the same). */
+  focus(): void
 }
 
 const COMPACT_KEY = 'roster-compact'
@@ -74,6 +75,12 @@ export const STATUS_LABEL: Record<AgentStatus, string> = {
   stopped: 'Parado',
 }
 
+/** The name the screen reader reads for the focus button: what it does and how many tasks it has. */
+function focusLabel(n: number): string {
+  if (n === 0) return 'Tarefas em foco (F): nenhuma tarefa em foco'
+  return `Tarefas em foco (F): ${n} ${n === 1 ? 'tarefa' : 'tarefas'} em foco`
+}
+
 /** Brand bar, agent roster, bottom dock, inbox popover and toasts. */
 export class Hud {
   private roster: HTMLDivElement
@@ -93,6 +100,9 @@ export class Hud {
   private infoCard: InfoCard
   private boardBtn: HTMLButtonElement
   private boardBadge: HTMLSpanElement
+  /** The alfinete of "Tarefas em foco" in the dock, with the count of the tasks in the focus. */
+  private focusBtn: HTMLButtonElement
+  private focusBadge: HTMLSpanElement
   private floorsEl: HTMLDivElement
   private floorNames: string[] = ['Térreo']
   private floor = 0
@@ -177,6 +187,21 @@ export class Hud {
       icon('kanban'),
       this.boardBadge,
     )
+    // Tarefas em foco: the pin and the count, next to "Novo agente" and before the inbox.
+    this.focusBadge = h('span', { class: 'badge' })
+    this.focusBtn = h(
+      'button',
+      {
+        class: 'dock-btn dock-focus',
+        title: 'Tarefas em foco (F)',
+        'aria-label': 'Tarefas em foco (F)',
+        'aria-haspopup': 'dialog',
+        'aria-expanded': 'false',
+        onclick: () => actions.focus(),
+      },
+      icon('pin'),
+      this.focusBadge,
+    )
     this.dockName = h('span', { class: 'dock-name' })
     this.dockPortrait = h('span', { class: 'dock-portrait' })
     const dock = h(
@@ -196,6 +221,7 @@ export class Hud {
         icon('plus'),
         'Novo agente',
       ),
+      this.focusBtn,
       this.inboxBtn,
       this.boardBtn,
       h(
@@ -243,6 +269,8 @@ export class Hud {
         this.hideInbox()
       }
     })
+    // The popup says when it opens and closes: the alfinete shows it.
+    onFocusPopup(() => this.renderFocus())
     this.render()
   }
 
@@ -275,6 +303,7 @@ export class Hud {
     this.inboxBadge.textContent = String(n)
     this.inboxBadge.classList.toggle('hidden', n === 0)
     this.inboxBtn.classList.toggle('pulse', n > 0)
+    this.renderFocus()
     const review = this.state.reviewCount
     this.boardBadge.textContent = String(review)
     this.boardBadge.classList.toggle('hidden', review === 0)
@@ -294,6 +323,16 @@ export class Hud {
     this.floorNames = names
     this.floor = current
     this.renderFloors()
+  }
+
+  /** The alfinete of the focus: how many tasks are in it, and whether the popup is open. */
+  private renderFocus(): void {
+    const n = this.state.focusCount
+    this.focusBadge.textContent = String(n)
+    this.focusBtn.setAttribute('aria-label', focusLabel(n))
+    const open = isFocusPopupOpen()
+    this.focusBtn.classList.toggle('open', open)
+    this.focusBtn.setAttribute('aria-expanded', String(open))
   }
 
   /** Agents busy or waiting on a floor: each one on its project's floor, or downstairs. */
@@ -600,12 +639,7 @@ export class Hud {
     }
     keepFocus(this.inbox, () =>
       this.inbox.replaceChildren(
-        h(
-          'div',
-          { class: 'inbox-head' },
-          h('span', {}, 'Caixa de entrada'),
-          h('button', { class: 'btn btn-small inbox-iris', type: 'button', onclick: () => this.actions.iris() }, 'Pedir à Íris'),
-        ),
+        h('div', { class: 'inbox-head' }, h('span', {}, 'Caixa de entrada')),
         ...(rows.length ? rows : [h('div', { class: 'inbox-empty' }, 'Nada pendente. Seus agentes estão trabalhando.')]),
       ),
     )

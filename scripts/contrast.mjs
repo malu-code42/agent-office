@@ -138,6 +138,8 @@ const PAIRS = [
   ['Botão do dock', '.dock-btn', 'card'],
   ['Botão do dock ligado', '.dock-btn.on', 'card'],
   ['Botão do dock pulsando', '.dock-btn.pulse', 'card'],
+  ['Botão do foco', '.dock-focus', 'card'],
+  ['Botão do foco (popup aberto)', '.dock-focus.open', ['.dock-focus.open', 'card']],
   ['Novo agente', '.dock-primary', ['.dock-primary', 'card']],
   ['Novo agente (hover)', '.dock-primary', ['.dock-primary:hover', 'card']],
   ['Botão principal', '.btn-primary', ['.btn-primary', 'card']],
