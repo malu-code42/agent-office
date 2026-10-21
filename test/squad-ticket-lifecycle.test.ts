@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import type { ResultChanges, WorktreeInfo } from '../src/shared/types'
-import { gitRemoteHost, isPullRequestUrl } from '../src/shared/pull-request-url'
+import { gitRemoteHost, gitRemoteRepository, isPullRequestUrl } from '../src/shared/pull-request-url'
 import { publishSquadTicket, publishThenStartNext, publishableChanges, SquadPublicationGate } from '../src/main/squad-ticket-lifecycle'
 
 function fixture() {
@@ -28,13 +28,20 @@ function fixture() {
 }
 
 describe('publicação de ticket de squad', () => {
-  it('valida URL de PR contra o host do remoto e extrai hosts HTTPS/SSH', () => {
-    expect(isPullRequestUrl('https://github.example.com/org/repo/pull/1', 'github.example.com')).toBe(true)
-    expect(isPullRequestUrl('https://attacker.example/org/repo/pull/1', 'github.example.com')).toBe(false)
-    expect(isPullRequestUrl('https://github.example.com/org/repo/pull/1', null)).toBe(false)
+  it('valida URL de PR contra o host e repositório do remoto HTTPS/SSH', () => {
+    expect(isPullRequestUrl('https://github.example.com/org/repo/pull/1', 'github.example.com', 'org/repo')).toBe(true)
+    expect(isPullRequestUrl('https://github.example.com/other/repo/pull/1', 'github.example.com', 'org/repo')).toBe(false)
+    expect(isPullRequestUrl('https://attacker.example/org/repo/pull/1', 'github.example.com', 'org/repo')).toBe(false)
+    expect(isPullRequestUrl('https://github.example.com/org/repo/pull/1', null, 'org/repo')).toBe(false)
     expect(gitRemoteHost('https://github.example.com/org/repo.git')).toBe('github.example.com')
+    expect(gitRemoteHost('https://github.example.com:8443/org/repo.git')).toBe('github.example.com:8443')
     expect(gitRemoteHost('git@github.example.com:org/repo.git')).toBe('github.example.com')
     expect(gitRemoteHost('ssh://git@github.example.com/org/repo.git')).toBe('github.example.com')
+    expect(gitRemoteRepository('https://github.example.com/org/repo.git')).toBe('org/repo')
+    expect(gitRemoteRepository('git@github.example.com:org/repo.git')).toBe('org/repo')
+    expect(gitRemoteRepository('ssh://git@github.example.com/org/repo.git')).toBe('org/repo')
+    expect(isPullRequestUrl('https://github.example.com:8443/org/repo/pull/1', 'github.example.com:8443', 'org/repo')).toBe(true)
+    expect(isPullRequestUrl('https://github.example.com/org/repo/pull/1', 'github.example.com:8443', 'org/repo')).toBe(false)
   })
   it('recusa tentativas simultâneas duplicadas para o mesmo ticket', () => {
     const gate = new SquadPublicationGate()
@@ -57,7 +64,7 @@ describe('publicação de ticket de squad', () => {
       { ...f, squad: 'build', result: 'Pronto', now: 10 },
       {
         state: async () => ({ exists: true, dirty: 1, ignored: 2, ahead: 0, fingerprint: 'x' }),
-        remoteHost: async () => 'github.com',
+        remoteIdentity: async () => ({ host: 'github.com', repository: 'org/repo' }),
         existingPR: async () => null,
         commit,
         openPR,
@@ -78,7 +85,7 @@ describe('publicação de ticket de squad', () => {
       { ...f, squad: 'build', result: 'Pronto' },
       {
         state: vi.fn(),
-        remoteHost: async () => 'github.com',
+        remoteIdentity: async () => ({ host: 'github.com', repository: 'org/repo' }),
         existingPR: async () => 'https://github.com/org/repo/pull/8',
         commit,
         openPR,
@@ -96,11 +103,25 @@ describe('publicação de ticket de squad', () => {
     await expect(publishSquadTicket(
       { ...f, squad: 'build', result: 'Pronto' },
       {
-        state: vi.fn(), remoteHost: async () => 'github.example.com',
+        state: vi.fn(), remoteIdentity: async () => ({ host: 'github.example.com', repository: 'org/repo' }),
         existingPR: async () => 'https://attacker.example/org/repo/pull/8',
         commit: vi.fn(), openPR: vi.fn(), record,
       },
-    )).rejects.toThrow('host do remoto')
+    )).rejects.toThrow('repositório remoto')
+    expect(record).not.toHaveBeenCalled()
+  })
+
+  it('não registra nem libera a fila se o PR pertence a outro repositório no mesmo host', async () => {
+    const f = fixture()
+    const record = vi.fn()
+    await expect(publishSquadTicket(
+      { ...f, squad: 'build', result: 'Pronto' },
+      {
+        state: vi.fn(), remoteIdentity: async () => ({ host: 'github.com', repository: 'org/repo' }),
+        existingPR: async () => 'https://github.com/attacker/repo/pull/8',
+        commit: vi.fn(), openPR: vi.fn(), record,
+      },
+    )).rejects.toThrow('repositório remoto')
     expect(record).not.toHaveBeenCalled()
   })
 
@@ -111,10 +132,10 @@ describe('publicação de ticket de squad', () => {
       { ...f, squad: 'build', result: 'Pronto' },
       {
         state: async () => ({ exists: true, dirty: 0, ignored: 0, ahead: 1, fingerprint: '' }),
-        remoteHost: async () => 'github.example.com', existingPR: async () => null,
+        remoteIdentity: async () => ({ host: 'github.example.com', repository: 'org/repo' }), existingPR: async () => null,
         commit: vi.fn(), openPR: async () => 'https://attacker.example/org/repo/pull/8', record,
       },
-    )).rejects.toThrow('host do remoto')
+    )).rejects.toThrow('repositório remoto')
     expect(record).not.toHaveBeenCalled()
   })
 
@@ -129,7 +150,7 @@ describe('publicação de ticket de squad', () => {
       {
         reconstruct,
         state: async () => ({ exists: true, dirty: 1, ignored: 0, ahead: 0, fingerprint: '' }),
-        remoteHost: async () => 'github.com',
+        remoteIdentity: async () => ({ host: 'github.com', repository: 'org/repo' }),
         existingPR: async () => null,
         commit,
         changes: saveChanges,
@@ -160,7 +181,7 @@ describe('publicação de ticket de squad', () => {
           {
             reconstruct,
             state: async () => ({ exists: true, dirty: 1, ignored: 0, ahead: 0, fingerprint: '' }),
-            remoteHost: async () => 'github.com',
+            remoteIdentity: async () => ({ host: 'github.com', repository: 'org/repo' }),
             existingPR: async () => null,
             commit,
             openPR: async () => 'https://github.com/org/repo/pull/31',
@@ -191,7 +212,7 @@ describe('publicação de ticket de squad', () => {
     const commit = vi.fn()
     await expect(publishSquadTicket(
       { ...f, changes: undefined, squad: 'build', result: 'Pronto' },
-      { reconstruct: async () => { throw new Error('base ausente') }, state: vi.fn(), remoteHost: async () => 'github.com', existingPR: vi.fn(), commit, openPR: vi.fn(), record: vi.fn() },
+      { reconstruct: async () => { throw new Error('base ausente') }, state: vi.fn(), remoteIdentity: async () => ({ host: 'github.com', repository: 'org/repo' }), existingPR: vi.fn(), commit, openPR: vi.fn(), record: vi.fn() },
     )).rejects.toThrow('base ausente')
     expect(commit).not.toHaveBeenCalled()
   })
@@ -205,7 +226,7 @@ describe('publicação de ticket de squad', () => {
       { ...f, squad: 'build', result: 'Pronto' },
       {
         state: async () => ({ exists: true, dirty: 0, ignored: 2, ahead: 1, fingerprint: '' }),
-        remoteHost: async () => 'github.com',
+        remoteIdentity: async () => ({ host: 'github.com', repository: 'org/repo' }),
         existingPR: async () => null,
         commit,
         openPR,
@@ -227,7 +248,7 @@ describe('publicação de ticket de squad', () => {
     let prNumber = 20
     const deps = {
       state: async () => ({ exists: true, dirty: 1, ignored: 0, ahead: 0, fingerprint: '' }),
-      remoteHost: async () => 'github.com',
+      remoteIdentity: async () => ({ host: 'github.com', repository: 'org/repo' }),
       existingPR: async () => null,
       commit: async () => 'sha',
       openPR: async () => `https://github.com/org/repo/pull/${prNumber++}`,
@@ -250,7 +271,7 @@ describe('publicação de ticket de squad', () => {
         { ...f, squad: 'build', result: 'Pronto' },
         {
           state: async () => ({ exists: true, dirty: 0, ignored: 0, ahead: 1, fingerprint: '' }),
-          remoteHost: async () => 'github.com',
+          remoteIdentity: async () => ({ host: 'github.com', repository: 'org/repo' }),
           existingPR: async () => null,
           commit: vi.fn(),
           openPR: async () => {

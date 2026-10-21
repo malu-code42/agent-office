@@ -2,7 +2,7 @@ import { dialog, ipcMain, type MessageBoxOptions } from 'electron'
 import { isAbsolute } from 'node:path'
 import { isDir } from '../squads'
 import { cleanLook } from '../templates'
-import { pullRequestRemoteHost, repoRoot } from '../git'
+import { pullRequestRemoteIdentity, repoRoot } from '../git'
 import { isPullRequestUrl } from '@shared/pull-request-url'
 import {
   worktreeFlagSchema,
@@ -93,7 +93,7 @@ export function registerAgentsIpc(ctx: IpcContext): void {
     const result = manager.result(resultId)
     const agent = result ? manager.agent(result.agentId) : undefined
     if (result && !result.isError && agent?.role === 'orchestrator' && agent.squad && agent.ticketId) {
-      const expectedHost = agent.worktree ? await pullRequestRemoteHost(agent.worktree).catch(() => null) : null
+      const remote = agent.worktree ? await pullRequestRemoteIdentity(agent.worktree).catch(() => null) : null
       const queue = ctx.creation.queue(agent.squad)
       const pendingPRs = queue && Array.isArray(queue.pendingPRs) ? queue.pendingPRs : []
       const hasVerifiedPR = pendingPRs.some(
@@ -107,7 +107,7 @@ export function registerAgentsIpc(ctx: IpcContext): void {
           /^agent\/[a-z0-9][a-z0-9-]{0,60}$/.test(pr.branch) &&
           Number.isFinite(pr.createdAt) &&
           typeof pr.url === 'string' &&
-          isPullRequestUrl(pr.url, expectedHost),
+          isPullRequestUrl(pr.url, remote?.host ?? null, remote?.repository ?? null),
       )
       if (!hasVerifiedPR)
         throw new Error('O resultado do ticket continua guardado até existir uma fila íntegra com o PR verificado registrado.')

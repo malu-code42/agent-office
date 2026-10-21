@@ -450,6 +450,13 @@
   text-overflow: ellipsis;
 }
 
+.tcard-blocked {
+  margin-top: 6px;
+  color: var(--red-text);
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
 .tcard-tags {
   display: flex;
   flex-wrap: wrap;

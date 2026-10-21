@@ -7,7 +7,7 @@ import type { WorktreeState } from './git'
 
 export interface SquadTicketPublishDeps {
   state(worktree: WorktreeInfo): Promise<WorktreeState>
-  remoteHost(worktree: WorktreeInfo): Promise<string>
+  remoteIdentity(worktree: WorktreeInfo): Promise<{ host: string; repository: string }>
   existingPR(worktree: WorktreeInfo): Promise<string | null>
   commit(changes: ResultChanges, message: string): Promise<string>
   changes?(changes: ResultChanges): void
@@ -87,8 +87,9 @@ export async function publishSquadTicket(
     )
   }
 
-  const host = await deps.remoteHost(input.worktree).catch(() => null)
-  if (!isPullRequestUrl(url, host)) throw new Error('A URL do PR não corresponde ao host do remoto; o ticket continua ativo.')
+  const remote = await deps.remoteIdentity(input.worktree).catch(() => null)
+  if (!isPullRequestUrl(url, remote?.host ?? null, remote?.repository ?? null))
+    throw new Error('A URL do PR não corresponde ao repositório remoto; o ticket continua ativo.')
   deps.record({
     ticketId: input.ticket.id,
     ticketKey: input.ticket.key,

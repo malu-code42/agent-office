@@ -21,4 +21,14 @@ export {
   type WorktreeState,
 } from './worktrees'
 export { changesSince, discardChanges, fileDiff, takeSnapshot, type Snapshot } from './changes'
-export { commitChanges, findOnPath, openInEditor, openPullRequest, pullRequestForBranch, pullRequestRemoteHost } from './publish'
+export {
+  commitChanges,
+  findOnPath,
+  openInEditor,
+  openPullRequest,
+  pullRequestForBranch,
+  pullRequestRemoteHost,
+  pullRequestRemoteHostForRepo,
+  pullRequestRemoteIdentity,
+  pullRequestRemoteIdentityForRepo,
+} from './publish'

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { callHandler, ipcMain } from './mocks/electron'
+import { callHandler, dialog, ipcMain } from './mocks/electron'
 import { registerWorktreesIpc } from '../src/main/ipc/worktrees'
 import type { IpcContext } from '../src/main/ipc/context'
 import { isSquadTicketResultAgent } from '../src/shared/squad-ticket-result'
@@ -12,6 +12,7 @@ vi.mock('../src/main/git', () => ({
   insideRoot: vi.fn(),
   openInEditor: vi.fn(),
   openPullRequest: vi.fn(),
+  pullRequestRemoteIdentity: vi.fn(),
   pendingLoss: vi.fn(),
   removeWorktree: vi.fn(),
   worktreeState: vi.fn(),
@@ -55,5 +56,27 @@ describe('resultado de ticket de squad', () => {
 
   it.each(['office:commitResult', 'office:openResultPR', 'office:discardResult'])('%s é bloqueado no main IPC', async (channel) => {
     await expect(callHandler(channel, result.id, 'mensagem')).rejects.toThrow('publicados pela fila de PR')
+  })
+
+  it('associa ao ticket individual apenas o PR retornado no host do remoto', async () => {
+    const url = 'https://github.com/org/repo/pull/42'
+    const { openPullRequest, pullRequestRemoteIdentity } = await import('../src/main/git')
+    vi.mocked(openPullRequest).mockResolvedValue(url)
+    vi.mocked(pullRequestRemoteIdentity).mockResolvedValue({ host: 'github.com', repository: 'org/repo' })
+    vi.spyOn(dialog, 'showMessageBox').mockResolvedValue({ response: 0 })
+    agent = { ...individualAgent, worktree: { path: 'C:/repo/wt', root: 'C:/repo/wt', repo: 'C:/repo', branch: 'agent/task', base: 'a'.repeat(40) } }
+    const firstTicket = { id: 'ticket-1', key: 'AO-1', status: 'review', assignee: { kind: 'agent', name: 'Agente', id: result.agentId } }
+    const ticket = { id: 'ticket-2', key: 'AO-2', status: 'review', assignee: { kind: 'agent', name: 'Agente', id: result.agentId } }
+    const recordPullRequest = vi.fn()
+    const reconcileBlockedQueues = vi.fn(() => [])
+    registerWorktreesIpc({
+      manager: { agent: () => agent, result: () => ({ ...result, ticketId: ticket.id }), setChanges: vi.fn(), fire: vi.fn(), list: () => [], pendingResults: () => [] },
+      win: () => ({}), nameOf: () => 'Agente', board: { list: () => [firstTicket, ticket], get: (id: string) => [firstTicket, ticket].find((item) => item.id === id), recordPullRequest, flush: vi.fn() },
+      creation: { reconcileBlockedQueues }, startActiveSquadTicket: vi.fn(),
+    } as unknown as IpcContext)
+
+    await expect(callHandler('office:openResultPR', result.id, 'Entrega do ticket')).resolves.toBe(url)
+    expect(recordPullRequest).toHaveBeenCalledWith(ticket.id, url, { kind: 'agent', name: 'Agente', id: result.agentId })
+    expect(reconcileBlockedQueues).toHaveBeenCalledOnce()
   })
 })

@@ -1,9 +1,10 @@
 import { dialog, ipcMain, shell } from 'electron'
 import { existsSync } from 'node:fs'
-import { commitChanges, discardChanges, fileDiff, insideRoot, openInEditor, openPullRequest, pendingLoss, removeWorktree, worktreeState } from '../git'
+import { commitChanges, discardChanges, fileDiff, insideRoot, openInEditor, openPullRequest, pendingLoss, pullRequestRemoteIdentity, removeWorktree, worktreeState } from '../git'
 import { changedPathSchema, commitMessageSchema, prTitleSchema, uuidSchema, parse } from '../validate'
 import { isSquadTicketResultAgent } from '@shared/squad-ticket-result'
 import { id, type IpcContext } from './context'
+import { isPullRequestUrl } from '@shared/pull-request-url'
 
 /** Worktrees (AO-33) and the result card's changed files (AO-34). */
 export function registerWorktreesIpc(ctx: IpcContext): void {
@@ -149,6 +150,24 @@ export function registerWorktreesIpc(ctx: IpcContext): void {
     })
     if (response !== 0) return null
     const body = `${r.text.slice(0, 6000)}\n\n---\nAberto pelo Agent Office (${nameOf(r.agentId)}, branch \`${wt.branch}\`).`
-    return openPullRequest(wt, t, body)
+    const remote = await pullRequestRemoteIdentity(wt)
+    const url = await openPullRequest(wt, t, body)
+    if (!isPullRequestUrl(url, remote.host, remote.repository)) throw new Error('A URL do PR não corresponde ao repositório remoto; nenhum bloqueio foi liberado.')
+    const candidates = ctx.board.list().filter((item) => item.assignee?.id === r.agentId && item.status === 'review' && !item.pullRequestUrl)
+    const ticket = r.ticketId ? ctx.board.get(r.ticketId) : candidates.length === 1 ? candidates[0] : undefined
+    if (ticket && ticket.assignee?.id === r.agentId && ticket.status === 'review' && !ticket.pullRequestUrl) {
+      ctx.board.recordPullRequest(ticket.id, url, { kind: 'agent', name: nameOf(r.agentId), id: r.agentId })
+      ctx.board.flush()
+      const started = ctx.creation.reconcileBlockedQueues()
+      for (const code of started) {
+        try {
+          await ctx.startActiveSquadTicket(code)
+        } catch (err) {
+          const active = ctx.creation.queue(code)?.active
+          if (active) ctx.creation.setStartupError(code, active, err instanceof Error ? err.message : String(err))
+        }
+      }
+    }
+    return url
   })
 }

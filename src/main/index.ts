@@ -28,7 +28,7 @@ import { SystemMonitor } from './system'
 import { StatsReader } from './stats'
 import { UsageMonitor } from './usage'
 import { TicketBoard } from './tickets'
-import { changesSince, commitChanges, createWorktree, excludeSquadRuntime, openPullRequest, pruneWorktrees, pullRequestForBranch, pullRequestRemoteHost, worktreeState } from './git'
+import { changesSince, commitChanges, createWorktree, excludeSquadRuntime, openPullRequest, pruneWorktrees, pullRequestForBranch, pullRequestRemoteIdentity, pullRequestRemoteIdentityForRepo, worktreeState } from './git'
 import { publishSquadTicket, publishThenStartNext, SquadPublicationGate } from './squad-ticket-lifecycle'
 import { ticketBrief } from '@shared/tickets'
 import { Updater } from './updater'
@@ -204,7 +204,8 @@ app.whenReady().then(async () => {
   const manager = new AgentManager(store)
   const book = new CostBook(store)
   manager.book = book
-  const board = new TicketBoard(app.getPath('userData'))
+  const board = new TicketBoard(app.getPath('userData'), () => store.settings.projects)
+  await board.verifySavedPullRequests((cwd) => pullRequestRemoteIdentityForRepo(cwd).catch(() => null))
   const broadcast = (e: OfficeEvent) => {
     // A crashed page reloads by itself and gets the state again; sending now only makes noise (AO-27).
     if (win && !win.isDestroyed() && !win.webContents.isCrashed()) win.webContents.send('office:event', e)
@@ -277,6 +278,7 @@ app.whenReady().then(async () => {
   })
   creation.on('proposals', (proposals) => broadcast({ type: 'squadProposals', proposals }))
   creation.on('queues', (queues) => broadcast({ type: 'squadQueues', queues }))
+  await creation.verifyPendingPRs(pullRequestRemoteIdentityForRepo)
 
   const publishing = new SquadPublicationGate()
   const starting = new Set<string>()
@@ -286,10 +288,11 @@ app.whenReady().then(async () => {
     try {
       const queue = creation.queue(code)
       if (!queue?.active) return
-      const ticket = board.get(queue.active)
-      const squad = loadSquads(queue.cwd).find((item) => item.code === code)
-      if (!ticket || !squad) throw new Error(`Não consegui localizar o ticket ativo ou a definição do squad ${code}.`)
-      if (ticket.closedAt || ticket.assignee?.id !== `squad:${code}` || ticket.status === 'done' || ticket.status === 'review')
+       const ticket = board.get(queue.active)
+       const squad = loadSquads(queue.cwd).find((item) => item.code === code)
+       if (!ticket || !squad) throw new Error(`Não consegui localizar o ticket ativo ou a definição do squad ${code}.`)
+       board.assertCanStart(ticket.id)
+       if (ticket.closedAt || ticket.assignee?.id !== `squad:${code}` || ticket.status === 'done' || ticket.status === 'review')
         throw new Error(`O ticket ${ticket.key} deixou de estar ativo para o squad; fila e branch foram preservados.`)
       const prior = manager
         .list()
@@ -344,7 +347,7 @@ app.whenReady().then(async () => {
           {
           state: worktreeState,
           existingPR: pullRequestForBranch,
-          remoteHost: pullRequestRemoteHost,
+          remoteIdentity: pullRequestRemoteIdentity,
           commit: commitChanges,
           openPR: openPullRequest,
           reconstruct: async (worktree) => {
@@ -357,10 +360,18 @@ app.whenReady().then(async () => {
           },
         ),
         startNext: async () => {
-          const nextTicketId = creation.queue(squadCode)?.active
-          if (!nextTicketId) return
-          await startActiveSquadTicket(squadCode)
-          creation.clearStartupError(squadCode, nextTicketId)
+          const codes = new Set(creation.reconcileBlockedQueues())
+          if (creation.queue(squadCode)?.active) codes.add(squadCode)
+          for (const code of codes) {
+            const nextTicketId = creation.queue(code)?.active
+            if (!nextTicketId) continue
+            try {
+              await startActiveSquadTicket(code)
+              creation.clearStartupError(code, nextTicketId)
+            } catch {
+              // startActiveSquadTicket persists a ticket-specific startup error; publication is already complete.
+            }
+          }
         },
         publicationFailed: (err) => {
           // Failure keeps the active ticket and branch. Restart rechecks for a created PR

@@ -134,6 +134,20 @@
   font-size: 13px;
 }
 
+.squad-queue-ticket {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.squad-queue-blocked,
+.cs-ticket-blocked {
+  display: block;
+  color: var(--red-text);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 .member {
   flex: 1;
   min-width: 0;

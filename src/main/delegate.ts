@@ -23,7 +23,7 @@ export class TicketDesk {
     private settings: () => Settings,
   ) {
     manager.on('event', (e: OfficeEvent) => {
-      if (e.type === 'result:new') this.delivered(e.result.agentId, e.result.text, e.result.isError)
+      if (e.type === 'result:new') this.delivered(e.result.agentId, e.result.text, e.result.isError, e.result.ticketId)
       else if (e.type === 'agent:removed') {
         this.working.delete(e.agentId)
         board.agentLeft(e.agentId)
@@ -35,6 +35,7 @@ export class TicketDesk {
     const t = this.board.get(ticketId)
     if (!t) throw new Error('Esse ticket não existe mais.')
     if (t.status === 'done') throw new Error('Esse ticket já está feito. Mova para outra coluna antes de delegar.')
+    this.board.assertCanStart(t.id)
 
     let agent: AgentSummary
     const display = `Ticket ${t.key}: ${t.title}`
@@ -55,8 +56,10 @@ export class TicketDesk {
         throw new Error(`${a.name} trabalha em outra pasta (${a.cwd}). Contrate um agente novo para este ticket.`)
       if (!t.cwd) this.board.update(t.id, { cwd: a.cwd }, by)
       agent = a
+      this.manager.setTicketId(a.id, t.id)
       this.board.assign(t.id, { kind: 'agent', name: a.name, id: a.id }, by)
       this.board.move(t.id, 'doing', undefined, by)
+      this.working.set(a.id, t.id)
       this.manager.sendMessage(a.id, ticketBrief(t), display)
     } else {
       if (!t.cwd) throw new Error('Defina a pasta do projeto no ticket antes de contratar um agente para ele.')
@@ -83,19 +86,25 @@ export class TicketDesk {
             permissionMode: mode,
           },
           display,
+          (created) => {
+            this.manager.setTicketId(created.id, t.id)
+            this.board.assign(t.id, { kind: 'agent', name: created.name, id: created.id }, by)
+            this.board.move(t.id, 'doing', undefined, by)
+            this.working.set(created.id, t.id)
+          },
         )
         .finally(() => this.hiring.delete(t.id))
-      this.board.assign(t.id, { kind: 'agent', name: agent.name, id: agent.id }, by)
-      this.board.move(t.id, 'doing', undefined, by)
     }
-    this.working.set(agent.id, t.id)
     return agent
   }
 
-  private delivered(agentId: string, text: string, isError: boolean): void {
-    const ticketId = this.working.get(agentId)
+  private delivered(agentId: string, text: string, isError: boolean, resultTicketId?: string): void {
+    const workingTicketId = this.working.get(agentId)
+    const ticketId = resultTicketId ?? workingTicketId
     if (!ticketId) return
+    if (workingTicketId && workingTicketId !== ticketId) return
     this.working.delete(agentId)
+    if (this.manager.agent(agentId)?.ticketId === ticketId) this.manager.setTicketId(agentId, undefined)
     const t = this.board.get(ticketId)
     if (!t || t.assignee?.id !== agentId) return
     const me: Actor = { kind: 'agent', name: t.assignee.name, id: agentId }

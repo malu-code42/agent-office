@@ -212,7 +212,13 @@ export abstract class AgentDecisions extends AgentSubagents {
 
   protected deliver(agent: Agent, r: Omit<AgentResult, 'id' | 'agentId' | 'createdAt'>): void {
     this.dropResults(agent.summary.id)
-    const result: AgentResult = { ...r, id: randomUUID(), agentId: agent.summary.id, createdAt: Date.now() }
+    const result: AgentResult = {
+      ...r,
+      id: randomUUID(),
+      agentId: agent.summary.id,
+      ...(agent.summary.ticketId ? { ticketId: agent.summary.ticketId } : {}),
+      createdAt: Date.now(),
+    }
     this.results.push(result)
     this.store.results = this.results
     this.addLog(agent, 'result', r.text, undefined, r.isError, undefined, r.limit)
@@ -263,6 +269,15 @@ export abstract class AgentDecisions extends AgentSubagents {
 
   agent(agentId: string): AgentSummary | undefined {
     return this.agents.get(agentId)?.summary
+  }
+
+  /** Persists the individual board ticket so later result actions can link to it exactly. */
+  setTicketId(agentId: string, ticketId: string | undefined): void {
+    const agent = this.agents.get(agentId)
+    if (!agent || agent.summary.role === 'orchestrator') return
+    if (ticketId) agent.summary.ticketId = ticketId
+    else delete agent.summary.ticketId
+    this.persist()
   }
 
   setChanges(resultId: string, changes: ResultChanges): void {

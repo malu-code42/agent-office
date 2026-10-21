@@ -1,5 +1,6 @@
 import { labelOf, neighborStatus, PRIORITIES, STATUSES, TYPES } from '@shared/tickets'
 import type { Actor, Ticket, TicketStatus } from '@shared/types'
+import { unresolvedBlockerIds } from '@shared/ticket-blockers'
 import { announce, keepFocus, rove } from '../a11y'
 import { h, icon } from '../dom'
 import { cleanError } from '../modals'
@@ -178,6 +179,8 @@ export abstract class BoardColumns extends BoardBase {
     const ok = t.acceptance.filter((c) => c.done).length
     const agent = t.assignee?.id ? this.state.agents.get(t.assignee.id) : undefined
     const who = cardAgent(t, this.state.agents)
+    const blockerIds = unresolvedBlockerIds(t, [...this.state.tickets.values()])
+    const blockers = blockerIds.map((id) => this.state.tickets.get(id)?.key ?? id)
     const el = h(
       'div',
       {
@@ -186,7 +189,7 @@ export abstract class BoardColumns extends BoardBase {
         role: 'button',
         tabindex: -1,
         'data-focus-key': t.id,
-        'aria-label': `${t.key}: ${t.title}. ${labelOf(STATUSES, t.status)}, prioridade ${labelOf(PRIORITIES, t.priority).toLowerCase()}`,
+        'aria-label': `${t.key}: ${t.title}. ${labelOf(STATUSES, t.status)}, prioridade ${labelOf(PRIORITIES, t.priority).toLowerCase()}${blockers.length ? `. Bloqueado por ${blockers.join(', ')}` : ''}`,
         'aria-keyshortcuts': 'Alt+ArrowLeft Alt+ArrowRight',
         'aria-pressed': String(t.id === this.selected),
         onclick: () => this.select(t.id),
@@ -200,6 +203,7 @@ export abstract class BoardColumns extends BoardBase {
         h('span', { class: `tprio tprio-${t.priority}`, title: `Prioridade ${labelOf(PRIORITIES, t.priority).toLowerCase()}` }),
       ),
       h('div', { class: 'tcard-title' }, t.title),
+      blockers.length ? h('div', { class: 'tcard-blocked', title: `Bloqueado por ${blockers.join(', ')}` }, `Bloqueado por ${blockers.join(', ')}`) : null,
       who ? this.agentLine(who) : null,
       agent && t.status === 'doing' ? h('div', { class: 'tcard-live' }, h('span', { class: `dot dot-${agent.status}` }), agent.activity) : null,
       t.tags.length ? h('div', { class: 'tcard-tags' }, ...t.tags.slice(0, 4).map((tag) => h('span', { class: 'ttag' }, tag))) : null,

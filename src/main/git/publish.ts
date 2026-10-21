@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { delimiter, join } from 'node:path'
 import type { ResultChanges, WorktreeInfo } from '@shared/types'
-import { gitRemoteHost, isPullRequestUrl } from '@shared/pull-request-url'
+import { gitRemoteHost, gitRemoteRepository, isPullRequestUrl } from '@shared/pull-request-url'
 import { insideRoot } from './repo'
 import { chunked, git, run, runBatch, safeGitEnv } from './run'
 import { checkWorktree, worktreeState } from './worktrees'
@@ -71,8 +71,8 @@ export async function openPullRequest(wt: WorktreeInfo, title: string, body: str
   if (!st.exists) throw new Error('A cópia isolada deste agente não existe mais.')
   if (st.dirty) throw new Error('Tem mudanças não commitadas na cópia. Commite antes de abrir o PR.')
   if (!st.ahead) throw new Error('O branch ainda não tem commits. Commite as mudanças antes.')
-  const selected = await selectedRemote(wt)
-  const { remote, host } = selected
+  const selected = await selectedRemote(wt.root)
+  const { remote, host, repository } = selected
   // Credentials come from gh's own helper only (the repo's credential.helper is wiped by
   // the safe config). gh's path goes inside single quotes, so it can't carry any.
   if (gh.includes("'")) throw new Error('O caminho do gh tem aspas; não dá para usar com segurança.')
@@ -106,28 +106,47 @@ export async function openPullRequest(wt: WorktreeInfo, title: string, body: str
     .find((l) => /^https:\/\/\S+$/.test(l.trim()))
   if (!url) throw new Error('O gh não devolveu o link do PR.')
   const prUrl = url.trim()
-  if (!isPullRequestUrl(prUrl, host)) throw new Error('A URL do PR não corresponde ao host do remoto; o ticket continua ativo.')
+  if (!isPullRequestUrl(prUrl, host, repository)) throw new Error('A URL do PR não corresponde ao repositório remoto; o ticket continua ativo.')
   return prUrl
 }
 
 /** Selects the same remote used for publishing and fails closed without a derivable host. */
 export async function pullRequestRemoteHost(wt: WorktreeInfo): Promise<string> {
-  return (await selectedRemote(wt)).host
+  checkWorktree(wt)
+  return (await selectedRemote(wt.root)).host
 }
 
-async function selectedRemote(wt: WorktreeInfo): Promise<{ remote: string; host: string }> {
-  const remotes = (await git(wt.root, ['remote'])).split('\n').map((r) => r.trim()).filter(Boolean)
+export async function pullRequestRemoteIdentity(wt: WorktreeInfo): Promise<{ host: string; repository: string }> {
+  checkWorktree(wt)
+  const { host, repository } = await selectedRemote(wt.root)
+  return { host, repository }
+}
+
+/** Resolves the publishing host for an existing project folder without requiring a worktree. */
+export async function pullRequestRemoteHostForRepo(root: string): Promise<string> {
+  return (await selectedRemote(root)).host
+}
+
+export async function pullRequestRemoteIdentityForRepo(root: string): Promise<{ host: string; repository: string }> {
+  const { host, repository } = await selectedRemote(root)
+  return { host, repository }
+}
+
+async function selectedRemote(root: string): Promise<{ remote: string; host: string; repository: string }> {
+  const remotes = (await git(root, ['remote'])).split('\n').map((r) => r.trim()).filter(Boolean)
   const remote = remotes.includes('origin') ? 'origin' : remotes[0]
   if (!remote || !/^\w[\w.-]*$/.test(remote)) throw new Error('Esse repositório não tem remoto para onde enviar o branch.')
-  const host = gitRemoteHost((await git(wt.root, ['remote', 'get-url', remote])).trim())
-  if (!host) throw new Error('Não foi possível identificar o host do remoto; o ticket continua ativo.')
-  return { remote, host }
+  const remoteUrl = (await git(root, ['remote', 'get-url', remote])).trim()
+  const host = gitRemoteHost(remoteUrl)
+  const repository = gitRemoteRepository(remoteUrl)
+  if (!host || !repository) throw new Error('Não foi possível identificar host e repositório do remoto; o ticket continua ativo.')
+  return { remote, host, repository }
 }
 
 /** Returns the existing PR URL for an exact branch, or null when none is open. */
 export async function pullRequestForBranch(wt: WorktreeInfo): Promise<string | null> {
   checkWorktree(wt)
-  const { host } = await selectedRemote(wt)
+  const { host, repository } = await selectedRemote(wt.root)
   const gh = findOnPath(['gh'])
   if (!gh) throw new Error('Não achei o GitHub CLI (gh). Instale e autentique com `gh auth login`.')
   const out = await run(
@@ -145,7 +164,7 @@ export async function pullRequestForBranch(wt: WorktreeInfo): Promise<string | n
   }
   if (!Array.isArray(rows) || !rows.length) return null
   const url = (rows[0] as { url?: unknown })?.url
-  if (typeof url !== 'string' || !isPullRequestUrl(url, host))
+  if (typeof url !== 'string' || !isPullRequestUrl(url, host, repository))
     throw new Error('A URL do PR existente não passou na validação; o ticket continua ativo.')
   return url
 }
