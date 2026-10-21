@@ -90,6 +90,16 @@
   color: var(--amber);
 }
 
+/* Tarefas em foco: o alfinete da barra. Ele acende quando o popup está aberto. */
+.dock-focus {
+  color: var(--accent-hi);
+}
+
+.dock-focus.open {
+  background: rgba(217, 119, 87, 0.18);
+  color: var(--text);
+}
+
 /* terminal bridge failing: a small amber dot on the gear */
 .dock-alert {
   position: absolute;

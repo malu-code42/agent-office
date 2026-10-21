@@ -40,6 +40,8 @@ export class State {
   proposals: Proposal[]
   /** A review of today was started and not confirmed: the caixa de entrada offers to resume it. */
   reviewDraft: boolean
+  /** How many tasks are in the focus ("Tarefas em foco"): the dock shows this count. */
+  focusCount: number
   private listeners = new Set<Listener>()
   private logListeners = new Set<(agentId: string, entry: LogEntry) => void>()
   private subLogListeners = new Set<(agentId: string, subId: string, entries: LogEntry[]) => void>()
@@ -64,6 +66,7 @@ export class State {
     this.macJobs = initial.macJobs ?? []
     this.proposals = initial.proposals ?? []
     this.reviewDraft = initial.reviewDraft ?? false
+    this.focusCount = initial.focusCount ?? 0
   }
 
   onChange(cb: Listener): () => void {
@@ -180,6 +183,9 @@ export class State {
         break
       case 'review:draft':
         this.reviewDraft = e.draft
+        break
+      case 'focus:count':
+        this.focusCount = e.count
         break
     }
     this.changed()

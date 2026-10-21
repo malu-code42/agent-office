@@ -74,6 +74,8 @@ export interface OfficeState {
   proposals: Proposal[]
   /** A review of today was started and not confirmed: it shows in the caixa de entrada to resume (AO-12). */
   reviewDraft: boolean
+  /** How many tasks are in the focus ("Tarefas em foco"): the dock shows this count. */
+  focusCount: number
   /** AGENT_OFFICE_TOUR=1: the guided tour opens even if the player has seen it. */
   forceTour?: boolean
 }
@@ -149,6 +151,8 @@ export type OfficeEvent =
   | { type: 'proposals'; proposals: Proposal[] }
   /** The review of today was saved or cleared: whether a draft to resume exists. */
   | { type: 'review:draft'; draft: boolean }
+  /** The focus changed size: how many tasks are in it now (the dock counts them). */
+  | { type: 'focus:count'; count: number }
 
 /** A reopen either put the task back (`list` is where it went) or waits for the user to choose one of `lists`. */
 export type ReopenResult = { status: 'done'; list: string; board: ParsedBoard; focus: FocusItem[] } | { status: 'choose'; lists: string[] }
