@@ -234,6 +234,20 @@
   cursor: default;
 }
 
+.tasks-focus-select.btn-primary {
+  box-shadow: 0 0 0 2px rgba(232, 137, 106, 0.25);
+}
+
+.tcard.focus-select-selected {
+  border-color: var(--accent-hi);
+  background: rgba(180, 88, 58, 0.2);
+  box-shadow: inset 0 0 0 1px var(--accent-hi);
+}
+
+.tasks-focus-selecting .tcard.task-readonly {
+  cursor: pointer;
+}
+
 .tcard.task-completed .tcard-title {
   color: var(--muted);
   text-decoration: line-through;
