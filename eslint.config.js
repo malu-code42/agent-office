@@ -5,11 +5,18 @@ import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import prettier from 'eslint-config-prettier'
 import globals from 'globals'
+import { fileURLToPath } from 'node:url'
+
+const projectRoot = fileURLToPath(new URL('.', import.meta.url))
 
 export default tseslint.config(
   { ignores: ['out/**', 'dist/**', 'node_modules/**', 'mockups/**', '.claude/**', 'coverage/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  {
+    files: ['**/*.ts'],
+    languageOptions: { parserOptions: { tsconfigRootDir: projectRoot } },
+  },
   {
     languageOptions: { globals: { ...globals.node } },
     rules: {

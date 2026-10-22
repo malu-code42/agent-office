@@ -1,6 +1,6 @@
 import { type FSWatcher } from 'node:fs'
 import { type Query, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
-import type { AgentSummary, LogEntry, PermissionDecision, PermissionRequest, SubagentInfo } from '@shared/types'
+import type { AgentSummary, LogEntry, PermissionDecision, PermissionRequest } from '@shared/types'
 import { type SquadDefinition } from '../squads'
 import { type Snapshot } from '../git'
 import { Coalescer, SubagentLogs } from '../subagent-log'
@@ -52,10 +52,6 @@ export interface Agent {
   log: LogEntry[]
   input?: InputQueue
   query?: Query
-  /** OpenCode turn cancellation; never replaced with another model mid-run. */
-  opencodeAbort?: AbortController
-  opencodeQueue?: string[]
-  opencodeChildren?: Map<string, SubagentInfo>
   /** Session already exists on disk, so the next start must resume it. */
   started: boolean
   /** Running /compact: its result is housekeeping, not a report for the player. */

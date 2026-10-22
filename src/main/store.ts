@@ -35,7 +35,7 @@ const DEFAULT_SETTINGS: Settings = {
   playerLook: { ...lookFromSeed('player'), shirt: '#4a8fe0', hairStyle: 1 },
   pixelSize: 3,
   defaultModel: '',
-  defaultEngine: 'opencode',
+  defaultEngine: 'claude',
   defaultEffort: '',
   defaultPermissionMode: 'default',
   notifications: true,
@@ -54,11 +54,11 @@ const DEFAULT_SETTINGS: Settings = {
 function migrateSettings(raw: Record<string, unknown> | undefined): Settings {
   const { squadFolder, squadFloorName, ...rest } = (raw ?? {}) as Record<string, unknown>
   const settings = { ...DEFAULT_SETTINGS, ...rest } as Settings
-  if (typeof settings.openCodeDataConsentAt !== 'number' || !Number.isFinite(settings.openCodeDataConsentAt) || settings.openCodeDataConsentAt <= 0)
-    delete settings.openCodeDataConsentAt
-  // Existing Office users retain their Claude sessions unless they explicitly choose OpenCode.
-  if (raw && !('defaultEngine' in raw)) settings.defaultEngine = 'claude'
-  if (settings.defaultEngine !== 'claude' && settings.defaultEngine !== 'opencode') settings.defaultEngine = 'claude'
+  // GH-39: OpenCode settings are retired. Historical agents keep their engine label below, but
+  // all future work is Claude-only and the obsolete consent timestamp is discarded.
+  const migrated = settings as Settings & { openCodeDataConsentAt?: number }
+  delete migrated.openCodeDataConsentAt
+  settings.defaultEngine = 'claude'
   if (!Array.isArray(settings.projects)) settings.projects = []
   else
     settings.projects = settings.projects.map((raw) => {

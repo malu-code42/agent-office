@@ -32,7 +32,7 @@ export abstract class AgentOffice extends AgentBase {
    */
   async hire(req: HireRequest, display?: string): Promise<AgentSummary> {
     const id = randomUUID()
-    const engine = req.engine ?? this.store.settings.defaultEngine
+    const engine = 'claude'
     const name = req.name.trim() || this.freeName()
     const { worktree, note } = await this.isolate(req.cwd, name, id, req.worktree)
     const summary: AgentSummary = {
@@ -51,7 +51,7 @@ export abstract class AgentOffice extends AgentBase {
       look: req.look ?? lookFromSeed(req.name + id),
       costUsd: 0,
       createdAt: Date.now(),
-      sessionId: officeSessionId(engine),
+      sessionId: randomUUID(),
       ...(worktree ? { worktree } : {}),
     }
     const agent: Agent = { summary, log: [], started: false }
@@ -117,9 +117,9 @@ export abstract class AgentOffice extends AgentBase {
     cwd: string,
     defaults: AgentBrain & { permissionMode: OfficePermissionMode },
     wantWorktree?: boolean,
-    engine: 'claude' | 'opencode' = this.store.settings.defaultEngine,
+    engine: 'claude' = 'claude',
   ): Promise<AgentSummary> {
-    const sessionId = officeSessionId(engine)
+    const sessionId = randomUUID()
     const name = this.freeName(basename(cwd) || 'Agente')
     const { worktree, note } = await this.isolate(cwd, name, sessionId, wantWorktree)
     const summary = this.idleAgent(sessionId, cwd, [], false, 'Esperando a primeira instrução', defaults, worktree, name, engine)
@@ -244,6 +244,7 @@ export abstract class AgentOffice extends AgentBase {
   configure(id: string, patch: { permissionMode?: OfficePermissionMode; model?: string; effort?: AgentBrain['effort'] }): void {
     const agent = this.agents.get(id)
     if (!agent || agent.summary.source !== 'office' || this.busy(agent)) return
+    if (agent.summary.engine === 'opencode') return
     const s = agent.summary
     if (patch.permissionMode) s.permissionMode = patch.permissionMode
     if ('model' in patch) s.model = patch.model || undefined
@@ -297,7 +298,7 @@ export abstract class AgentOffice extends AgentBase {
     defaults: AgentBrain & { permissionMode: OfficePermissionMode },
     worktree?: WorktreeInfo,
     name?: string,
-    engine: 'claude' | 'opencode' = 'claude',
+    engine: 'claude' = 'claude',
   ): AgentSummary {
     const id = randomUUID()
     const summary: AgentSummary = {
@@ -329,6 +330,7 @@ export abstract class AgentOffice extends AgentBase {
   sendMessage(id: string, text: string, display?: string, attachments: AttachmentInput[] = []): void {
     const agent = this.agents.get(id)
     if (!agent || agent.summary.source !== 'office' || agent.demo) return
+    if (agent.summary.engine === 'opencode') throw new Error('Este é um registro histórico OpenCode, disponível somente para consulta.')
     const { content, infos } = attachments.length ? buildMessage(text, attachments) : { content: text, infos: [] }
     this.addLog(agent, 'user', display ?? text, undefined, undefined, infos.length ? infos : undefined)
     // A new instruction replaces any undelivered result.
@@ -337,10 +339,6 @@ export abstract class AgentOffice extends AgentBase {
     if (agent.input && (agent.query || agent.awaitingSnapshot)) {
       agent.input.push(content)
       this.setStatus(agent, 'working', 'Lendo suas instruções')
-    } else if (agent.opencodeAbort) {
-      agent.opencodeQueue ??= []
-      agent.opencodeQueue.push(text)
-      this.setStatus(agent, 'working', 'Sua próxima instrução está na fila')
     } else {
       this.run(agent, content)
     }
@@ -349,6 +347,7 @@ export abstract class AgentOffice extends AgentBase {
   compact(id: string): void {
     const agent = this.agents.get(id)
     if (!agent || agent.summary.source !== 'office' || !agent.started || this.busy(agent)) return
+    if (agent.summary.engine === 'opencode') throw new Error('Registros históricos OpenCode são somente para consulta.')
     agent.compacting = true
     this.addLog(agent, 'system', 'Compactando: resumindo a conversa para liberar contexto…')
     this.dropResults(id)
@@ -361,10 +360,10 @@ export abstract class AgentOffice extends AgentBase {
   clearContext(id: string): void {
     const agent = this.agents.get(id)
     if (!agent || agent.summary.source !== 'office') return
+    if (agent.summary.engine === 'opencode') throw new Error('Registros históricos OpenCode não podem ser retomados. Crie um novo agente Claude se quiser recomeçar.')
     this.cancelAgentRequests(id)
     this.dropResults(id)
     agent.input?.close()
-    agent.opencodeAbort?.abort()
     agent.query?.close()
     agent.input = undefined
     agent.query = undefined
@@ -390,15 +389,8 @@ export abstract class AgentOffice extends AgentBase {
   async interrupt(id: string): Promise<void> {
     const agent = this.agents.get(id)
     if (!agent) return
+    if (agent.summary.engine === 'opencode') return
     this.cancelAgentRequests(id)
-    if (agent.opencodeAbort) {
-      const sessionId = agent.summary.sessionId
-      agent.opencodeAbort.abort()
-      if (sessionId) await this.interruptOpenCode(sessionId).catch(() => undefined)
-      agent.opencodeQueue = []
-      this.addLog(agent, 'system', 'Interrompido por você.')
-      return
-    }
     if (!agent.query) return
     await agent.query.interrupt().catch(() => undefined)
     this.addLog(agent, 'system', 'Interrompido por você.')
@@ -407,10 +399,10 @@ export abstract class AgentOffice extends AgentBase {
   fire(id: string): void {
     const agent = this.agents.get(id)
     if (!agent) return
+    if (agent.summary.engine === 'opencode') throw new Error('Registros históricos OpenCode são preservados para consulta.')
     this.cancelAgentRequests(id)
     this.dropResults(id)
     agent.input?.close()
-    agent.opencodeAbort?.abort()
     agent.query?.close()
     agent.watcher?.close()
     agent.subFlush?.cancel()
@@ -424,17 +416,9 @@ export abstract class AgentOffice extends AgentBase {
   shutdown(): void {
     for (const a of this.agents.values()) {
       a.input?.close()
-      a.opencodeAbort?.abort()
       a.query?.close()
       a.watcher?.close()
     }
     this.persist()
   }
-
-  protected abstract interruptOpenCode(sessionID: string): Promise<void>
-}
-
-function officeSessionId(engine: 'claude' | 'opencode'): string {
-  const id = randomUUID()
-  return engine === 'opencode' ? `ses_${id.replace(/-/g, '')}` : id
 }

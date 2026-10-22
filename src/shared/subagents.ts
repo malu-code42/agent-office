@@ -1,5 +1,5 @@
 // The cap of subagents at one desk (HANDOFF §3.4.1). The number lives here because
-// the room, the renderer and both runtimes (Claude Agent SDK and OpenCode) have to
+// the room and Claude Agent SDK have to
 // agree on it: what the scene shows is what the agent is really allowed to run.
 
 /** How many subagents may work for the same agent at the same desk. */
@@ -15,9 +15,8 @@ export function helperLimit(configured?: number): number {
 }
 
 /**
- * Why a subagent call was refused, in pt-BR. The same words in both runtimes: the
- * player reads them in the conversation of the agent, and the model reads them in
- * the refusal of the call.
+ * Why a subagent call was refused, in pt-BR. The player reads the explanation in
+ * the parent agent's conversation and the Claude Agent SDK receives it with the denial.
  */
 export function helperLimitReason(limit: number, active: number): string {
   const plural = active === 1 ? 'subagente ativo' : 'subagentes ativos'

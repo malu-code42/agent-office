@@ -278,12 +278,12 @@ describe('cleanHire', () => {
     expect(r.permissionMode).toBe('plan')
     expect(cleanHire({ cwd: dir, task: 'faz' }, s).permissionMode).toBe('default')
   })
-  it('engine inválido ou ausente herda o padrão do escritório', () => {
+  it('sempre usa Claude, mesmo se um cliente antigo pedir OpenCode', () => {
     const legacy = { ...s, defaultEngine: 'claude' as const }
     expect(cleanHire({ cwd: dir, task: 'faz' }, legacy).engine).toBe('claude')
-    expect(cleanHire({ cwd: dir, task: 'faz', engine: 'opencode' }, legacy).engine).toBe('opencode')
+    expect(cleanHire({ cwd: dir, task: 'faz', engine: 'opencode' }, legacy).engine).toBe('claude')
     expect(cleanHire({ cwd: dir, task: 'faz', engine: 'desconhecido' }, legacy).engine).toBe('claude')
-    expect(cleanHire({ cwd: dir, task: 'faz', engine: 'opencode', accounts: ['main'] }, legacy).accounts).toBeUndefined()
+    expect(cleanHire({ cwd: dir, task: 'faz', engine: 'opencode', accounts: ['main'] }, legacy).accounts).toEqual(['main'])
   })
   it('override mais permissivo exige confirmação explícita; restrição não', () => {
     expect(() => cleanHire({ cwd: dir, task: 'faz', permissionMode: 'acceptEdits' }, s)).toThrow(/Confirme explicitamente/)
@@ -336,13 +336,13 @@ describe('cleanDelegateTarget', () => {
   })
   it('preserva modo delegado, sem downgrade silencioso; tickets validam o bypass no servidor', () => {
     expect(cleanDelegateTarget({ hire: { permissionMode: 'bypassPermissions', model: 'opus' } }, accounts)).toEqual({
-      hire: { model: 'opus', permissionMode: 'bypassPermissions', confirmPermissionOverride: false, worktree: undefined },
+      hire: { model: 'opus', engine: 'claude', permissionMode: 'bypassPermissions', confirmPermissionOverride: false, worktree: undefined },
     })
     expect(cleanDelegateTarget({ hire: { permissionMode: 'auto' } }, accounts)).toEqual({
-      hire: { permissionMode: 'auto', confirmPermissionOverride: false, worktree: undefined },
+      hire: { engine: 'claude', permissionMode: 'auto', confirmPermissionOverride: false, worktree: undefined },
     })
     expect(cleanDelegateTarget(undefined, accounts)).toEqual({
-      hire: { permissionMode: undefined, confirmPermissionOverride: false, worktree: undefined },
+      hire: { engine: 'claude', permissionMode: undefined, confirmPermissionOverride: false, worktree: undefined },
     })
   })
   it('compara override conservador e nunca permite bypass em squad', () => {
@@ -362,13 +362,9 @@ describe('cleanSettings', () => {
     expect('evil' in out).toBe(false)
     expect(({} as Record<string, unknown>).polluted).toBeUndefined()
   })
-  it('valida e persiste o motor padrão dos novos agentes', () => {
-    expect(cleanSettings({ defaultEngine: 'opencode' }, settings()).defaultEngine).toBe('opencode')
+  it('fixa Claude como único motor padrão', () => {
+    expect(cleanSettings({ defaultEngine: 'opencode' }, settings()).defaultEngine).toBe('claude')
     expect(cleanSettings({ defaultEngine: 'desconhecido' }, settings()).defaultEngine).toBe('claude')
-  })
-  it('renderer cannot forge first-use provider consent', () => {
-    const now = Date.now()
-    expect(cleanSettings({ openCodeDataConsentAt: now }, settings()).openCodeDataConsentAt).toBeUndefined()
   })
   it('aplica campos válidos', () => {
     const out = cleanSettings(

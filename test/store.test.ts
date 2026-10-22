@@ -19,7 +19,7 @@ describe('Store: carga e migração das configurações', () => {
   it('sem arquivo: configurações padrão com a conta principal', () => {
     const s = new Store()
     expect(s.settings.playerName).toBe('Você')
-    expect(s.settings.defaultEngine).toBe('opencode')
+    expect(s.settings.defaultEngine).toBe('claude')
     expect(s.settings.accounts.map((a) => a.id)).toEqual(['main'])
     expect(s.settings.projects).toEqual([])
     expect(s.agents).toEqual([])
@@ -70,6 +70,39 @@ describe('Store: carga e migração das configurações', () => {
     expect(s.agentBudgetUsd).toBe(0)
     expect(s.video).toEqual(DEFAULT_VIDEO)
     expect(s.defaultEngine).toBe('claude')
+  })
+
+  it('migra settings OpenCode para Claude e descarta apenas o consentimento obsoleto', () => {
+    write({ settings: { defaultEngine: 'opencode', openCodeDataConsentAt: Date.now() } })
+    const migrated = new Store().settings as unknown as { defaultEngine: string; openCodeDataConsentAt?: number }
+    expect(migrated.defaultEngine).toBe('claude')
+    expect(migrated.openCodeDataConsentAt).toBeUndefined()
+  })
+
+  it('preserva agentes, logs, resultados e métricas OpenCode como histórico legado', () => {
+    write({
+      settings: { defaultEngine: 'opencode', openCodeDataConsentAt: Date.now() },
+      agents: [
+        {
+          summary: {
+            id: 'legacy-agent', name: 'Arquivo', source: 'office', engine: 'opencode', cwd: '/project',
+            permissionMode: 'default', status: 'done', activity: 'Pronto', desk: 0,
+            look: { skin: '#f2c9a0', hair: '#332211', hairStyle: 0, shirt: '#4a8fe0', pants: '#222222', shoes: '#111111' },
+            costUsd: 0, createdAt: 1, sessionId: 'ses_legacy', opencodeUsage: { inputTokens: 40, outputTokens: 20 },
+          },
+          log: [{ id: 'legacy-log', t: 1, kind: 'assistant', text: 'Resposta antiga' }],
+        },
+      ],
+      results: [{ id: 'legacy-result', agentId: 'legacy-agent', text: 'Resultado antigo', isError: false, costUsd: 0, durationMs: 1, turns: 1, createdAt: 1 }],
+      ledger: { days: { '/project': { '2026-10-21': { costUsd: 0, costUnknown: true, accounts: { opencode: { costUsd: 0, costUnknown: true } } } } }, agents: {}, switches: [] },
+      ledgerSessions: {},
+    })
+    const store = new Store()
+    expect(store.settings.defaultEngine).toBe('claude')
+    expect(store.agents[0].summary).toMatchObject({ engine: 'opencode', opencodeUsage: { inputTokens: 40, outputTokens: 20 } })
+    expect(store.agents[0].log[0]).toMatchObject({ id: 'legacy-log', text: 'Resposta antiga' })
+    expect(store.results[0]).toMatchObject({ id: 'legacy-result', text: 'Resultado antigo' })
+    expect(store.ledger.days['/project']['2026-10-21'].accounts.opencode).toMatchObject({ costUsd: 0, costUnknown: true })
   })
 
   it('modo e regras "Sempre permitir" quebrados num andar antigo somem na carga', () => {

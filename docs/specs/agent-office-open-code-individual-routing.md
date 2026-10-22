@@ -1,6 +1,8 @@
 # OpenCode para agentes individuais e squads Claude
 
-**Status:** aprovada pela usuária para planejamento (2026-10-18). Implementação depende da aprovação deste plano.
+> **ARCHIVED / SUPERSEDED (2026-10-21).** Historical proposal only. The approved `centro-de-controle-da-vida-design.md` specifies Claude as the only active engine. Do not implement, resume, or use this document as a roadmap. Existing OpenCode sessions/results/logs/usage remain read-only history; an unfinished task may restart in Claude only after explicit user approval.
+
+**Status:** arquivada e supersedida (2026-10-21); aprovação histórica de planejamento, não autorização atual de implementação.
 **Data:** 2026-10-18
 **Relaciona-se a:** `.scratch/correcoes-agent-office/issues/02-refazer-logica-dos-squads.md`, `.scratch/correcoes-agent-office/issues/03-rever-modos-de-permissao.md`, `.scratch/entrega-1-planejamento/issues/14-integrar-codex-e-opencode.md`.
 

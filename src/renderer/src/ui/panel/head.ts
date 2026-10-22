@@ -83,7 +83,7 @@ export abstract class PanelHead extends PanelSearch {
               name,
               a.source === 'terminal'
                 ? h('span', { class: 'chip chip-term' }, 'terminal')
-                : h('span', { class: 'chip' }, a.engine === 'opencode' ? 'OpenCode' : 'Claude'),
+                : h('span', { class: 'chip' }, a.engine === 'opencode' ? 'OpenCode · histórico' : 'Claude'),
               branchChip(a),
               open ? null : accountChip(this.state, a),
               helpersChip(a, !open),
