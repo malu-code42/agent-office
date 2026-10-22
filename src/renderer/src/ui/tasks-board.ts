@@ -1,5 +1,6 @@
 import type { State } from '../state'
 import { focusKey } from '@shared/planning'
+import { tasksToFocusSelection, toggleSelectedTask } from '@shared/task-focus-selection'
 import { parseEmphasis } from '@shared/emphasis'
 import {
   ARCHIVE_LIST,
@@ -114,9 +115,23 @@ export async function openTasksBoard(
     const data = initialBoard ?? (await window.office.readTasks())
     const focused = new Set((await window.office.readFocus()).map((item) => item.id))
     const isFocused = (task: Task) => !!task.id && focused.has(focusKey(task.id))
+    const taskAriaLabel = (task: Task) =>
+      [
+        parseEmphasis(task.text).map((segment) => segment.text).join(''),
+        task.status === 'discarded' ? 'Descartada' : '',
+        isFocused(task) ? 'Em foco' : '',
+        taskWhen(task) ? `Data ${taskWhen(task)}` : '',
+        task.completedDate ? `Descartada em ${task.completedDate}` : '',
+        `Pressione Enter para mover para outra lista, F para pôr ou tirar do foco${task.status === 'open' ? ', R para reagendar, D para descartar' : ''}`,
+      ]
+        .filter(Boolean)
+        .join('. ')
     // The Archive is not a column, and completed tasks are listed apart: see boardView.
     const { columns, completed } = boardView(data.lists)
     let dragging: { line: number; list: string; text: string } | null = null
+    let selectingFocus = false
+    const selectedFocusLines = new Set<number>()
+    const actionDisabledBeforeSelection = new WeakMap<HTMLButtonElement | HTMLInputElement, boolean>()
     // The main process checks the file again; a refusal (the file changed) comes back as the toast.
     const move = async (line: number, text: string, list: string) => {
       try {
@@ -170,6 +185,18 @@ export async function openTasksBoard(
         toast(cleanError(err), 'err')
       }
     }
+    const focusSelectionLabel = h('span', {}, 'Pôr em foco')
+    const focusSelectionButton = h('button', {
+      class: 'btn btn-small tasks-focus-select',
+      type: 'button',
+      'aria-pressed': 'false',
+      'data-focus-key': 'selecionar-foco',
+    }, icon('pin', 14), focusSelectionLabel) as HTMLButtonElement
+    const cancelFocusSelectionButton = h('button', {
+      class: 'btn btn-small tasks-focus-cancel hidden',
+      type: 'button',
+      'data-focus-key': 'cancelar-selecao-foco',
+    }, 'Cancelar') as HTMLButtonElement
     // The checkbox completes the task at once: the card leaves the board, and the undo toast stays for 10 s.
     const complete = async (box: HTMLInputElement, target: TaskRef, title: string) => {
       try {
@@ -197,6 +224,10 @@ export async function openTasksBoard(
       return {
         draggable: 'true',
         ondragstart: (e: Event) => {
+          if (selectingFocus) {
+            e.preventDefault()
+            return
+          }
           const drag = e as DragEvent
           dragging = { line: task.line, list: list.name, text: task.text }
           if (drag.dataTransfer) {
@@ -213,6 +244,14 @@ export async function openTasksBoard(
         onkeydown: (e: Event) => {
           const key = e as KeyboardEvent
           if (key.target !== key.currentTarget) return
+          if (selectingFocus) {
+            if (key.key === 'Enter' || key.key === ' ') {
+              key.preventDefault()
+              key.stopPropagation()
+              toggleFocusSelection(task, key.currentTarget as HTMLElement)
+            }
+            return
+          }
           if (key.key === 'Enter' || key.key === ' ') {
             key.preventDefault()
             openMove(key.currentTarget as HTMLElement, list, task)
@@ -333,6 +372,8 @@ export async function openTasksBoard(
         h('div', { class: 'board-title' }, icon('list', 18), 'Tarefas'),
         h('span', { class: 'board-count' }, `${columns.reduce((count, list) => count + list.tasks.length, 0)} tarefas`),
         h('span', { class: 'grow' }),
+        focusSelectionButton,
+        cancelFocusSelectionButton,
         h(
           'button',
           {
@@ -424,21 +465,18 @@ export async function openTasksBoard(
                         'li',
                         {
                           class: `tcard task-readonly${task.status === 'discarded' ? ' task-discarded' : ''}`,
+                          role: 'button',
                           tabindex: '0',
                           'data-focus-key': `${list.name} / ${task.text}`,
+                          'data-task-line': String(task.line),
                           ...dragAndMove(list, task),
-                          'aria-label': [
-                            parseEmphasis(task.text)
-                              .map((segment) => segment.text)
-                              .join(''),
-                            task.status === 'discarded' ? 'Descartada' : '',
-                            isFocused(task) ? 'Em foco' : '',
-                            taskWhen(task) ? `Data ${taskWhen(task)}` : '',
-                            task.completedDate ? `Descartada em ${task.completedDate}` : '',
-                            `Pressione Enter para mover para outra lista, F para pôr ou tirar do foco${task.status === 'open' ? ', R para reagendar, D para descartar' : ''}`,
-                          ]
-                            .filter(Boolean)
-                            .join('. '),
+                          onclick: (event: Event) => {
+                            if (!selectingFocus || task.status !== 'open') return
+                            const target = event.target instanceof HTMLElement ? event.target : null
+                            if (target?.closest('button, input')) return
+                            toggleFocusSelection(task, event.currentTarget as HTMLElement)
+                          },
+                          'aria-label': taskAriaLabel(task),
                         },
                         h(
                           'div',
@@ -472,6 +510,95 @@ export async function openTasksBoard(
         completedPanel,
       ),
     ) as HTMLElement
+
+    const updateFocusSelectionCard = (card: HTMLElement, task: Task) => {
+      const selected = selectedFocusLines.has(task.line)
+      card.classList.toggle('focus-select-selected', selectingFocus && selected)
+      if (selectingFocus) {
+        card.setAttribute('aria-pressed', String(selected))
+        card.setAttribute('aria-label', `${task.text}. ${selected ? 'Selecionada' : 'Não selecionada'} para pôr em foco. Pressione Enter ou Espaço para alterar.`)
+      } else {
+        card.removeAttribute('aria-pressed')
+        card.setAttribute('aria-label', taskAriaLabel(task))
+      }
+    }
+    const toggleFocusSelection = (task: Task, card: HTMLElement) => {
+      if (task.status !== 'open') return
+      toggleSelectedTask(selectedFocusLines, task.line)
+      updateFocusSelectionCard(card, task)
+      syncFocusSelectionButtons()
+    }
+    const syncFocusSelectionButtons = () => {
+      focusSelectionButton.classList.toggle('btn-primary', selectingFocus)
+      focusSelectionButton.setAttribute('aria-pressed', String(selectingFocus))
+      focusSelectionLabel.textContent = selectingFocus
+        ? selectedFocusLines.size
+          ? `Pôr ${selectedFocusLines.size} em foco`
+          : 'Selecione tarefas'
+        : 'Pôr em foco'
+      cancelFocusSelectionButton.classList.toggle('hidden', !selectingFocus)
+      board.classList.toggle('tasks-focus-selecting', selectingFocus)
+      for (const card of board.querySelectorAll<HTMLElement>('.task-readonly')) {
+        const task = columns.flatMap((list) => list.tasks).find((item) => `${item.line}` === card.dataset.taskLine)
+        if (!task) continue
+        updateFocusSelectionCard(card, task)
+        for (const action of card.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button, input')) {
+          if (selectingFocus) {
+            if (!actionDisabledBeforeSelection.has(action)) actionDisabledBeforeSelection.set(action, action.disabled)
+            action.disabled = true
+          } else if (actionDisabledBeforeSelection.has(action)) {
+            action.disabled = actionDisabledBeforeSelection.get(action) ?? false
+            actionDisabledBeforeSelection.delete(action)
+          }
+        }
+      }
+    }
+    const finishFocusSelection = () => {
+      selectingFocus = false
+      selectedFocusLines.clear()
+      syncFocusSelectionButtons()
+    }
+    const applyFocusSelection = async () => {
+      if (!selectedFocusLines.size) {
+        toast('Selecione ao menos uma tarefa para pôr em foco.', 'info')
+        return
+      }
+      const selected = tasksToFocusSelection(columns.flatMap((list) => list.tasks), selectedFocusLines, focused)
+      if (!selected.length) {
+        finishFocusSelection()
+        toast('As tarefas selecionadas já estão em foco.', 'info')
+        return
+      }
+      let added = 0
+      try {
+        let nextBoard = data
+        for (const task of selected) {
+          const next = await window.office.focusTask(task.line)
+          nextBoard = next.board
+          added++
+        }
+        finishFocusSelection()
+        toast(`${added} ${added === 1 ? 'tarefa posta' : 'tarefas postas'} em foco.`, 'ok')
+        void openTasksBoard(root, state, toast, nextBoard)
+      } catch (err) {
+        finishFocusSelection()
+        toast(added ? `${added} tarefa(s) foram adicionadas; a seleção parou: ${cleanError(err)}` : cleanError(err), 'err')
+        void openTasksBoard(root, state, toast)
+      }
+    }
+    focusSelectionButton.addEventListener('click', () => {
+      if (selectingFocus) void applyFocusSelection()
+      else {
+        selectingFocus = true
+        selectedFocusLines.clear()
+        syncFocusSelectionButtons()
+        board.querySelector<HTMLElement>('.task-readonly')?.focus({ preventScroll: true })
+      }
+    })
+    cancelFocusSelectionButton.addEventListener('click', () => {
+      finishFocusSelection()
+      focusSelectionButton.focus({ preventScroll: true })
+    })
 
     asDialog(board, { label: 'Quadro Tarefas' })
     const columnEls = [...board.querySelectorAll<HTMLElement>('.tcol')]
@@ -510,7 +637,10 @@ export async function openTasksBoard(
       if (event.key === 'Escape') {
         event.preventDefault()
         event.stopPropagation()
-        board.remove()
+        if (selectingFocus) {
+          finishFocusSelection()
+          focusSelectionButton.focus({ preventScroll: true })
+        } else board.remove()
         return
       }
       if (!ARROWS.includes(event.key)) return
@@ -520,7 +650,11 @@ export async function openTasksBoard(
     }
     window.addEventListener('keydown', onKey, true)
     board.addEventListener('click', (event) => {
-      if (event.target === board) board.remove()
+      if (event.target !== board) return
+      if (selectingFocus) {
+        finishFocusSelection()
+        focusSelectionButton.focus({ preventScroll: true })
+      } else board.remove()
     })
     // Read after the awaits, so it is the board that is open now. The old board is replaced in
     // one step: between the remove and the append there is no frame without a board.
