@@ -49,6 +49,12 @@ export interface Ticket {
   acceptance: Criterion[]
   /** Project folder the agent works in. */
   cwd?: string
+  /** Same-project tickets that must have a verified PR before this ticket can start. */
+  blockedBy?: string[]
+  /** Durable snapshots keep dependencies resolved after a blocker leaves the board. */
+  blockerPRs?: Record<string, string>
+  /** Set only by the main process after the PR URL is verified against the project remote. */
+  pullRequestUrl?: string
   tags: string[]
   /** Story points. */
   estimate?: number
@@ -80,6 +86,7 @@ export interface TicketDraft {
   tags?: string[]
   estimate?: number | null
   dueDate?: string | null
+  blockedBy?: string[]
 }
 
 export type TicketPatch = Partial<TicketDraft>

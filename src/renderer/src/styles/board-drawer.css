@@ -76,6 +76,27 @@
   color: var(--dim);
 }
 
+.ticket-blockers,
+.ticket-blocker-list,
+.ticket-blocker-current {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.ticket-blocker-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.ticket-blocker-option input {
+  margin-top: 2px;
+}
+
 .tassign {
   display: flex;
   flex-direction: column;

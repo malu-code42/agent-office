@@ -12,6 +12,7 @@ import {
   type Ticket,
 } from '@shared/types'
 import { pendingTickets } from '@shared/squad-tickets'
+import { isTicketBlocked, unresolvedBlockerIds } from '@shared/ticket-blockers'
 import type { State } from '../../state'
 import type { SquadRoom } from '../../world/layout'
 import { h } from '../dom'
@@ -78,8 +79,15 @@ export function openCreateSquad(root: HTMLElement, state: State, opts: CreateSqu
       { class: 'panelbox' },
       h('div', { class: 'sec-title' }, 'Seu brief'),
       h('div', { class: 'cs-echo' }, brief || '(sem texto)'),
-      chosen.length
-        ? h('div', { class: 'cs-chips' }, ...chosen.map((t) => h('span', { class: 'sbadge sb-mute' }, `${t.key} · ${t.title}`)))
+        chosen.length
+        ? h(
+            'div',
+            { class: 'cs-chips' },
+            ...chosen.map((t) => {
+              const blockers = unresolvedBlockerIds(t, [...state.tickets.values()])
+              return h('span', { class: `sbadge ${blockers.length ? 'sb-error' : 'sb-mute'}` }, `${t.key} · ${t.title}${blockers.length ? ` · Bloqueado por ${blockers.map((id) => state.tickets.get(id)?.key ?? id).join(', ')}` : ''}`)
+            }),
+          )
         : h('span', { class: 'hint' }, 'Nenhum ticket escolhido.'),
     )
   }
@@ -185,11 +193,16 @@ export function openCreateSquad(root: HTMLElement, state: State, opts: CreateSqu
       const squad = await window.office.approveSquadProposal(proposal.id, name.trim())
       if (closed) return
       close(false)
+      const queue = await window.office.squadQueue(squad.code).catch(() => undefined)
+      const active = queue?.active ? state.tickets.get(queue.active) : undefined
       const chosen = pickedTickets()
-      const waiting = chosen.length > 1 ? ` e ${chosen.length - 1} ${chosen.length > 2 ? 'aguardam' : 'aguarda'} na fila do squad` : ''
       toast(
         `${squad.name} criado em ${roomName}.` +
-          (chosen.length ? ` ${chosen[0].key} ficou ativo${waiting}.` : ' Sem ticket ativo: o squad fica disponível.'),
+          (active
+            ? ` ${active.key} ficou ativo. Tickets bloqueados permanecem na fila e serão pulados até haver PR confirmado.`
+            : chosen.length
+              ? ' Todos os tickets escolhidos estão bloqueados; o squad aguarda um PR confirmado.'
+              : ' Sem ticket ativo: o squad fica disponível.'),
         'ok',
       )
       opts.onApproved?.(squad)
@@ -233,7 +246,21 @@ export function openCreateSquad(root: HTMLElement, state: State, opts: CreateSqu
           if (box.checked) picked.add(t.id)
           else picked.delete(t.id)
         })
-        list.append(h('label', { class: 'rev-check' }, box, h('span', {}, h('b', {}, `${t.key} · `), t.title)))
+         const blockers = unresolvedBlockerIds(t, [...state.tickets.values()])
+         list.append(
+           h(
+             'label',
+             { class: 'rev-check' },
+             box,
+             h(
+               'span',
+               {},
+               h('b', {}, `${t.key} · `),
+               t.title,
+               blockers.length ? h('span', { class: 'cs-ticket-blocked' }, `Bloqueado por ${blockers.map((id) => state.tickets.get(id)?.key ?? id).join(', ')}`) : null,
+             ),
+           ),
+         )
       }
       parts.push(
         h(
@@ -254,7 +281,7 @@ export function openCreateSquad(root: HTMLElement, state: State, opts: CreateSqu
           h(
             'div',
             { class: 'hint' },
-            'Escolha tickets pendentes. Depois da aprovação, o primeiro (na ordem do quadro) fica ativo e os demais aguardam na fila do squad. Você pode não escolher nenhum.',
+             'Tickets bloqueados continuam selecionáveis e na fila. O squad ativa o próximo ticket sem bloqueios; se todos estiverem bloqueados, aguarda o PR dos bloqueadores.',
           ),
           list.children.length ? list : h('span', { class: 'hint' }, 'Nenhum ticket pendente neste andar.'),
         ),
@@ -320,7 +347,14 @@ export function openCreateSquad(root: HTMLElement, state: State, opts: CreateSqu
       })
       approveButton.addEventListener('click', () => void approve())
       syncName()
-      const attribution = ticketAttribution(chosen)
+       const allTickets = [...state.tickets.values()]
+       const firstReady = chosen.find((ticket) => !isTicketBlocked(ticket, allTickets))
+       const waiting = chosen.filter((ticket) => ticket.id !== firstReady?.id)
+       const attribution = !chosen.length
+         ? ticketAttribution(chosen)
+         : firstReady
+           ? `${firstReady.key} fica ativo; ${waiting.length ? `${waiting.map((ticket) => ticket.key).join(', ')} ficam na fila e os bloqueados serão pulados até haver PR confirmado.` : 'sem outros tickets na fila.'}`
+           : `Todos os tickets escolhidos estão bloqueados (${chosen.map((ticket) => ticket.key).join(', ')}). O squad aguarda e não inicia nenhum até haver PR confirmado.`
       const coordinator = memberCard(
         'Coordenador',
         'Orquestrador · mesa fixa da sala',

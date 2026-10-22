@@ -79,7 +79,7 @@ export interface AgentSummary {
   role?: 'orchestrator'
   /** Squad code, for orchestrators. */
   squad?: string
-  /** The one board ticket assigned to this isolated squad cycle, if any. */
+  /** Board ticket currently delivered to this office agent (or isolated squad cycle), if any. */
   ticketId?: string
   /** Where the cycle is, read from squads/<code>/state.json. */
   squadStep?: SquadProgress

@@ -5,6 +5,8 @@ import { join } from 'node:path'
 import { createSdkMcpServer, tool, type McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import { projectFor } from '@shared/projects'
+import { blockerIdsFor, hasBlockerPRSnapshot, INVALID_BLOCKER_ID, isTicketBlocked, validateTicketBlockers } from '@shared/ticket-blockers'
+import { isPullRequestUrl } from '@shared/pull-request-url'
 import { labelOf, PRIORITIES, STATUSES, ticketBrief, TYPES } from '@shared/tickets'
 import type {
   Actor,
@@ -62,7 +64,7 @@ export class TicketBoard extends EventEmitter {
   /** Set while a restore or import replaces the files: nothing in memory may land on them. */
   private locked = false
 
-  constructor(private dir: string) {
+  constructor(private dir: string, private projects: () => ProjectFloor[] = () => []) {
     super()
     mkdirSync(dir, { recursive: true })
     this.file = join(dir, 'tickets.json')
@@ -78,12 +80,27 @@ export class TicketBoard extends EventEmitter {
         fallbacks: backupCopies(this.dir, 'tickets-closed.json'),
       })
       reportLoad(this.closedFile, r)
-      const raw = r.status === 'ok' || r.status === 'restored' ? r.data : {}
-      this.closedData = Array.isArray(raw.tickets) ? raw.tickets : []
+    const raw = r.status === 'ok' || r.status === 'restored' ? r.data : {}
+    this.closedData = Array.isArray(raw.tickets) ? raw.tickets : []
+    for (const ticket of this.closedData) normalizeBlockingFields(ticket)
       // What came from a backup goes back to disk under the real name.
       if (r.status === 'restored') this.closedDirty = true
     }
     return this.closedData
+  }
+
+  private allTickets(): Ticket[] {
+    return [...this.data.tickets, ...this.closed]
+  }
+
+  private blockerSnapshots(ids: readonly string[], tickets: readonly Ticket[]): Record<string, string> {
+    const byId = new Map(tickets.map((ticket) => [ticket.id, ticket]))
+    return Object.fromEntries(
+      ids.flatMap((id) => {
+        const url = byId.get(id)?.pullRequestUrl
+        return url ? [[id, url]] : []
+      }),
+    )
   }
 
   private load(): Data {
@@ -92,6 +109,7 @@ export class TicketBoard extends EventEmitter {
     reportLoad(this.file, r)
     const raw: Partial<Data> = r.status === 'ok' || r.status === 'restored' ? r.data : {}
     const data = { seq: raw.seq ?? 0, tickets: raw.tickets ?? [] }
+    for (const ticket of data.tickets) normalizeBlockingFields(ticket)
     // An older copy (or none) may be behind the keys already handed out: count past them.
     if (r.status === 'restored' || r.status === 'lost') data.seq = Math.max(data.seq, ...[...data.tickets, ...this.closed].map((t) => keyNumber(t.key)))
     return data
@@ -105,6 +123,40 @@ export class TicketBoard extends EventEmitter {
 
   get(id: string): Ticket | undefined {
     return this.data.tickets.find((t) => t.id === id)
+  }
+
+  getForBlockers(id: string): Ticket | undefined {
+    return this.allTickets().find((ticket) => ticket.id === id)
+  }
+
+  /** Revalidate persisted PR URLs before they are allowed to release any dependency. */
+  async verifySavedPullRequests(remoteIdentityForRepo: (cwd: string) => Promise<{ host: string; repository: string } | null>): Promise<void> {
+    const remotes = new Map<string, { host: string; repository: string } | null>()
+    const remoteFor = async (ticket: Ticket): Promise<{ host: string; repository: string } | null> => {
+      const project = projectFor(this.projects(), ticket.cwd)
+      if (!project) return null
+      if (!remotes.has(project.cwd)) remotes.set(project.cwd, await remoteIdentityForRepo(project.cwd).catch(() => null))
+      return remotes.get(project.cwd) ?? null
+    }
+    let changed = false
+    const all = this.allTickets()
+    for (const ticket of all) {
+      if (!ticket.pullRequestUrl) continue
+      const remote = await remoteFor(ticket)
+      if (!isPullRequestUrl(ticket.pullRequestUrl, remote?.host ?? null, remote?.repository ?? null)) {
+        delete ticket.pullRequestUrl
+        this.changed(ticket)
+        changed = true
+      }
+    }
+    for (const ticket of all) {
+      const snapshots = this.blockerSnapshots(ticket.blockedBy ?? [], all)
+      if (JSON.stringify(snapshots) === JSON.stringify(ticket.blockerPRs ?? {})) continue
+      ticket.blockerPRs = snapshots
+      this.changed(ticket)
+      changed = true
+    }
+    if (changed) this.flush()
   }
 
   /** Finds by key ("AO-12", "ao-12" or just "12"); `closed` also looks in the archive. */
@@ -134,10 +186,10 @@ export class TicketBoard extends EventEmitter {
     const d = cleanDraft(draft, true)
     const status = d.status ?? 'backlog'
     const now = Date.now()
-    this.data.seq += 1
+    const seq = this.data.seq + 1
     const ticket: Ticket = {
       id: randomUUID(),
-      key: `${KEY_PREFIX}-${this.data.seq}`,
+      key: `${KEY_PREFIX}-${seq}`,
       title: d.title!,
       type: d.type ?? 'task',
       priority: d.priority ?? 'medium',
@@ -148,6 +200,7 @@ export class TicketBoard extends EventEmitter {
       tags: d.tags ?? [],
       estimate: d.estimate ?? undefined,
       dueDate: d.dueDate ?? undefined,
+      blockedBy: d.blockedBy,
       reporter: by,
       order: this.nextOrder(status),
       createdAt: now,
@@ -156,6 +209,15 @@ export class TicketBoard extends EventEmitter {
       activity: [],
     }
     this.log(ticket, by, `criou o ticket em ${labelOf(STATUSES, status)}`)
+    if (ticket.blockedBy?.length) {
+      const all = [...this.allTickets(), ticket]
+      const problem = validateTicketBlockers(ticket.id, ticket.blockedBy, all, this.projects())
+      if (problem) throw new Error(problem)
+      ticket.blockerPRs = this.blockerSnapshots(ticket.blockedBy, all)
+    }
+    if (status === 'doing' && isTicketBlocked(ticket, [...this.allTickets(), ticket]))
+      throw new Error('Um ticket bloqueado não pode ser criado como ativo.')
+    this.data.seq = seq
     this.data.tickets.push(ticket)
     this.changed(ticket)
     return ticket
@@ -164,6 +226,28 @@ export class TicketBoard extends EventEmitter {
   update(id: string, patch: TicketPatch, by: Actor): Ticket {
     const t = this.must(id)
     const d = cleanDraft(patch, false)
+    const proposed = { ...t, ...(d.cwd !== undefined ? { cwd: d.cwd ?? undefined } : {}), ...(d.blockedBy ? { blockedBy: d.blockedBy } : {}) }
+    const allTickets = this.allTickets()
+    const proposedTickets = allTickets.map((item) => (item.id === t.id ? proposed : item))
+    if (d.blockedBy !== undefined) {
+      const problem = validateTicketBlockers(t.id, d.blockedBy, proposedTickets, this.projects())
+      if (problem) throw new Error(problem)
+      if (isTicketBlocked(proposed, proposedTickets) && (t.status === 'doing' || (t.assignee && !t.assignee.id?.startsWith('squad:'))))
+        throw new Error(`O ticket ${t.key} não pode continuar ativo enquanto houver bloqueios sem PR confirmado.`)
+    }
+    if (d.status === 'doing' && isTicketBlocked(proposed, proposedTickets))
+      throw new Error(`O ticket ${t.key} não pode ir para Fazendo enquanto houver bloqueios sem PR confirmado.`)
+    if (d.cwd !== undefined && (t.blockedBy?.length ?? 0) > 0) {
+      const problem = validateTicketBlockers(t.id, blockerIdsFor(proposed), proposedTickets, this.projects())
+      if (problem) throw new Error(problem)
+    }
+    if (d.cwd !== undefined) {
+      for (const dependent of allTickets) {
+        if (dependent.id === t.id || !blockerIdsFor(dependent).includes(t.id)) continue
+        const issue = validateTicketBlockers(dependent.id, blockerIdsFor(dependent), proposedTickets, this.projects())
+        if (issue) throw new Error(`A pasta do projeto não pode mudar: este ticket é bloqueador de ${dependent.key} (${issue}).`)
+      }
+    }
     if (d.title !== undefined && d.title !== t.title) t.title = d.title
     if (d.type && d.type !== t.type) {
       this.log(t, by, `mudou o tipo para ${labelOf(TYPES, d.type)}`)
@@ -182,6 +266,10 @@ export class TicketBoard extends EventEmitter {
     if (d.tags) t.tags = d.tags
     if (d.estimate !== undefined) t.estimate = d.estimate ?? undefined
     if (d.dueDate !== undefined) t.dueDate = d.dueDate ?? undefined
+    if (d.blockedBy !== undefined) {
+      t.blockedBy = [...d.blockedBy]
+      t.blockerPRs = this.blockerSnapshots(t.blockedBy, this.allTickets())
+    }
     if (d.status && d.status !== t.status) this.setStatus(t, d.status, by)
     this.changed(t)
     return t
@@ -190,6 +278,7 @@ export class TicketBoard extends EventEmitter {
   move(id: string, status: TicketStatus, beforeId: string | undefined, by: Actor): void {
     const t = this.must(id)
     if (!STATUS_VALUES.includes(status)) throw new Error('Coluna inválida.')
+    if (status === 'doing') this.assertCanStart(t.id)
     if (status !== t.status) this.setStatus(t, status, by)
     const column = this.column(status).filter((x) => x.id !== t.id)
     const at = beforeId ? column.findIndex((x) => x.id === beforeId) : -1
@@ -225,10 +314,46 @@ export class TicketBoard extends EventEmitter {
 
   assign(id: string, who: Actor | undefined, by: Actor): Ticket {
     const t = this.must(id)
+    if (who && !who.id?.startsWith('squad:')) this.assertCanStart(t.id)
     t.assignee = who
     this.log(t, by, who ? `passou o ticket para ${who.name}` : 'tirou o responsável')
     this.changed(t)
     return t
+  }
+
+  /** A blocked ticket can be reserved by a squad, but no individual or player can start it. */
+  assertCanStart(id: string): void {
+    const ticket = this.must(id)
+    const all = this.allTickets()
+    if (isTicketBlocked(ticket, all)) {
+      const keys = (ticket.blockedBy ?? []).map((blockerId) => all.find((item) => item.id === blockerId)?.key ?? 'um ticket removido')
+      throw new Error(`O ticket ${ticket.key} está bloqueado por ${keys.join(', ')}. Aguarde um PR confirmado.`)
+    }
+  }
+
+  /** Called only after the PR URL has been verified against the selected remote. */
+  recordPullRequest(id: string, url: string, by: Actor): Ticket {
+    const ticket = this.getForBlockers(id)
+    if (!ticket) throw new Error('Esse ticket não existe mais.')
+    if (ticket.pullRequestUrl && ticket.pullRequestUrl !== url) throw new Error(`O ticket ${ticket.key} já tem outro PR registrado.`)
+    const fresh = !ticket.pullRequestUrl
+    ticket.pullRequestUrl = url
+    if (fresh) {
+      this.log(ticket, by, `abriu um PR para revisão: ${url}`)
+      this.changed(ticket)
+    }
+    for (const dependent of this.allTickets()) {
+      if (dependent.id === ticket.id || !dependent.blockedBy?.includes(ticket.id)) continue
+      if (hasBlockerPRSnapshot(dependent, ticket.id) && dependent.blockerPRs?.[ticket.id] === url) continue
+      dependent.blockerPRs = { ...dependent.blockerPRs, [ticket.id]: url }
+      this.changed(dependent)
+    }
+    return ticket
+  }
+
+  /** Tickets plus the archive, used to resolve and validate blocker links. */
+  ticketsForBlockers(): Ticket[] {
+    return this.allTickets()
   }
 
   /** The agent left the office: keep its name on the ticket, drop the live link. */
@@ -243,6 +368,8 @@ export class TicketBoard extends EventEmitter {
   }
 
   remove(id: string): void {
+    if (this.allTickets().some((ticket) => ticket.id !== id && blockerIdsFor(ticket).includes(id)))
+      throw new Error('Este ticket ainda é bloqueador de outros tickets; remova os vínculos antes de excluí-lo.')
     const before = this.data.tickets.length
     this.data.tickets = this.data.tickets.filter((t) => t.id !== id)
     if (this.data.tickets.length === before) return
@@ -325,7 +452,8 @@ export class TicketBoard extends EventEmitter {
 
   private changed(t: Ticket, touch = true): void {
     if (touch) t.updatedAt = Date.now()
-    this.emitEvent({ type: 'ticket:upsert', ticket: structuredClone(t) })
+    if (this.closedData?.includes(t)) this.closedDirty = true
+    else this.emitEvent({ type: 'ticket:upsert', ticket: structuredClone(t) })
     this.save()
   }
 
@@ -530,6 +658,27 @@ function cleanText(v: unknown, max: number): string {
   return typeof v === 'string' ? v.replace(/\r\n/g, '\n').trim().slice(0, max) : ''
 }
 
+/** Legacy or corrupted blocker fields are kept closed, never trusted to unlock work. */
+function normalizeBlockingFields(ticket: Ticket): void {
+  const raw = ticket as unknown as { blockedBy?: unknown; blockerPRs?: unknown; pullRequestUrl?: unknown }
+  if (raw.blockedBy === undefined) delete ticket.blockedBy
+  else if (!Array.isArray(raw.blockedBy) || raw.blockedBy.length > 200 || raw.blockedBy.some((id) => typeof id !== 'string' || !id))
+    ticket.blockedBy = [INVALID_BLOCKER_ID]
+  else ticket.blockedBy = [...new Set(raw.blockedBy as string[])]
+
+  if (typeof raw.pullRequestUrl !== 'string' || !raw.pullRequestUrl) delete ticket.pullRequestUrl
+  const snapshots = raw.blockerPRs
+  ticket.blockerPRs =
+    snapshots && typeof snapshots === 'object' && !Array.isArray(snapshots)
+      ? Object.fromEntries(
+          Object.entries(snapshots as Record<string, unknown>).filter(
+            (entry): entry is [string, string] =>
+              ticket.blockedBy?.includes(entry[0]) === true && typeof entry[1] === 'string' && !!entry[1],
+          ),
+        )
+      : {}
+}
+
 function oneOf<T extends string>(v: unknown, values: readonly T[]): T | undefined {
   return values.includes(v as T) ? (v as T) : undefined
 }
@@ -568,5 +717,9 @@ function cleanDraft(d: TicketPatch, creating: boolean): TicketPatch {
     out.estimate = d.estimate === null || !Number.isFinite(n) || n <= 0 ? null : Math.min(100, Math.round(n * 10) / 10)
   }
   if (d.dueDate !== undefined) out.dueDate = typeof d.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.dueDate) ? d.dueDate : null
+  if (d.blockedBy !== undefined) {
+    if (!Array.isArray(d.blockedBy) || d.blockedBy.some((id) => typeof id !== 'string')) throw new Error('Tickets bloqueadores inválidos.')
+    out.blockedBy = [...d.blockedBy]
+  }
   return out
 }

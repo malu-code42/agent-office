@@ -79,6 +79,8 @@ export interface PermissionDecision {
 export interface AgentResult {
   id: string
   agentId: string
+  /** Ticket this result was delivered for, when the agent was working from the board. */
+  ticketId?: string
   text: string
   isError: boolean
   costUsd: number

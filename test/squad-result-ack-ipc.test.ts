@@ -3,8 +3,8 @@ import { registerAgentsIpc } from '../src/main/ipc/agents'
 import type { IpcContext } from '../src/main/ipc/context'
 import { callHandler, ipcMain } from './mocks/electron'
 
-const { remoteHost } = vi.hoisted(() => ({ remoteHost: vi.fn() }))
-vi.mock('../src/main/git', () => ({ repoRoot: vi.fn(), pullRequestRemoteHost: remoteHost }))
+const { remoteIdentity } = vi.hoisted(() => ({ remoteIdentity: vi.fn() }))
+vi.mock('../src/main/git', () => ({ repoRoot: vi.fn(), pullRequestRemoteIdentity: remoteIdentity }))
 
 const result = { id: 'result-1', agentId: 'agent-1', isError: false, text: 'feito' }
 const agent = { id: 'agent-1', role: 'orchestrator', squad: 'sala-1', ticketId: 'ticket-1' }
@@ -22,7 +22,7 @@ beforeEach(() => {
     ...agent,
     worktree: { path: 'fake-wt', root: 'fake-wt', repo: 'fake-repo', branch: 'agent/ticket-1', base: 'base' },
   }
-  remoteHost.mockReset().mockResolvedValue('github.com')
+  remoteIdentity.mockReset().mockResolvedValue({ host: 'github.com', repository: 'org/repo' })
   currentResult = result
   queue = {
     active: 'ticket-1',
@@ -67,11 +67,20 @@ describe('acknowledgment of squad results', () => {
     expect(acked).toBe(false)
   })
 
+  it('denies acknowledgment when a recorded PR belongs to another repository on the same host', async () => {
+    queue!.pendingPRs = [{
+      ticketId: 'ticket-1', ticketKey: 'T-1', title: 'Ticket 1',
+      url: 'https://github.com/attacker/repo/pull/1', branch: 'agent/ticket-1', createdAt: 1,
+    }]
+    await expect(callHandler('office:ackResult', result.id)).rejects.toThrow('PR verificado')
+    expect(acked).toBe(false)
+  })
+
   it.each([
     ['github.com', 'https://github.com/org/repo/pull/1'],
     ['git.example.com', 'https://git.example.com/org/repo/pull/1'],
   ])('allows acknowledgment for the selected host %s', async (host, url) => {
-    remoteHost.mockResolvedValue(host)
+    remoteIdentity.mockResolvedValue({ host, repository: 'org/repo' })
     queue!.pendingPRs = [{
       ticketId: 'ticket-1',
       ticketKey: 'T-1',
@@ -84,8 +93,8 @@ describe('acknowledgment of squad results', () => {
     expect(acked).toBe(true)
   })
 
-  it('denies acknowledgment when the worktree has no verifiable remote host', async () => {
-    remoteHost.mockRejectedValue(new Error('no remote'))
+  it('denies acknowledgment when the worktree has no verifiable repository remote', async () => {
+    remoteIdentity.mockRejectedValue(new Error('no remote'))
     queue!.pendingPRs = [{
       ticketId: 'ticket-1',
       ticketKey: 'T-1',
@@ -109,7 +118,7 @@ describe('acknowledgment of squad results', () => {
       createdAt: 1,
     }]
     await expect(callHandler('office:ackResult', result.id)).rejects.toThrow('PR verificado')
-    expect(remoteHost).not.toHaveBeenCalled()
+    expect(remoteIdentity).not.toHaveBeenCalled()
     expect(acked).toBe(false)
   })
 

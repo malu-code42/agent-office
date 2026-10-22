@@ -1,5 +1,6 @@
 import { labelOf, PRIORITIES, STATUSES, ticketBrief, TYPES } from '@shared/tickets'
 import { projectFor } from '@shared/projects'
+import { hasBlockerPRSnapshot, unresolvedBlockerIds, validateTicketBlockers } from '@shared/ticket-blockers'
 import type { AgentSummary, OfficePermissionMode, Ticket, TicketPatch, TicketPriority, TicketType } from '@shared/types'
 import { h, icon, timeAgo } from '../dom'
 import { STATUS_LABEL } from '../hud'
@@ -85,6 +86,7 @@ export abstract class BoardDetail extends BoardColumns {
         field('Tags', tags),
       ),
       field('Pasta do projeto', folder),
+      this.blockersView(t),
       this.assignSection(t),
       this.section('Contexto', this.descriptionView(t, set)),
       this.section(
@@ -209,7 +211,12 @@ export abstract class BoardDetail extends BoardColumns {
         ),
       )
     } else if (t.status !== 'done' && !(agent && busy)) {
-      rows.push(this.delegateControls(t, agent))
+      const blockers = unresolvedBlockerIds(t, [...this.state.tickets.values()])
+      rows.push(
+        blockers.length
+          ? h('div', { class: 'panelbox amber', role: 'status' }, h('b', {}, `Bloqueado por ${blockers.map((id) => this.state.tickets.get(id)?.key ?? id).join(', ')}`), h('span', {}, 'A atribuição e o início ficam indisponíveis até cada ticket ter um PR confirmado.'))
+          : this.delegateControls(t, agent),
+      )
     }
 
     if (t.status === 'done') {
@@ -310,6 +317,70 @@ export abstract class BoardDetail extends BoardColumns {
         'O agente recebe o ticket completo (veja "O que o agente lê"), o ticket vai para Fazendo e, quando ele termina, o relatório chega aqui e o ticket vai para Revisão.',
       ),
     )
+  }
+
+  protected blockersView(t: Ticket): HTMLElement {
+    const projects = this.state.settings.projects
+    const project = projectFor(projects, t.cwd)
+    const all = [...this.state.tickets.values()]
+    const currentIds = t.blockedBy ?? []
+    const selected = new Set(currentIds)
+    const candidates = all
+      .filter((ticket) => ticket.id !== t.id && project && projectFor(projects, ticket.cwd)?.id === project.id)
+      .sort((a, b) => a.key.localeCompare(b.key))
+    const checks = new Map<string, HTMLInputElement>()
+    const rows = candidates.map((candidate) => {
+      const box = h('input', { type: 'checkbox' }) as HTMLInputElement
+      box.checked = selected.has(candidate.id)
+      checks.set(candidate.id, box)
+      return h('label', { class: 'ticket-blocker-option' }, box, h('span', {}, h('b', {}, `${candidate.key} · `), candidate.title))
+    })
+    const orphanIds = currentIds.filter((id) => !all.some((ticket) => ticket.id === id))
+    for (const id of orphanIds) {
+      const box = h('input', { type: 'checkbox' }) as HTMLInputElement
+      box.checked = true
+      checks.set(id, box)
+      rows.push(h('label', { class: 'ticket-blocker-option' }, box, h('span', {}, `${id} · ticket fora do quadro`)))
+    }
+    const error = h('span', { class: 'field-hint', role: 'alert' })
+    const save = h('button', { class: 'btn btn-small btn-primary', type: 'button' }, 'Salvar bloqueios') as HTMLButtonElement
+    const selectedIds = () => [...checks].filter(([, box]) => box.checked).map(([id]) => id)
+    const sync = () => {
+      const ids = selectedIds()
+      const problem = validateTicketBlockers(t.id, ids.filter((id) => !orphanIds.includes(id)), all, projects)
+      const startsNow = ids.some((id) => {
+        const blocker = all.find((item) => item.id === id)
+        return blocker && !blocker.pullRequestUrl && !hasBlockerPRSnapshot(t, id)
+      })
+      const individualAssignee = !!t.assignee && !t.assignee.id?.startsWith('squad:')
+      error.textContent = problem ?? (startsNow && (t.status === 'doing' || individualAssignee) ? 'Um ticket ativo não pode receber um novo bloqueio ainda não resolvido.' : '')
+      save.disabled = !!error.textContent || ids.slice().sort().join('\0') === currentIds.slice().sort().join('\0')
+      for (const [id, box] of checks) box.disabled = (t.status === 'doing' || individualAssignee) && !currentIds.includes(id)
+    }
+    for (const box of checks.values()) box.addEventListener('change', sync)
+    save.addEventListener('click', () => {
+      const ids = selectedIds()
+      void window.office.updateTicket(t.id, { blockedBy: ids }).then(() => this.actions.toast('Bloqueios atualizados.', 'ok')).catch((err) => this.actions.toast(cleanError(err), 'err'))
+    })
+    sync()
+    const content = h(
+      'div',
+      { class: 'ticket-blockers' },
+      currentIds.length
+        ? h('div', { class: 'ticket-blocker-current' }, ...currentIds.map((id) => {
+            const blocker = all.find((item) => item.id === id)
+            const resolved = hasBlockerPRSnapshot(t, id) || !!blocker?.pullRequestUrl
+            return h('span', { class: `sbadge ${resolved ? 'sb-info' : 'sb-error'}` }, `${resolved ? 'PR confirmado' : 'Bloqueado por'} ${blocker?.key ?? id}`)
+          }))
+        : h('span', { class: 'field-hint' }, 'Sem dependências.'),
+      project ? h('div', { class: 'ticket-blocker-list' }, ...(rows.length ? rows : [h('span', { class: 'field-hint' }, 'Nenhum outro ticket neste projeto.')])) : h('span', { class: 'field-hint' }, 'Defina a pasta do projeto para adicionar dependências.'),
+      error,
+      save,
+      t.pullRequestUrl
+        ? h('button', { class: 'btn btn-small', type: 'button', onclick: () => void window.office.openExternal(t.pullRequestUrl!) }, 'Abrir PR do ticket')
+        : null,
+    )
+    return this.section('Bloqueado por', content)
   }
 
   protected async requestChanges(t: Ticket, agent: AgentSummary | undefined): Promise<void> {

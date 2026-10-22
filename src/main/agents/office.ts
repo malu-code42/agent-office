@@ -30,7 +30,7 @@ export abstract class AgentOffice extends AgentBase {
    * `display` is what the log shows when the prompt itself is long (a ticket brief).
    * In a git repo the agent gets its own worktree unless `req.worktree` is false.
    */
-  async hire(req: HireRequest, display?: string): Promise<AgentSummary> {
+  async hire(req: HireRequest, display?: string, beforeRun?: (summary: AgentSummary) => void): Promise<AgentSummary> {
     const id = randomUUID()
     const engine = req.engine ?? this.store.settings.defaultEngine
     const name = req.name.trim() || this.freeName()
@@ -59,6 +59,7 @@ export abstract class AgentOffice extends AgentBase {
     this.upsert(agent)
     this.addLog(agent, 'user', display ?? req.task)
     if (note) this.addLog(agent, 'system', note)
+    beforeRun?.(summary)
     this.run(agent, req.task)
     return summary
   }
