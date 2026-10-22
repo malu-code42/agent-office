@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { commandRisk, normalizePath, permissionNotice, realPathOf, redactSecrets, toolRisk, type NoticeInput } from '@shared/permission-notice'
 
 // AO-35: o botão "Permitir" da notificação é uma lista permitida. Estes testes cobrem o
@@ -294,17 +294,25 @@ describe('pedidos que só o app decide (verificação final)', () => {
 
 // Symlinks need special rights on Windows, and the notification buttons exist only on the Mac.
 describe.skipIf(process.platform === 'win32')('symlinks que saem da pasta', () => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'ao35-')))
-  const proj = join(root, 'proj')
-  const fora = join(root, 'fora')
-  mkdirSync(join(proj, 'src'), { recursive: true })
-  mkdirSync(fora)
-  writeFileSync(join(proj, 'src', 'a.ts'), '')
-  writeFileSync(join(fora, 'segredo.txt'), '')
-  symlinkSync(fora, join(proj, 'atalho'))
-  symlinkSync(join(fora, 'segredo.txt'), join(proj, 'leia.txt'))
-  const real = { cwd: proj, realpath: (p: string) => realpathSync(p) }
-  afterAll(() => rmSync(root, { recursive: true, force: true }))
+  let root = ''
+  let proj = ''
+  let fora = ''
+  let real = { cwd: '', realpath: (p: string) => realpathSync(p) }
+  beforeAll(() => {
+    root = realpathSync(mkdtempSync(join(tmpdir(), 'ao35-')))
+    proj = join(root, 'proj')
+    fora = join(root, 'fora')
+    mkdirSync(join(proj, 'src'), { recursive: true })
+    mkdirSync(fora)
+    writeFileSync(join(proj, 'src', 'a.ts'), '')
+    writeFileSync(join(fora, 'segredo.txt'), '')
+    symlinkSync(fora, join(proj, 'atalho'))
+    symlinkSync(join(fora, 'segredo.txt'), join(proj, 'leia.txt'))
+    real = { cwd: proj, realpath: (p: string) => realpathSync(p) }
+  })
+  afterAll(() => {
+    if (root) rmSync(root, { recursive: true, force: true })
+  })
 
   it('arquivo de verdade dentro da pasta passa', () => {
     expect(toolRisk('Read', { file_path: join(proj, 'src', 'a.ts') }, real)).toBe('')

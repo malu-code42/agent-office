@@ -9,6 +9,7 @@ export abstract class AgentRotation extends AgentSdk {
    * ~/.claude, so the new process resumes this one. False when none has room.
    */
   protected failover(agent: Agent, hit: { resetsAt?: number }): boolean {
+    if (agent.summary.engine === 'opencode') return false
     const accounts = this.accounts
     const from = agent.summary.account
     if (!accounts || !from) return false
@@ -37,6 +38,7 @@ export abstract class AgentRotation extends AgentSdk {
     const agent = this.agents.get(id)
     const accounts = this.accounts
     if (!agent || agent.summary.source !== 'office' || agent.demo || !accounts) return
+    if (agent.summary.engine === 'opencode') throw new Error('Registros históricos OpenCode não podem ser retomados em outra conta.')
     const next = accounts.get(accountId)
     if (!next) throw new Error('Essa conta não existe mais. Escolha outra.')
     if (agent.summary.role === 'orchestrator' && agent.summary.account !== accountId)

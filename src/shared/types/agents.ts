@@ -13,6 +13,7 @@ export type AgentStatus =
 
 /** Where the agent lives: spawned by the office, or a Claude Code session running in a terminal. */
 export type AgentSource = 'office' | 'terminal'
+/** `opencode` is accepted only as a legacy label for historical records (GH-39). */
 export type AgentEngine = 'claude' | 'opencode'
 
 export type OfficePermissionMode = 'default' | 'acceptEdits' | 'auto' | 'plan' | 'bypassPermissions'
@@ -193,7 +194,7 @@ export interface HireRequest {
   name: string
   cwd: string
   task: string
-  engine?: AgentEngine
+  engine?: 'claude'
   model?: string
   effort?: EffortLevel
   accounts?: string[]

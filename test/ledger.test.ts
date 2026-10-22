@@ -48,8 +48,17 @@ describe('localDay', () => {
 })
 
 describe('custo por dia e projeto', () => {
-  it('keeps unpriced OpenCode usage visible as unknown rather than free', () => {
-    book.recordOpenCode(agent({ engine: 'opencode' }), 'oc-1', 'openai/gpt-6-luna', 120, 35, undefined, T)
+  it('keeps archived unpriced OpenCode usage visible as unknown rather than free', () => {
+    const legacy = agent({ engine: 'opencode' })
+    store.ledger.days['/proj'] = {
+      [DAY]: {
+        costUsd: 0, results: 0, turns: 0, durationMs: 0, costUnknown: true,
+        agents: { 'ag-1': { costUsd: 0, results: 0, turns: 0, durationMs: 0, costUnknown: true, models: { 'openai/gpt-6-luna': 0 }, accounts: { opencode: 0 } } },
+        accounts: { opencode: { costUsd: 0, results: 0, turns: 0, durationMs: 0, costUnknown: true } },
+        models: { 'openai/gpt-6-luna': { costUsd: 0, inputTokens: 120, outputTokens: 35, cacheReadTokens: 0, cacheWriteTokens: 0, costUnknown: true } },
+      },
+    }
+    store.ledger.agents[legacy.id] = { id: legacy.id, name: legacy.name, cwd: legacy.cwd, firstAt: T, lastAt: T }
     const today = book.today()
     expect(today.costByCwd['/proj']).toBe(0)
     expect(today.costUnknownByCwd?.['/proj']).toBe(true)

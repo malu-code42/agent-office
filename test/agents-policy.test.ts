@@ -14,8 +14,6 @@ type ToolUseOpts = { signal: AbortSignal; suggestions?: unknown[]; decisionReaso
 type CanUse = (tool: string, input: Record<string, unknown>, opts: ToolUseOpts) => Promise<unknown>
 
 const queries: Array<{ prompt: unknown; options: Record<string, unknown> & { canUseTool?: CanUse } }> = []
-const openCode = vi.hoisted(() => ({ run: vi.fn(), interrupt: vi.fn(async (_sessionID: string) => undefined) }))
-
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: (args: { prompt: unknown; options: Record<string, unknown> & { canUseTool?: CanUse } }) => {
     queries.push(args)
@@ -32,13 +30,6 @@ vi.mock('../src/main/git', () => ({
   changesSince: async () => null,
   takeSnapshot: async () => null,
 }))
-vi.mock('../src/main/opencode/runtime', () => ({
-  OpenCodeRuntime: class {
-    run(...args: [unknown, string, AbortSignal, unknown, unknown, unknown]) { return openCode.run(...args) }
-    interrupt(sessionID: string) { return openCode.interrupt(sessionID) }
-  },
-}))
-
 const { Store } = await import('../src/main/store')
 const { AgentManager } = await import('../src/main/agents')
 
@@ -79,65 +70,49 @@ describe('permissões: o Office decide antes do cartão (seam 2)', () => {
   beforeEach(() => {
     app.setPath('userData', mkdtempSync(join(tmpdir(), 'ao-po-')))
     queries.length = 0
-    openCode.run.mockClear()
   })
 
-  it('requires first-use consent before sending an OpenCode task to a provider', async () => {
+  it('ignores an obsolete OpenCode request and creates a Claude agent', async () => {
     const store = new Store()
     const dir = proj()
     const m = new AgentManager(store)
-    const events = track(m)
-    const agent = await m.hire({ name: 'Ada', cwd: dir, task: 'synthetic task', engine: 'opencode', permissionMode: 'default', worktree: false })
+    const agent = await m.hire({ name: 'Ada', cwd: dir, task: 'synthetic task', engine: 'opencode' as never, permissionMode: 'default', worktree: false })
     await flush()
-    expect(agent.sessionId).toMatch(/^ses_[0-9a-f]{32}$/i)
-    expect(openCode.run).not.toHaveBeenCalled()
-    const result = events.find((e) => e.type === 'result:new')
-    expect(result?.type === 'result:new' && result.result.text.includes('Nenhum conteúdo foi enviado')).toBe(true)
-    expect(result?.type === 'result:new' && result.result.costUnknown).toBe(true)
+    expect(agent.engine).toBe('claude')
+    expect(agent.sessionId).toMatch(/^[0-9a-f-]{36}$/i)
   })
 
-  it('stores a safe OpenCode allow-always rule in Office and replies only once to OpenCode', async () => {
+  it('keeps OpenCode agents as read-only history and blocks resumption/deletion', () => {
     const store = new Store()
-    const dir = proj()
-    store.settings = {
-      ...store.settings,
-      openCodeDataConsentAt: Date.now(),
-      projects: [{ id: 'p1', name: 'Teste', cwd: dir }],
+    const archived: AgentSummary = {
+      id: 'legacy-agent', name: 'Arquivo', source: 'office', engine: 'opencode', cwd: proj(),
+      permissionMode: 'default', status: 'working', activity: 'antigo', desk: 0,
+      look: { skin: '#f2c9a0', hair: '#332211', hairStyle: 0, shirt: '#4a8fe0', pants: '#222222', shoes: '#111111' },
+      costUsd: 0, createdAt: Date.now(), sessionId: 'ses_legacy',
     }
-    const m = new AgentManager(store)
-    const events = track(m)
-    let openCodeReply: unknown
-    openCode.run.mockImplementation(async (...args: unknown[]) => {
-      const onPermission = args[3] as (request: Record<string, unknown>) => Promise<unknown>
-      openCodeReply = await onPermission({
-        sessionID: 'session-opencode',
-        requestID: 'permission-opencode',
-        action: 'edit',
-        resources: [`${dir}\\src\\safe.ts`],
-      })
-      return {
-        text: 'Pronto.',
-        providerID: 'openai',
-        model: 'gpt-6-luna',
-        variant: 'high',
-        rationale: 'modelo autorizado',
-        streamed: false,
-        inputTokens: 10,
-        outputTokens: 5,
-        children: [],
-      }
-    })
-    const agent = await m.hire({ name: 'Ada', cwd: dir, task: 'ajuste seguro', engine: 'opencode', permissionMode: 'default', worktree: false })
-    await flush()
-    const request = asked(events)
-    expect(request.canAlwaysAllow).toBe(true)
-    m.respond({ requestId: request.id, behavior: 'allow_always' })
-    await flush()
-    expect(openCodeReply).toBe('once')
-    expect(store.settings.projects[0].alwaysAllow).toEqual([
-      expect.objectContaining({ kind: 'tool', value: 'Edit', id: expect.any(String) }),
-    ])
-    expect(m.agent(agent.id)?.engine).toBe('opencode')
+    const log = [
+      { id: 'legacy-log', t: Date.now(), kind: 'assistant' as const, text: 'Historical response' },
+      { id: 'legacy-result-log', t: Date.now(), kind: 'result' as const, text: 'Historical result' },
+    ]
+    store.agents = [{ summary: archived, log }]
+    store.results = [{ id: 'legacy-result', agentId: archived.id, text: 'Historical result', isError: false, costUsd: 0, durationMs: 0, turns: 1, createdAt: Date.now() }]
+    const manager = new AgentManager(store)
+    expect(manager.agent(archived.id)).toMatchObject({ engine: 'opencode', status: 'stopped' })
+    expect(manager.getLog(archived.id)).toEqual(log)
+    expect(manager.pendingResults().map((result) => result.id)).toEqual(['legacy-result'])
+    manager.ackResult('legacy-result')
+    expect(manager.pendingResults()).toEqual([])
+    expect(manager.getLog(archived.id)).toEqual(log)
+    expect(() => manager.sendMessage(archived.id, 'continue')).toThrow(/somente para consulta/)
+    manager.configure(archived.id, { model: 'claude-opus-4-6', permissionMode: 'auto' })
+    expect(manager.agent(archived.id)?.model).toBeUndefined()
+    expect(manager.agent(archived.id)?.permissionMode).toBe('default')
+    manager.accounts = {} as never
+    expect(() => manager.continueOn(archived.id, 'main')).toThrow(/não podem ser retomados/)
+    expect(() => manager.clearContext(archived.id)).toThrow(/não podem ser retomados/)
+    expect(() => manager.compact(archived.id)).toThrow(/somente para consulta/)
+    expect(() => manager.fire(archived.id)).toThrow(/preservados/)
+    expect(manager.agent(archived.id)).toBeDefined()
   })
 
   it('leitura comum no Automático passa sem cartão nem evento', async () => {

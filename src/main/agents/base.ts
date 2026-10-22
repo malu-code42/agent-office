@@ -39,8 +39,8 @@ export abstract class AgentBase extends EventEmitter {
         // Legacy orchestrators must always reload their definition from the stable floor root,
         // never from a copied worktree or another transient working directory.
         ...(p.summary.role === 'orchestrator' && floor ? { cwd: floor.cwd, project: floor.id } : {}),
-        status: p.summary.status === 'done' ? 'done' : 'idle',
-        activity: 'Aguardando instruções',
+        status: p.summary.engine === 'opencode' ? 'stopped' : p.summary.status === 'done' ? 'done' : 'idle',
+        activity: p.summary.engine === 'opencode' ? 'Registro histórico OpenCode · somente leitura' : 'Aguardando instruções',
         subagents: undefined,
         subagentsDone: undefined,
       }

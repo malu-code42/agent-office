@@ -24,9 +24,8 @@ import { projectFor } from '@shared/projects'
 import { findSquad, inspectSquads, squadInfo, validateSquad } from './squads'
 import { SquadProposalStore } from './squad-proposals'
 import { SquadQueueStore } from './squad-queues'
-import { compositionPrompt, parseComposition, type CompositionContext, type CompositionRequest } from './squad-composition'
+import type { CompositionContext, CompositionRequest } from './squad-composition'
 import { cleanStaleReservations, removeSquad, squadCodeFor, squadFilePlan, writeSquad } from './squad-writer'
-import { askApprovedModel } from './opencode/ask'
 import type { TicketBoard } from './tickets'
 import type { Settings } from '@shared/types'
 import { log } from './log'
@@ -667,16 +666,10 @@ export class SquadCreation extends EventEmitter {
     return orderedTickets(this.deps.board.list(), this.deps.projects(), project.id, ids).map((t) => t.id)
   }
 
-  /** Asks the model for a composition. The default uses the approved OpenCode model. */
+  /** Model-backed composition is paused until its Claude-only workflow lands. */
   private async generate(proposal: SquadProposal, signal: AbortSignal): Promise<SquadProposalMember[]> {
     if (this.deps.generate) return this.deps.generate(this.request(proposal), signal)
-    const req = this.request(proposal)
-    const answer = await askApprovedModel(compositionPrompt(req), {
-      cwd: proposal.cwd,
-      title: 'Proposta de squad',
-      signal,
-    })
-    return parseComposition(answer.text, req.ctx)
+    throw new Error('A composição automática de squads está pausada durante a aposentadoria do OpenCode; monte ou revise a equipe manualmente.')
   }
 
   /** What the generator needs to know. */

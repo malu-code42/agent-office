@@ -2,7 +2,7 @@
 
 import type { VideoSettings } from '../video'
 import type { Account } from './accounts'
-import type { AgentEngine, AgentTemplate, EffortLevel, Look, OfficePermissionMode } from './agents'
+import type { AgentTemplate, EffortLevel, Look, OfficePermissionMode } from './agents'
 
 export interface BridgeStatus {
   installed: boolean
@@ -16,10 +16,8 @@ export interface Settings {
   playerLook: Look
   pixelSize: number
   defaultModel: string
-  /** New installs use OpenCode for individual agents; squads remain Claude-only. */
-  defaultEngine: AgentEngine
-  /** Main-process timestamp of explicit first-use consent for OpenCode data transfer. */
-  openCodeDataConsentAt?: number
+  /** New and migrated agents always use Claude. */
+  defaultEngine: 'claude'
   /** '' = the model's default effort. */
   defaultEffort: EffortLevel | ''
   defaultPermissionMode: OfficePermissionMode
@@ -99,10 +97,8 @@ export interface ProjectFloor {
 }
 
 /**
- * Regra "Sempre permitir" de um projeto: vale para os dois motores (Claude e OpenCode).
- * O contrato quer regra por categoria comum aos motores; enquanto isso não fecha, fica a
- * regra exata conservadora de baixo: alcança só ação classificada como segura, jamais
- * categoria de risco ou ação desconhecida — "Sem pedir" (bypass) é a única exceção.
+ * Regra "Sempre permitir" de um projeto: alcança apenas ações classificadas como seguras,
+ * jamais categoria de risco ou ação desconhecida — "Sem pedir" (bypass) é a única exceção.
  */
 export interface AlwaysAllowRule {
   id: string

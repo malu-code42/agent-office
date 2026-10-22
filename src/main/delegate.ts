@@ -43,6 +43,7 @@ export class TicketDesk {
       const a = this.manager.list().find((x) => x.id === target.agentId)
       if (!a) throw new Error('Esse agente não está mais no escritório.')
       if (a.source !== 'office') throw new Error('Sessões do terminal não recebem tarefas daqui. Escolha um agente do escritório.')
+      if (a.engine === 'opencode') throw new Error('Registros históricos OpenCode são somente para consulta. Contrate um novo agente Claude para este ticket.')
       if (a.role === 'orchestrator') throw new Error(`${a.name} só roda o ciclo do squad. Delegue a um agente do térreo.`)
       // Same rule as hiring: ticket text may come from others, so it never runs without approvals.
       if (a.permissionMode === 'bypassPermissions')
@@ -82,7 +83,7 @@ export class TicketDesk {
             effort: 'effort' in target.hire ? target.hire.effort : s.defaultEffort || undefined,
             accounts: target.hire.accounts,
             worktree: target.hire.worktree,
-            engine: target.hire.engine ?? s.defaultEngine,
+            engine: 'claude',
             permissionMode: mode,
           },
           display,
