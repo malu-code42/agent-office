@@ -4,6 +4,11 @@ import type { OfficeAPI, OfficeEvent } from '@shared/types'
 const api: OfficeAPI = {
   getState: () => ipcRenderer.invoke('office:getState'),
   readTasks: () => ipcRenderer.invoke('office:readTasks'),
+  readGoals: () => ipcRenderer.invoke('office:readGoals'),
+  createGoal: (draft) => ipcRenderer.invoke('office:createGoal', draft),
+  setGoalMilestone: (id, index, done) => ipcRenderer.invoke('office:setGoalMilestone', id, index, done),
+  linkGoalTask: (id, taskId) => ipcRenderer.invoke('office:linkGoalTask', id, taskId),
+  achieveGoal: (id) => ipcRenderer.invoke('office:achieveGoal', id),
   selectTasksVault: () => ipcRenderer.invoke('office:selectTasksVault'),
   createTask: (draft) => ipcRenderer.invoke('office:createTask', draft),
   moveTask: (move) => ipcRenderer.invoke('office:moveTask', move),

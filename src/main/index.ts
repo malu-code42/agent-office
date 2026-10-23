@@ -44,6 +44,7 @@ import { registerSquadsIpc } from './ipc/squads'
 import { registerBarTimerIpc } from './ipc/bar-timer'
 import { registerRoutinesIpc } from './ipc/routines'
 import { registerTasksIpc } from './ipc/tasks'
+import { registerGoalsIpc } from './ipc/goals'
 import { registerTicketsIpc } from './ipc/tickets'
 import { registerWorktreesIpc } from './ipc/worktrees'
 
@@ -585,6 +586,7 @@ app.whenReady().then(async () => {
   registerSquadsIpc(ipc)
   registerRoutinesIpc(ipc)
   registerTasksIpc(ipc)
+  registerGoalsIpc(ipc)
   registerBarTimerIpc(ipc)
 
   // YouTube refuses embeds without a web Referer (error 153), and file:// sends none.

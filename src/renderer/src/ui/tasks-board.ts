@@ -18,6 +18,7 @@ import { cleanError } from './modals'
 import { offerUndo, type Toast } from './tasks-complete'
 import { openMoveMenu, openTaskMenu } from './tasks-move'
 import { openNewTask } from './tasks-new'
+import { openGoals } from './goals'
 import { runDiscard, runReopen } from './tasks-discard'
 import { keepScroll } from './tasks-scroll'
 import './focus.css'
@@ -374,6 +375,7 @@ export async function openTasksBoard(
         h('span', { class: 'grow' }),
         focusSelectionButton,
         cancelFocusSelectionButton,
+        h('button', { class: 'btn btn-small', type: 'button', 'data-focus-key': 'objetivos', onclick: () => openGoals(root, toast) }, 'Objetivos'),
         h(
           'button',
           {
