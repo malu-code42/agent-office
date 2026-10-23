@@ -114,7 +114,7 @@ export class Game extends GameInput {
   /** Draws the scene and moves the HTML tags along. Skipped while the window is hidden. */
   draw(dt: number): void {
     this.engine.render(dt)
-    this.overlays.update()
+    this.overlays.update(dt)
   }
 
   /** People in the scene besides the player, for the dev leak test (dev/leak-test.ts). */
