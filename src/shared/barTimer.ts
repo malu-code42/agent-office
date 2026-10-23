@@ -117,6 +117,35 @@ export function parseBarTimer(v: unknown): BarTimer | undefined {
   }
 }
 
+/** What the main process pushes and the bar shows, read now: mode, state, time left, and whether it has a task. */
+export interface BarTimerView {
+  state: BarTimerState
+  mode: BarMode
+  /** The time left at reading; the running one also carries its absolute `endsAt`. */
+  remainingMs: number
+  endsAt?: number
+  taskId?: string
+  taskText?: string
+}
+
+/** The session as a view, at the moment of the read; an empty Timer reads as null. */
+export function barView(t: BarTimer | undefined, now: number): BarTimerView | undefined {
+  if (!t) return undefined
+  const left = barRemaining(t, now)
+  return {
+    state: t.state,
+    mode: t.mode,
+    remainingMs: left,
+    ...(t.state === 'em andamento' ? { endsAt: t.endsAt ?? now + left } : {}),
+    ...(t.taskId !== undefined && t.taskText !== undefined ? { taskId: t.taskId, taskText: t.taskText } : {}),
+  }
+}
+
+/** The bar timer's own file (timer.json): the session, or nothing. Anything the app cannot use reads as stopped. */
+export interface TimerFile {
+  timer?: BarTimer | undefined
+}
+
 /** What the popup's clock head shows for each state. */
 export const BAR_STATUS: Record<BarTimerState, string> = {
   parada: 'Parado',

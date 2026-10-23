@@ -121,6 +121,7 @@ describe('restore', () => {
       'tickets-closed.json',
       'routines.json',
       'planning.json',
+      'timer.json',
       'squad-proposals.json',
       'squad-queues.json',
     ])

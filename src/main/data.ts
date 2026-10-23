@@ -14,6 +14,7 @@ const WHAT: Record<DataFile, string> = {
   'tickets-closed.json': 'arquivo de tickets fechados',
   'routines.json': 'rotinas',
   'planning.json': 'tarefas em foco',
+  'timer.json': 'o Timer da barra',
   'squad-proposals.json': 'propostas de squad',
   'squad-queues.json': 'filas dos squads',
 }
