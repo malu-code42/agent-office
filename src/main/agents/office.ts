@@ -22,7 +22,7 @@ import { endSubagent } from '../subagent-log'
 import { type Agent } from './types'
 import { AgentBase } from './base'
 import { AgentCapReservations } from '@shared/agent-cap'
-import { profileTaskInstructions } from '@shared/profiles'
+import { profileById, profileTaskInstructions } from '@shared/profiles'
 
 /** Office agents: hire, summon, squads, messages, interrupt, fire. */
 export abstract class AgentOffice extends AgentBase {
@@ -407,10 +407,19 @@ export abstract class AgentOffice extends AgentBase {
     agent.resumeAccount = undefined
     agent.summary.sessionId = randomUUID()
     agent.summary.context = undefined
+    const hadProfile = agent.summary.profile
     agent.summary.profile = undefined
     agent.summary.quotaPaused = undefined
     agent.summary.quotaEnded = undefined
     this.addLog(agent, 'system', 'Contexto limpo. A próxima mensagem começa uma conversa nova.')
+    // AO-43: the memory of the profile is not touched here — nothing is written on its own, and no
+    // task receives it; the person read, edits or erases it in Configurações → Memória dos perfis.
+    if (hadProfile)
+      this.addLog(
+        agent,
+        'system',
+        `A memória do perfil ${profileById(hadProfile)?.name ?? hadProfile} não sai daqui: nada é escrito nela por conta própria, e nova conversa ou tarefa nenhuma a recebe sem pedido. Você lê, edita ou apaga em Configurações → Memória dos perfis.`,
+      )
     this.setStatus(agent, 'idle', 'Memória limpa, esperando instruções')
     this.upsert(agent)
   }

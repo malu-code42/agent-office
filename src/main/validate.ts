@@ -11,6 +11,8 @@ import { floorNameFor, MAX_PROJECT_FLOORS, projectFor } from '@shared/projects'
 import { SQUAD_NAME_MAX, SQUAD_ROOM_COUNT } from '@shared/types'
 import { REVIEW_STEPS, type FocusChoice, type ReviewChoices, type ReviewDraft, type ReviewPostpone } from '@shared/review'
 import { scheduleError } from '@shared/schedule'
+import { isSafeProfileMemoryText } from '@shared/profile-memory'
+export { hasRecognizableProfileMemorySecret } from '@shared/profile-memory'
 import {
   isDateDDMMAAAA,
   type NewTaskDraft,
@@ -248,6 +250,28 @@ export function parseStepText(raw: unknown): string {
   if (!r.success) throw new Error(r.error.issues[0]!.message)
   return r.data
 }
+
+/** AO-43: a profile id from the renderer, only those of profiles.ts. */
+export const profileChoiceSchema = z.enum(PROFILE_IDS)
+/**
+ * AO-43: the memory summary a profile has. Short on purpose: it is what Luna may read,
+ * and raw prompts or credentials have no room here. A max keeps a paste from becoming a
+ * transcript dump.
+ */
+export const profileMemoryTextSchema = z
+  .string('A memória do perfil precisa ser um texto.')
+  .transform((s) => s.trim())
+  .refine((s) => s.length > 0, 'Escreva o resumo ou apague a memória.')
+  .refine((s) => [...s].length <= 10_000, 'A memória pode ter no máximo 10.000 caracteres.')
+  .refine((s) => isSafeProfileMemoryText(s), 'A memória parece conter uma credencial ou segredo. Remova esse dado antes de salvar.')
+
+/** The memory text from the renderer, or throws the message the modal shows. */
+export function parseProfileMemoryText(raw: unknown): string {
+  const r = profileMemoryTextSchema.safeParse(raw)
+  if (!r.success) throw new Error(r.error.issues[0]!.message)
+  return r.data
+}
+
 export const permissionModeSchema = z.enum(PERMISSION_MODES as [OfficePermissionMode, ...OfficePermissionMode[]])
 export const ticketStatusSchema = z.enum(STATUS_VALUES)
 /** A message to an agent: long pastes are fine, megabytes of text are not. */

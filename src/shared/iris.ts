@@ -9,6 +9,8 @@ import { ARCHIVE_LIST, type Task, type TaskList } from './tasks'
  * The context sent to the AI is built here and nowhere else: the request, the commitments of the next seven
  * days and only the tasks the request cites or matches. The Archive, the focus timer, the steps of earlier days,
  * the vault's notes and the rest of agenda.md are not in it, so they cannot leave the computer.
+ * The memory of the profiles (AO-43) goes in too, as one short summary per profile that the person wrote;
+ * a task never carries it.
  */
 
 /** The source a proposal of the Luna carries: the caixa de entrada shows it as the chip's name. */
@@ -39,7 +41,7 @@ export interface IrisPreview {
   context: string
 }
 
-/** What the context is built from: the request, every commitment of agenda.md, the lists of tarefas.md and the profile list. */
+/** What the context is built from: the request, every commitment of agenda.md, the lists of tarefas.md, the profile list and the memories of the profiles (AO-43). */
 export interface IrisContextInput {
   request: string
   /** Today as AAAA-MM-DD. */
@@ -48,6 +50,8 @@ export interface IrisContextInput {
   lists: TaskList[]
   /** The reusable profiles, as they are: only id, name and scope go to the context. */
   profiles: readonly UserProfile[]
+  /** AO-43: one short summary per profile, written by the person; a profile with no summary is absent. */
+  memories?: readonly { profile: string; summary: string }[]
 }
 
 const STOP_WORDS = new Set([
@@ -133,7 +137,8 @@ export function matchingTasks(request: string, lists: readonly TaskList[]): { li
 
 /**
  * The text sent to the Luna, line by line so the user can read every line of it before it leaves. Only
- * the request, the commitments of the next seven days, the matching tasks and the fixed profile list are in it.
+ * the request, the commitments of the next seven days, the matching tasks, the fixed profile list and the
+ * written memories of the profiles (AO-43) are in it.
  */
 export function irisContext(input: IrisContextInput): string {
   const days = Array.from({ length: IRIS_WEEK_DAYS }, (_, i) => addDays(input.today, i))
@@ -160,6 +165,13 @@ export function irisContext(input: IrisContextInput): string {
     '',
     'Perfis aprovados disponíveis para iniciar tarefas novas:',
     ...input.profiles.map((p) => `- ${p.id} | ${p.name} | ${p.scope}`),
+    ...(input.memories?.some((m) => m.summary.trim())
+      ? [
+          '',
+          'Memória dos perfis (resumo escrito pelo usuário; nenhum equipamento recebe isso por conta própria):',
+          ...input.memories.filter((m) => m.summary.trim()).map((m) => `- ${m.profile}: ${m.summary}`),
+        ]
+      : []),
   ]
   return lines.join('\n')
 }

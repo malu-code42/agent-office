@@ -24,6 +24,7 @@ import { SquadQueueStore } from './squad-queues'
 import { MacJobs } from './mac-jobs'
 import { RoutineScheduler, RoutineStore } from './routines'
 import { BarTimerStore } from './bar-timer-store'
+import { ProfileMemoryStore } from './profile-memory'
 import { Store } from './store'
 import { SystemMonitor } from './system'
 import { StatsReader } from './stats'
@@ -42,6 +43,7 @@ import { registerSessionsIpc } from './ipc/sessions'
 import { registerSettingsIpc } from './ipc/settings'
 import { registerSquadsIpc } from './ipc/squads'
 import { registerBarTimerIpc } from './ipc/bar-timer'
+import { registerProfileMemoryIpc } from './ipc/profile-memory'
 import { registerRoutinesIpc } from './ipc/routines'
 import { registerTasksIpc } from './ipc/tasks'
 import { registerTicketsIpc } from './ipc/tickets'
@@ -217,11 +219,14 @@ app.whenReady().then(async () => {
   // The Timer of the bar (AO-64): its own store, outside planning.json; every change goes to the renderer as an event.
   const barTimer = new BarTimerStore(app.getPath('userData'), Date.now, () => broadcast({ type: 'barTimer', timer: barTimer.view() ?? null }))
   const routineStore = new RoutineStore(app.getPath('userData'))
+  // The memory of the profiles (AO-43): one short summary written by the person, per profile.
+  const profileMemory = new ProfileMemoryStore(app.getPath('userData'))
   // A fatal error saves what is in memory before asking what to do.
   onFatalFlush(() => {
     store.flush()
     board.flush()
     routineStore.flush()
+    profileMemory.flush()
   })
   manager.officeTools = (agent) => board.toolsFor(agent, () => store.settings.projects)
   const desk = new TicketDesk(board, manager, () => store.settings)
@@ -516,6 +521,7 @@ app.whenReady().then(async () => {
       store.flush()
       board.flush()
       routineStore.flush()
+      profileMemory.flush()
     },
     broadcast,
   })
@@ -526,6 +532,7 @@ app.whenReady().then(async () => {
     store.flush()
     board.flush()
     routineStore.flush()
+    profileMemory.flush()
   }
   flushOnExit({ flush: flushAll, stopAll: () => stopAll() })
   setupData({
@@ -539,6 +546,7 @@ app.whenReady().then(async () => {
       store.lock()
       board.lock()
       routineStore.lock()
+      profileMemory.lock()
     },
   })
 
@@ -554,6 +562,7 @@ app.whenReady().then(async () => {
     board,
     planning,
     barTimer,
+    profileMemory,
     book,
     desk,
     routines,
@@ -586,6 +595,7 @@ app.whenReady().then(async () => {
   registerRoutinesIpc(ipc)
   registerTasksIpc(ipc)
   registerBarTimerIpc(ipc)
+  registerProfileMemoryIpc(ipc)
 
   // YouTube refuses embeds without a web Referer (error 153), and file:// sends none.
   session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['https://www.youtube-nocookie.com/embed/*'] }, (d, cb) => {
@@ -636,6 +646,7 @@ app.whenReady().then(async () => {
     store.flush()
     board.flush()
     routineStore.flush()
+    profileMemory.flush()
   }
   app.on('before-quit', stopAll)
 }).catch((err) => {

@@ -21,6 +21,7 @@ import { updateSettingsBox } from '../updates'
 import { cleanError, field, modal } from './common'
 import { brainFields, meterField, MODES } from './brain'
 import { brandFields } from './brand'
+import { openProfileMemories } from './profile-memory'
 
 // Configurações: player, defaults, floors, accounts, data, video and the terminal bridge.
 
@@ -451,6 +452,22 @@ export function openSettings(
           'div',
           { class: 'bridge-row' },
           h('button', { class: 'btn', type: 'button', onclick: () => openAccounts(root, state, toast) }, 'Gerenciar contas'),
+        ),
+      ),
+      // AO-43: the memory of the profiles — Luna reads it, tasks never receive it.
+      h(
+        'div',
+        { class: 'bridge-box' },
+        h('div', { class: 'bridge-title' }, icon('file', 16), 'Memória dos perfis'),
+        h(
+          'div',
+          { class: 'field-hint' },
+          'Um resumo curto por perfil, escrito por você. A Luna pode ler; nada é injetado em tarefas por conta própria.',
+        ),
+        h(
+          'div',
+          { class: 'bridge-row' },
+          h('button', { class: 'btn', type: 'button', onclick: () => openProfileMemories(root, toast) }, 'Abrir memória dos perfis'),
         ),
       ),
       h(

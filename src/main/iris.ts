@@ -51,6 +51,8 @@ export interface IrisDeps {
   agenda: AgendaWriter
   interpreter: IrisInterpreter
   log: IrisLog
+  /** AO-43: the memories of the profiles, read when the context is built; empty when none has a summary. */
+  memories?: () => { profile: string; summary: string }[]
   now?: () => Date
   newId?: () => string
   timeoutMs?: number
@@ -105,6 +107,7 @@ export class IrisDesk {
       commitments: agendaText === null ? [] : allCommitments(agendaText),
       lists: parseTasksFile(board).lists,
       profiles: PROFILES,
+      memories: this.deps.memories?.(),
     })
     const token = this.newId()
     this.pending = { token, vault, context }
