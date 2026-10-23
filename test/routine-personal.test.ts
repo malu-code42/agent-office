@@ -13,16 +13,16 @@ const firstRow = (text: string) => parsePersonalRoutines(text)[0]
 
 describe('as linhas de rotinas-pessoais.md', () => {
   it('a linha diária, com acento na cadência e hora curta', () => {
-    expect(firstItem('Estudar anki | cadência: diária | hora: 7:30')).toEqual({
-      title: 'Estudar anki',
+    expect(firstItem('Rotina A | cadência: diária | hora: 7:30')).toEqual({
+      title: 'Rotina A',
       cadence: 'diária',
       time: '07:30',
     })
   })
 
   it('a linha semanal com os dias escritos por extenso, sem maiúsculas nem acentos literais', () => {
-    expect(firstItem('Gravar aula | cadência: Semanal | dias: Segunda, Quarta | hora: 09:15')).toEqual({
-      title: 'Gravar aula',
+    expect(firstItem('Rotina B | cadência: Semanal | dias: Segunda, Quarta | hora: 09:15')).toEqual({
+      title: 'Rotina B',
       cadence: 'semanal',
       days: ['segunda', 'quarta'],
       time: '09:15',
@@ -34,30 +34,30 @@ describe('as linhas de rotinas-pessoais.md', () => {
   })
 
   it('dias também com formas simples: seg, qua, sábado com acento', () => {
-    expect(firstItem('Limpeza | cadência: semanal | dias: seg, qua, Sábado')?.days).toEqual(['seg', 'qua', 'sabado'])
+    expect(firstItem('Rotina C | cadência: semanal | dias: seg, qua, Sábado')?.days).toEqual(['seg', 'qua', 'sabado'])
   })
 
   it('marcadores de lista e comentários do arquivo: a linha conta na numeração, marca e # não', () => {
     const lines = parsePersonalRoutines(
-      '# Minhas rotinas\n\n- Levar o gato ao veterinário | cadência: semanal | dias: seg\n* Ler um capítulo | cadência: diária',
+      '# Minhas rotinas\n\n- Rotina A | cadência: semanal | dias: seg\n* Rotina B | cadência: diária',
     )
-    expect(lines.map((l) => l.item?.title)).toEqual(['Levar o gato ao veterinário', 'Ler um capítulo'])
+    expect(lines.map((l) => l.item?.title)).toEqual(['Rotina A', 'Rotina B'])
   })
 
   it('linhas com problema carregam o número de 1 e um motivo para o usuário consertar', () => {
-    expect(parsePersonalRoutines('# Minhas rotinas\n\nCafé da manhã')).toEqual([
-      { line: 3, title: 'Café da manhã', problem: expect.stringContaining('cadência') },
+    expect(parsePersonalRoutines('# Minhas rotinas\n\nRotina A')).toEqual([
+      { line: 3, title: 'Rotina A', problem: expect.stringContaining('cadência') },
     ])
   })
 
   it('sem cadência: nunca é vencida, sempre pede o usuário', () => {
-    const row = firstRow('Café da manhã')
+    const row = firstRow('Rotina A')
     expect(row?.item).toBeUndefined()
     expect(row?.problem).toContain('cadência')
   })
 
   it('semanal sem dias marcados: pede o usuário (nada é presumido)', () => {
-    const row = firstRow('Compromisso | cadência: semanal')
+    const row = firstRow('Rotina A | cadência: semanal')
     expect(row?.item).toBeUndefined()
     expect(row?.problem).toContain('dias')
   })
@@ -71,24 +71,24 @@ describe('as linhas de rotinas-pessoais.md', () => {
   })
 
   it('diária com dias marcados: pede o usuário por conservadorismo', () => {
-    const row = firstRow('Meditar | cadência: diária | dias: seg, qua')
+    const row = firstRow('Rotina A | cadência: diária | dias: seg, qua')
     expect(row?.item).toBeUndefined()
     expect(row?.problem).toContain('dias')
   })
 
   it('campo desconhecido, vazio ou com hora fora do formato: motivo citando o que veio', () => {
-    const unknown = firstRow('Trabalho | prioridade: alta | cadência: diária')
+    const unknown = firstRow('Rotina A | prioridade: alta | cadência: diária')
     expect(unknown?.problem).toContain('prioridade')
 
-    const empty = firstRow('Trabalho | cadência: |')
+    const empty = firstRow('Rotina B | cadência: |')
     expect(empty?.problem).toContain('cadencia')
 
-    const badTime = firstRow('Trabalho | cadência: diária | hora: 7h30')
+    const badTime = firstRow('Rotina C | cadência: diária | hora: 7h30')
     expect(badTime?.problem).toContain('7h30')
   })
 
   it('dias sem nenhum nome entre as vírgulas não passa despercebido', () => {
-    expect(firstRow('Tarefa | cadência: semanal | dias:')?.problem).toBeTruthy()
+    expect(firstRow('Rotina A | cadência: semanal | dias:')?.problem).toBeTruthy()
   })
 
   it('linha sem título no começo: problema, nunca um item com nome vazio', () => {
@@ -106,10 +106,10 @@ describe('o dia em que a rotina vence', () => {
   }
 
   it('diária vence todo dia; semanal só nos dias escritos, sem dia da semana por defeito', () => {
-    expect(routineDueOn(plan('Correr | cadência: diária'), '2026-10-22')).toBe(true)
-    expect(routineDueOn(plan('Reunião de equipe | cadência: semanal | dias: qui'), '2026-10-22')).toBe(true)
-    expect(routineDueOn(plan('Reunião de equipe | cadência: semanal | dias: seg'), '2026-10-22')).toBe(false)
-    expect(routineDueOn(plan('Praia | cadência: semanal | dias: dom'), '2026-10-25')).toBe(true)
+    expect(routineDueOn(plan('Rotina A | cadência: diária'), '2026-10-22')).toBe(true)
+    expect(routineDueOn(plan('Rotina B | cadência: semanal | dias: qui'), '2026-10-22')).toBe(true)
+    expect(routineDueOn(plan('Rotina B | cadência: semanal | dias: seg'), '2026-10-22')).toBe(false)
+    expect(routineDueOn(plan('Rotina C | cadência: semanal | dias: dom'), '2026-10-25')).toBe(true)
   })
 })
 
@@ -117,10 +117,10 @@ describe('os candidatos do dia que a Luna levanta', () => {
   const text = [
     '# Rotinas',
     '',
-    'Anki | cadência: diária', // vence e é quarta-feira que dia
-    'Passear o cachorro | cadência: semanal | dias: seg, qua',
-    'Levar papéis |', // sem cadência
-    'Comprar lentes | cadência: semanal', // semanal sem dias
+    'Rotina A | cadência: diária', // vence e é quarta-feira que dia
+    'Rotina B | cadência: semanal | dias: seg, qua',
+    'Rotina C |', // sem cadência
+    'Rotina D | cadência: semanal', // semanal sem dias
   ].join('\n')
 
   it('as vencidas de hoje e as linhas que pedem o usuário, juntas, com a linha de cada uma', () => {
@@ -131,7 +131,7 @@ describe('os candidatos do dia que a Luna levanta', () => {
       [5, 'needsInput'],
       [6, 'needsInput'],
     ])
-    expect(cs[0].item?.title).toBe('Anki')
+    expect(cs[0].item?.title).toBe('Rotina A')
     expect(cs[1].reason).toContain('cadência')
     expect(cs[2].reason).toContain('dias')
   })
