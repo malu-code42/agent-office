@@ -13,7 +13,7 @@ function names(state: State, ids: string[]): string {
 }
 
 function poolText(state: State, ids: string[]): string {
-  return ids.length > 1 ? `${names(state, ids)}, revezando` : names(state, ids)
+  return ids.length > 1 ? `${names(state, ids)}, escolha por tarefa nova` : names(state, ids)
 }
 
 /** 14:30 */
@@ -27,7 +27,9 @@ export function statusText(st: AccountStatus | undefined): { text: string; tone:
   if (st.loggedIn === false) return { text: 'Sem login', tone: 'warn' }
   if (st.loggedIn === null) return { text: `Não consegui verificar: ${st.error}`, tone: 'warn' }
   const who = [st.email, st.plan].filter(Boolean).join(' · ') || 'Conectada'
-  return st.limitedUntil && st.limitedUntil > Date.now() ? { text: `${who} · sem espaço até ${clock(st.limitedUntil)}`, tone: 'warn' } : { text: who, tone: 'ok' }
+  return st.limitedUntil && st.limitedUntil > Date.now()
+    ? { text: `${who} · sem espaço até ${clock(st.limitedUntil)}`, tone: 'warn' }
+    : { text: who, tone: 'ok' }
 }
 
 /** Account an agent runs on, as a small colored chip; nothing while there is a single account. */
@@ -51,7 +53,7 @@ export function accountField(state: State, cwd: () => string): { el: HTMLElement
     { class: 'input' },
     fromProject,
     ...accounts.map((a) => h('option', { value: a.id }, a.name)),
-    h('option', { value: '*' }, `Revezar entre todas (${accounts.length})`),
+    h('option', { value: '*' }, `Escolher entre todas (${accounts.length})`),
   ) as HTMLSelectElement
   // The folder can change while the form is open.
   const sync = () => (fromProject.textContent = `Do projeto: ${poolText(state, accountPool(state.settings, cwd()))}`)
@@ -59,7 +61,11 @@ export function accountField(state: State, cwd: () => string): { el: HTMLElement
   select.addEventListener('focus', sync)
   sync()
   return {
-    el: field('Conta', select, 'Revezando, cada agente começa na conta menos usada e passa para a outra quando o limite acaba.'),
+    el: field(
+      'Conta',
+      select,
+      'A conta disponível é escolhida no início da tarefa e fica fixa até ela terminar. Se a cota acabar, a tarefa aguarda nessa mesma conta ou é encerrada.',
+    ),
     value: () => (select.value === '*' ? accounts.map((a) => a.id) : select.value ? [select.value] : []),
   }
 }
@@ -91,7 +97,11 @@ export function openAccounts(root: HTMLElement, state: State, toast: Toast): voi
       if (!v || v === a.name) return
       window.office.saveSettings({ accounts: state.settings.accounts.map((x) => (x.id === a.id ? { ...x, name: v } : x)) }).catch(fail)
     })
-    const login = h('button', { class: st?.loggedIn ? 'btn' : 'btn btn-primary', type: 'button' }, st?.loggedIn ? 'Entrar de novo' : 'Entrar')
+    const login = h(
+      'button',
+      { class: st?.loggedIn ? 'btn' : 'btn btn-primary', type: 'button' },
+      st?.loggedIn ? 'Entrar de novo' : 'Entrar',
+    )
     login.addEventListener('click', async () => {
       const r = await window.office.loginAccount(a.id).catch((err) => ({ ok: false, message: cleanError(err) }))
       if (r.ok) toast(`Faça o login de ${a.name} no navegador. Quando terminar, volte aqui.`, 'info')
@@ -99,18 +109,26 @@ export function openAccounts(root: HTMLElement, state: State, toast: Toast): voi
     })
     const folder = a.configDir ?? '~/.claude'
     const cmd = a.configDir ? `CLAUDE_CONFIG_DIR=${a.configDir} claude` : 'claude'
-    const copy = h('button', { class: 'icon-btn', type: 'button', title: `Copiar o comando para usar esta conta no terminal:\n${cmd}` }, icon('copy', 14))
+    const copy = h(
+      'button',
+      { class: 'icon-btn', type: 'button', title: `Copiar o comando para usar esta conta no terminal:\n${cmd}` },
+      icon('copy', 14),
+    )
     copy.addEventListener('click', () => {
       void navigator.clipboard.writeText(cmd).then(() => toast('Comando copiado. Cole no terminal para abrir o Claude nesta conta.', 'ok'))
     })
     const remove =
       a.id === MAIN_ACCOUNT
         ? null
-        : h('button', { class: 'icon-btn', type: 'button', title: 'Remover a conta (a pasta e o login continuam no disco)' }, icon('trash', 15))
+        : h(
+            'button',
+            { class: 'icon-btn', type: 'button', title: 'Remover a conta (a pasta e o login continuam no disco)' },
+            icon('trash', 15),
+          )
     remove?.addEventListener('click', async () => {
       const ok = await confirmDialog(root, {
         title: `Remover ${a.name}?`,
-        text: `Os agentes dela passam para as outras contas do projeto. A pasta ${folder} e o login continuam no disco: adicionar uma conta com o mesmo nome usa os dois de novo.`,
+        text: `Tarefas em andamento ficam fixas nesta conta. Se a cota pausar uma tarefa depois da remoção, será preciso readicionar a conta para aguardar nela ou encerrar a tarefa. A pasta ${folder} e o login continuam no disco: adicionar uma conta com o mesmo nome usa os dois de novo.`,
         confirm: 'Remover',
         cancel: 'Cancelar',
         danger: true,
@@ -128,7 +146,7 @@ export function openAccounts(root: HTMLElement, state: State, toast: Toast): voi
     )
   }
 
-  /** Toggle chips: none = the default; two or more take turns. */
+  /** Toggle chips: the selected pool is considered only when a new task starts. */
   const poolRow = (label: string, path: string | null, floorId: string | null, current: string[]): HTMLElement => {
     const chips = state.settings.accounts.map((a) => {
       const on = current.includes(a.id)
@@ -139,7 +157,10 @@ export function openAccounts(root: HTMLElement, state: State, toast: Toast): voi
       })
       return b
     })
-    const fallback = floorId === null ? state.account(MAIN_ACCOUNT)?.name ?? 'Principal' : `padrão: ${poolText(state, accountPool(state.settings, undefined))}`
+    const fallback =
+      floorId === null
+        ? (state.account(MAIN_ACCOUNT)?.name ?? 'Principal')
+        : `padrão: ${poolText(state, accountPool(state.settings, undefined))}`
     const summary = current.length ? poolText(state, current) : fallback
     return h(
       'div',
@@ -207,7 +228,7 @@ export function openAccounts(root: HTMLElement, state: State, toast: Toast): voi
       h(
         'div',
         { class: 'field-hint' },
-        'Marque duas ou mais para revezar: cada agente começa na conta menos usada e, se ela bater o limite no meio da tarefa, continua a mesma conversa na outra.',
+        'Marque duas ou mais para escolher entre contas disponíveis no início de cada tarefa. Uma tarefa em andamento nunca troca de conta: se a cota acabar, aguarde nesta conta ou encerre.',
       ),
       pools,
     ],

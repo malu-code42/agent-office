@@ -30,6 +30,8 @@ export interface HudActions {
   resume(): void
   /** "Novo agente": talk, give a task or bring up a squad. */
   newAgent(): void
+  /** Ask Luna to organize or start a clear task with one of the built-in profiles. */
+  luna(): void
   board(ticketId?: string): void
   /** Take the elevator to a floor (0 = térreo). */
   goFloor(n: number): void
@@ -220,6 +222,11 @@ export class Hud {
         },
         icon('plus'),
         'Novo agente',
+      ),
+      h(
+        'button',
+        { class: 'dock-btn', title: 'Pedir à Luna para organizar ou iniciar uma tarefa', onclick: () => actions.luna() },
+        icon('message', 16),
       ),
       this.focusBtn,
       this.inboxBtn,
@@ -631,8 +638,8 @@ export class Hud {
           h(
             'div',
             { class: 'inbox-main' },
-            h('div', { class: 'inbox-name' }, 'Revisão do dia', h('span', { class: 'chip chip-wait' }, 'rascunho')),
-            h('div', { class: 'inbox-text' }, 'Continue de onde parou.'),
+            h('div', { class: 'inbox-name' }, 'Continuar revisão do dia', h('span', { class: 'chip chip-wait' }, 'rascunho')),
+            h('div', { class: 'inbox-text' }, 'Retomar com as tarefas e escolhas salvas.'),
           ),
         ),
       )

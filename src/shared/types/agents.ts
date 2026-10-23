@@ -1,6 +1,7 @@
 // Agents: status, looks, brains, worktrees, subagents, hiring and saved sessions.
 
 import type { SquadProgress } from './squads'
+import type { ProfileId } from '../profiles'
 
 export type AgentStatus =
   | 'starting' // process spawning
@@ -52,6 +53,12 @@ export interface AgentSummary {
   account?: string
   /** Accounts picked by hand when it was hired; missing = its project's accounts. */
   accounts?: string[]
+  /** Built-in work scope chosen for this fresh conversation (AO-42). */
+  profile?: ProfileId
+  /** Quota pause for the in-flight task. It remains set until same-account resume or a fresh context. */
+  quotaPaused?: { accountId: string; resetsAt?: number }
+  /** The user explicitly ended a quota-paused task; it must not auto-resume. */
+  quotaEnded?: true
   permissionMode: OfficePermissionMode
   status: AgentStatus
   /** Short present-tense description of what the agent is doing ("Editando app.ts"). */
@@ -78,6 +85,10 @@ export interface AgentSummary {
   project?: string
   /** Runs a squad cycle in the squad room of its project floor instead of working at a desk. */
   role?: 'orchestrator'
+  /** Contratado além do limite de efetivos (AO-42): ocupa a única cadeira temporária do escritório. */
+  temporary?: true
+  /** Saiu após a entrega confirmada; permanece arquivado com conversa e evidência, fora da ocupação. */
+  departed?: true
   /** Squad code, for orchestrators. */
   squad?: string
   /** Board ticket currently delivered to this office agent (or isolated squad cycle), if any. */
@@ -203,6 +214,8 @@ export interface HireRequest {
   confirmPermissionOverride?: boolean
   /** Work in an isolated copy (git worktree). Missing = yes when the folder is a git repo. */
   worktree?: boolean
+  /** One of the three built-in profiles; its scope is injected by the main process. */
+  profile?: ProfileId
   /** Looks picked in a saved template; missing = drawn from the name. */
   look?: Look
 }

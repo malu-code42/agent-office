@@ -430,7 +430,11 @@ export function openSettings(
         h(
           'div',
           { class: 'field-row' },
-          field('Subagentes ao mesmo tempo', maxSubs, 'Por agente. A mesa comporta 3; um valor menor aperta esse limite. 0 = o limite da mesa (3).'),
+          field(
+            'Subagentes ao mesmo tempo',
+            maxSubs,
+            'Por agente. A mesa comporta 3; um valor menor aperta esse limite. 0 = o limite da mesa (3).',
+          ),
           field('Teto de custo por agente (US$)', budget, 'Ao chegar nele, o agente para e avisa. 0 = sem teto.'),
         ),
       ),
@@ -441,7 +445,7 @@ export function openSettings(
         h(
           'div',
           { class: 'field-hint' },
-          `${s.accounts.length === 1 ? 'Uma conta' : `${s.accounts.length} contas`}. Adicione outras para separar projetos ou revezar quando uma bater o limite de 5h.`,
+          `${s.accounts.length === 1 ? 'Uma conta' : `${s.accounts.length} contas`}. Adicione outras para separar projetos ou escolher outra conta no início de tarefas futuras; tarefas em andamento nunca trocam de conta.`,
         ),
         h(
           'div',

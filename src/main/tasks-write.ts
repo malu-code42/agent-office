@@ -80,7 +80,28 @@ export function planNewTask(text: string, draft: NewTaskDraft, newId: () => stri
   const list = draft.list.trim()
   const index = board.lists.findIndex((l) => l.name === list)
   const section = board.lists[index]
-  const id = pickId(taskIdsIn(text), newId)
+  let id: string
+  if (draft.id !== undefined) {
+    if (!/^t[a-z0-9]{6}$/i.test(draft.id)) throw new Error('O identificador de repetição da tarefa é inválido.')
+    const requested = draft.id.toLowerCase()
+    const existing = board.lists
+      .flatMap((item) => item.tasks.map((task) => ({ list: item.name, task })))
+      .find(({ task }) => task.id?.toLowerCase() === requested)
+    if (existing) {
+      const sameTask =
+        existing.list === list &&
+        existing.task.status === 'open' &&
+        existing.task.text === draft.title.trim() &&
+        existing.task.date === (draft.date?.trim() || undefined) &&
+        existing.task.time === (draft.time?.trim() || undefined)
+      if (sameTask) return { text, id: existing.task.id! }
+      throw new Error('O identificador de repetição já pertence a outra tarefa.')
+    }
+    if (taskIdsIn(text).has(requested)) throw new Error(BROKEN_ID)
+    id = requested
+  } else {
+    id = pickId(taskIdsIn(text), newId)
+  }
   const fields = [draft.date?.trim(), draft.time?.trim(), list, draft.title.trim()].filter((f): f is string => !!f)
   const line = `- [ ] ${fields.join(' | ')} ^${id}`
 
@@ -457,7 +478,7 @@ export function createTaskWriter(opts: TaskWriterOptions = {}) {
     create(vault: string, draft: NewTaskDraft): string {
       const text = unchanged(vault)
       const plan = planNewTask(text, draft, opts.newId)
-      save(vault, text, plan.text)
+      if (plan.text !== text) save(vault, text, plan.text)
       return plan.id
     },
     /** The id of the open task on `line` (as the board read it), given now when it has none. Returns the id. */

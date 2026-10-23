@@ -1,5 +1,4 @@
 import type { AccountLimit, AgentResult, AgentSummary, LogEntry, PermissionDecision, PermissionRequest } from '@shared/types'
-import { accountPool } from '@shared/accounts'
 import type { State } from '../state'
 import { asDialog, FocusReturn, isTyping, labelDialog } from './a11y'
 import { formatCost, formatDuration, h, icon } from './dom'
@@ -7,6 +6,7 @@ import { renderMarkdown } from './markdown'
 import { cleanError } from './modals/common'
 import { portrait } from './portrait'
 import { isSquadTicketResultAgent } from '@shared/squad-ticket-result'
+import { profileById } from '@shared/profiles'
 import { changeButtons, editorMissingNote } from './result-rules'
 
 export interface DialogActions {
@@ -61,7 +61,13 @@ export class Dialog {
       if (e.key === 'Escape') return this.close()
       // Digitando ou com um botão em foco, a tecla é de lá.
       const a = document.activeElement
-      if (a instanceof HTMLInputElement || a instanceof HTMLTextAreaElement || a instanceof HTMLSelectElement || a instanceof HTMLButtonElement) return
+      if (
+        a instanceof HTMLInputElement ||
+        a instanceof HTMLTextAreaElement ||
+        a instanceof HTMLSelectElement ||
+        a instanceof HTMLButtonElement
+      )
+        return
       if (e.repeat || e.isComposing || performance.now() - this.shownAt < 400) return
       if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && this.keys.allow) {
         e.preventDefault()
@@ -113,17 +119,33 @@ export class Dialog {
     this.frame(
       agent,
       e.isError ? 'teve um problema' : 'entregou este resultado',
-      [h('div', { class: 'dialog-scroll' }, renderMarkdown(e.text || '(sem texto)')), h('div', { class: 'dialog-meta' }, new Date(e.t).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }))],
       [
-        h('button', { class: 'btn', title: 'Copiar o resultado em Markdown', onclick: () => void navigator.clipboard.writeText(e.text).then(() => this.actions.toast('Resultado copiado.', 'ok')) }, icon('copy', 15), 'Copiar'),
+        h('div', { class: 'dialog-scroll' }, renderMarkdown(e.text || '(sem texto)')),
+        h('div', { class: 'dialog-meta' }, new Date(e.t).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })),
+      ],
+      [
+        h(
+          'button',
+          {
+            class: 'btn',
+            title: 'Copiar o resultado em Markdown',
+            onclick: () => void navigator.clipboard.writeText(e.text).then(() => this.actions.toast('Resultado copiado.', 'ok')),
+          },
+          icon('copy', 15),
+          'Copiar',
+        ),
         agent.source === 'office'
-          ? h('button', {
-              class: 'btn',
-              onclick: () => {
-                this.close()
-                this.actions.reply(agent.id)
+          ? h(
+              'button',
+              {
+                class: 'btn',
+                onclick: () => {
+                  this.close()
+                  this.actions.reply(agent.id)
+                },
               },
-            }, 'Responder')
+              'Responder',
+            )
           : null,
         h('div', { class: 'grow' }),
         h('button', { class: 'btn btn-primary', title: 'Fechar (Enter)', onclick: () => this.close() }, 'Fechar'),
@@ -188,7 +210,10 @@ export class Dialog {
       h('div', { class: this.context ? 'dialog-context' : 'hidden' }, this.context ?? ''),
       h(
         'div',
-        { class: this.subagent !== undefined ? 'dialog-context dialog-subagent' : 'hidden', title: 'Quem pediu foi um ajudante (Agent tool) que este agente chamou' },
+        {
+          class: this.subagent !== undefined ? 'dialog-context dialog-subagent' : 'hidden',
+          title: 'Quem pediu foi um ajudante (Agent tool) que este agente chamou',
+        },
         this.subagent ? `Pedido de um subagente · ${this.subagent}` : 'Pedido de um subagente',
       ),
       h('div', { class: 'dialog-body' }, ...body),
@@ -230,19 +255,30 @@ export class Dialog {
     this.keys = { allow: () => this.decide({ requestId: p.id, behavior: 'allow' }), deny }
 
     const buttons = [
-      h('button', {
-        class: 'btn btn-danger-soft',
-        title: `Negar (${MOD}⌫)`,
-        onclick: () => {
-          if (reason.classList.contains('hidden')) {
-            reason.classList.remove('hidden')
-            reason.focus()
-          } else deny()
+      h(
+        'button',
+        {
+          class: 'btn btn-danger-soft',
+          title: `Negar (${MOD}⌫)`,
+          onclick: () => {
+            if (reason.classList.contains('hidden')) {
+              reason.classList.remove('hidden')
+              reason.focus()
+            } else deny()
+          },
         },
-      }, 'Negar'),
+        'Negar',
+      ),
       h('div', { class: 'grow' }),
-      p.canAlwaysAllow ? h('button', { class: 'btn', onclick: () => this.decide({ requestId: p.id, behavior: 'allow_always' }) }, 'Sempre permitir') : null,
-      h('button', { class: 'btn btn-primary', title: 'Permitir (Enter)', onclick: () => this.decide({ requestId: p.id, behavior: 'allow' }) }, icon('check', 16), 'Permitir'),
+      p.canAlwaysAllow
+        ? h('button', { class: 'btn', onclick: () => this.decide({ requestId: p.id, behavior: 'allow_always' }) }, 'Sempre permitir')
+        : null,
+      h(
+        'button',
+        { class: 'btn btn-primary', title: 'Permitir (Enter)', onclick: () => this.decide({ requestId: p.id, behavior: 'allow' }) },
+        icon('check', 16),
+        'Permitir',
+      ),
     ].filter(Boolean) as HTMLElement[]
     this.frame(agent, 'veio pedir sua permissão', body, buttons, 'wait')
   }
@@ -289,7 +325,9 @@ export class Dialog {
         }
       })
       others.set(q.question, other)
-      body.push(h('div', { class: 'q' }, h('span', { class: 'chip' }, q.header), h('div', { class: 'dialog-title' }, q.question), opts, other))
+      body.push(
+        h('div', { class: 'q' }, h('span', { class: 'chip' }, q.header), h('div', { class: 'dialog-title' }, q.question), opts, other),
+      )
     }
     const submit = () => {
       const result: Record<string, string> = {}
@@ -309,7 +347,14 @@ export class Dialog {
       'veio te fazer uma pergunta',
       body,
       [
-        h('button', { class: 'btn btn-danger-soft', onclick: () => this.decide({ requestId: p.id, behavior: 'deny', message: 'O usuário preferiu não responder.' }) }, 'Não responder'),
+        h(
+          'button',
+          {
+            class: 'btn btn-danger-soft',
+            onclick: () => this.decide({ requestId: p.id, behavior: 'deny', message: 'O usuário preferiu não responder.' }),
+          },
+          'Não responder',
+        ),
         h('div', { class: 'grow' }),
         h('button', { class: 'btn btn-primary', onclick: submit }, icon('send', 15), 'Responder'),
       ],
@@ -329,7 +374,12 @@ export class Dialog {
       [
         h('button', { class: 'btn btn-danger-soft', title: `Pedir mudanças (${MOD}⌫)`, onclick: changes }, 'Pedir mudanças'),
         h('div', { class: 'grow' }),
-        h('button', { class: 'btn btn-primary', title: 'Aprovar plano (Enter)', onclick: () => this.decide({ requestId: p.id, behavior: 'allow' }) }, icon('check', 16), 'Aprovar plano'),
+        h(
+          'button',
+          { class: 'btn btn-primary', title: 'Aprovar plano (Enter)', onclick: () => this.decide({ requestId: p.id, behavior: 'allow' }) },
+          icon('check', 16),
+          'Aprovar plano',
+        ),
       ],
       'wait',
     )
@@ -354,7 +404,10 @@ export class Dialog {
     this.frame(
       agent,
       'parou no limite do plano',
-      [h('div', { class: 'dialog-title' }, `${this.state.account(limit.accountId)?.name ?? 'A conta'} chegou ao limite.${renews}`), this.accountChoice(agent, limit)],
+      [
+        h('div', { class: 'dialog-title' }, `${this.state.account(limit.accountId)?.name ?? 'A conta'} chegou ao limite.${renews}`),
+        this.accountChoice(agent, limit),
+      ],
       [
         h('div', { class: 'grow' }),
         h('button', { class: 'btn', onclick: () => this.close() }, agent.role === 'orchestrator' ? 'Aguardar renovação' : 'Esperar'),
@@ -363,22 +416,35 @@ export class Dialog {
     )
   }
 
-  /** Buttons to carry on the same conversation on another account, pool or not. */
+  /** AO-42 individual tasks wait on their original account; squads retain their existing fixed-account controls. */
   private accountChoice(agent: AgentSummary, limit: AccountLimit): HTMLElement {
     if (agent.role === 'orchestrator') {
       const fixedId = agent.account ?? limit.accountId
-      if (!fixedId) return h('div', { class: 'dialog-note' }, 'A conta fixa deste squad não está disponível. Reconfigure essa conta para continuar o ciclo.')
+      if (!fixedId)
+        return h(
+          'div',
+          { class: 'dialog-note' },
+          'A conta fixa deste squad não está disponível. Reconfigure essa conta para continuar o ciclo.',
+        )
       const account = this.state.account(fixedId)
-      if (!account) return h('div', { class: 'dialog-note' }, 'A conta fixa deste squad não está disponível. Reconfigure essa conta para continuar o ciclo.')
+      if (!account)
+        return h(
+          'div',
+          { class: 'dialog-note' },
+          'A conta fixa deste squad não está disponível. Reconfigure essa conta para continuar o ciclo.',
+        )
       const status = this.state.accounts.find((a) => a.id === fixedId)
-      const now = Date.now()
-      const limitedUntil = Math.max(status?.limitedUntil ?? 0, limit.accountId === fixedId ? limit.resetsAt ?? 0 : 0)
-      const limited = limitedUntil > now
+      const limitedUntil = Math.max(status?.limitedUntil ?? 0, limit.accountId === fixedId ? (limit.resetsAt ?? 0) : 0)
+      const limited = limitedUntil > Date.now()
       return h(
         'div',
         { class: 'limit-choice' },
         h('div', { class: 'limit-choice-title' }, 'Este squad mantém a conta Claude escolhida ao iniciar.'),
-        h('div', { class: 'dialog-note' }, limited ? `A conta ${account.name} renova às ${clock(limitedUntil)}.` : `Retomar na mesma conta: ${account.name}.`),
+        h(
+          'div',
+          { class: 'dialog-note' },
+          limited ? `A conta ${account.name} renova às ${clock(limitedUntil)}.` : `Retomar na mesma conta: ${account.name}.`,
+        ),
         h(
           'button',
           {
@@ -390,42 +456,66 @@ export class Dialog {
           h('span', { class: 'limit-dot' }),
           'Continuar com a conta fixa',
         ),
-        h('div', { class: 'dialog-note' }, 'Quando a quota renovar, continue aqui ou reabra o squad e rode o próximo ciclo. Para usar outra conta, encerre este ciclo e inicie outro.'),
+        h(
+          'div',
+          { class: 'dialog-note' },
+          'Quando a quota renovar, continue aqui ou reabra o squad e rode o próximo ciclo. Para usar outra conta, encerre este ciclo e inicie outro.',
+        ),
       )
     }
-    const others = this.state.settings.accounts.filter((a) => a.id !== limit.accountId)
-    if (!others.length) return h('div', { class: 'dialog-note' }, 'Para continuar sem esperar, adicione outra conta em Configurações › Contas.')
-    const pool = accountPool(this.state.settings, agent.cwd, agent.accounts)
-    const now = Date.now()
+    const fixedId = agent.account ?? limit.accountId
+    if (!fixedId)
+      return h(
+        'div',
+        { class: 'dialog-note' },
+        'A conta fixa desta tarefa não está mais disponível. Encerre-a ou readicione essa conta para aguardar.',
+      )
+    if (agent.quotaEnded)
+      return h('div', { class: 'dialog-note' }, 'Tarefa encerrada. O resultado fica disponível para você receber; ela não será retomada.')
+    const account = this.state.account(fixedId)
+    if (!account)
+      return h(
+        'div',
+        { class: 'dialog-note' },
+        'A conta fixa não está mais disponível. Encerre esta tarefa; uma nova tarefa poderá escolher outra conta.',
+      )
+    const status = this.state.accounts.find((a) => a.id === fixedId)
+    const limitedUntil = Math.max(status?.limitedUntil ?? 0, limit.accountId === fixedId ? (limit.resetsAt ?? 0) : 0)
+    const renews = limitedUntil > Date.now() ? ` A previsão de renovação é ${clock(limitedUntil)}.` : ''
     return h(
       'div',
       { class: 'limit-choice' },
-      h('div', { class: 'limit-choice-title' }, 'Continuar em outra conta'),
+      h('div', { class: 'limit-choice-title' }, `Esta tarefa permanece na conta ${account.name}.`),
+      h('div', { class: 'dialog-note' }, `Ela não será retomada em outra conta.${renews}`),
       h(
-        'div',
-        { class: 'limit-choice-list' },
-        others.map((a) => {
-          const st = this.state.accounts.find((s) => s.id === a.id)
-          const until = st?.limitedUntil && st.limitedUntil > now ? st.limitedUntil : 0
-          const note = until ? `sem espaço até ${clock(until)}` : st?.loggedIn === false ? 'sem login' : pool.includes(a.id) ? 'deste agente' : 'fora das contas dele'
-          return h(
-            'button',
-            { class: 'btn limit-account', style: `--acct:${a.color}`, disabled: !!until || st?.loggedIn === false, onclick: () => void this.continueOn(agent, a.id) },
-            h('span', { class: 'limit-dot' }),
-            a.name,
-            h('small', {}, note),
-          )
-        }),
+        'button',
+        {
+          class: 'btn limit-account',
+          style: `--acct:${account.color}`,
+          onclick: () => void this.waitOnSameAccount(agent),
+        },
+        h('span', { class: 'limit-dot' }),
+        'Aguardar nesta conta',
       ),
-      h('div', { class: 'dialog-note' }, 'Mesma conversa, outro login. O agente volta às contas dele quando uma tiver espaço.'),
     )
   }
 
+  private async waitOnSameAccount(agent: AgentSummary): Promise<void> {
+    this.close()
+    try {
+      await window.office.waitOnSameAccount(agent.id)
+      this.actions.toast(`${agent.name} vai aguardar a conta atual e só retomará nela.`, 'ok')
+    } catch (err) {
+      this.actions.toast(cleanError(err), 'err')
+    }
+  }
+
+  /** Preserve the existing fixed-account squad flow; this never offers a different account. */
   private async continueOn(agent: AgentSummary, accountId: string): Promise<void> {
     this.close()
     try {
       await window.office.continueOn(agent.id, accountId)
-      this.actions.toast(`${agent.name} continua em ${this.state.account(accountId)?.name ?? 'outra conta'}.`, 'ok')
+      this.actions.toast(`${agent.name} continua na conta ${this.state.account(accountId)?.name ?? 'fixa'}.`, 'ok')
     } catch (err) {
       this.actions.toast(cleanError(err), 'err')
     }
@@ -434,10 +524,21 @@ export class Dialog {
   private showResult(agent: AgentSummary, r: AgentResult): void {
     this.itemId = r.id
     this.agentId = agent.id
-    const meta = [formatDuration(r.durationMs), r.turns ? `${r.turns} turnos` : '', r.costUnknown ? 's/ preço' : formatCost(r.costUsd)].filter(Boolean).join(' · ')
+    const meta = [formatDuration(r.durationMs), r.turns ? `${r.turns} turnos` : '', r.costUnknown ? 's/ preço' : formatCost(r.costUsd)]
+      .filter(Boolean)
+      .join(' · ')
     const ack = async () => {
       this.close()
       await window.office.ackResult(r.id)
+    }
+    const endQuotaTask = async () => {
+      this.close()
+      try {
+        await window.office.endQuotaTask(agent.id)
+        this.actions.toast(`${agent.name} encerrou a tarefa; o resultado continua disponível até você recebê-lo.`, 'info')
+      } catch (err) {
+        this.actions.toast(cleanError(err), 'err')
+      }
     }
     // Enter dá o recebido, com as mesmas travas do Enter que permite.
     this.keys = { allow: () => void ack() }
@@ -453,21 +554,46 @@ export class Dialog {
       r.isError ? 'teve um problema' : 'veio entregar o resultado',
       [
         h('div', { class: 'dialog-scroll' }, renderMarkdown(r.text || '(sem texto)')),
+        ...(agent.profile
+          ? [
+              h(
+                'div',
+                { class: 'dialog-note' },
+                `Perfil: ${profileById(agent.profile)?.name ?? agent.profile} · ${profileById(agent.profile)?.scope ?? ''}`,
+              ),
+            ]
+          : []),
         r.limit && agent.source === 'office' ? this.accountChoice(agent, r.limit) : h('span'),
         this.changesEl,
         meta ? h('div', { class: 'dialog-meta' }, meta) : h('span'),
       ],
       [
         agent.source === 'office'
-          ? h('button', {
-              class: 'btn',
-              onclick: () => {
-                this.close()
-                this.actions.reply(agent.id)
+          ? h(
+              'button',
+              {
+                class: 'btn',
+                onclick: () => {
+                  this.close()
+                  this.actions.reply(agent.id)
+                },
               },
-            }, 'Responder')
+              'Responder',
+            )
           : null,
-        h('button', { class: 'btn', title: 'Exportar a conversa em Markdown (.md)', onclick: () => this.actions.exportConversation(agent.id) }, icon('file', 15), 'Exportar'),
+        r.limit && agent.source === 'office' && agent.role !== 'orchestrator' && !agent.quotaEnded
+          ? h(
+              'button',
+              { class: 'btn btn-danger-soft', title: 'Encerrar a tarefa pausada; manter o resultado', onclick: () => void endQuotaTask() },
+              'Encerrar tarefa',
+            )
+          : null,
+        h(
+          'button',
+          { class: 'btn', title: 'Exportar a conversa em Markdown (.md)', onclick: () => this.actions.exportConversation(agent.id) },
+          icon('file', 15),
+          'Exportar',
+        ),
         h('div', { class: 'grow' }),
         h('button', { class: 'btn btn-primary', title: 'Recebido (Enter)', onclick: ack }, icon('check', 16), 'Recebido'),
       ].filter(Boolean) as HTMLElement[],
@@ -502,18 +628,34 @@ export class Dialog {
     const head = h(
       'div',
       { class: 'chg-head' },
-      h('span', { class: 'chg-title' }, count ? `${count} arquivo${count === 1 ? '' : 's'} alterado${count === 1 ? '' : 's'}` : 'Nenhum arquivo alterado'),
-      c.git && count ? h('span', { class: 'chg-stat' }, h('span', { class: 'chg-plus' }, `+${plus}`), h('span', { class: 'chg-minus' }, `−${minus}`)) : null,
-      c.branch ? h('span', { class: 'chip chip-branch', title: `Cópia isolada (worktree) no branch ${c.branch}` }, icon('branch', 11), c.branch) : null,
+      h(
+        'span',
+        { class: 'chg-title' },
+        count ? `${count} arquivo${count === 1 ? '' : 's'} alterado${count === 1 ? '' : 's'}` : 'Nenhum arquivo alterado',
+      ),
+      c.git && count
+        ? h('span', { class: 'chg-stat' }, h('span', { class: 'chg-plus' }, `+${plus}`), h('span', { class: 'chg-minus' }, `−${minus}`))
+        : null,
+      c.branch
+        ? h('span', { class: 'chip chip-branch', title: `Cópia isolada (worktree) no branch ${c.branch}` }, icon('branch', 11), c.branch)
+        : null,
       c.committed ? h('span', { class: 'chip chg-done' }, icon('check', 11), `commit ${c.committed}`) : null,
       c.discarded ? h('span', { class: 'chip chg-undone' }, icon('undo', 11), 'descartado') : null,
     )
     const parts: HTMLElement[] = [head]
-    if (!c.git && count) parts.push(h('div', { class: 'chg-note' }, 'Pasta sem git: estes são os arquivos que as ferramentas Edit/Write escreveram, segundo o log. Não há diff nem como desfazer daqui.'))
+    if (!c.git && count)
+      parts.push(
+        h(
+          'div',
+          { class: 'chg-note' },
+          'Pasta sem git: estes são os arquivos que as ferramentas Edit/Write escreveram, segundo o log. Não há diff nem como desfazer daqui.',
+        ),
+      )
     if (count) {
       const list = h('div', { class: 'chg-list' })
       for (const f of c.files) list.append(...this.fileRow(r, f.path))
-      if (c.truncated) list.append(h('div', { class: 'chg-note' }, `…e mais ${count - c.files.length} arquivo(s). Veja tudo no editor ou no terminal.`))
+      if (c.truncated)
+        list.append(h('div', { class: 'chg-note' }, `…e mais ${count - c.files.length} arquivo(s). Veja tudo no editor ou no terminal.`))
       parts.push(list)
     }
     parts.push(this.changeActions(agent, r))
@@ -531,7 +673,9 @@ export class Dialog {
       {
         class: `chg-file${open ? ' on' : ''}`,
         type: 'button',
-        title: git ? `${label}${f.preexisting ? ' (já tinha mudanças antes da tarefa; o diff é contra aquela versão)' : ''}. Clique para ver o diff.` : `${label}. Clique para abrir no editor.`,
+        title: git
+          ? `${label}${f.preexisting ? ' (já tinha mudanças antes da tarefa; o diff é contra aquela versão)' : ''}. Clique para ver o diff.`
+          : `${label}. Clique para abrir no editor.`,
         onclick: () => {
           if (!git) return void this.openEditor(r, path)
           if (open) this.openDiffs.delete(path)
@@ -542,7 +686,15 @@ export class Dialog {
       h('span', { class: `chg-letter chg-${f.status}` }, letter),
       h('span', { class: 'chg-path' }, path),
       f.preexisting ? h('span', { class: 'chg-pre', title: 'Já tinha mudanças antes da tarefa' }, '•') : null,
-      git ? h('span', { class: 'chg-nums' }, f.binary ? 'bin' : [h('span', { class: 'chg-plus' }, `+${f.added ?? 0}`), h('span', { class: 'chg-minus' }, `−${f.removed ?? 0}`)]) : null,
+      git
+        ? h(
+            'span',
+            { class: 'chg-nums' },
+            f.binary
+              ? 'bin'
+              : [h('span', { class: 'chg-plus' }, `+${f.added ?? 0}`), h('span', { class: 'chg-minus' }, `−${f.removed ?? 0}`)],
+          )
+        : null,
     )
     if (!open) return [row]
     const pre = h('pre', { class: 'code diff chg-diff' }, 'Carregando o diff…')
@@ -683,7 +835,12 @@ function diffLines(text: string): HTMLElement[] {
 function commitHint(text: string): string {
   const line = text
     .split('\n')
-    .map((l) => l.replace(/^[#>*\-\s]+/, '').replace(/[*_`]/g, '').trim())
+    .map((l) =>
+      l
+        .replace(/^[#>*\-\s]+/, '')
+        .replace(/[*_`]/g, '')
+        .trim(),
+    )
     .find(Boolean)
   const s = (line ?? 'Mudanças do agente').replace(/\s+/g, ' ')
   return s.length > 72 ? `${s.slice(0, 71).replace(/\s+\S*$/, '')}…` : s
@@ -696,7 +853,10 @@ function cleanErr(err: unknown): string {
 /** Richer previews for edits and writes. */
 function toolPreview(p: PermissionRequest): HTMLElement | null {
   const input = p.input as Record<string, unknown>
-  const lines = (s: unknown, max = 14) => String(s ?? '').split('\n').slice(0, max)
+  const lines = (s: unknown, max = 14) =>
+    String(s ?? '')
+      .split('\n')
+      .slice(0, max)
   if (p.toolName === 'Edit' && typeof input.old_string === 'string') {
     const pre = h('pre', { class: 'code diff' })
     pre.append(h('div', { class: 'diff-file' }, String(input.file_path ?? '')))

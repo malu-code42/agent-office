@@ -10,6 +10,7 @@ import type { SquadProposal, SquadQueue } from './squad-proposals'
 import type { MacJob, Routine, RoutineDraft } from './routines'
 import type { ClaudeStats } from './stats'
 import type { AgendaView } from '../agenda'
+import type { RoutineCandidate } from '../routine-personal'
 import type { FocusItem } from '../planning'
 import type { IrisPreview, IrisResult } from '../iris'
 import type { Proposal } from '../proposals'
@@ -200,11 +201,11 @@ export interface OfficeAPI {
   applyProposal(id: string): Promise<void>
   /** Recusa a proposta: ela sai da lista de pendentes. Nenhum arquivo é alterado. */
   rejectProposal(id: string): Promise<void>
-  /** Íris: monta o texto exato que seria enviado (pedido, compromissos da semana, tarefas citadas). Não envia nada. */
+  /** Luna: monta o texto exato que seria enviado (pedido, compromissos da semana, tarefas citadas). Não envia nada. */
   prepareIris(request: string): Promise<IrisPreview>
-  /** Íris: envia à Íris o texto da prévia (pelo token) e devolve a proposta criada ou a pergunta. Nada é aplicado. */
+  /** Luna: envia à Luna o texto da prévia (pelo token) e devolve a proposta criada ou a pergunta. Nada é aplicado. */
   sendIris(token: string): Promise<IrisResult>
-  /** Íris: descarta a prévia sem enviar nada. */
+  /** Luna: descarta a prévia sem enviar nada. */
   cancelIris(token: string): Promise<void>
   /** Starts the review offer for today, once per local day: true when it should be shown now. Without a vault, false. */
   reviewGate(): Promise<boolean>
@@ -216,6 +217,10 @@ export interface OfficeAPI {
   postponeReview(option: ReviewPostpone): Promise<{ next: string }>
   /** Applies the review's choices as one proposal, all or none. Returns how many operations were applied. */
   confirmReview(choices: ReviewChoices): Promise<{ applied: number }>
+  /** Rotinas pessoais do vault (AO-42): as de hoje e as linhas que precisam do usuário (candidatas da revisão do dia). Só lê rotinas-pessoais.md. */
+  routineCandidates(): Promise<RoutineCandidate[]>
+  /** Opens the configured rotinas-pessoais.md in the user's default editor; the app does not write it. */
+  openPersonalRoutines(): Promise<void>
   /** Lê o agenda.md do vault: o dia, a semana (segunda a domingo) e as linhas sem data. Só lê; não escreve em nenhum arquivo. */
   readAgenda(): Promise<AgendaView>
   /** Põe em foco a tarefa da linha dada (ganha um id no tarefas.md se não tiver) e devolve o quadro e o foco. */
@@ -298,8 +303,12 @@ export interface OfficeAPI {
   closeTerminal(agentId: string): Promise<{ ok: boolean; message?: string }>
   respond(decision: PermissionDecision): Promise<void>
   ackResult(resultId: string): Promise<void>
-  /** After a plan limit: carry on the same conversation on this account, even outside the agent's pool. */
+  /** Resume only on the account fixed to this task; any other account is rejected. */
   continueOn(agentId: string, accountId: string): Promise<void>
+  /** AO-42: wait for the current task's fixed Claude account to have quota, then resume only on it. */
+  waitOnSameAccount(agentId: string): Promise<void>
+  /** Explicitly end a quota-paused task without discarding its result. */
+  endQuotaTask(agentId: string): Promise<void>
   pickFolder(defaultPath?: string): Promise<string | null>
   installBridge(): Promise<BridgeStatus>
   uninstallBridge(): Promise<BridgeStatus>

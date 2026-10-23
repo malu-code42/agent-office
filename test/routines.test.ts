@@ -144,8 +144,8 @@ function setup() {
     scheduler.save(
       cleanRoutineDraft(
         {
-          name: 'Relatório',
-          prompt: 'Resuma o dia.',
+          name: 'Rotina A',
+          prompt: 'Tarefa de exemplo.',
           who: { kind: 'new' },
           cwd: project,
           schedule: { kind: 'daily', time: '09:00' },
@@ -180,7 +180,7 @@ describe('running on time', () => {
     await vi.advanceTimersByTimeAsync(61_000)
     expect(manager.hired).toHaveLength(1)
     // the task carries the routine and the date in its header
-    expect(manager.hired[0].task).toMatch(/^Rotina "Relatório" · execução de 13\/10\/2026,? 09:00\n\nResuma o dia\.$/)
+    expect(manager.hired[0].task).toMatch(/^Rotina "Rotina A" · execução de 13\/10\/2026,? 09:00\n\nTarefa de exemplo\.$/)
     // never "Sem pedir nada" unless asked
     expect(manager.hired[0].permissionMode).toBe('default')
     const run = scheduler.get(r.id)!.history[0]
@@ -212,7 +212,7 @@ describe('running on time', () => {
     scheduler.start()
     await vi.advanceTimersByTimeAsync(60 * 60_000 + 1000)
     expect(manager.hired[0]).toMatchObject({ name: 'Revisor', cwd: project, model: 'sonnet', permissionMode: 'default' })
-    expect(manager.hired[0].task).toContain(`Você revisa ${project}.\n\nResuma o dia.`)
+    expect(manager.hired[0].task).toContain(`Você revisa ${project}.\n\nTarefa de exemplo.`)
   })
 
   it('waits for you while a permission is open, then goes on', async () => {
@@ -240,7 +240,7 @@ describe('running on time', () => {
     manager.leave(scheduler.get(r.id)!.history[0].agentId!)
     expect(scheduler.get(r.id)!.history[0].status).toBe('failed')
     expect(scheduler.get(r.id)!.agentId).toBeUndefined()
-    expect(notices[0]).toMatch(/Rotina Relatório falhou/)
+    expect(notices[0]).toMatch(/Rotina Rotina A falhou/)
   })
 })
 
@@ -353,14 +353,14 @@ describe('changes survive a restart', () => {
   it('edit, pause, duplicate and delete are saved in routines.json', () => {
     const { scheduler, store, save } = setup()
     const r = save({})
-    save({ id: r.id, name: 'Relatório da manhã', schedule: { kind: 'daily', time: '08:30' } })
+    save({ id: r.id, name: 'Rotina B', schedule: { kind: 'daily', time: '08:30' } })
     scheduler.setEnabled(r.id, false)
     const copy = scheduler.duplicate(r.id)
     const gone = save({ name: 'Apagar' })
     scheduler.remove(gone.id)
     store.flush()
     const again = new RoutineStore(dir).routines
-    expect(again.map((x) => x.name)).toEqual(['Relatório da manhã', 'Relatório da manhã (cópia)'])
+    expect(again.map((x) => x.name)).toEqual(['Rotina B', 'Rotina B (cópia)'])
     expect(again[0]).toMatchObject({ enabled: false, nextAt: null, schedule: { kind: 'daily', time: '08:30' } })
     expect(again[1]).toMatchObject({ id: copy.id, enabled: false, history: [] })
   })

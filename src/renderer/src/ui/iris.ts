@@ -1,12 +1,14 @@
 import type { IrisPreview } from '@shared/iris'
+import { projectFor } from '@shared/projects'
+import { profileById } from '@shared/profiles'
 import { h } from './dom'
-import { cleanError, field, modal } from './modals/common'
+import { cleanError, field, LAST_CWD, modal } from './modals/common'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
 
 /**
- * Pedir à Íris (AO-13): a request in words. "Revisar envio" builds the exact text that would leave the computer and
- * shows it; nothing is sent until "Enviar à Íris". Esc or "Cancelar" in the preview goes back to the request, unsent.
+ * Pedir à Luna (AO-13): a request in words. "Revisar envio" builds the exact text that would leave the computer and
+ * shows it; nothing is sent until "Enviar à Luna". Esc or "Cancelar" in the preview goes back to the request, unsent.
  * The answer is a proposal in the caixa de entrada, or a question shown here: the text stays in the box, so the
  * answer is written in it and sent again.
  */
@@ -17,7 +19,7 @@ export function openIris(root: HTMLElement, toast: Toast): void {
   const area = h('textarea', { class: 'iris-text', rows: '4', maxlength: '2000', 'aria-describedby': 'iris-hint' })
   const question = h('div', { class: 'iris-question hidden', role: 'status' })
   const status = h('div', { class: 'field-hint', role: 'status', 'aria-live': 'polite' })
-  const context = h('pre', { class: 'iris-context', tabindex: '0', 'aria-label': 'Texto que será enviado à Íris' })
+  const context = h('pre', { class: 'iris-context', tabindex: '0', 'aria-label': 'Texto que será enviado à Luna' })
   const previewBox = h(
     'div',
     { class: 'iris-preview hidden' },
@@ -30,7 +32,7 @@ export function openIris(root: HTMLElement, toast: Toast): void {
   )
 
   const reviewBtn = h('button', { class: 'btn btn-primary', type: 'button', onclick: () => void review() }, 'Revisar envio')
-  const sendBtn = h('button', { class: 'btn btn-primary hidden', type: 'button', onclick: () => void send() }, 'Enviar à Íris')
+  const sendBtn = h('button', { class: 'btn btn-primary hidden', type: 'button', onclick: () => void send() }, 'Enviar à Luna')
   const cancelBtn = h('button', { class: 'btn', type: 'button', onclick: () => onCancel() }, 'Cancelar')
 
   const close = () => {
@@ -61,7 +63,7 @@ export function openIris(root: HTMLElement, toast: Toast): void {
   const review = async () => {
     const request = area.value.trim()
     if (!request) {
-      toast('Escreva o pedido para a Íris.', 'err')
+      toast('Escreva o pedido para a Luna.', 'err')
       area.focus()
       return
     }
@@ -85,15 +87,35 @@ export function openIris(root: HTMLElement, toast: Toast): void {
     preview = undefined
     sendBtn.setAttribute('disabled', '')
     cancelBtn.setAttribute('disabled', '')
-    status.textContent = 'A Íris está pensando…'
+    status.textContent = 'A Luna está pensando…'
     try {
       const result = await window.office.sendIris(token)
-      if (result.kind === 'proposal') {
-        toast('A Íris preparou uma proposta. Revise na caixa de entrada.', 'ok')
-        close()
+      if (result.kind === 'task') {
+        const agentName = await startProfileTask(result.profile, area.value.trim())
+        if (agentName) {
+          const profile = profileById(result.profile)
+          toast(`${agentName} começou com ${profile?.name ?? 'o perfil escolhido'}: ${profile?.scope ?? 'escopo aplicado à tarefa'}.`, 'ok')
+          close()
+          return
+        }
+        question.textContent = 'A tarefa não começou porque nenhuma pasta foi escolhida.'
+        question.classList.remove('hidden')
         return
       }
-      question.textContent = `A Íris pergunta: ${result.text}`
+      if (result.kind === 'proposal') {
+        if (!result.profile) {
+          toast('A Luna preparou uma proposta. Revise na caixa de entrada.', 'ok')
+          close()
+          return
+        }
+        // The proposal is in the caixa de entrada; the profile suggestion stays visible for the
+        // user to read before closing. It is only a suggestion: nothing carries it by itself.
+        const profile = profileById(result.profile)
+        question.textContent = `A Luna preparou uma proposta (revise na caixa de entrada) e sugere o perfil “${profile?.name ?? result.profile}” (serve para: ${profile?.scope ?? '—'}).`
+        question.classList.remove('hidden')
+        return
+      }
+      question.textContent = `A Luna pergunta: ${result.text}`
       question.classList.remove('hidden')
     } catch (err) {
       toast(cleanError(err), 'err')
@@ -109,12 +131,12 @@ export function openIris(root: HTMLElement, toast: Toast): void {
   }
 
   const el = modal(
-    'Pedir à Íris',
+    'Pedir à Luna',
     [
       h(
         'p',
         { class: 'hint', id: 'iris-hint' },
-        'Escreva em português o que quer, por exemplo: “reserve amanhã às 15h por uma hora”. Você confere o texto antes de enviar, e a Íris só propõe: nada muda até você confirmar a proposta.',
+        'Escreva em português o que quer, por exemplo: “reserve amanhã às 15h por uma hora”. Você confere o texto antes de enviar, e a Luna só propõe: nada muda até você confirmar a proposta.',
       ),
       question,
       field('Pedido', area),
@@ -126,4 +148,44 @@ export function openIris(root: HTMLElement, toast: Toast): void {
   )
   root.append(el)
   area.focus()
+}
+
+/** A clear task request goes straight to a fresh Claude conversation; folder choice is asked only when unknown. */
+async function startProfileTask(profileId: string, task: string): Promise<string | null> {
+  const profile = profileById(profileId)
+  if (!profile) throw new Error('Esse perfil não existe mais. Tente o pedido de novo.')
+  let cwd = localStorage.getItem(LAST_CWD) ?? ''
+  if (!cwd) cwd = (await window.office.pickFolder()) ?? ''
+  if (!cwd) return null
+  const state = await window.office.getState()
+  try {
+    const agent = await window.office.hire({
+      name: '',
+      cwd,
+      task,
+      profile: profile.id,
+      engine: 'claude',
+      permissionMode: projectFor(state.settings.projects, cwd)?.permissionMode ?? state.settings.defaultPermissionMode,
+      model: state.settings.defaultModel || undefined,
+      effort: state.settings.defaultEffort || undefined,
+    })
+    localStorage.setItem(LAST_CWD, cwd)
+    return agent.name
+  } catch (err) {
+    if (!(err instanceof Error) || !err.message.includes('Escolha uma pasta de projeto que exista.')) throw err
+    const selected = await window.office.pickFolder(cwd)
+    if (!selected || selected === cwd) throw err
+    const agent = await window.office.hire({
+      name: '',
+      cwd: selected,
+      task,
+      profile: profile.id,
+      engine: 'claude',
+      permissionMode: projectFor(state.settings.projects, selected)?.permissionMode ?? state.settings.defaultPermissionMode,
+      model: state.settings.defaultModel || undefined,
+      effort: state.settings.defaultEffort || undefined,
+    })
+    localStorage.setItem(LAST_CWD, selected)
+    return agent.name
+  }
 }

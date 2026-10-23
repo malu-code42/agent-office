@@ -8,7 +8,7 @@ import { idSchema, irisRequestSchema, parse } from '../validate'
 import type { IpcContext } from './context'
 
 /**
- * The Íris (AO-13). `prepare` builds the text the user reads and sends nothing; `send` sends that same text
+ * The Luna (AO-13). `prepare` builds the text the user reads and sends nothing; `send` sends that same text
  * (by its token) and creates a pending proposal, which the user confirms in the caixa de entrada. `files` are the
  * writers of tasks.ts, so one read of tarefas.md is what the proposal is checked against.
  */

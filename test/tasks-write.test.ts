@@ -157,6 +157,21 @@ describe('createTaskWriter', () => {
     })
   })
 
+  it('retries a create with the same idempotency key without adding a duplicate line', () => {
+    const writer = createTaskWriter({ newId: ids('tnew001') })
+    writer.remember(vault, readFileSync(file, 'utf8'))
+    const request = { ...NOVA, id: 'tretry1' }
+
+    expect(writer.create(vault, request)).toBe('tretry1')
+    const afterFirst = readFileSync(file, 'utf8')
+    expect(writer.create(vault, request)).toBe('tretry1')
+    expect(readFileSync(file, 'utf8')).toBe(afterFirst)
+    expect(afterFirst.match(/\^tretry1/g) ?? []).toHaveLength(1)
+    expect(readdirSync(join(vault, 'backups', 'tarefas'))).toHaveLength(1)
+    expect(() => writer.create(vault, { ...request, title: 'Different objective' })).toThrow(/já pertence a outra tarefa/)
+    expect(readFileSync(file, 'utf8')).toBe(afterFirst)
+  })
+
   it('cancels the write when the file changed after the board read it', () => {
     const writer = createTaskWriter({ newId: ids('tnovo01') })
     writer.remember(vault, readFileSync(file, 'utf8'))

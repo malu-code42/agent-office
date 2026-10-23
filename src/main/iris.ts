@@ -10,6 +10,7 @@ import {
 } from '@shared/iris'
 import { REFUSED_MESSAGE, type Proposal } from '@shared/proposals'
 import { parseTasksFile } from '@shared/tasks'
+import { PROFILES } from '@shared/profiles'
 import { allCommitments, type AgendaWriter } from './agenda-write'
 import { dayKey } from './backups'
 import type { PlanningStore } from './planning'
@@ -18,21 +19,21 @@ import { readTasks, type TaskWriter } from './tasks-write'
 import { parseIrisAnswer } from './validate'
 
 /**
- * Íris (AO-13). A request in words goes through here: the context is built from the files and kept, the user
+ * Luna (AO-13). A request in words goes through here: the context is built from the files and kept, the user
  * reads it (prepare), and only the send with that same token leaves the computer (send). The answer is checked
  * by the schema, planned against the files as they are now, and only then becomes a pending proposal with the
- * source "Íris". Nothing is written here: a confirmed proposal is applied by proposals.ts, as any other.
+ * source "Luna". Nothing is written here: a confirmed proposal is applied by proposals.ts, as any other.
  * Logs carry events and reasons only: never the request, the context or the answer.
  */
 
 export const IRIS_TIMEOUT_MS = 60_000
-const EMPTY = 'Escreva o pedido para a Íris.'
+const EMPTY = 'Escreva o pedido para a Luna.'
 const TOO_LONG = `O pedido pode ter até ${IRIS_REQUEST_MAX} caracteres.`
 const NO_PENDING = 'Esse envio não existe mais. Revise o pedido de novo.'
-const TIMEOUT = 'A Íris demorou para responder. Tente de novo.'
-const UNAVAILABLE = 'Não consegui falar com a Íris agora. Verifique a conexão e o Claude Code, e tente de novo.'
+const TIMEOUT = 'A Luna demorou para responder. Tente de novo.'
+const UNAVAILABLE = 'Não consegui falar com a Luna agora. Verifique a conexão e o Claude Code, e tente de novo.'
 
-/** Something the Íris could not do, with a message that is safe to show. The interpreter raises it; nothing else is shown raw. */
+/** Something the Luna could not do, with a message that is safe to show. The interpreter raises it; nothing else is shown raw. */
 export class IrisUnavailable extends Error {}
 
 /** Sends the context to a model and resolves with its text. `signal` aborts the call when the time is up. */
@@ -103,6 +104,7 @@ export class IrisDesk {
       today: dayKey(this.now()),
       commitments: agendaText === null ? [] : allCommitments(agendaText),
       lists: parseTasksFile(board).lists,
+      profiles: PROFILES,
     })
     const token = this.newId()
     this.pending = { token, vault, context }
@@ -110,7 +112,7 @@ export class IrisDesk {
   }
 
   /**
-   * Sends the context kept by prepare(), once. Returns a question when the Íris asks one (no proposal then),
+   * Sends the context kept by prepare(), once. Returns a question when the Luna asks one (no proposal then),
    * or the proposal it created. Throws a message for the user when it cannot answer; the context is dropped either way.
    */
   async send(token: string): Promise<IrisResult> {
@@ -119,6 +121,7 @@ export class IrisDesk {
     this.pending = undefined
     const answer = await this.ask(p.context)
     if (answer.question) return { kind: 'question', text: answer.question }
+    if (answer.profile && answer.operations.length === 0) return { kind: 'task', profile: answer.profile }
 
     // The files as they are now: an operation the text no longer matches becomes a question, not a proposal.
     this.refresh(p.vault)
@@ -126,10 +129,10 @@ export class IrisDesk {
     try {
       planProposal(p.vault, candidate, this.deps)
     } catch (err) {
-      this.deps.log.warn('Íris: nenhuma proposta criada, uma referência não bate com os arquivos')
+      this.deps.log.warn('Luna: nenhuma proposta criada, uma referência não bate com os arquivos')
       return {
         kind: 'question',
-        text: `A Íris não conseguiu montar a proposta sem ambiguidade: ${messageOf(err)}. Diga qual é, para tentar de novo.`,
+        text: `A Luna não conseguiu montar a proposta sem ambiguidade: ${messageOf(err)}. Diga qual é, para tentar de novo.`,
       }
     }
     const proposal = this.deps.planning.addProposal({
@@ -138,7 +141,7 @@ export class IrisDesk {
       createdAt: this.now().getTime(),
       operations: answer.operations,
     })
-    return { kind: 'proposal', proposal }
+    return { kind: 'proposal', proposal, profile: answer.profile ?? null }
   }
 
   /** Drops the context kept for `token`, without sending it. */
@@ -154,14 +157,14 @@ export class IrisDesk {
       raw = await this.deps.interpreter.interpret(context, ac.signal)
     } catch (err) {
       if (ac.signal.aborted) {
-        this.deps.log.warn('Íris: a resposta demorou demais')
+        this.deps.log.warn('Luna: a resposta demorou demais')
         throw new Error(TIMEOUT, { cause: err })
       }
       if (err instanceof IrisUnavailable) {
-        this.deps.log.warn('Íris: não foi possível consultar o Claude')
+        this.deps.log.warn('Luna: não foi possível consultar o Claude')
         throw new Error(err.message, { cause: err })
       }
-      this.deps.log.warn('Íris: falha ao consultar o Claude')
+      this.deps.log.warn('Luna: falha ao consultar o Claude')
       throw new Error(UNAVAILABLE, { cause: err })
     } finally {
       clearTimeout(timer)
@@ -170,10 +173,10 @@ export class IrisDesk {
       return parseIrisAnswer(jsonOf(raw))
     } catch (err) {
       if (err instanceof Error && err.message === REFUSED_MESSAGE) {
-        this.deps.log.warn('Íris: pedido de concluir tarefa recusado')
+        this.deps.log.warn('Luna: pedido de concluir tarefa recusado')
         throw new Error(REFUSED_MESSAGE, { cause: err })
       }
-      this.deps.log.warn('Íris: resposta fora do formato, descartada')
+      this.deps.log.warn('Luna: resposta fora do formato, descartada')
       throw new Error(IRIS_NOT_UNDERSTOOD, { cause: err })
     }
   }

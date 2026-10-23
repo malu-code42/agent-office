@@ -24,7 +24,10 @@ describe('conta fixa do ciclo do squad', () => {
     const dir = join(root, 'squads', 'produto')
     mkdirSync(join(dir, 'agents'), { recursive: true })
     mkdirSync(join(dir, 'pipeline'), { recursive: true })
-    writeFileSync(join(dir, 'squad.yaml'), 'code: produto\nname: Produto\nagents:\n  - id: dev\n    role: implementer\n  - id: reviewer\n    role: reviewer\npipeline:\n  entry: pipeline/pipeline.yaml')
+    writeFileSync(
+      join(dir, 'squad.yaml'),
+      'code: produto\nname: Produto\nagents:\n  - id: dev\n    role: implementer\n  - id: reviewer\n    role: reviewer\npipeline:\n  entry: pipeline/pipeline.yaml',
+    )
     writeFileSync(join(dir, 'agents/dev.agent.md'), 'Implementa.')
     writeFileSync(join(dir, 'agents/reviewer.agent.md'), 'Revisa.')
     writeFileSync(join(dir, 'pipeline/pipeline.yaml'), 'steps:\n  - id: implement\n    agent: dev\n  - id: review\n    agent: reviewer')

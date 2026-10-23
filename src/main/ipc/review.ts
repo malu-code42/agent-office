@@ -1,4 +1,6 @@
-import { ipcMain } from 'electron'
+import { ipcMain, shell } from 'electron'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import type { AgendaWriter } from '../agenda-write'
 import { dayKey } from '../backups'
 import {
@@ -12,6 +14,7 @@ import {
   type ReviewDeps,
 } from '../review'
 import type { TaskWriter } from '../tasks-write'
+import { PERSONAL_ROUTINES_FILE, personalRoutineCandidates } from '../routines-personal'
 import { parse, reviewChoicesSchema, reviewPostponeSchema, reviewStepSchema } from '../validate'
 import type { IpcContext } from './context'
 
@@ -34,6 +37,15 @@ export function registerReviewIpc(ctx: IpcContext, files: { tasks: TaskWriter; a
   })
 
   ipcMain.handle('office:openReview', async () => openReview(files.vault(), deps()))
+
+  // Rotinas pessoais (AO-42): só leitura de rotinas-pessoais.md; nada aqui escreve no arquivo.
+  ipcMain.handle('office:routineCandidates', async () => personalRoutineCandidates(files.vault(), dayKey()))
+  ipcMain.handle('office:openPersonalRoutines', async () => {
+    const path = join(files.vault(), PERSONAL_ROUTINES_FILE)
+    if (!existsSync(path)) throw new Error('Não encontrei rotinas-pessoais.md no vault. Crie a nota no Obsidian e tente de novo.')
+    const error = await shell.openPath(path)
+    if (error) throw new Error(`Não consegui abrir rotinas-pessoais.md: ${error}`)
+  })
 
   ipcMain.handle('office:saveReviewDraft', async (_e, step: unknown, choices: unknown) => {
     const s = parse(reviewStepSchema, step, 'Passo da revisão invǭlido.')

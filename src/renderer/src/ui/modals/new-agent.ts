@@ -1,5 +1,6 @@
 import { AGENT_NAMES } from '@shared/describe'
 import { projectFor } from '@shared/projects'
+import { PROFILES, profileById } from '@shared/profiles'
 import type { AgentBrain, OfficePermissionMode, ProjectFloor } from '@shared/types'
 import type { State } from '../../state'
 import { accountField } from '../accounts'
@@ -149,6 +150,20 @@ export function openNewAgent(
       rows: 5,
       placeholder: 'Ex.: Adicione testes para o módulo de pagamentos e corrija o que quebrar.',
     })
+    const profile = h(
+      'select',
+      { class: 'input', 'aria-label': 'Perfil da tarefa' },
+      h('option', { value: '' }, 'Sem perfil'),
+      ...PROFILES.map((p) => h('option', { value: p.id }, p.name)),
+    ) as HTMLSelectElement
+    const profileHint = h('span', { class: 'field-hint' }, 'Escolha um perfil aprovado para aplicar seu escopo fixo nesta conversa nova.')
+    const syncProfileHint = () => {
+      const selected = profile.value ? profileById(profile.value) : undefined
+      profileHint.textContent = selected
+        ? `Escopo aplicado a esta conversa nova: ${selected.scope}.`
+        : 'Sem perfil; a tarefa segue as instruções que você escrever.'
+    }
+    profile.addEventListener('change', syncProfileHint)
     const brain = brainFields({ model: state.settings.defaultModel, effort: state.settings.defaultEffort })
     const account = accountField(state, () => folder.cwd())
     const mode = h('select', { class: 'input' }, ...MODES.map((m) => h('option', { value: m.value }, m.label)))
@@ -184,6 +199,7 @@ export function openNewAgent(
     const go = h('button', { class: 'btn btn-primary' })
     const nameField = field('Nome', name)
     const taskField = field('Tarefa', task)
+    const profileField = field('Perfil da tarefa', profile, profileHint)
     const tabHint = h('div', { class: 'field-hint' })
     const send = state.platform === 'darwin' ? '⌘↩' : 'Ctrl+Enter'
 
@@ -222,10 +238,11 @@ export function openNewAgent(
       templatesBtn.classList.toggle('on', byTemplate)
       nameField.classList.toggle('hidden', !hire)
       taskField.classList.toggle('hidden', !hire)
+      profileField.classList.toggle('hidden', !hire)
       // a template brings its own brain and freedom
       modeField.classList.toggle('hidden', byTemplate)
       templates.el.classList.toggle('hidden', !byTemplate)
-       syncEngineFields()
+      syncEngineFields()
       go.replaceChildren(...(hire || byTemplate ? [icon('plus', 16), 'Contratar'] : [icon('terminal', 15), 'Chamar']))
       tabHint.textContent = byTemplate
         ? `Ele chega com as escolhas do modelo; sem instrução base, digite a tarefa. ${send} contrata.`
@@ -267,6 +284,7 @@ export function openNewAgent(
           name: name.value.trim() || 'Agente',
           cwd,
           task: task.value.trim(),
+          profile: profile.value || undefined,
           engine: 'claude',
           ...brain.value(),
           accounts: account.value(),
@@ -300,6 +318,7 @@ export function openNewAgent(
         folder.el,
         isolated.el,
         taskField,
+        profileField,
         templates.el,
         modelField,
         effortField,

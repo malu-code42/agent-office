@@ -137,7 +137,7 @@ export function commitmentsOn(text: string, day: string): { time: string; title:
     )
 }
 
-/** Every commitment of agenda.md, with the day of its heading. The Íris reads them to build its context. */
+/** Every commitment of agenda.md, with the day of its heading. The Luna reads them to build its context. */
 export function allCommitments(text: string): CommitmentRef[] {
   const lines = text.split('\n')
   return sectionsOf(lines).flatMap((s) =>

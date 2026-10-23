@@ -149,6 +149,36 @@ describe('postpone: Adiar and Dispensar hoje', () => {
 })
 
 describe('draft: kept until the end of the day', () => {
+  it('starting persists an empty draft immediately; reopening reads current tasks and keeps saved step and choices', () => {
+    const clock = { t: MORNING }
+    const d = deps(clock)
+    d.planning.add('tabc123')
+
+    // This is the save performed by Começar before the wizard opens.
+    saveReviewDraft(d.planning, '2026-10-17', 0, {})
+    expect(hasDraftToday(new PlanningStore(data, () => clock.t), new Date(clock.t))).toBe(true)
+
+    saveReviewDraft(d.planning, '2026-10-17', 2, { tabc123: { kind: 'revisar' } })
+    writeFileSync(join(vault, 'tarefas.md'), TASKS.replace('Lavar roupa', 'Lavar roupa hoje'))
+    clock.t = EVENING
+
+    const resumed = openReview(vault, deps(clock))
+    expect(resumed.resumed).toBe(true)
+    expect(resumed.step).toBe(2)
+    expect(resumed.choices).toEqual({ tabc123: { kind: 'revisar' } })
+    expect(resumed.focus.find((task) => task.id === 'tabc123')?.title).toBe('Lavar roupa hoje')
+  })
+
+  it('postpone and dismiss do not create a review draft', () => {
+    const clock = { t: MORNING }
+    const d = deps(clock)
+    postponeReview(d.planning, '2026-10-17', 2)
+    expect(hasDraftToday(new PlanningStore(data, () => clock.t), new Date(clock.t))).toBe(false)
+
+    postponeReview(d.planning, '2026-10-17', 'dispensar')
+    expect(hasDraftToday(new PlanningStore(data, () => clock.t), new Date(clock.t))).toBe(false)
+  })
+
   it('a draft is saved and resumed the same day, at the same step with the same choices', () => {
     const clock = { t: MORNING }
     const first = deps(clock)

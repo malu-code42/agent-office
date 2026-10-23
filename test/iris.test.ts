@@ -14,7 +14,7 @@ import { describeOperation, REFUSED_MESSAGE } from '../src/shared/proposals'
 type Reply = (context: string, signal: AbortSignal) => Promise<string> | string
 
 /**
- * Íris (AO-13). Every test runs against a temporary vault and a temporary planning.json, never the user's data.
+ * Luna (AO-13). Every test runs against a temporary vault and a temporary planning.json, never the user's data.
  * The interpreter here is an intérprete sintético: it answers what the test scripts and records what it was sent.
  * No test makes a call to Claude or to any AI.
  */
@@ -112,7 +112,7 @@ function setup(reply: Reply = () => json({ operations: [], question: 'Qual?' }),
 const tasksFile = () => readFileSync(join(vault, 'tarefas.md'), 'utf8')
 const agendaFile = () => readFileSync(join(vault, 'agenda.md'), 'utf8')
 
-describe('contexto da Íris', () => {
+describe('contexto da Luna', () => {
   it('leva só o pedido, os compromissos da semana e as tarefas citadas ou parecidas', () => {
     const { desk } = setup()
     const { context } = desk.prepare(vault, REQUEST)
@@ -147,9 +147,18 @@ describe('contexto da Íris', () => {
     expect(context).not.toMatch(/[{}"]/)
   })
 
+  it('a lista de perfis entra no contexto, só com id, nome e escopo', () => {
+    const { desk } = setup()
+    const { context } = desk.prepare(vault, REQUEST)
+    expect(context).toContain('Perfis aprovados disponíveis')
+    expect(context).toContain('- tecnica | Ajuda técnica | resolver um problema técnico pontual')
+    expect(context).toContain('- estudo-avulso | Estudo avulso | estudar por conta própria')
+    expect(context).toContain('- escrita | Escrita | produzir e revisar textos')
+  })
+
   it('pedido vazio ou longo demais é recusado antes de qualquer leitura', () => {
     const { desk } = setup()
-    expect(() => desk.prepare(vault, '   ')).toThrow('Escreva o pedido para a Íris.')
+    expect(() => desk.prepare(vault, '   ')).toThrow('Escreva o pedido para a Luna.')
     expect(() => desk.prepare(vault, 'x'.repeat(2001))).toThrow('O pedido pode ter até 2000 caracteres.')
   })
 })
@@ -184,8 +193,16 @@ describe('envio só depois da confirmação', () => {
   })
 })
 
-describe('resposta da Íris', () => {
-  it('uma resposta válida vira proposta pendente com a fonte "Íris"', async () => {
+describe('resposta da Luna', () => {
+  it('uma solicitação clara de tarefa inicia um caminho de perfil sem criar proposta de organização', async () => {
+    const { desk, planning } = setup(() => json({ operations: [], question: null, profile: 'tecnica' }))
+    const preview = desk.prepare(vault, 'Investigue este erro técnico pontual.')
+    const result = await desk.send(preview.token)
+    expect(result).toEqual({ kind: 'task', profile: 'tecnica' })
+    expect(planning.pendingProposals()).toHaveLength(0)
+  })
+
+  it('uma resposta válida vira proposta pendente com a fonte "Luna" e leva a sugestão de perfil ao resultado', async () => {
     const { desk, planning } = setup(() =>
       json({
         operations: [
@@ -193,12 +210,14 @@ describe('resposta da Íris', () => {
           { kind: 'add-commitment', day: '2026-10-17', time: '16:00', title: 'Lavar roupa' },
         ],
         question: null,
+        profile: 'estudo-avulso',
       }),
     )
     const preview = desk.prepare(vault, REQUEST)
     const result = await desk.send(preview.token)
 
     expect(result.kind).toBe('proposal')
+    expect(result.kind === 'proposal' && result.profile).toBe('estudo-avulso')
     const pending = planning.pendingProposals()
     expect(pending).toHaveLength(1)
     expect(pending[0]!.source).toBe(IRIS_SOURCE)
@@ -268,6 +287,15 @@ describe('resposta da Íris', () => {
     expect(planning.pendingProposals()).toHaveLength(0)
   })
 
+  it('um perfil inventado faz a resposta inteira ser descartada: a sugestão vem só da lista de fábrica', async () => {
+    const { desk, planning } = setup(() =>
+      json({ operations: [{ kind: 'focus', id: 'tabc123' }], question: null, profile: 'pesquisa-profunda' }),
+    )
+    const preview = desk.prepare(vault, REQUEST)
+    await expect(desk.send(preview.token)).rejects.toThrow(IRIS_NOT_UNDERSTOOD)
+    expect(planning.pendingProposals()).toHaveLength(0)
+  })
+
   it('"concluir" é recusado pelo esquema e pelo processo principal, sem proposta', async () => {
     expect(proposalOperationSchema.safeParse({ kind: 'concluir', id: 'tabc123' }).success).toBe(false)
     expect(proposalOperationSchema.safeParse({ kind: 'complete', id: 'tabc123' }).success).toBe(false)
@@ -280,7 +308,7 @@ describe('resposta da Íris', () => {
     expect(tasksFile()).toContain('- [ ] 16.10.2026 | 09:00 | Casa | Lavar roupa ^tabc123')
   })
 
-  it('pergunta da Íris: nenhuma proposta, e a pergunta volta ao usuário', async () => {
+  it('pergunta da Luna: nenhuma proposta, e a pergunta volta ao usuário', async () => {
     const { desk, planning } = setup(() => json({ operations: [], question: 'Qual reunião de amanhã você quer mover?' }))
     const preview = desk.prepare(vault, REQUEST)
     const result = await desk.send(preview.token)
@@ -319,7 +347,7 @@ describe('falhas', () => {
       10,
     )
     const preview = desk.prepare(vault, REQUEST)
-    await expect(desk.send(preview.token)).rejects.toThrow('A Íris demorou para responder. Tente de novo.')
+    await expect(desk.send(preview.token)).rejects.toThrow('A Luna demorou para responder. Tente de novo.')
     expect(planning.pendingProposals()).toHaveLength(0)
     expect(desk.prepare(vault, REQUEST).context).toContain(REQUEST)
   })
@@ -329,7 +357,7 @@ describe('falhas', () => {
       throw new Error('getaddrinfo ENOTFOUND api.anthropic.com')
     })
     const preview = desk.prepare(vault, REQUEST)
-    await expect(desk.send(preview.token)).rejects.toThrow('Não consegui falar com a Íris agora.')
+    await expect(desk.send(preview.token)).rejects.toThrow('Não consegui falar com a Luna agora.')
     expect(planning.pendingProposals()).toHaveLength(0)
   })
 
@@ -342,7 +370,7 @@ describe('falhas', () => {
   })
 })
 
-describe('logs da Íris', () => {
+describe('logs da Luna', () => {
   it('nenhum pedido, contexto ou resposta vai para o log, em nenhum caminho', async () => {
     const answer = 'SEGREDO-RESPOSTA com Dentista e Lavar roupa'
     const flows: [Reply, number | undefined][] = [
@@ -373,7 +401,7 @@ describe('logs da Íris', () => {
     expect(logged).not.toContain('reservar a sala')
   })
 
-  it('todo log.warn da Íris é uma frase fixa, sem variável que possa carregar o texto', () => {
+  it('todo log.warn da Luna é uma frase fixa, sem variável que possa carregar o texto', () => {
     const src = readFileSync(new URL('../src/main/iris.ts', import.meta.url), 'utf8')
     const all = src.match(/\.warn\(/g) ?? []
     const fixed = src.match(/\.warn\('[^'\n]*'\)/g) ?? []
