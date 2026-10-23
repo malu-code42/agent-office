@@ -14,6 +14,7 @@ import type { StatsReader } from '../stats'
 import type { Store } from '../store'
 import type { SystemMonitor } from '../system'
 import type { TicketBoard } from '../tickets'
+import type { BarTimerStore } from '../bar-timer-store'
 import type { UsageMonitor } from '../usage'
 import { idSchema, parse } from '../validate'
 
@@ -26,6 +27,8 @@ export interface IpcContext {
   board: TicketBoard
   /** The focus set of the Tarefas (planning.json). */
   planning: PlanningStore
+  /** The Timer of the bar (AO-64), its own session in timer.json. */
+  barTimer: BarTimerStore
   book: CostBook
   desk: TicketDesk
   routines: RoutineScheduler

@@ -23,6 +23,7 @@ import { SquadProposalStore } from './squad-proposals'
 import { SquadQueueStore } from './squad-queues'
 import { MacJobs } from './mac-jobs'
 import { RoutineScheduler, RoutineStore } from './routines'
+import { BarTimerStore } from './bar-timer-store'
 import { Store } from './store'
 import { SystemMonitor } from './system'
 import { StatsReader } from './stats'
@@ -40,6 +41,7 @@ import { registerAppIpc } from './ipc/app'
 import { registerSessionsIpc } from './ipc/sessions'
 import { registerSettingsIpc } from './ipc/settings'
 import { registerSquadsIpc } from './ipc/squads'
+import { registerBarTimerIpc } from './ipc/bar-timer'
 import { registerRoutinesIpc } from './ipc/routines'
 import { registerTasksIpc } from './ipc/tasks'
 import { registerTicketsIpc } from './ipc/tickets'
@@ -212,6 +214,8 @@ app.whenReady().then(async () => {
   }
   // The focus count goes to the renderer, so the dock always shows how many tasks are in it.
   const planning = new PlanningStore(app.getPath('userData'), Date.now, (count) => broadcast({ type: 'focus:count', count }))
+  // The Timer of the bar (AO-64): its own store, outside planning.json; every change goes to the renderer as an event.
+  const barTimer = new BarTimerStore(app.getPath('userData'), Date.now, () => broadcast({ type: 'barTimer', timer: barTimer.view() ?? null }))
   const routineStore = new RoutineStore(app.getPath('userData'))
   // A fatal error saves what is in memory before asking what to do.
   onFatalFlush(() => {
@@ -549,6 +553,7 @@ app.whenReady().then(async () => {
     manager,
     board,
     planning,
+    barTimer,
     book,
     desk,
     routines,
@@ -580,6 +585,7 @@ app.whenReady().then(async () => {
   registerSquadsIpc(ipc)
   registerRoutinesIpc(ipc)
   registerTasksIpc(ipc)
+  registerBarTimerIpc(ipc)
 
   // YouTube refuses embeds without a web Referer (error 153), and file:// sends none.
   session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['https://www.youtube-nocookie.com/embed/*'] }, (d, cb) => {

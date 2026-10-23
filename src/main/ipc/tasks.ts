@@ -20,7 +20,6 @@ import {
   newTaskSchema,
   parse,
   parseStepText,
-  parseTimerMinutes,
   reopenTaskSchema,
   rescheduleTaskSchema,
   taskIdSchema,
@@ -41,7 +40,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
     return checkedVault(vaultPath)
   }
   // Reads the file without remembering it: the board's line numbers come from its own read.
-  const focusView = (lists: TaskList[]) => focusItems(lists, ctx.planning.focus(), ctx.planning.todaySteps(dayKey()), ctx.planning.timers())
+  const focusView = (lists: TaskList[]) => focusItems(lists, ctx.planning.focus(), ctx.planning.todaySteps(dayKey()))
   // The popup can discard or complete without the board open, so what it reads is what the writer checks against.
   const focusOf = (path: string) => {
     const content = readTasksFile(path)
@@ -202,43 +201,6 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const taskId = parse(taskIdSchema, id, 'Identificador inválido.')
     const path = requireVault()
     ctx.planning.clearStep(taskId, dayKey())
-    return focusOf(path)
-  })
-
-  // The focus timer lives in planning.json too: tarefas.md is only read, as for the steps (AO-08).
-  ipcMain.handle('office:startTimer', async (_e, id: unknown) => {
-    const taskId = parse(taskIdSchema, id, 'Identificador inválido.')
-    const path = requireVault()
-    ctx.planning.startTimer(taskId)
-    return focusOf(path)
-  })
-
-  ipcMain.handle('office:pauseTimer', async (_e, id: unknown) => {
-    const taskId = parse(taskIdSchema, id, 'Identificador inválido.')
-    const path = requireVault()
-    ctx.planning.pauseTimer(taskId)
-    return focusOf(path)
-  })
-
-  ipcMain.handle('office:resumeTimer', async (_e, id: unknown) => {
-    const taskId = parse(taskIdSchema, id, 'Identificador inválido.')
-    const path = requireVault()
-    ctx.planning.resumeTimer(taskId)
-    return focusOf(path)
-  })
-
-  ipcMain.handle('office:stopTimer', async (_e, id: unknown) => {
-    const taskId = parse(taskIdSchema, id, 'Identificador inválido.')
-    const path = requireVault()
-    ctx.planning.stopTimer(taskId)
-    return focusOf(path)
-  })
-
-  ipcMain.handle('office:confirmTimer', async (_e, id: unknown, minutes: unknown) => {
-    const taskId = parse(taskIdSchema, id, 'Identificador inválido.')
-    const count = parseTimerMinutes(minutes)
-    const path = requireVault()
-    ctx.planning.confirmTimer(taskId, count)
     return focusOf(path)
   })
 

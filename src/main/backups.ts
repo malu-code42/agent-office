@@ -20,6 +20,7 @@ export const DATA_FILES = [
   'tickets-closed.json',
   'routines.json',
   'planning.json',
+  'timer.json',
   'squad-proposals.json',
   'squad-queues.json',
 ] as const
@@ -58,6 +59,8 @@ export const DATA_SHAPES: Record<DataFile, (v: unknown) => boolean> = {
     isMap(v.timer) &&
     isMap(v.archived) &&
     (v.proposals === undefined || Array.isArray(v.proposals)),
+  // The Timer of the bar (AO-64): its own session, outside planning.json's old timer (AO-08, no longer used).
+  'timer.json': (v) => isObj(v) && isMap(v.timer),
   // The squads the player proposed and has not approved yet: they are not squads yet.
   'squad-proposals.json': (v) => isObj(v) && (v.proposals === undefined || Array.isArray(v.proposals)),
   // The queue of each squad: the ticket it works on and the ones waiting.

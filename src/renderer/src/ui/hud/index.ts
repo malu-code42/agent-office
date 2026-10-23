@@ -1,12 +1,14 @@
 import { proposalRow } from '@shared/proposals'
 import { MAX_PROJECT_FLOORS } from '@shared/projects'
 import type { AgentStatus, AgentSummary } from '@shared/types'
+import { barClockText, barRemaining } from '@shared/barTimer'
 import type { State } from '../../state'
 import { DEFAULT_BRAND } from '../../world/brand'
 import { arrowList, asDialog, keepFocus, rove } from '../a11y'
 import { accountChip } from '../accounts'
 import { formatCost, h, icon, timeAgo } from '../dom'
 import { isFocusPopupOpen, onFocusPopup } from '../focus-state'
+import { isTimerPopupOpen, onTimerPopup } from '../timer-state'
 import { contextLevel, helpersChip } from '../panel'
 import { portrait } from '../portrait'
 import type { Radio } from '../radio'
@@ -47,6 +49,8 @@ export interface HudActions {
   review(): void
   /** "Tarefas em foco": the popup of the tasks in the focus (the key F does the same). */
   focus(): void
+  /** Timer: opens the popup of the interval (no keyboard shortcut: it lives on the bar). */
+  timer(): void
 }
 
 const COMPACT_KEY = 'roster-compact'
@@ -83,6 +87,13 @@ function focusLabel(n: number): string {
   return `Tarefas em foco (F): ${n} ${n === 1 ? 'tarefa' : 'tarefas'} em foco`
 }
 
+/** The clock face of the dock button: the mark of icon() dressed as a clock. */
+function clockSvg(size: number): SVGSVGElement {
+  const mark = icon('spark', size)
+  mark.innerHTML = '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
+  return mark
+}
+
 /** Brand bar, agent roster, bottom dock, inbox popover and toasts. */
 export class Hud {
   private roster: HTMLDivElement
@@ -105,6 +116,11 @@ export class Hud {
   /** The alfinete of "Tarefas em foco" in the dock, with the count of the tasks in the focus. */
   private focusBtn: HTMLButtonElement
   private focusBadge: HTMLSpanElement
+  /** The Timer in the dock: the clock of the intervals, right by "Tarefas em foco". */
+  private timerBtn: HTMLButtonElement
+  private timerBadge: HTMLSpanElement
+  /** Visual tick of the running clock; one interval while it runs, none otherwise. */
+  private tmTick: number | null = null
   private floorsEl: HTMLDivElement
   private floorNames: string[] = ['Térreo']
   private floor = 0
@@ -204,6 +220,21 @@ export class Hud {
       icon('pin'),
       this.focusBadge,
     )
+    // Timer: the clock of the intervals, between "Tarefas em foco" and the inbox.
+    this.timerBadge = h('span', { class: 'badge badge-review hidden' })
+    this.timerBtn = h(
+      'button',
+      {
+        class: 'dock-btn tm',
+        title: 'Timer',
+        'aria-label': 'Timer',
+        'aria-haspopup': 'dialog',
+        'aria-expanded': 'false',
+        onclick: () => this.actions.timer(),
+      },
+      clockSvg(18),
+      this.timerBadge,
+    )
     this.dockName = h('span', { class: 'dock-name' })
     this.dockPortrait = h('span', { class: 'dock-portrait' })
     const dock = h(
@@ -229,6 +260,7 @@ export class Hud {
         icon('message', 16),
       ),
       this.focusBtn,
+      this.timerBtn,
       this.inboxBtn,
       this.boardBtn,
       h(
@@ -245,6 +277,11 @@ export class Hud {
       radio.button,
       this.gearBtn,
     )
+    // Barra estreita (<= 640 px): a classe acompanha a janela por reactive change, sem esperar re-render.
+    const narrowQuery = matchMedia('(max-width: 640px)')
+    const applyNarrow = () => dock.classList.toggle('narrow', narrowQuery.matches)
+    applyNarrow()
+    narrowQuery.addEventListener('change', applyNarrow)
     const zoom = h(
       'div',
       { class: 'zoom card' },
@@ -276,8 +313,9 @@ export class Hud {
         this.hideInbox()
       }
     })
-    // The popup says when it opens and closes: the alfinete shows it.
+    // The popups say when they open and close: the pins of the dock show it.
     onFocusPopup(() => this.renderFocus())
+    onTimerPopup(() => this.renderTimer())
     this.render()
   }
 
@@ -311,6 +349,7 @@ export class Hud {
     this.inboxBadge.classList.toggle('hidden', n === 0)
     this.inboxBtn.classList.toggle('pulse', n > 0)
     this.renderFocus()
+    this.renderTimer()
     const review = this.state.reviewCount
     this.boardBadge.textContent = String(review)
     this.boardBadge.classList.toggle('hidden', review === 0)
@@ -340,6 +379,42 @@ export class Hud {
     const open = isFocusPopupOpen()
     this.focusBtn.classList.toggle('open', open)
     this.focusBtn.setAttribute('aria-expanded', String(open))
+  }
+
+  /**
+   * The Timer in the dock: green while the interval runs (a badge counts the minutes left),
+   * amber paused, and an open mark while its popup is up. An expired deadline is just the
+   * display: the popup owns the "it ended" toast, this one only paints.
+   */
+  private renderTimer(): void {
+    const v = this.state.barTimer
+    const left = v ? (v.state === 'em andamento' ? barRemaining(v, Date.now()) : v.remainingMs) : 0
+    const running = v?.state === 'em andamento' && left > 0
+    const paused = v?.state === 'pausada'
+    const open = isTimerPopupOpen()
+    this.timerBtn.classList.toggle('open', open)
+    this.timerBtn.classList.toggle('running', running)
+    this.timerBtn.classList.toggle('paused', paused)
+    this.timerBtn.setAttribute('aria-expanded', String(open))
+    this.timerBadge.textContent = String(Math.ceil(left / 60000))
+    this.timerBadge.classList.toggle('hidden', !running)
+    if (running) {
+      this.timerBtn.setAttribute('aria-label', `Timer, em andamento, ${barClockText(left)} restantes`)
+      this.timerBtn.title = `Timer · ${barClockText(left)} restantes`
+    } else if (paused) {
+      this.timerBtn.setAttribute('aria-label', `Timer, pausado, ${barClockText(left)} restantes`)
+      this.timerBtn.title = `Timer pausado · ${barClockText(left)}`
+    } else {
+      this.timerBtn.setAttribute('aria-label', 'Timer')
+      this.timerBtn.title = 'Timer'
+    }
+    // The visible heartbeat lives here, one tick a second, and only while it runs.
+    if (running && this.tmTick === null) {
+      this.tmTick = window.setInterval(() => this.renderTimer(), 1000)
+    } else if (!running && this.tmTick !== null) {
+      window.clearInterval(this.tmTick)
+      this.tmTick = null
+    }
   }
 
   /** Agents busy or waiting on a floor: each one on its project's floor, or downstairs. */

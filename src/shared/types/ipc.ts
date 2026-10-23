@@ -12,6 +12,7 @@ import type { ClaudeStats } from './stats'
 import type { AgendaView } from '../agenda'
 import type { RoutineCandidate } from '../routine-personal'
 import type { FocusItem } from '../planning'
+import type { BarTimerView } from '../barTimer'
 import type { IrisPreview, IrisResult } from '../iris'
 import type { Proposal } from '../proposals'
 import type { ReviewChoices, ReviewPostpone, ReviewView } from '../review'
@@ -77,6 +78,8 @@ export interface OfficeState {
   reviewDraft: boolean
   /** How many tasks are in the focus ("Tarefas em foco"): the dock shows this count. */
   focusCount: number
+  /** The Timer of the bar as it reads now, or null when it is stopped; the dock shows it. */
+  barTimer?: BarTimerView | null
   /** AGENT_OFFICE_TOUR=1: the guided tour opens even if the player has seen it. */
   forceTour?: boolean
 }
@@ -154,6 +157,8 @@ export type OfficeEvent =
   | { type: 'review:draft'; draft: boolean }
   /** The focus changed size: how many tasks are in it now (the dock counts them). */
   | { type: 'focus:count'; count: number }
+  /** The Timer of the bar changed (AO-64): the whole session as it reads, or null for a stopped Timer. */
+  | { type: 'barTimer'; timer: BarTimerView | null }
 
 /** A reopen either put the task back (`list` is where it went) or waits for the user to choose one of `lists`. */
 export type ReopenResult = { status: 'done'; list: string; board: ParsedBoard; focus: FocusItem[] } | { status: 'choose'; lists: string[] }
@@ -231,16 +236,18 @@ export interface OfficeAPI {
   saveStep(id: string, text: string): Promise<FocusItem[]>
   /** Tira o passo de hoje da tarefa; o de outros dias fica no histórico. Devolve o foco. */
   clearStep(id: string): Promise<FocusItem[]>
-  /** Começa o timer de 25 minutos da tarefa em foco. Recusa se já há uma sessão não confirmada. Não escreve no tarefas.md. */
-  startTimer(id: string): Promise<FocusItem[]>
-  /** Pausa o timer em andamento da tarefa em foco. */
-  pauseTimer(id: string): Promise<FocusItem[]>
-  /** Retoma o timer pausado da tarefa em foco. */
-  resumeTimer(id: string): Promise<FocusItem[]>
-  /** Para o timer da tarefa em foco antes do prazo: a sessão fica interrompida até o usuário confirmar os minutos. */
-  stopTimer(id: string): Promise<FocusItem[]>
-  /** Confirma os minutos feitos (0 a 25) de uma sessão interrompida. Só o usuário confirma. */
-  confirmTimer(id: string, minutes: number): Promise<FocusItem[]>
+  /** Lê o Timer da barra como ele está agora; null quando está Parado. */
+  readBarTimer(): Promise<BarTimerView | null>
+  /** Começa o intervalo que a popup escolhe (Foco · 25, Pausa curta · 5, Pausa longa · 15), com ou sem tarefa ligada. */
+  startBarTimer(mode: number, task?: { id?: string; text?: string } | null): Promise<BarTimerView | null>
+  /** Pausa: guarda o tempo restante e para o relógio. */
+  pauseBarTimer(): Promise<BarTimerView>
+  /** Retoma: o prazo volta a partir do que restava. */
+  resumeBarTimer(): Promise<BarTimerView>
+  /** Zera o Timer: nada é mantido. */
+  resetBarTimer(): Promise<BarTimerView | null>
+  /** Troca (ou tira) o rótulo da tarefa ligada; nada guarda quando o Timer está Parado. */
+  setBarTimerTask(task: { id?: string; text?: string } | null): Promise<BarTimerView | null>
   getLog(agentId: string): Promise<LogEntry[]>
   /** The log of one subagent of the agent (running or recently ended); [] when unknown. */
   getSubagentLog(agentId: string, subId: string): Promise<LogEntry[]>

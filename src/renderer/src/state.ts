@@ -21,6 +21,8 @@ import type {
 } from '@shared/types'
 
 import type { Proposal } from '@shared/proposals'
+import type { BarTimerView } from '@shared/barTimer'
+import { setBarTimerView } from './ui/timer-state'
 
 type Listener = () => void
 
@@ -62,6 +64,8 @@ export class State {
   reviewDraft: boolean
   /** How many tasks are in the focus ("Tarefas em foco"): the dock shows this count. */
   focusCount: number
+  /** The Timer of the bar as it reads now, or null when it is stopped (the dock shows it). */
+  barTimer: BarTimerView | null
   private listeners = new Set<Listener>()
   private logListeners = new Set<(agentId: string, entry: LogEntry) => void>()
   private subLogListeners = new Set<(agentId: string, subId: string, entries: LogEntry[]) => void>()
@@ -87,6 +91,7 @@ export class State {
     this.proposals = initial.proposals ?? []
     this.reviewDraft = initial.reviewDraft ?? false
     this.focusCount = initial.focusCount ?? 0
+    this.barTimer = initial.barTimer ?? null
   }
 
   onChange(cb: Listener): () => void {
@@ -206,6 +211,12 @@ export class State {
         break
       case 'focus:count':
         this.focusCount = e.count
+        break
+      case 'barTimer':
+        this.barTimer = e.timer
+        // The open popup of the Timer follows these events without a full render; the cache
+        // is what the watchers see.
+        setBarTimerView(e.timer)
         break
     }
     this.changed()
