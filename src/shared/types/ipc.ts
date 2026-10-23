@@ -236,8 +236,6 @@ export interface OfficeAPI {
   saveStep(id: string, text: string): Promise<FocusItem[]>
   /** Tira o passo de hoje da tarefa; o de outros dias fica no histórico. Devolve o foco. */
   clearStep(id: string): Promise<FocusItem[]>
-  /** (AO-08; superfície antiga, removida na limpeza. Fica só até então.) */
-  startTimer(id: string): Promise<FocusItem[]>
   /** Lê o Timer da barra como ele está agora; null quando está Parado. */
   readBarTimer(): Promise<BarTimerView | null>
   /** Começa o intervalo que a popup escolhe (Foco · 25, Pausa curta · 5, Pausa longa · 15), com ou sem tarefa ligada. */
@@ -250,14 +248,6 @@ export interface OfficeAPI {
   resetBarTimer(): Promise<BarTimerView | null>
   /** Troca (ou tira) o rótulo da tarefa ligada; nada guarda quando o Timer está Parado. */
   setBarTimerTask(task: { id?: string; text?: string } | null): Promise<BarTimerView | null>
-  /** Pausa o timer em andamento da tarefa em foco. */
-  pauseTimer(id: string): Promise<FocusItem[]>
-  /** Retoma o timer pausado da tarefa em foco. */
-  resumeTimer(id: string): Promise<FocusItem[]>
-  /** Para o timer da tarefa em foco antes do prazo: a sessão fica interrompida até o usuário confirmar os minutos. */
-  stopTimer(id: string): Promise<FocusItem[]>
-  /** Confirma os minutos feitos (0 a 25) de uma sessão interrompida. Só o usuário confirma. */
-  confirmTimer(id: string, minutes: number): Promise<FocusItem[]>
   getLog(agentId: string): Promise<LogEntry[]>
   /** The log of one subagent of the agent (running or recently ended); [] when unknown. */
   getSubagentLog(agentId: string, subId: string): Promise<LogEntry[]>

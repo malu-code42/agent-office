@@ -1,10 +1,8 @@
 import { join } from 'node:path'
 import {
   focusKey,
-  TIMER_DURATION_MS,
   type ArchivedTask,
   type FocusTimer,
-  type FocusTimerView,
   type Step,
   type TimerState,
 } from '@shared/planning'
@@ -16,12 +14,13 @@ import { parseProposal, proposalSchema, reviewDraftSchema } from './validate'
 
 /**
  * planning.json in userData: the focus set ("Tarefas em foco"), a list of task ids, the
- * "Passo de hoje" of each task (one per task: the last one saved, with its day), the one
- * focus timer (AO-08), and the completed tasks by id (AO-05: origin list, day, line as it was).
- * Nothing here clears the focus by itself: it carries over from day to day
- * until the user takes a task out. A step of another day stays in the file as history. The
- * timer is never completed by the app: a session past its deadline is interrupted, and the
- * user confirms the minutes done. Proposals (AO-10) wait here until they are applied or refused.
+ * "Passo de hoje" of each task (one per task: the last one saved, with its day), a legacy timer
+ * field (AO-08's focus timer is gone: an old file's timer is parsed and written back unchanged,
+ * but the app never starts, changes or reads one again), and the completed tasks by id (AO-05:
+ * origin list, day, line as it was). Nothing here clears the focus by itself: it carries over
+ * from day to day until the user takes a task out. A step of another day stays in the file as
+ * history. A legacy session past its deadline still settles as interrupted on load, and the
+ * user confirms the minutes it saw. Proposals (AO-10) wait here until they are applied or refused.
  * The daily review (AO-12) keeps here the first day its offer comes back and the draft of today's review.
  */
 
@@ -74,8 +73,6 @@ function parseTimer(v: unknown): FocusTimer | undefined {
 }
 
 const STEP_REFUSAL = 'Só tarefas em foco podem ter passo de hoje.'
-const TIMER_REFUSAL = 'Só tarefas em foco podem ter timer de foco.'
-const TIMER_BUSY = 'Já há uma sessão de foco em andamento, pausada ou por confirmar. Pare ou confirme essa sessão antes de começar outra.'
 
 export class PlanningStore {
   private file: string
@@ -164,98 +161,25 @@ export class PlanningStore {
     return key
   }
 
-  /**
-   * The focus session of each task: only the one timer, and only for its task. The time left
-   * is computed from the clock now. Settles first, so a session past its deadline reads as interrupted.
-   */
-  timers(): Map<string, FocusTimerView> {
-    this.settle()
-    const t = this.timer
-    if (!t) return new Map()
-    const view: FocusTimerView = {
-      state: t.state,
-      remainingMs: this.left(t),
-      ...(t.confirmedMinutes !== undefined ? { confirmedMinutes: t.confirmedMinutes } : {}),
-    }
-    return new Map([[t.taskId, view]])
-  }
-
-  /** Starts a 25-minute session for a focused task. Refused while another session is running, paused or unconfirmed. */
-  startTimer(id: string): void {
-    const key = this.focusedKey(id, TIMER_REFUSAL)
-    this.settle()
-    // A session of a completed task cannot be confirmed from the focus popup: it does not block the next one.
-    if (this.timer && this.timer.state !== 'confirmada' && !this.archived.has(this.timer.taskId)) throw new Error(TIMER_BUSY)
-    const now = this.now()
-    this.timer = {
-      taskId: key,
-      durationMs: TIMER_DURATION_MS,
-      state: 'em andamento',
-      startedAt: now,
-      remainingMs: TIMER_DURATION_MS,
-      resumedAt: now,
-    }
-    this.save()
-  }
-
-  pauseTimer(id: string): void {
-    const t = this.timerOf(id)
-    if (t.state !== 'em andamento') throw new Error('Só um timer em andamento pode ser pausado.')
-    this.timer = this.moved(t, 'pausada', this.left(t))
-    this.save()
-  }
-
-  resumeTimer(id: string): void {
-    const t = this.timerOf(id)
-    if (t.state !== 'pausada') throw new Error('Só um timer pausado pode ser retomado.')
-    this.timer = { ...this.moved(t, 'em andamento', t.remainingMs), resumedAt: this.now() }
-    this.save()
-  }
-
-  /** Stops a running or paused session before its deadline. It is interrupted, so the minutes done are confirmed by the user. */
-  stopTimer(id: string): void {
-    const t = this.timerOf(id)
-    if (t.state !== 'em andamento' && t.state !== 'pausada') throw new Error('Só um timer em andamento ou pausado pode ser parado.')
-    this.timer = this.moved(t, 'interrompida', this.left(t))
-    this.save()
-  }
-
-  /** Saves the minutes done in an interrupted session. The caller checks the range (0 to 25 whole minutes). */
-  confirmTimer(id: string, minutes: number): void {
-    const t = this.timerOf(id)
-    if (t.state !== 'interrompida') throw new Error('Só uma sessão interrompida pode ter os minutos confirmados.')
-    this.timer = { ...this.moved(t, 'confirmada', t.remainingMs), confirmedMinutes: minutes }
-    this.save()
-  }
-
-  /** The session of a focused task. The popup changes only the session of a task in focus. */
-  private timerOf(id: string): FocusTimer {
-    const key = this.focusedKey(id, TIMER_REFUSAL)
-    this.settle()
-    if (!this.timer || this.timer.taskId !== key) throw new Error('Essa tarefa não tem timer de foco.')
-    return this.timer
-  }
-
-  /** The session with a new state and time left; the running clock is dropped. */
-  private moved(t: FocusTimer, state: TimerState, remainingMs: number): FocusTimer {
-    return { taskId: t.taskId, durationMs: t.durationMs, state, startedAt: t.startedAt, remainingMs }
-  }
-
-  /** Time left in a session now; a paused, stopped or confirmed session keeps what it had. */
+  /** Time left in a legacy session now; a paused, stopped or confirmed session keeps what it had. */
   private left(t: FocusTimer): number {
     if (t.state !== 'em andamento') return t.remainingMs
     return Math.max(0, t.remainingMs - (this.now() - (t.resumedAt ?? t.startedAt)))
   }
 
-  /**
-   * A running session whose deadline has passed becomes interrupted, never completed: nothing
-   * knows how much of it was done. Runs on load and on every read, so the state is never stale.
+  /** A legacy session whose deadline has passed becomes interrupted, never completed: nothing
+   * knows how much of it was done. Runs once on load, so the state kept is never stale.
    */
   private settle(): void {
     const t = this.timer
     if (!t || t.state !== 'em andamento' || this.left(t) > 0) return
     this.timer = this.moved(t, 'interrompida', 0)
     this.save()
+  }
+
+  /** The session with a new state and time left; the running clock is dropped. */
+  private moved(t: FocusTimer, state: TimerState, remainingMs: number): FocusTimer {
+    return { taskId: t.taskId, durationMs: t.durationMs, state, startedAt: t.startedAt, remainingMs }
   }
 
   add(id: string): void {
