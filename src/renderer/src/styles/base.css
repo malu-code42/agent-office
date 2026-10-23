@@ -61,3 +61,19 @@ button {
   box-shadow: var(--shadow);
   backdrop-filter: blur(14px) saturate(1.2);
 }
+
+/* empty state of boards and popup panels, centered like the approved proto */
+.empty-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 22px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.empty-box b {
+  color: var(--text);
+  font-size: 14px;
+}

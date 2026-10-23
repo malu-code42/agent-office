@@ -1,9 +1,9 @@
 import { clockText, type FocusItem, STEP_MAX, TIMER_MINUTES } from '@shared/planning'
 import type { State } from '../state'
-import { arrowList, keepFocus, rove } from './a11y'
-import { h } from './dom'
+import { arrowList, keepFocus, modalA11y, rove } from './a11y'
+import { h, icon } from './dom'
 import { setFocusPopupOpen } from './focus-state'
-import { cleanError, modal } from './modals/common'
+import { cleanError } from './modals/common'
 import { openTasksBoard, refreshTasksBoard } from './tasks-board'
 import { offerUndo, type Toast } from './tasks-complete'
 import { runDiscard } from './tasks-discard'
@@ -35,12 +35,17 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
   // When the running clock was last set from the main process; the countdown is relative to it.
   let clockBase = Date.now()
 
-  const count = h('div', { class: 'focus-count', role: 'status' })
-  const list = h('ul', { class: 'focus-list', 'aria-label': 'Tarefas em foco' })
+  // The approved look (HANDOFF 3.1): the same card of the board Tarefas, anchored above the dock.
+  const title = h('span', { id: 'focus-t' }, 'Tarefas em foco')
+  const status = h('span', { class: 'board-count', role: 'status' })
+  const colCount = h('span', { class: 'tcol-count' }, '0')
+  const list = h('ul', { class: 'tcol-list', 'aria-label': 'Tarefas em foco' })
   const empty = h(
     'div',
-    { class: 'focus-empty' },
-    h('span', {}, 'Nenhuma tarefa em foco. Ponha uma tarefa em foco no quadro Tarefas, com o botão “Pôr em foco” ou a tecla F.'),
+    { class: 'tcol-empty empty-box' },
+    icon('pin', 30),
+    h('b', {}, 'Nenhuma tarefa em foco'),
+    h('span', {}, 'Escolha no quadro Tarefas o que merece atenção agora, ou peça à Luna para ajudar a montar o foco.'),
     h(
       'button',
       {
@@ -53,6 +58,25 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
       },
       'Abrir quadro Tarefas',
     ),
+  )
+  const change = h(
+    'button',
+    { class: 'btn btn-small', type: 'button', hidden: true, onclick: () => { close(); void openTasksBoard(root, state, toast) } },
+    'Mudar seleção',
+  )
+  const col = h(
+    'section',
+    { class: 'tcol', 'aria-label': 'Em foco' },
+    h(
+      'div',
+      { class: 'tcol-head' },
+      h('span', { class: 'tcol-dot', style: 'background: var(--accent)' }),
+      h('span', { class: 'tcol-label' }, 'Em foco'),
+      colCount,
+    ),
+    list,
+    empty,
+    h('div', { class: 'foco-note' }, 'Marque a caixa quando concluir a tarefa. Só você conclui; a seleção continua amanhã.'),
   )
 
   const card = (item: FocusItem): HTMLElement => {
@@ -282,7 +306,9 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
   const paint = (next: FocusItem[]): void => {
     current = next
     clockBase = Date.now()
-    count.textContent = next.length === 1 ? '1 tarefa em foco' : `${next.length} tarefas em foco`
+    status.textContent = next.length === 1 ? '1 tarefa em foco' : `${next.length} tarefas em foco`
+    colCount.textContent = String(next.length)
+    change.hidden = next.length === 0
     list.hidden = next.length === 0
     empty.hidden = next.length > 0
     keepFocus(list, () => list.replaceChildren(...next.map(card)))
@@ -371,7 +397,35 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
     // The button in the dock shows that the popup is open: it stops showing it.
     setFocusPopupOpen(false)
   }
-  const backdrop = modal('Tarefas em foco', [count, list, empty], [], close)
+  const closeBtn = h(
+    'button',
+    { class: 'icon-btn', type: 'button', title: 'Fechar (Esc)', 'aria-label': 'Fechar Tarefas em foco', onclick: close },
+    icon('x', 18),
+  )
+  const board = h(
+    'section',
+    { class: 'board card foco-pop', tabindex: '-1' },
+    h(
+      'div',
+      { class: 'board-head' },
+      h('div', { class: 'board-title' }, icon('pin', 18), title, status),
+      change,
+      h('span', { class: 'grow' }),
+      closeBtn,
+    ),
+    h('div', { class: 'board-body' }, h('div', { class: 'board-cols foco-cols' }, col)),
+  )
+  const backdrop = h('div', { class: 'backdrop backdrop-foco' }, board)
+  // The same habits of every popup (see modal, in modals/common.ts): a dialog with the focus
+  // kept inside that returns the focus, Esc closes, and a click outside closes it too.
+  modalA11y(backdrop, board, title)
+  backdrop.addEventListener('pointerdown', (e) => {
+    if (e.target === backdrop) close()
+  })
+  backdrop.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') close()
+    e.stopPropagation()
+  })
   paint(items)
   root.append(backdrop)
   setFocusPopupOpen(true)

@@ -65,6 +65,8 @@ export function openCreateSquad(root: HTMLElement, state: State, opts: CreateSqu
   const roomName = `Sala ${room.index + 1}`
 
   const el = modal('Criar squad', [], [], () => close(false))
+  // The approved drawing (HANDOFF 3.4.2) gives this window more room than the small popups.
+  el.querySelector('.modal')?.classList.add('mid')
   const body = el.querySelector('.modal-body') as HTMLElement
   const foot = el.querySelector('.modal-foot') as HTMLElement
 
