@@ -149,6 +149,39 @@
   box-shadow: 0 0 0 2px var(--card-solid);
 }
 
+/* narrow bar (<= 640 px): compacts so the bar fits 360 px */
+.dock.narrow {
+  gap: 1px;
+  padding: 4px;
+  max-width: calc(100vw - 8px);
+}
+
+.dock.narrow .dock-name {
+  display: none;
+}
+
+.dock.narrow .dock-me {
+  padding: 3px;
+}
+
+.dock.narrow .dock-sep {
+  margin: 0 2px;
+}
+
+.dock.narrow .dock-primary {
+  width: 32px;
+  height: 34px;
+  padding: 0;
+  gap: 0;
+  font-size: 0;
+  justify-content: center;
+}
+
+.dock.narrow .dock-btn {
+  width: 30px;
+  height: 34px;
+}
+
 /* segmented picker at the top of a modal (Novo agente: Conversar / Com tarefa / Squad) */
 .seg {
   display: flex;

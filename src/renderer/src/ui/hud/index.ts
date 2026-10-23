@@ -277,6 +277,11 @@ export class Hud {
       radio.button,
       this.gearBtn,
     )
+    // Barra estreita (<= 640 px): a classe acompanha a janela por reactive change, sem esperar re-render.
+    const narrowQuery = matchMedia('(max-width: 640px)')
+    const applyNarrow = () => dock.classList.toggle('narrow', narrowQuery.matches)
+    applyNarrow()
+    narrowQuery.addEventListener('change', applyNarrow)
     const zoom = h(
       'div',
       { class: 'zoom card' },
