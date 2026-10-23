@@ -1,18 +1,19 @@
 import { addDays } from './review'
 import type { CommitmentRef, Proposal, ProposalOperation } from './proposals'
+import { type ProfileId, type UserProfile } from './profiles'
 import { ARCHIVE_LIST, type Task, type TaskList } from './tasks'
 
 /**
- * Íris (AO-13): a request in words becomes a proposal, and only a confirmed proposal changes a file. This
+ * Luna (AO-13): a request in words becomes a proposal, and only a confirmed proposal changes a file. This
  * file is the model and the text, with no file access (src/main/iris.ts reads the files and sends the text).
  * The context sent to the AI is built here and nowhere else: the request, the commitments of the next seven
  * days and only the tasks the request cites or matches. The Archive, the focus timer, the steps of earlier days,
  * the vault's notes and the rest of agenda.md are not in it, so they cannot leave the computer.
  */
 
-/** The source a proposal of the Íris carries: the caixa de entrada shows it as the chip's name. */
-export const IRIS_SOURCE = 'Íris'
-export const IRIS_NOT_UNDERSTOOD = 'A Íris não entendeu o pedido.'
+/** The source a proposal of the Luna carries: the caixa de entrada shows it as the chip's name. */
+export const IRIS_SOURCE = 'Luna'
+export const IRIS_NOT_UNDERSTOOD = 'A Luna não entendeu o pedido.'
 export const IRIS_REQUEST_MAX = 2000
 /** The commitments the context keeps: from today, for this many days. */
 export const IRIS_WEEK_DAYS = 7
@@ -22,24 +23,31 @@ const MAX_TASKS = 30
 export interface IrisAnswer {
   operations: ProposalOperation[]
   question?: string | null | undefined
+  /** At most one built-in profile for a clear new task; the renderer starts a fresh task in that scope. */
+  profile?: ProfileId | null | undefined
 }
 
-/** What sending the context gives back: a pending proposal, or a question to answer in the same box. */
-export type IrisResult = { kind: 'proposal'; proposal: Proposal } | { kind: 'question'; text: string }
+/** Sending gives an organization proposal, a task profile to launch, or a question to answer in the same box. */
+export type IrisResult =
+  | { kind: 'task'; profile: ProfileId }
+  | { kind: 'proposal'; proposal: Proposal; profile?: ProfileId | null | undefined }
+  | { kind: 'question'; text: string }
 
-/** The exact text the Íris will receive, with the token that sends that same text. */
+/** The exact text the Luna will receive, with the token that sends that same text. */
 export interface IrisPreview {
   token: string
   context: string
 }
 
-/** What the context is built from: the request, every commitment of agenda.md and the lists of tarefas.md. */
+/** What the context is built from: the request, every commitment of agenda.md, the lists of tarefas.md and the profile list. */
 export interface IrisContextInput {
   request: string
   /** Today as AAAA-MM-DD. */
   today: string
   commitments: CommitmentRef[]
   lists: TaskList[]
+  /** The reusable profiles, as they are: only id, name and scope go to the context. */
+  profiles: readonly UserProfile[]
 }
 
 const STOP_WORDS = new Set([
@@ -124,8 +132,8 @@ export function matchingTasks(request: string, lists: readonly TaskList[]): { li
 }
 
 /**
- * The text sent to the Íris, line by line so the user can read every line of it before it leaves. Only
- * the request, the commitments of the next seven days and the matching tasks are in it.
+ * The text sent to the Luna, line by line so the user can read every line of it before it leaves. Only
+ * the request, the commitments of the next seven days, the matching tasks and the fixed profile list are in it.
  */
 export function irisContext(input: IrisContextInput): string {
   const days = Array.from({ length: IRIS_WEEK_DAYS }, (_, i) => addDays(input.today, i))
@@ -149,6 +157,9 @@ export function irisContext(input: IrisContextInput): string {
           return `- ${id} | ${list} | ${when} | ${STATUS_WORD[task.status]} | ${task.text}`
         })
       : ['(nenhuma)']),
+    '',
+    'Perfis aprovados disponíveis para iniciar tarefas novas:',
+    ...input.profiles.map((p) => `- ${p.id} | ${p.name} | ${p.scope}`),
   ]
   return lines.join('\n')
 }

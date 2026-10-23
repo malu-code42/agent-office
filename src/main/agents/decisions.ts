@@ -192,12 +192,26 @@ export abstract class AgentDecisions extends AgentSubagents {
     this.changesSettled.delete(resultId)
     this.send({ type: 'result:acked', resultId, agentId: r.agentId })
     const agent = this.agents.get(r.agentId)
+    const temporaryDelivered = agent?.summary.temporary === true
     if (agent && (agent.summary.status === 'done' || agent.summary.status === 'error')) {
       if (agent.summary.source === 'terminal' && !agent.query && agent.summary.activity === 'Sessão encerrada') {
         this.removeTerminal(agent.summary.id)
       } else {
         this.setStatus(agent, 'idle', agent.summary.source === 'terminal' ? 'Esperando no terminal' : 'Aguardando instruções')
       }
+    }
+    // AO-42: acknowledgement is the explicit handoff. Leave the live office, but keep the
+    // conversation in the persisted agent history for later inspection.
+    if (temporaryDelivered && agent) {
+      agent.input?.close()
+      agent.query?.close()
+      agent.watcher?.close()
+      agent.subFlush?.cancel()
+      agent.summary.departed = true
+      agent.summary.status = 'stopped'
+      agent.summary.activity = 'Foi embora após entregar; conversa arquivada'
+      this.persist()
+      this.send({ type: 'agent:removed', agentId: r.agentId })
     }
   }
 
@@ -224,7 +238,9 @@ export abstract class AgentDecisions extends AgentSubagents {
     this.addLog(agent, 'result', r.text, undefined, r.isError, undefined, r.limit)
     this.setStatus(agent, r.isError ? 'error' : 'done', r.isError ? 'Deu problema' : 'Trazendo o resultado')
     let settleChanges!: () => void
-    const settled = new Promise<void>((resolve) => { settleChanges = resolve })
+    const settled = new Promise<void>((resolve) => {
+      settleChanges = resolve
+    })
     this.changesSettled.set(result.id, settled)
     this.send({ type: 'result:new', result })
     const task = agent.task

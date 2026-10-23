@@ -30,6 +30,8 @@ export interface NewTaskDraft {
   list: string
   date?: string
   time?: string
+  /** Optional client idempotency key for retrying a task create after a lost IPC response. */
+  id?: string
 }
 
 /** The list whose tasks are read-only on the board: they cannot be moved, and nothing moves into it. */

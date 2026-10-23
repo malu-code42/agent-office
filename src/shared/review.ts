@@ -1,7 +1,7 @@
 import { describeOperation, dayPt, type ProposalOperation } from './proposals'
 
 /**
- * The daily review (AO-12): four steps the Íris walks the user through, with no AI in any of them. Every
+ * The daily review (AO-12): four steps the Luna walks the user through, with no AI in any of them. Every
  * choice stays in the review until "Confirmar", which turns the choices into one proposal (proposals.ts).
  * This file is the model and its text, with no file access (src/main/review.ts does the files).
  */

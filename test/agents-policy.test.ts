@@ -72,11 +72,41 @@ describe('permissões: o Office decide antes do cartão (seam 2)', () => {
     queries.length = 0
   })
 
+  it('applies the selected built-in profile scope to the fresh task sent to Claude', async () => {
+    const store = new Store()
+    const dir = proj()
+    const m = new AgentManager(store)
+    const a = await m.hire({
+      name: 'Ada',
+      cwd: dir,
+      task: 'Explain this isolated TypeScript question.',
+      profile: 'estudo-avulso',
+      permissionMode: 'default',
+      worktree: false,
+    })
+    await flush()
+    expect(a.profile).toBe('estudo-avulso')
+    const prompt = queries.at(-1)?.prompt as AsyncIterable<{ message: { content: string } }>
+    const first = await prompt[Symbol.asyncIterator]().next()
+    expect(first.value?.message.content).toContain('[Approved profile scope]')
+    expect(first.value?.message.content).toContain('outside any active study cycle')
+    expect(a.sessionId).toMatch(/^[0-9a-f-]{36}$/i)
+    m.shutdown()
+    store.flush()
+  })
+
   it('ignores an obsolete OpenCode request and creates a Claude agent', async () => {
     const store = new Store()
     const dir = proj()
     const m = new AgentManager(store)
-    const agent = await m.hire({ name: 'Ada', cwd: dir, task: 'synthetic task', engine: 'opencode' as never, permissionMode: 'default', worktree: false })
+    const agent = await m.hire({
+      name: 'Ada',
+      cwd: dir,
+      task: 'synthetic task',
+      engine: 'opencode' as never,
+      permissionMode: 'default',
+      worktree: false,
+    })
     await flush()
     expect(agent.engine).toBe('claude')
     expect(agent.sessionId).toMatch(/^[0-9a-f-]{36}$/i)
@@ -85,17 +115,37 @@ describe('permissões: o Office decide antes do cartão (seam 2)', () => {
   it('keeps OpenCode agents as read-only history and blocks resumption/deletion', () => {
     const store = new Store()
     const archived: AgentSummary = {
-      id: 'legacy-agent', name: 'Arquivo', source: 'office', engine: 'opencode', cwd: proj(),
-      permissionMode: 'default', status: 'working', activity: 'antigo', desk: 0,
+      id: 'legacy-agent',
+      name: 'Arquivo',
+      source: 'office',
+      engine: 'opencode',
+      cwd: proj(),
+      permissionMode: 'default',
+      status: 'working',
+      activity: 'antigo',
+      desk: 0,
       look: { skin: '#f2c9a0', hair: '#332211', hairStyle: 0, shirt: '#4a8fe0', pants: '#222222', shoes: '#111111' },
-      costUsd: 0, createdAt: Date.now(), sessionId: 'ses_legacy',
+      costUsd: 0,
+      createdAt: Date.now(),
+      sessionId: 'ses_legacy',
     }
     const log = [
       { id: 'legacy-log', t: Date.now(), kind: 'assistant' as const, text: 'Historical response' },
       { id: 'legacy-result-log', t: Date.now(), kind: 'result' as const, text: 'Historical result' },
     ]
     store.agents = [{ summary: archived, log }]
-    store.results = [{ id: 'legacy-result', agentId: archived.id, text: 'Historical result', isError: false, costUsd: 0, durationMs: 0, turns: 1, createdAt: Date.now() }]
+    store.results = [
+      {
+        id: 'legacy-result',
+        agentId: archived.id,
+        text: 'Historical result',
+        isError: false,
+        costUsd: 0,
+        durationMs: 0,
+        turns: 1,
+        createdAt: Date.now(),
+      },
+    ]
     const manager = new AgentManager(store)
     expect(manager.agent(archived.id)).toMatchObject({ engine: 'opencode', status: 'stopped' })
     expect(manager.getLog(archived.id)).toEqual(log)

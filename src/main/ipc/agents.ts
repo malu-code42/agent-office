@@ -45,27 +45,30 @@ export function registerAgentsIpc(ctx: IpcContext): void {
     }
     return manager.hire({ ...hire, look: cleanLook((req as { look?: unknown } | null)?.look) })
   })
-  ipcMain.handle('office:summon', async (_e, cwd: unknown, mode: unknown, brain: unknown, worktree: unknown, _confirmOverride: unknown, _engine: unknown) => {
-    if (!pathSchema.safeParse(cwd).success || !isDir(cwd)) throw new Error('Escolha uma pasta de projeto que exista.')
-    const m = permissionModeSchema.safeParse(mode)
-    const inherited = projectFor(store.settings.projects, cwd)?.permissionMode ?? store.settings.defaultPermissionMode
-    const permissionMode = m.success ? m.data : inherited
-    if (
-      modeIsMorePermissive(permissionMode, inherited) &&
-      !(await confirmPermissionOverride(
-        ctx.win(),
-        `O agente será chamado para trabalhar em ${cwd}.`,
-        permissionMode === 'bypassPermissions',
-      ))
-    )
-      throw new Error('Chamada cancelada.')
-    return manager.summon(
-      cwd,
-      { ...defaultBrain(), ...cleanBrain(brain, store.settings.accounts), permissionMode },
-      worktreeFlagSchema.parse(worktree),
-      'claude',
-    )
-  })
+  ipcMain.handle(
+    'office:summon',
+    async (_e, cwd: unknown, mode: unknown, brain: unknown, worktree: unknown, _confirmOverride: unknown, _engine: unknown) => {
+      if (!pathSchema.safeParse(cwd).success || !isDir(cwd)) throw new Error('Escolha uma pasta de projeto que exista.')
+      const m = permissionModeSchema.safeParse(mode)
+      const inherited = projectFor(store.settings.projects, cwd)?.permissionMode ?? store.settings.defaultPermissionMode
+      const permissionMode = m.success ? m.data : inherited
+      if (
+        modeIsMorePermissive(permissionMode, inherited) &&
+        !(await confirmPermissionOverride(
+          ctx.win(),
+          `O agente será chamado para trabalhar em ${cwd}.`,
+          permissionMode === 'bypassPermissions',
+        ))
+      )
+        throw new Error('Chamada cancelada.')
+      return manager.summon(
+        cwd,
+        { ...defaultBrain(), ...cleanBrain(brain, store.settings.accounts), permissionMode },
+        worktreeFlagSchema.parse(worktree),
+        'claude',
+      )
+    },
+  )
   ipcMain.handle('office:isGitRepo', async (_e, cwd: unknown) => {
     const p = pathSchema.safeParse(cwd)
     return p.success && isAbsolute(p.data) && isDir(p.data) && !!(await repoRoot(p.data))
@@ -85,6 +88,8 @@ export function registerAgentsIpc(ctx: IpcContext): void {
 
   ipcMain.handle('office:respond', (_e, d: unknown) => manager.respond(parse(permissionDecisionSchema, d, 'Resposta inválida.')))
   ipcMain.handle('office:continueOn', (_e, raw: unknown, account: unknown) => manager.continueOn(id(raw), id(account)))
+  ipcMain.handle('office:waitOnSameAccount', (_e, raw: unknown) => manager.waitOnSameAccount(id(raw)))
+  ipcMain.handle('office:endQuotaTask', (_e, raw: unknown) => manager.endQuotaTask(id(raw)))
   ipcMain.handle('office:ackResult', async (_e, raw: unknown) => {
     const resultId = id(raw)
     const result = manager.result(resultId)

@@ -21,9 +21,14 @@ import { createWorktree } from '../git'
 import { endSubagent } from '../subagent-log'
 import { type Agent } from './types'
 import { AgentBase } from './base'
+import { AgentCapReservations } from '@shared/agent-cap'
+import { profileTaskInstructions } from '@shared/profiles'
 
 /** Office agents: hire, summon, squads, messages, interrupt, fire. */
 export abstract class AgentOffice extends AgentBase {
+  /** AO-42: reserve synchronously so concurrent worktree creation cannot take the same seat. */
+  private capReservations = new AgentCapReservations()
+
   // ---------- office agents (Claude Agent SDK) ----------
 
   /**
@@ -31,37 +36,45 @@ export abstract class AgentOffice extends AgentBase {
    * In a git repo the agent gets its own worktree unless `req.worktree` is false.
    */
   async hire(req: HireRequest, display?: string, beforeRun?: (summary: AgentSummary) => void): Promise<AgentSummary> {
-    const id = randomUUID()
-    const engine = 'claude'
-    const name = req.name.trim() || this.freeName()
-    const { worktree, note } = await this.isolate(req.cwd, name, id, req.worktree)
-    const summary: AgentSummary = {
-      id,
-      name,
-      source: 'office',
-      engine,
-      cwd: req.cwd,
-      model: req.model || undefined,
-      effort: req.effort || undefined,
-      accounts: engine === 'claude' && req.accounts?.length ? req.accounts : undefined,
-      permissionMode: req.permissionMode,
-      status: 'starting',
-      activity: 'Chegando ao escritório',
-      ...this.seat(req.cwd),
-      look: req.look ?? lookFromSeed(req.name + id),
-      costUsd: 0,
-      createdAt: Date.now(),
-      sessionId: randomUUID(),
-      ...(worktree ? { worktree } : {}),
+    const seat = this.capReservations.reserve(this.list())
+    try {
+      const id = randomUUID()
+      const engine = 'claude'
+      const name = req.name.trim() || this.freeName()
+      const { worktree, note } = await this.isolate(req.cwd, name, id, req.worktree)
+      const summary: AgentSummary = {
+        id,
+        name,
+        source: 'office',
+        engine,
+        cwd: req.cwd,
+        model: req.model || undefined,
+        effort: req.effort || undefined,
+        accounts: engine === 'claude' && req.accounts?.length ? req.accounts : undefined,
+        ...(req.profile ? { profile: req.profile } : {}),
+        permissionMode: req.permissionMode,
+        status: 'starting',
+        activity: 'Chegando ao escritório',
+        ...this.seat(req.cwd),
+        look: req.look ?? lookFromSeed(req.name + id),
+        costUsd: 0,
+        createdAt: Date.now(),
+        sessionId: randomUUID(),
+        ...(worktree ? { worktree } : {}),
+      }
+      if (seat.temporary) summary.temporary = true
+      const agent: Agent = { summary, log: [], started: false }
+      this.agents.set(id, agent)
+      this.upsert(agent)
+      this.addLog(agent, 'user', display ?? req.task)
+      if (note) this.addLog(agent, 'system', note)
+      beforeRun?.(summary)
+      const task = req.profile ? `${req.task}\n\n[Approved profile scope]\n${profileTaskInstructions(req.profile)}` : req.task
+      this.run(agent, task)
+      return summary
+    } finally {
+      seat.release()
     }
-    const agent: Agent = { summary, log: [], started: false }
-    this.agents.set(id, agent)
-    this.upsert(agent)
-    this.addLog(agent, 'user', display ?? req.task)
-    if (note) this.addLog(agent, 'system', note)
-    beforeRun?.(summary)
-    this.run(agent, req.task)
-    return summary
   }
 
   /**
@@ -120,13 +133,23 @@ export abstract class AgentOffice extends AgentBase {
     wantWorktree?: boolean,
     engine: 'claude' = 'claude',
   ): Promise<AgentSummary> {
-    const sessionId = randomUUID()
-    const name = this.freeName(basename(cwd) || 'Agente')
-    const { worktree, note } = await this.isolate(cwd, name, sessionId, wantWorktree)
-    const summary = this.idleAgent(sessionId, cwd, [], false, 'Esperando a primeira instrução', defaults, worktree, name, engine)
-    const agent = this.agents.get(summary.id)
-    if (agent && note) this.addLog(agent, 'system', note)
-    return summary
+    const seat = this.capReservations.reserve(this.list())
+    try {
+      const sessionId = randomUUID()
+      const name = this.freeName(basename(cwd) || 'Agente')
+      const { worktree, note } = await this.isolate(cwd, name, sessionId, wantWorktree)
+      const summary = this.idleAgent(sessionId, cwd, [], false, 'Esperando a primeira instrução', defaults, worktree, name, engine)
+      if (seat.temporary) {
+        summary.temporary = true
+        const created = this.agents.get(summary.id)
+        if (created) this.upsert(created)
+      }
+      const agent = this.agents.get(summary.id)
+      if (agent && note) this.addLog(agent, 'system', note)
+      return summary
+    } finally {
+      seat.release()
+    }
   }
 
   /**
@@ -244,7 +267,7 @@ export abstract class AgentOffice extends AgentBase {
    */
   configure(id: string, patch: { permissionMode?: OfficePermissionMode; model?: string; effort?: AgentBrain['effort'] }): void {
     const agent = this.agents.get(id)
-    if (!agent || agent.summary.source !== 'office' || this.busy(agent)) return
+    if (!agent || agent.summary.source !== 'office' || agent.summary.departed || this.busy(agent)) return
     if (agent.summary.engine === 'opencode') return
     const s = agent.summary
     if (patch.permissionMode) s.permissionMode = patch.permissionMode
@@ -330,8 +353,14 @@ export abstract class AgentOffice extends AgentBase {
   /** Throws, before anything is sent, when an attachment can't go. */
   sendMessage(id: string, text: string, display?: string, attachments: AttachmentInput[] = []): void {
     const agent = this.agents.get(id)
-    if (!agent || agent.summary.source !== 'office' || agent.demo) return
+    if (!agent || agent.summary.source !== 'office' || agent.summary.departed || agent.demo) return
     if (agent.summary.engine === 'opencode') throw new Error('Este é um registro histórico OpenCode, disponível somente para consulta.')
+    if (agent.summary.quotaPaused)
+      throw new Error(
+        agent.summary.quotaEnded
+          ? 'Esta tarefa foi encerrada após a pausa de cota. Limpe o contexto para começar uma conversa nova.'
+          : 'Esta tarefa está pausada pela cota. Aguarde na conta fixa ou encerre o resultado antes de iniciar uma conversa nova.',
+      )
     const { content, infos } = attachments.length ? buildMessage(text, attachments) : { content: text, infos: [] }
     this.addLog(agent, 'user', display ?? text, undefined, undefined, infos.length ? infos : undefined)
     // A new instruction replaces any undelivered result.
@@ -349,6 +378,8 @@ export abstract class AgentOffice extends AgentBase {
     const agent = this.agents.get(id)
     if (!agent || agent.summary.source !== 'office' || !agent.started || this.busy(agent)) return
     if (agent.summary.engine === 'opencode') throw new Error('Registros históricos OpenCode são somente para consulta.')
+    if (agent.summary.quotaPaused)
+      throw new Error('Uma tarefa pausada ou encerrada pela cota não pode ser compactada. Comece uma conversa nova para continuar.')
     agent.compacting = true
     this.addLog(agent, 'system', 'Compactando: resumindo a conversa para liberar contexto…')
     this.dropResults(id)
@@ -361,7 +392,10 @@ export abstract class AgentOffice extends AgentBase {
   clearContext(id: string): void {
     const agent = this.agents.get(id)
     if (!agent || agent.summary.source !== 'office') return
-    if (agent.summary.engine === 'opencode') throw new Error('Registros históricos OpenCode não podem ser retomados. Crie um novo agente Claude se quiser recomeçar.')
+    if (agent.summary.engine === 'opencode')
+      throw new Error('Registros históricos OpenCode não podem ser retomados. Crie um novo agente Claude se quiser recomeçar.')
+    if (agent.summary.quotaPaused && this.results.some((result) => result.agentId === id && result.limit))
+      throw new Error('Leia e encerre o resultado pausado pela cota antes de começar uma conversa nova.')
     this.cancelAgentRequests(id)
     this.dropResults(id)
     agent.input?.close()
@@ -370,8 +404,12 @@ export abstract class AgentOffice extends AgentBase {
     agent.query = undefined
     agent.started = false
     agent.compacting = false
+    agent.resumeAccount = undefined
     agent.summary.sessionId = randomUUID()
     agent.summary.context = undefined
+    agent.summary.profile = undefined
+    agent.summary.quotaPaused = undefined
+    agent.summary.quotaEnded = undefined
     this.addLog(agent, 'system', 'Contexto limpo. A próxima mensagem começa uma conversa nova.')
     this.setStatus(agent, 'idle', 'Memória limpa, esperando instruções')
     this.upsert(agent)
@@ -401,6 +439,8 @@ export abstract class AgentOffice extends AgentBase {
     const agent = this.agents.get(id)
     if (!agent) return
     if (agent.summary.engine === 'opencode') throw new Error('Registros históricos OpenCode são preservados para consulta.')
+    if (agent.summary.temporary && this.results.some((result) => result.agentId === id))
+      throw new Error('Receba ou encerre a tarefa e leia o resultado antes de dispensar o agente temporário.')
     this.cancelAgentRequests(id)
     this.dropResults(id)
     agent.input?.close()

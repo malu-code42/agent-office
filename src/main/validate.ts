@@ -6,6 +6,7 @@ import { HAIR_STYLES } from '@shared/describe'
 import { IRIS_NOT_UNDERSTOOD, type IrisAnswer } from '@shared/iris'
 import { STEP_MAX, TIMER_MINUTES } from '@shared/planning'
 import { isIsoDay, REFUSED_KINDS, REFUSED_MESSAGE, type Proposal, type ProposalOperation } from '@shared/proposals'
+import { PROFILE_IDS } from '@shared/profiles'
 import { floorNameFor, MAX_PROJECT_FLOORS, projectFor } from '@shared/projects'
 import { SQUAD_NAME_MAX, SQUAD_ROOM_COUNT } from '@shared/types'
 import { REVIEW_STEPS, type FocusChoice, type ReviewChoices, type ReviewDraft, type ReviewPostpone } from '@shared/review'
@@ -94,6 +95,10 @@ export const newTaskSchema: z.ZodType<NewTaskDraft> = z.object({
   list: z.string().max(200),
   date: z.string().max(10).optional(),
   time: z.string().max(5).optional(),
+  id: z
+    .string()
+    .regex(/^t[a-z0-9]{6}$/i)
+    .optional(),
 })
 /** A card moved on the board; the line must be a real line number, the list is checked against the file when written. */
 export const moveTaskSchema: z.ZodType<TaskMove> = z.object({
@@ -161,20 +166,30 @@ export const proposalSchema: z.ZodType<Proposal> = z.object({
 })
 
 /**
- * What the Íris answers (AO-13): operations to propose, or one question. The same operation kinds as a
- * proposal, so "concluir" is refused here too (parseIrisAnswer says so before the schema does).
+ * What the Luna answers (AO-13): operations to propose, or one question. The same operation kinds as a
+ * proposal, so "concluir" is refused here too (parseIrisAnswer says so before the schema does). The
+ * suggested profile, when one exists, is restricted to the ids of profiles.ts.
+ */
+/** The suggested profile: only an id of profiles.ts (or none), never invented by the model. */
+export const profileIdSchema = z.enum(PROFILE_IDS).nullish()
+
+/**
+ * What the Luna answers (AO-13): operations to propose, or one question. The same operation kinds as a
+ * proposal, so "concluir" is refused here too (parseIrisAnswer says so before the schema does). The
+ * suggested profile, when one exists, is restricted to the ids of profiles.ts.
  */
 export const irisAnswerSchema: z.ZodType<IrisAnswer> = z
   .object({
     operations: z.array(proposalOperationSchema).max(50),
     question: z.string().trim().min(1).max(500).nullish(),
+    profile: profileIdSchema,
   })
-  .refine((a) => !!a.question || a.operations.length > 0, 'Resposta sem operações nem pergunta.')
+  .refine((a) => !!a.question || a.operations.length > 0 || !!a.profile, 'Resposta sem operações, perfil nem pergunta.')
 
 /** The request box's text: the length the box allows is checked again by IrisDesk, in characters. */
 export const irisRequestSchema = z.string().max(20_000)
 
-/** The Íris's answer, parsed. A refused kind gets its own message; any other bad answer is IRIS_NOT_UNDERSTOOD. */
+/** The Luna's answer, parsed. A refused kind gets its own message; any other bad answer is IRIS_NOT_UNDERSTOOD. */
 export function parseIrisAnswer(raw: unknown): IrisAnswer {
   const ops = (raw as { operations?: unknown } | null)?.operations
   if (Array.isArray(ops) && ops.some((op) => REFUSED_KINDS.includes(String((op as { kind?: unknown } | null)?.kind)))) {
@@ -502,6 +517,8 @@ export function cleanHire(
   const mode = permissionModeSchema.safeParse(r.permissionMode)
   const requested = mode.success ? mode.data : inherited
   const brain = cleanBrain(r, settings.accounts)
+  const profile = profileIdSchema.safeParse(r.profile)
+  if (r.profile !== undefined && !profile.success) throw new Error('Esse perfil não existe. Escolha um dos perfis de fábrica.')
   if (modeIsMorePermissive(requested, inherited) && r.confirmPermissionOverride !== true) {
     throw new Error('Confirme explicitamente o modo de permissões mais permissivo que o padrão do projeto.')
   }
@@ -514,6 +531,7 @@ export function cleanHire(
     permissionMode: requested,
     ...(r.confirmPermissionOverride === true ? { confirmPermissionOverride: true } : {}),
     worktree: worktreeFlagSchema.parse(r.worktree),
+    ...(profile.success && profile.data ? { profile: profile.data } : {}),
   }
 }
 

@@ -1,7 +1,23 @@
 import { EventEmitter } from 'node:events'
 import { randomUUID } from 'node:crypto'
-import { type McpSdkServerConfigWithInstance, type PermissionResult, type PermissionUpdate, type SDKMessage } from '@anthropic-ai/claude-agent-sdk'
-import type { AccountLimit, AgentResult, AgentStatus, AgentSummary, AttachmentInfo, LogEntry, OfficeEvent, PermissionDecision, PermissionRequest, SubagentInfo } from '@shared/types'
+import {
+  type McpSdkServerConfigWithInstance,
+  type PermissionResult,
+  type PermissionUpdate,
+  type SDKMessage,
+} from '@anthropic-ai/claude-agent-sdk'
+import type {
+  AccountLimit,
+  AgentResult,
+  AgentStatus,
+  AgentSummary,
+  AttachmentInfo,
+  LogEntry,
+  OfficeEvent,
+  PermissionDecision,
+  PermissionRequest,
+  SubagentInfo,
+} from '@shared/types'
 import { AGENT_NAMES } from '@shared/describe'
 import { projectFor } from '@shared/projects'
 import { type Accounts } from '../accounts'
@@ -33,14 +49,20 @@ export abstract class AgentBase extends EventEmitter {
   constructor(protected store: Store) {
     super()
     for (const p of store.agents) {
-      const floor = p.summary.project ? store.settings.projects.find((x) => x.id === p.summary.project) : projectFor(store.settings.projects, p.summary.cwd)
+      const floor = p.summary.project
+        ? store.settings.projects.find((x) => x.id === p.summary.project)
+        : projectFor(store.settings.projects, p.summary.cwd)
       const summary: AgentSummary = {
         ...p.summary,
         // Legacy orchestrators must always reload their definition from the stable floor root,
         // never from a copied worktree or another transient working directory.
         ...(p.summary.role === 'orchestrator' && floor ? { cwd: floor.cwd, project: floor.id } : {}),
-        status: p.summary.engine === 'opencode' ? 'stopped' : p.summary.status === 'done' ? 'done' : 'idle',
-        activity: p.summary.engine === 'opencode' ? 'Registro histórico OpenCode · somente leitura' : 'Aguardando instruções',
+        status: p.summary.departed || p.summary.engine === 'opencode' ? 'stopped' : p.summary.status === 'done' ? 'done' : 'idle',
+        activity: p.summary.departed
+          ? 'Foi embora após entregar; conversa arquivada'
+          : p.summary.engine === 'opencode'
+            ? 'Registro histórico OpenCode · somente leitura'
+            : 'Aguardando instruções',
         subagents: undefined,
         subagentsDone: undefined,
       }
@@ -59,7 +81,7 @@ export abstract class AgentBase extends EventEmitter {
   // ---------- queries ----------
 
   list(): AgentSummary[] {
-    return [...this.agents.values()].map((a) => a.summary)
+    return [...this.agents.values()].map((a) => a.summary).filter((a) => !a.departed)
   }
 
   pendingRequests(): PermissionRequest[] {
@@ -111,6 +133,7 @@ export abstract class AgentBase extends EventEmitter {
     let moved = false
     for (const agent of this.agents.values()) {
       const s = agent.summary
+      if (s.departed) continue
       if (projectFor(this.store.settings.projects, s.cwd)?.id === s.project) continue
       Object.assign(s, this.seat(s.cwd, s.role === 'orchestrator', agent))
       this.upsert(agent)
@@ -155,7 +178,15 @@ export abstract class AgentBase extends EventEmitter {
     if (agent.summary.source === 'office') this.persist()
   }
 
-  protected addLog(agent: Agent, kind: LogEntry['kind'], text: string, tool?: string, isError?: boolean, attachments?: AttachmentInfo[], limit?: AccountLimit): void {
+  protected addLog(
+    agent: Agent,
+    kind: LogEntry['kind'],
+    text: string,
+    tool?: string,
+    isError?: boolean,
+    attachments?: AttachmentInfo[],
+    limit?: AccountLimit,
+  ): void {
     const entry: LogEntry = { id: randomUUID(), t: Date.now(), kind, text, tool, isError, attachments, limit }
     agent.log.push(entry)
     if (agent.log.length > LOG_LIMIT) agent.log.splice(0, agent.log.length - LOG_LIMIT)
@@ -172,7 +203,7 @@ export abstract class AgentBase extends EventEmitter {
   // ---------- implemented by the later parts ----------
   protected abstract watchSquad(agent: Agent): void
   protected abstract run(agent: Agent, prompt: Prompt): void
-  protected abstract failover(agent: Agent, hit: { resetsAt?: number }): boolean
+  protected abstract pauseOnLimit(agent: Agent, hit: { resetsAt?: number }): boolean
   protected abstract trackSubagents(agent: Agent, msg: Extract<SDKMessage, { type: 'system' }>): void
   protected abstract subLogs(agent: Agent): SubagentLogs
   protected abstract subagentMessage(agent: Agent, parentToolUseId: string, role: 'assistant' | 'user', content: unknown): void
@@ -186,7 +217,11 @@ export abstract class AgentBase extends EventEmitter {
   ): Promise<PermissionResult>
   protected abstract overBudget(agent: Agent): boolean
   protected abstract budgetText(agent: Agent): string
-  abstract requestDecision(agentId: string, req: Omit<PermissionRequest, 'id' | 'agentId' | 'createdAt'>, onDecision: (d: PermissionDecision) => void): string
+  abstract requestDecision(
+    agentId: string,
+    req: Omit<PermissionRequest, 'id' | 'agentId' | 'createdAt'>,
+    onDecision: (d: PermissionDecision) => void,
+  ): string
   abstract cancelRequest(requestId: string, message: string): void
   abstract cancelAgentRequests(agentId: string, message?: string): void
   protected abstract dropResults(agentId: string): void

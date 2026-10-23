@@ -49,7 +49,7 @@ export interface ProposalFailure {
   message: string
 }
 
-/** A proposal waiting in the caixa de entrada. `source` is who proposed it, as the caller labels it ("revisão", "Íris"). */
+/** A proposal waiting in the caixa de entrada. `source` is who proposed it, as the caller labels it ("revisão", "Luna"). */
 export interface Proposal {
   id: string
   source: string

@@ -23,6 +23,11 @@ export abstract class AgentSdk extends AgentOffice {
       this.setStatus(agent, 'stopped', 'Registro histórico OpenCode · somente leitura')
       return
     }
+    if (s.quotaEnded) throw new Error('Esta tarefa foi encerrada após a pausa de cota. Limpe o contexto para iniciar outra.')
+    if (s.quotaPaused && agent.resumeAccount !== s.quotaPaused.accountId)
+      throw new Error(
+        'Esta tarefa está pausada pela cota. Somente a espera pela conta fixa pode retomá-la; encerre-a para começar outra tarefa.',
+      )
     if (this.simulate) return this.simulate(s.id, typeof prompt === 'string' ? prompt : '(mensagem com anexos)')
     const claude = findClaude()
     if (!claude) {
@@ -88,7 +93,7 @@ export abstract class AgentSdk extends AgentOffice {
       })
       return
     }
-    // A new task (not a failover or a /compact): remember the folder as it is now, so the
+    // A new task (not a continuation or a /compact): remember the folder as it is now, so the
     // card can show what this task changed. The CLI only starts once the snapshot is done:
     // anything it writes before that would count as the player's own earlier change.
     if (!agent.task && !agent.compacting && !agent.demo)
@@ -116,9 +121,26 @@ export abstract class AgentSdk extends AgentOffice {
   protected startQuery(agent: Agent, input: InputQueue, claude: string, workDir: string, squad: SquadDefinition | undefined): void {
     const s = agent.summary
     const wt = s.worktree
-    // Each run starts a new CLI process, so it can move to another account between turns.
     const before = s.account
-    const account = squad && s.account && this.accounts ? this.accounts.get(s.account) : this.accounts?.pick(s, agent.borrowed)
+    const paused = s.quotaPaused
+    let account: ReturnType<NonNullable<typeof this.accounts>['get']>
+    if (paused) {
+      account = agent.resumeAccount === paused.accountId ? this.accounts?.get(paused.accountId) : undefined
+      if (!account || !this.accounts || this.accounts.out(paused.accountId)) {
+        agent.resumeAccount = undefined
+        this.deliver(agent, {
+          text: `A conta fixa (${paused.accountId}) ainda não está disponível. A tarefa continua pausada nessa conta.`,
+          isError: true,
+          costUsd: s.costUsd,
+          durationMs: 0,
+          turns: 0,
+          limit: paused,
+        })
+        return
+      }
+    } else {
+      account = squad && s.account && this.accounts ? this.accounts.get(s.account) : this.accounts?.pick(s, agent.borrowed)
+    }
     if (squad && s.account && this.accounts && !account) {
       this.deliver(agent, {
         text: `A conta Claude fixa deste squad (${s.account}) não está mais configurada. Reconfigure a mesma conta antes de retomar; não vou trocar de conta automaticamente.`,
@@ -130,6 +152,10 @@ export abstract class AgentSdk extends AgentOffice {
       return
     }
     if (account) s.account = account.id
+    if (paused) {
+      s.quotaPaused = undefined
+      agent.resumeAccount = undefined
+    }
     const resumed = agent.started
     if (s.sessionId) {
       this.book?.begin(s.sessionId, resumed, s.costUsd)
@@ -353,7 +379,7 @@ export abstract class AgentSdk extends AgentOffice {
         agent.limitHit = undefined
         // The turn is over: no spawn is waiting for a slot at the desk anymore.
         agent.helperReservations?.clear()
-        const isError = msg.subtype !== 'success' || msg.is_error
+        const isError = msg.subtype !== 'success' || msg.is_error || (!!hit && agent.summary.role !== 'orchestrator')
         if (agent.summary.sessionId && this.book) {
           const spent = this.book.record(agent.summary, agent.summary.sessionId, agent.summary.account, msg)
           if (spent > 0) agent.summary.spentUsd = (agent.summary.spentUsd ?? 0) + spent
@@ -377,7 +403,7 @@ export abstract class AgentSdk extends AgentOffice {
         // A squad cycle is pinned to one Claude account for its whole lifecycle.
         if (hit && agent.summary.role === 'orchestrator') {
           if (agent.summary.account) this.accounts?.limitHit(agent.summary.account, hit.resetsAt)
-        } else if (hit && this.failover(agent, hit)) return
+        } else if (hit && this.pauseOnLimit(agent, hit)) return
         const limit = hit ? { accountId: agent.summary.account, resetsAt: hit.resetsAt } : undefined
         this.deliver(agent, { text, isError, costUsd: msg.total_cost_usd, durationMs: msg.duration_ms, turns: msg.num_turns, limit })
         return

@@ -16,6 +16,7 @@ import { openTasksBoard } from './ui/tasks-board'
 import { openFocusPopup } from './ui/focus-popup'
 import { openProposalReview } from './ui/proposals'
 import { openReviewOffer, openReviewWizard } from './ui/review'
+import { openIris } from './ui/iris'
 import { openReports } from './ui/reports'
 import { copyReport, exportConversation } from './ui/export'
 import { showDataNotice } from './ui/data'
@@ -245,6 +246,7 @@ async function boot(): Promise<void> {
       goHome: () => game.goHome(),
       zoom: (d) => game.zoom(d),
       newAgent: () => void newAgent(),
+      luna: () => openIris(ui, toast),
       goFloor: (n) => game.goFloor(n),
       newFloor: () => void newFloor(),
       accounts: () => openAccounts(ui, state, toast),

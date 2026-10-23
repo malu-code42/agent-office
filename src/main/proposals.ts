@@ -12,7 +12,7 @@ import { lineOfId, planDiscard, planReschedule, type TaskWriter } from './tasks-
  * order of the writes is tarefas.md, then planning.json (focus, steps and archive), then agenda.md. A failure
  * before the first write writes nothing. If agenda.md fails after tarefas.md was written, the proposal stays
  * pending with only its agenda operations, and the failure is marked on it: nothing is silently half-applied.
- * planProposal is the planning alone: the Íris uses it to check a proposal before the user sees it, and writes nothing.
+ * planProposal is the planning alone: the Luna uses it to check a proposal before the user sees it, and writes nothing.
  */
 
 const NOT_FOUND = 'Não encontrei essa tarefa no tarefas.md. Abra o quadro Tarefas de novo.'

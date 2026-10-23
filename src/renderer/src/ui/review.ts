@@ -1,4 +1,6 @@
 import { dayPt, type ProposalOperation } from '@shared/proposals'
+import { ARCHIVE_LIST, dayLabel, taskDraftProblem } from '@shared/tasks'
+import type { RoutineCandidate } from '@shared/routine-personal'
 import {
   ddmmOf,
   describeReviewOperations,
@@ -34,6 +36,20 @@ interface Pending {
   reason: string
 }
 
+interface RoutineAddition {
+  objective: string
+  editing: boolean
+  list?: string
+  submitted?: { id: string; title: string; list: string; date: string; time?: string }
+  created?: { id: string; line?: number }
+  focused: boolean
+  busy: boolean
+  error?: string
+}
+
+/** In-memory retry cache only; no routine-occurrence history is persisted. */
+const pendingRoutineRetries = new Map<string, RoutineAddition>()
+
 const CHOICE_LABELS: { kind: FocusChoice['kind']; label: string }[] = [
   { kind: 'continuar', label: 'Continuar' },
   { kind: 'reagendar', label: 'Reagendar' },
@@ -48,10 +64,17 @@ const POSTPONE_LABELS: { option: ReviewPostpone; label: string }[] = [
   { option: 7, label: '1 semana' },
 ]
 
-const OFFER = 'A Íris propõe revisar o seu dia: agenda, foco, estudos e andares.'
+const OFFER = 'A Luna propõe revisar o seu dia: agenda, foco, estudos e andares.'
 const OFFER_NOTE = 'Nada muda sem a sua confirmação no fim. Se quiser, adie a revisão.'
 
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`
+const TASK_ID_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'
+
+/** A retry token, not a secret; stable through this review window so createTask can be idempotent. */
+function routineTaskId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(6))
+  return `t${Array.from(bytes, (byte) => TASK_ID_ALPHABET[byte % TASK_ID_ALPHABET.length]).join('')}`
+}
 
 /** The four steps as pills. `current` is the step on screen; on the offer it is -1, and no pill is highlighted. */
 const stepItems = (current: number): HTMLElement[] =>
@@ -118,8 +141,17 @@ export function openReviewOffer(root: HTMLElement, toast: Toast): void {
 /** The four-step review. Opens from the offer, or from the caixa de entrada when a draft of today is waiting. */
 export async function openReviewWizard(root: HTMLElement, toast: Toast): Promise<void> {
   let view: ReviewView
+  let routines: RoutineCandidate[] = []
+  let vaultPath = ''
   try {
-    view = await window.office.openReview()
+    const [opened, candidates, state] = await Promise.all([
+      window.office.openReview(),
+      window.office.routineCandidates(),
+      window.office.getState(),
+    ])
+    view = opened
+    routines = candidates
+    vaultPath = state.settings.vaultPath ?? ''
   } catch (err) {
     toast(cleanError(err), 'err')
     return
@@ -242,6 +274,313 @@ export async function openReviewWizard(root: HTMLElement, toast: Toast): Promise
     )
   }
 
+  // Rotinas pessoais (AO-42): acceptance needs an objective; ids stay in-memory for safe create/focus retries.
+  const routineAdditions = new Map<number, RoutineAddition>()
+  const retryKey = (ro: RoutineCandidate) => `${vaultPath}\u001f${view.day}\u001f${ro.line}\u001f${JSON.stringify(ro.item ?? ro.title)}`
+
+  const additionFor = (ro: RoutineCandidate): RoutineAddition => {
+    let addition = routineAdditions.get(ro.line)
+    if (!addition) {
+      addition = pendingRoutineRetries.get(retryKey(ro)) ?? { objective: '', editing: false, focused: false, busy: false }
+      routineAdditions.set(ro.line, addition)
+    }
+    return addition
+  }
+
+  const routineWhen = (ro: RoutineCandidate): string | null => {
+    const item = ro.item
+    if (!item) return null
+    const cadence = item.cadence === 'semanal' ? `semanal (${(item.days ?? []).join(', ')})` : 'diária'
+    return item.time ? `${cadence} · ${item.time}` : cadence
+  }
+
+  const focusCreatedRoutine = async (ro: RoutineCandidate, addition: RoutineAddition): Promise<void> => {
+    const created = addition.created
+    if (!created || addition.busy) return
+    addition.busy = true
+    addition.error = undefined
+    render()
+    try {
+      const board = await window.office.readTasks()
+      const task = board.lists
+        .flatMap((list) => list.tasks.map((entry) => ({ list: list.name, task: entry })))
+        .find(({ task: entry }) => entry.id === created.id)
+      if (!task || task.list === ARCHIVE_LIST || task.task.status !== 'open')
+        throw new Error('A tarefa criada não está mais aberta no tarefas.md. Ela não será criada de novo.')
+      const line = task.task.line
+      created.line = line
+      await window.office.focusTask(line)
+      addition.focused = true
+      pendingRoutineRetries.delete(retryKey(ro))
+    } catch (err) {
+      addition.error = cleanError(err)
+      toast(addition.error, 'err')
+    } finally {
+      addition.busy = false
+      render()
+    }
+  }
+
+  const createRoutineTask = async (ro: RoutineCandidate, addition: RoutineAddition): Promise<void> => {
+    if (addition.busy || addition.created || !addition.objective.trim() || !addition.list) return
+    const item = ro.item
+    if (!item) return
+    const candidate = {
+      title: addition.objective.trim(),
+      list: addition.list,
+      date: dayLabel(new Date()),
+      ...(item.time ? { time: item.time } : {}),
+    }
+    const problem = taskDraftProblem(candidate, [addition.list])
+    if (problem) {
+      addition.error = problem
+      render()
+      return
+    }
+    addition.submitted ??= {
+      id: routineTaskId(),
+      ...candidate,
+    }
+    pendingRoutineRetries.set(retryKey(ro), addition)
+    const draft = addition.submitted
+    addition.busy = true
+    addition.error = undefined
+    render()
+    try {
+      // Refresh the writer's stale-check baseline before retrying the same idempotency key.
+      const current = await window.office.readTasks()
+      const existing = current.lists
+        .flatMap((list) => list.tasks.map((task) => ({ list: list.name, task })))
+        .find(({ task }) => task.id === draft.id)
+      if (existing) {
+        if (existing.list === ARCHIVE_LIST || existing.task.status !== 'open')
+          throw new Error('A tarefa com este identificador já não está aberta. Ela não será criada de novo.')
+        addition.created = { id: draft.id, line: existing.task.line }
+      } else {
+        const { id, board } = await window.office.createTask(draft)
+        addition.created = { id, line: board.lists.flatMap((list) => list.tasks).find((task) => task.id === id)?.line }
+      }
+      addition.editing = false
+      addition.busy = false
+      await focusCreatedRoutine(ro, addition)
+    } catch (err) {
+      addition.error = cleanError(err)
+      toast(addition.error, 'err')
+    } finally {
+      addition.busy = false
+      render()
+    }
+  }
+
+  /** Selecting a list only stages the draft; task creation needs the separate confirmation button. */
+  const chooseRoutineList = (ro: RoutineCandidate, addition: RoutineAddition, btn: HTMLButtonElement): void => {
+    if (addition.busy || addition.submitted) return
+    btn.disabled = true
+    btn.textContent = 'Lendo listas…'
+    void (async () => {
+      let names: string[]
+      try {
+        names = (await window.office.readTasks()).lists.map((l) => l.name).filter((n) => n !== ARCHIVE_LIST && n)
+      } catch (err) {
+        names = []
+        toast(cleanError(err), 'err')
+      }
+      btn.disabled = false
+      btn.textContent = addition.list ? 'Trocar lista' : 'Escolher lista'
+      if (!el.isConnected) return
+      if (!names.length) {
+        toast('Não encontrei listas no tarefas.md para receber a rotina.', 'err')
+        render()
+        return
+      }
+      const row = btn.closest<HTMLElement>('.review-task') ?? btn.parentElement ?? btn
+      openTaskMenu(
+        row,
+        'Escolher a lista da rotina',
+        names.map((n) => ({
+          text: n,
+          choose: () => {
+            addition.list = n
+            addition.error = undefined
+            render()
+          },
+        })),
+        'Sem listas no tarefas.md.',
+        btn,
+      )
+      btn.disabled = false
+      btn.textContent = addition.list ? 'Trocar lista' : 'Escolher lista'
+    })()
+  }
+
+  /** The routines of rotinas-pessoais.md for the foco step, beside the focused tasks. Null = none. */
+  const routineSection = (): HTMLElement | null => {
+    if (!routines.length) return null
+    const rows = routines.map((ro) => {
+      const title = ro.item?.title ?? ro.title ?? `Linha ${ro.line} de rotinas-pessoais.md`
+      // The numbered line keeps what the file shows the user.
+      const children: HTMLElement[] = [
+        h('div', { class: 'review-task-title' }, title),
+        ...(ro.kind === 'needsInput' && ro.reason ? [h('div', { class: 'field-hint' }, ro.reason)] : []),
+      ]
+      if (ro.kind === 'due') {
+        const when = routineWhen(ro)
+        if (when) children.push(h('div', { class: 'field-hint' }, when))
+        const addition = additionFor(ro)
+        if (addition.created) {
+          children.push(
+            h(
+              'div',
+              { class: 'review-suggest' },
+              `Objetivo de hoje: ${addition.created.id} · ${addition.submitted?.title ?? addition.objective}`,
+            ),
+          )
+          if (addition.focused) {
+            children.push(h('div', { class: 'review-suggest' }, 'Está no foco de hoje.'))
+          } else {
+            children.push(
+              h(
+                'button',
+                {
+                  class: 'btn btn-small',
+                  type: 'button',
+                  disabled: addition.busy || undefined,
+                  onclick: () => void focusCreatedRoutine(ro, addition),
+                },
+                addition.busy ? 'Adicionando ao foco…' : 'Tentar colocar no foco',
+              ),
+            )
+          }
+        } else if (addition.submitted) {
+          children.push(
+            h('div', { class: 'field-hint' }, `Objetivo definido: “${addition.submitted.title}” · lista ${addition.submitted.list}.`),
+            h(
+              'div',
+              { class: 'field-hint' },
+              addition.error ?? 'Se a confirmação anterior falhou, tente novamente; o mesmo identificador evita duplicar a tarefa.',
+            ),
+            h(
+              'button',
+              {
+                class: 'btn btn-small',
+                type: 'button',
+                disabled: addition.busy || undefined,
+                onclick: () => void createRoutineTask(ro, addition),
+              },
+              addition.busy ? 'Confirmando tarefa…' : 'Tentar criar e adicionar ao foco',
+            ),
+          )
+        } else if (addition.editing) {
+          const problemFor = (value: string) =>
+            taskDraftProblem(
+              { title: value, list: addition.list ?? '', date: dayLabel(new Date()), ...(ro.item?.time ? { time: ro.item.time } : {}) },
+              addition.list ? [addition.list] : [],
+            )
+          const initialProblem = problemFor(addition.objective)
+          const problem = h('div', { class: 'field-hint', role: 'alert' }, addition.error ?? initialProblem ?? '')
+          const objective = h('textarea', {
+            class: 'input',
+            rows: '2',
+            maxlength: '200',
+            value: addition.objective,
+            placeholder: 'O que você pretende fazer hoje?',
+            'aria-label': `Objetivo de hoje para ${title}`,
+            disabled: addition.busy || undefined,
+            oninput: (event: Event) => {
+              addition.objective = (event.currentTarget as HTMLTextAreaElement).value
+              addition.error = undefined
+              const currentProblem = problemFor(addition.objective)
+              problem.textContent = currentProblem ?? ''
+              create.disabled = !!currentProblem || addition.busy
+            },
+          }) as HTMLTextAreaElement
+          const chooseList = h(
+            'button',
+            {
+              class: 'btn btn-small',
+              type: 'button',
+              disabled: addition.busy || undefined,
+              onclick: () => chooseRoutineList(ro, addition, chooseList),
+            },
+            addition.list ? `Lista: ${addition.list} · trocar` : 'Escolher lista',
+          ) as HTMLButtonElement
+          const create = h(
+            'button',
+            {
+              class: 'btn btn-small btn-primary',
+              type: 'button',
+              disabled: !!initialProblem || addition.busy || undefined,
+              onclick: () => void createRoutineTask(ro, addition),
+            },
+            'Criar tarefa e adicionar ao foco',
+          ) as HTMLButtonElement
+          children.push(
+            h('label', { class: 'review-detail' }, h('span', { class: 'field-label' }, 'Objetivo de hoje'), objective),
+            problem,
+            chooseList,
+            create,
+            h(
+              'button',
+              {
+                class: 'btn btn-small',
+                type: 'button',
+                disabled: addition.busy || undefined,
+                onclick: () => {
+                  routineAdditions.delete(ro.line)
+                  render()
+                },
+              },
+              'Cancelar',
+            ),
+          )
+        } else {
+          const btn = h(
+            'button',
+            {
+              class: 'btn btn-small',
+              type: 'button',
+              onclick: () => {
+                const draft = additionFor(ro)
+                draft.editing = true
+                render()
+              },
+            },
+            'Definir objetivo de hoje',
+          )
+          children.push(btn)
+        }
+      } else {
+        children.push(h('div', { class: 'field-hint' }, `Precisa da sua mão na linha ${ro.line} da nota antes de virar tarefa.`))
+        const edit = h(
+          'button',
+          {
+            class: 'btn btn-small',
+            type: 'button',
+            onclick: async () => {
+              edit.disabled = true
+              try {
+                await window.office.openPersonalRoutines()
+              } catch (err) {
+                toast(cleanError(err), 'err')
+              } finally {
+                edit.disabled = false
+              }
+            },
+          },
+          'Abrir a nota para corrigir',
+        )
+        children.push(edit)
+      }
+      return h('div', { class: `review-task${ro.kind === 'due' ? '' : ' review-task-missing'}` }, ...children)
+    })
+    return h(
+      'div',
+      { class: 'review-foco-routines' },
+      h('p', { class: 'field-hint' }, 'Rotinas pessoais de hoje (de rotinas-pessoais.md; entra no foco só com o seu clique):'),
+      ...rows,
+    )
+  }
+
   /** What the Confirmar step would apply, and what stops it. */
   const plan = (): { ops: ProposalOperation[]; problems: string[] } => {
     const problems: string[] = []
@@ -266,9 +605,13 @@ export async function openReviewWizard(root: HTMLElement, toast: Toast): Promise
       return [h('ul', { class: 'review-list' }, ...view.agenda.items.map((i) => h('li', {}, `${i.time} ${i.title}`)))]
     }
     if (name === 'foco') {
+      const sec = routineSection()
       if (!view.focus.length)
-        return [h('p', { class: 'field-hint' }, 'Nenhuma tarefa em foco. Escolha tarefas no quadro para elas aparecerem aqui.')]
-      return view.focus.map(focusRow)
+        return [
+          h('p', { class: 'field-hint' }, 'Nenhuma tarefa em foco. Escolha tarefas no quadro para elas aparecerem aqui.'),
+          ...(sec ? [sec] : []),
+        ]
+      return [...view.focus.map(focusRow), ...(sec ? [sec] : [])]
     }
     if (name === 'estudos') return [h('p', {}, 'Estudos e andares ficam para as próximas entregas.')]
     if (current.problems.length) {
