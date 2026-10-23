@@ -26,3 +26,20 @@ export function onFocusPopup(cb: () => void): () => void {
     watchers.delete(cb)
   }
 }
+
+/** The close function the open popup gave; null when no popup is open. */
+let closeRequest: (() => void) | null = null
+
+/**
+ * Registers (or clears) the function that closes the popup. Only one of the two popups of the
+ * bar can be open at a time: the one that opens later calls the closer of the other first.
+ */
+export function requestFocusPopupClose(cb: (() => void) | null): void {
+  closeRequest = cb
+}
+
+/** Closes the popup of "Tarefas em foco" through the closer it registered, if one is open. */
+export function closeFocusPopup(): void {
+  closeRequest?.()
+  closeRequest = null
+}

@@ -195,3 +195,53 @@
   flex-direction: column;
   gap: 6px;
 }
+
+/* o relógio da popup do Timer: mesma coluna dos cartões, de carinha grande */
+.tm-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0 2px;
+}
+
+.tm-clock {
+  font-size: 46px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.tm-clock.running {
+  color: var(--green);
+}
+
+/* progresso fino do intervalo, pintado de acento por --p (0% a 100%) */
+.tm-prog {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.tm-prog::after {
+  content: '';
+  display: block;
+  height: 100%;
+  width: var(--p, 0%);
+  background: var(--accent);
+}
+
+/* os rádios de tarefa linkada ao intervalo */
+.tm-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.tm-task {
+  align-items: center;
+}

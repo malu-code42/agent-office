@@ -78,6 +78,8 @@ export interface OfficeState {
   reviewDraft: boolean
   /** How many tasks are in the focus ("Tarefas em foco"): the dock shows this count. */
   focusCount: number
+  /** The Timer of the bar as it reads now, or null when it is stopped; the dock shows it. */
+  barTimer?: BarTimerView | null
   /** AGENT_OFFICE_TOUR=1: the guided tour opens even if the player has seen it. */
   forceTour?: boolean
 }

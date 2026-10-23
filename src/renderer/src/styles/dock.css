@@ -100,6 +100,43 @@
   color: var(--text);
 }
 
+/* Timer: o relógio da barra. Acende em aberto/rodando/pausado;
+   o relógio pulsa suave enquanto o intervalo corre. */
+.dock-btn.tm.open {
+  background: rgba(217, 119, 87, 0.18);
+  color: var(--text);
+}
+
+.dock-btn.tm.running {
+  color: var(--green);
+}
+
+.dock-btn.tm.running svg {
+  animation: tm-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes tm-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock-btn.tm.running svg {
+    animation: none;
+  }
+}
+
+.dock-btn.tm.paused {
+  color: var(--amber);
+}
+
+/* os minutos ficam no canto, sem cobrir o relógio */
+.dock-btn.tm .badge {
+  top: -1px;
+  right: -5px;
+}
+
 /* terminal bridge failing: a small amber dot on the gear */
 .dock-alert {
   position: absolute;

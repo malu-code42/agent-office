@@ -2,11 +2,12 @@ import { clockText, type FocusItem, STEP_MAX, TIMER_MINUTES } from '@shared/plan
 import type { State } from '../state'
 import { arrowList, keepFocus, modalA11y, rove } from './a11y'
 import { h, icon } from './dom'
-import { setFocusPopupOpen } from './focus-state'
+import { setFocusPopupOpen, requestFocusPopupClose } from './focus-state'
 import { cleanError } from './modals/common'
 import { openTasksBoard, refreshTasksBoard } from './tasks-board'
 import { offerUndo, type Toast } from './tasks-complete'
 import { runDiscard } from './tasks-discard'
+import { closeTimerPopup } from './timer-state'
 import './focus.css'
 
 /**
@@ -20,6 +21,8 @@ import './focus.css'
 type TaskItem = Extract<FocusItem, { missing: false }>
 
 export async function openFocusPopup(root: HTMLElement, state: State, toast: Toast): Promise<void> {
+  // One popup of the bar at a time: the Timer closes itself before this one opens.
+  closeTimerPopup()
   if (!state.settings.vaultPath) {
     toast('Configure a pasta do vault em Ajustes → Tarefas do Obsidian.', 'err')
     return
@@ -429,5 +432,6 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
   paint(items)
   root.append(backdrop)
   setFocusPopupOpen(true)
+  requestFocusPopupClose(close)
   ;(list.querySelector<HTMLElement>('.focus-card') ?? empty.querySelector<HTMLElement>('button'))?.focus()
 }

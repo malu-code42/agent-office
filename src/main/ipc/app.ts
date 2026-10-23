@@ -61,6 +61,7 @@ export function registerAppIpc(ctx: IpcContext): void {
     proposals: ctx.planning.pendingProposals(),
     reviewDraft: hasDraftToday(ctx.planning, new Date()),
     focusCount: ctx.planning.focus().length,
+    barTimer: ctx.barTimer.view() ?? null,
     forceTour: process.env.AGENT_OFFICE_TOUR === '1',
   }))
   ipcMain.handle('office:getLedger', (_e, q: unknown) => book.query(cleanLedgerQuery(q)))
