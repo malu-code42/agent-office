@@ -638,8 +638,8 @@ export class Hud {
           h(
             'div',
             { class: 'inbox-main' },
-            h('div', { class: 'inbox-name' }, 'Revisão do dia', h('span', { class: 'chip chip-wait' }, 'rascunho')),
-            h('div', { class: 'inbox-text' }, 'Continue de onde parou.'),
+            h('div', { class: 'inbox-name' }, 'Continuar revisão do dia', h('span', { class: 'chip chip-wait' }, 'rascunho')),
+            h('div', { class: 'inbox-text' }, 'Retomar com as tarefas e escolhas salvas.'),
           ),
         ),
       )

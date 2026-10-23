@@ -18,6 +18,7 @@ import {
 } from '@shared/review'
 import { h } from './dom'
 import { cleanError, modal } from './modals/common'
+import { closeReviewAfterSave, createReviewDraftSaver } from './review-draft'
 import { openTaskMenu, type TaskMenuOption } from './tasks-move'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
@@ -90,8 +91,9 @@ const stepItems = (current: number): HTMLElement[] =>
 /** The offer of the day: shown on the first open of each local day. "Dispensar hoje" and Esc leave it for the day. */
 export function openReviewOffer(root: HTMLElement, toast: Toast): void {
   let done = false
+  let starting = false
   const leave = async (option: ReviewPostpone) => {
-    if (done) return
+    if (done || starting) return
     done = true
     el.remove()
     try {
@@ -101,11 +103,21 @@ export function openReviewOffer(root: HTMLElement, toast: Toast): void {
       toast(cleanError(err), 'err')
     }
   }
-  const start = () => {
-    if (done) return
-    done = true
-    el.remove()
-    void openReviewWizard(root, toast)
+  const start = async () => {
+    if (done || starting) return
+    starting = true
+    startBtn.disabled = true
+    try {
+      // Persist before opening: closing immediately must still leave something to resume.
+      await window.office.saveReviewDraft(0, {})
+      done = true
+      el.remove()
+      await openReviewWizard(root, toast)
+    } catch (err) {
+      starting = false
+      startBtn.disabled = false
+      toast(cleanError(err), 'err')
+    }
   }
   const dismiss = () => void leave('dispensar')
   const postpone = h('div', { class: 'review-postpone' })
@@ -123,15 +135,11 @@ export function openReviewOffer(root: HTMLElement, toast: Toast): void {
     'Adiar',
   )
   postpone.append(postponeBtn)
+  const startBtn = h('button', { class: 'btn btn-primary', type: 'button', onclick: () => void start() }, 'Começar')
   const el = modal(
     'Revisão do dia',
     [h('ol', { class: 'review-steps' }, ...stepItems(-1)), h('p', {}, `${OFFER} ${OFFER_NOTE}`)],
-    [
-      h('button', { class: 'btn', type: 'button', onclick: dismiss }, 'Dispensar hoje'),
-      h('div', { class: 'grow' }),
-      postpone,
-      h('button', { class: 'btn btn-primary', type: 'button', onclick: start }, 'Começar'),
-    ],
+    [h('button', { class: 'btn', type: 'button', onclick: dismiss }, 'Dispensar hoje'), h('div', { class: 'grow' }), postpone, startBtn],
     dismiss,
   )
   root.append(el)
@@ -181,8 +189,12 @@ export async function openReviewWizard(root: HTMLElement, toast: Toast): Promise
     }
     return out
   }
-  const save = () => {
-    void window.office.saveReviewDraft(step, choicesNow()).catch((err) => toast(cleanError(err), 'err'))
+  const draftSaver = createReviewDraftSaver((nextStep, choices) => window.office.saveReviewDraft(nextStep, choices))
+  const save = (): Promise<void> => {
+    if (busy) return Promise.resolve()
+    const pendingSave = draftSaver.save(step, choicesNow())
+    void pendingSave.catch((err) => toast(cleanError(err), 'err'))
+    return pendingSave
   }
 
   const stepsEl = h('ol', { class: 'review-steps' })
@@ -192,9 +204,17 @@ export async function openReviewWizard(root: HTMLElement, toast: Toast): Promise
   let busy = false
   let confirmBtn: HTMLButtonElement | undefined
   // Closing keeps the draft: a text field is saved when it changes, and the rest is saved on the way out.
-  const close = () => {
-    save()
-    el.remove()
+  const close = async () => {
+    if (busy) return
+    try {
+      await closeReviewAfterSave(
+        save(),
+        () => busy,
+        () => el.remove(),
+      )
+    } catch {
+      // save() reports the error; keep the wizard open so the user can retry.
+    }
   }
   // A text field changes on blur: only the confirm button's state follows, the button itself is not rebuilt (a click would be lost).
   const edited = () => {
@@ -650,6 +670,7 @@ export async function openReviewWizard(root: HTMLElement, toast: Toast): Promise
     if (busy) return
     busy = true
     try {
+      await draftSaver.drain()
       const r = await window.office.confirmReview(choicesNow())
       toast(
         r.applied
