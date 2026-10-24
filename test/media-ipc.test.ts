@@ -41,6 +41,7 @@ afterEach(() => {
 })
 
 const create = (input: unknown, token?: string) => callHandler('office:createMediaItem', input, token) as Promise<string>
+const posterPath = (markdown: string): string => markdown.match(/- Pôster: (.+)/)?.[1] ?? ''
 
 describe('confirmação IPC de mídia', () => {
   it.each([
@@ -60,9 +61,10 @@ describe('confirmação IPC de mídia', () => {
     const selected = posters.add(PNG, 'png')
     expect(existsSync(join(vault, 'filmes.md'))).toBe(false)
     const draft = { kind: 'filme', title: 'Filme com pôster', status: 'planejado' }
-    const id = await create(draft, selected.token)
-    expect(readFileSync(join(vault, 'filmes.md'), 'utf8')).toContain(`midias/posters/${id}.png`)
-    expect(readFileSync(join(vault, 'midias', 'posters', `${id}.png`))).toEqual(PNG)
+    await create(draft, selected.token)
+    const path = posterPath(readFileSync(join(vault, 'filmes.md'), 'utf8'))
+    expect(path).toMatch(/^midias\/posters\/.+\.png$/)
+    expect(readFileSync(join(vault, ...path.split('/')))).toEqual(PNG)
     await expect(create(draft, selected.token)).rejects.toThrow('A seleção de pôster expirou')
   })
 
@@ -131,11 +133,14 @@ describe('confirmação IPC de mídia', () => {
 
   it('reverte só o pôster novo quando a escrita combinada do Markdown falha', async () => {
     let failWhenNewPosterIsReferenced = false
+    let attemptedPath = ''
     const writer = createMediaWriter({
       newId: () => 'm87654321',
       writeText: (file, text) => {
-        if (failWhenNewPosterIsReferenced && file === join(vault, 'filmes.md') && text.includes('m87654321.jpeg'))
+        if (failWhenNewPosterIsReferenced && file === join(vault, 'filmes.md') && text.includes('Título novo')) {
+          attemptedPath = posterPath(text)
           throw new Error('falha simulada')
+        }
         writeFileSync(file, text)
       },
     })
@@ -147,7 +152,8 @@ describe('confirmação IPC de mídia', () => {
     } as unknown as IpcContext)
     const id = await create({ kind: 'filme', title: 'Título antigo', status: 'planejado' }, posters.add(PNG, 'png').token)
     const oldMarkdown = readFileSync(join(vault, 'filmes.md'), 'utf8')
-    const oldPoster = readFileSync(join(vault, 'midias', 'posters', `${id}.png`))
+    const oldPath = posterPath(oldMarkdown)
+    const oldPoster = readFileSync(join(vault, ...oldPath.split('/')))
     failWhenNewPosterIsReferenced = true
 
     await expect(
@@ -159,11 +165,12 @@ describe('confirmação IPC de mídia', () => {
     ).rejects.toThrow('Não foi possível gravar filmes.md')
 
     expect(readFileSync(join(vault, 'filmes.md'), 'utf8')).toBe(oldMarkdown)
-    expect(readFileSync(join(vault, 'midias', 'posters', `${id}.png`))).toEqual(oldPoster)
-    expect(existsSync(join(vault, 'midias', 'posters', `${id}.jpeg`))).toBe(false)
+    expect(readFileSync(join(vault, ...oldPath.split('/')))).toEqual(oldPoster)
+    expect(attemptedPath).toMatch(/^midias\/posters\/.+\.jpeg$/)
+    expect(existsSync(join(vault, ...attemptedPath.split('/')))).toBe(false)
   })
 
-  it('atualiza campos e pôster juntos e remove o pôster anterior após sucesso', async () => {
+  it('atualiza campos e pôster juntos e mantém o pôster anterior após sucesso', async () => {
     const markdownWrites: string[] = []
     const writer = createMediaWriter({
       newId: () => 'm87654321',
@@ -179,6 +186,7 @@ describe('confirmação IPC de mídia', () => {
       win: () => null,
     } as unknown as IpcContext)
     const id = await create({ kind: 'filme', title: 'Título antigo', status: 'planejado' }, posters.add(PNG, 'png').token)
+    const oldPath = posterPath(readFileSync(join(vault, 'filmes.md'), 'utf8'))
     markdownWrites.length = 0
 
     await callHandler(
@@ -187,13 +195,14 @@ describe('confirmação IPC de mídia', () => {
       posters.add(Buffer.from([0xff, 0xd8, 0xff]), 'jpg').token,
     )
 
-    expect(readFileSync(join(vault, 'filmes.md'), 'utf8')).toContain(
-      '## Título novo\n- ID: m87654321\n- Estado: concluído\n- Pôster: midias/posters/m87654321.jpeg',
-    )
+    const markdown = readFileSync(join(vault, 'filmes.md'), 'utf8')
+    const newPath = posterPath(markdown)
+    expect(markdown).toContain('## Título novo\n- ID: m87654321\n- Estado: concluído')
+    expect(newPath).toMatch(/^midias\/posters\/.+\.jpeg$/)
     expect(markdownWrites).toHaveLength(1)
-    expect(markdownWrites[0]).toContain('- Pôster: midias/posters/m87654321.jpeg')
-    expect(readFileSync(join(vault, 'midias', 'posters', `${id}.jpeg`))).toEqual(Buffer.from([0xff, 0xd8, 0xff]))
-    expect(existsSync(join(vault, 'midias', 'posters', `${id}.png`))).toBe(false)
+    expect(markdownWrites[0]).toContain(`- Pôster: ${newPath}`)
+    expect(readFileSync(join(vault, ...newPath.split('/')))).toEqual(Buffer.from([0xff, 0xd8, 0xff]))
+    expect(readFileSync(join(vault, ...oldPath.split('/')))).toEqual(PNG)
   })
 
   it('devolve pôster como data URL validada pelo ID e placeholder para caminho inacessível', async () => {

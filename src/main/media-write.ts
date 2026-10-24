@@ -1,16 +1,15 @@
-import { randomInt } from 'node:crypto'
+import { randomInt, randomUUID } from 'node:crypto'
 import {
   closeSync,
   existsSync,
   fsyncSync,
   lstatSync,
+  linkSync,
   mkdirSync,
   openSync,
   readFileSync,
   realpathSync,
-  renameSync,
   rmSync,
-  unlinkSync,
   writeSync,
   type Stats,
 } from 'node:fs'
@@ -49,6 +48,7 @@ import { log } from './log'
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'
 const ID_ATTEMPTS = 100
 export const POSTER_MAX_BYTES = 10 * 1024 * 1024
+const POSTER_EXISTS = 'Já existe um arquivo para este pôster. Selecione outra imagem.'
 const BOM = '\uFEFF'
 const LABEL: Record<MediaKind, string> = { livro: 'livros', filme: 'filmes', jogo: 'jogos' }
 const CHANGED = (file: string) =>
@@ -115,6 +115,7 @@ const FIELDS_OF: Record<MediaKind, ReadonlyArray<keyof AnyChange>> = {
 export interface MediaWriterOptions {
   now?: () => Date
   newId?: () => string
+  newPosterId?: () => string
   /** Writes a Markdown library. Tests replace it to simulate a failed write. */
   writeText?: (file: string, text: string) => void
 }
@@ -125,6 +126,12 @@ export function createMediaWriter(opts: MediaWriterOptions = {}) {
   const backedUp = new Set<string>()
   const now = opts.now ?? (() => new Date())
   const newId = opts.newId ?? randomMediaId
+  const newPosterId = (mediaId?: string): string => {
+    const id = (opts.newPosterId ?? randomUUID)()
+    if (!/^[a-zA-Z0-9_-]{1,64}$/.test(id)) throw new Error('Não consegui gerar um identificador válido para o pôster. Tente de novo.')
+    if (id === mediaId) throw new Error('O identificador do pôster não pode ser o mesmo do filme.')
+    return id
+  }
   const writeText = opts.writeText ?? ((file: string, text: string) => writeFileAtomic(file, text))
   const keyOf = (vault: string, kind: MediaKind) => JSON.stringify([vault, kind])
   const fileOf = (vault: string, kind: MediaKind) => join(vault, MEDIA_FILES[kind])
@@ -209,7 +216,7 @@ export function createMediaWriter(opts: MediaWriterOptions = {}) {
     const taken = new Set(parseMedia('filme', text).items.map((item) => item.id))
     const id = pickId(taken, newId)
     const extension = poster ? validatePosterImage(poster.bytes, poster.extension) : undefined
-    const posterPath = extension ? `${POSTER_DIR}/${id}.${extension}` : undefined
+    const posterPath = extension ? `${POSTER_DIR}/${newPosterId(id)}.${extension}` : undefined
     const item = { ...draftItem('filme', id, draft), ...(posterPath ? { posterPath } : {}) }
     const after = appendMediaItem(text, 'filme', item)
     if (!poster || !extension || !posterPath) {
@@ -224,17 +231,18 @@ export function createMediaWriter(opts: MediaWriterOptions = {}) {
       if (err instanceof Error && err.message === POSTER_PATH) throw err
       throw userFileError('Não foi possível acessar a pasta de pôsteres. Verifique as permissões.', err)
     }
-    const file = join(dir, `${id}.${extension}`)
-    if (linkStat(file)) throw new Error(POSTER_PATH)
+    const file = join(dir, basename(posterPath))
+    if (linkStat(file)) throw new Error(POSTER_EXISTS)
     try {
-      writePosterAtomic(file, poster.bytes)
+      writePosterNewAtomic(file, poster.bytes)
     } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'EEXIST') throw new Error(POSTER_EXISTS, { cause: err })
       throw userFileError('Não foi possível gravar o pôster. Verifique o espaço e as permissões.', err)
     }
     try {
       persist(vault, 'filme', before, after)
     } catch (err) {
-      undoPoster(file, undefined)
+      undoPoster(file)
       throw err
     }
     return id
@@ -257,7 +265,7 @@ export function createMediaWriter(opts: MediaWriterOptions = {}) {
     const movie = parseMedia('filme', text).items.find((item) => item.id === id)
     if (!movie) throw new Error(NOT_FOUND(MEDIA_FILES.filme))
     const extension = validatePosterImage(poster.bytes, poster.extension)
-    const posterPath = `${POSTER_DIR}/${id}.${extension}`
+    const posterPath = `${POSTER_DIR}/${newPosterId(id)}.${extension}`
     const updated = applyChange(movie, change)
     if (updated.kind !== 'filme') throw new Error('Pôster só pode ser anexado a um filme.')
     const next = replaceMediaItem(text, 'filme', { ...updated, posterPath, posterError: undefined })
@@ -269,40 +277,19 @@ export function createMediaWriter(opts: MediaWriterOptions = {}) {
       if (err instanceof Error && err.message === POSTER_PATH) throw err
       throw userFileError('Não foi possível acessar a pasta de pôsteres. Verifique as permissões.', err)
     }
-    const file = join(dir, `${id}.${extension}`)
-    let previous: Buffer | undefined
+    const file = join(dir, basename(posterPath))
+    if (linkStat(file)) throw new Error(POSTER_EXISTS)
     try {
-      previous = currentPoster(file)
+      writePosterNewAtomic(file, poster.bytes)
     } catch (err) {
-      if (err instanceof Error && err.message === POSTER_PATH) throw err
-      throw userFileError('Não foi possível ler o pôster existente. Verifique as permissões.', err)
-    }
-    const tmp = `${file}.tmp`
-    let tmpStat: Stats | undefined
-    try {
-      tmpStat = linkStat(tmp)
-    } catch (err) {
-      throw userFileError('Não foi possível verificar o arquivo temporário do pôster.', err)
-    }
-    if (tmpStat?.isSymbolicLink()) throw new Error(POSTER_PATH)
-    try {
-      writePosterAtomic(file, poster.bytes)
-    } catch (err) {
-      throw userFileError('Não foi possível gravar o pôster. Verifique o espaço e as permissões.', err)
+      if ((err as NodeJS.ErrnoException).code === 'EEXIST') throw new Error(POSTER_EXISTS, { cause: err })
+      throw userFileError('N\u00e3o foi poss\u00edvel gravar o p\u00f4ster. Verifique o espa\u00e7o e as permiss\u00f5es.', err)
     }
     try {
       persist(vault, 'filme', before, next)
     } catch (err) {
-      undoPoster(file, previous)
+      undoPoster(file)
       throw err
-    }
-    if (movie.posterPath && movie.posterPath !== posterPath) {
-      try {
-        removePreviousPoster(dir, movie.posterPath, id)
-      } catch {
-        // O registro novo já foi salvo; falhar ao limpar o anterior não deve marcar a operação como falha.
-        // Se a remoção falhar, o arquivo antigo permanece no lugar.
-      }
     }
     return posterPath
   }
@@ -324,7 +311,7 @@ export function createMediaWriter(opts: MediaWriterOptions = {}) {
     update<K extends MediaKind>(vault: string, kind: K, id: string, change: MediaChange<K>): void {
       updateItem(vault, kind, id, change)
     },
-    /** Updates movie fields and its poster as one operation; a failed Markdown write restores the destination poster. */
+    /** Updates movie fields and its poster as one operation; a failed Markdown write removes only the unreferenced new poster. */
     updateFilmWithPoster(vault: string, kind: MediaKind, id: string, change: MediaChange<MediaKind>, poster: PosterInput): string {
       return updateFilmWithPoster(vault, kind, id, change, poster)
     },
@@ -336,7 +323,7 @@ export function createMediaWriter(opts: MediaWriterOptions = {}) {
       updateItem(vault, kind, id, { agenda: null })
     },
     /**
-     * Copies a poster to midias/posters/<id>.<ext> and points the movie at it. Returns the relative path.
+     * Copies a poster to a unique midias/posters/<posterId>.<ext> and points the movie at it. Returns the relative path.
      * Refused, with nothing copied, when the bytes are not a PNG, JPEG or WebP up to 10 MiB, or when
      * the movie or the file has changed. A failed write of the record removes the new copy.
      */
@@ -344,7 +331,7 @@ export function createMediaWriter(opts: MediaWriterOptions = {}) {
       if (!MEDIA_ID_RE.test(id)) throw new Error(`O identificador "${id}" é inválido.`)
       validatePosterImage(poster.bytes, poster.extension)
       const extension = poster.extension.toLowerCase()
-      const posterPath = `${POSTER_DIR}/${id}.${extension}`
+      const posterPath = `${POSTER_DIR}/${newPosterId(id)}.${extension}`
 
       const before = unchanged(vault, 'filme')
       const text = before ?? ''
@@ -359,40 +346,19 @@ export function createMediaWriter(opts: MediaWriterOptions = {}) {
         if (err instanceof Error && err.message === POSTER_PATH) throw err
         throw userFileError('Não foi possível acessar a pasta de pôsteres. Verifique as permissões.', err)
       }
-      const file = join(dir, `${id}.${extension}`)
-      let previous: Buffer | undefined
+      const file = join(dir, basename(posterPath))
+      if (linkStat(file)) throw new Error(POSTER_EXISTS)
       try {
-        previous = currentPoster(file)
+        writePosterNewAtomic(file, poster.bytes)
       } catch (err) {
-        if (err instanceof Error && err.message === POSTER_PATH) throw err
-        throw userFileError('Não foi possível ler o pôster existente. Verifique as permissões.', err)
-      }
-      const tmp = `${file}.tmp`
-      let tmpStat: Stats | undefined
-      try {
-        tmpStat = linkStat(tmp)
-      } catch (err) {
-        throw userFileError('Não foi possível verificar o arquivo temporário do pôster.', err)
-      }
-      if (tmpStat?.isSymbolicLink()) throw new Error(POSTER_PATH)
-      try {
-        writePosterAtomic(file, poster.bytes)
-      } catch (err) {
-        throw userFileError('Não foi possível gravar o pôster. Verifique o espaço e as permissões.', err)
+        if ((err as NodeJS.ErrnoException).code === 'EEXIST') throw new Error(POSTER_EXISTS, { cause: err })
+        throw userFileError('N\u00e3o foi poss\u00edvel gravar o p\u00f4ster. Verifique o espa\u00e7o e as permiss\u00f5es.', err)
       }
       try {
         persist(vault, 'filme', before, next)
       } catch (err) {
-        undoPoster(file, previous)
+        undoPoster(file)
         throw err
-      }
-      if (movie.posterPath && movie.posterPath !== posterPath) {
-        try {
-          removePreviousPoster(dir, movie.posterPath, id)
-        } catch {
-          // O registro novo já foi salvo; falhar ao limpar o anterior não deve marcar a operação como falha.
-          // Se a remoção falhar, o arquivo antigo permanece no lugar.
-        }
       }
       return posterPath
     },
@@ -490,7 +456,8 @@ function safeDirectory(vault: string, parts: string[], error: string): string {
   return dir
 }
 
-function writePosterAtomic(file: string, bytes: Uint8Array): void {
+/** Writes the staged bytes only if the destination is still absent (including symlinks). */
+function writePosterNewAtomic(file: string, bytes: Uint8Array): void {
   const tmp = `${file}.stage-${process.pid}-${randomInt(0x7fffffff)}`
   const fd = openSync(tmp, 'wx')
   try {
@@ -504,38 +471,21 @@ function writePosterAtomic(file: string, bytes: Uint8Array): void {
   }
   closeSync(fd)
   try {
-    renameSync(tmp, file)
-  } catch (err) {
+    // Hard-link creation is atomic and fails with EEXIST rather than replacing a concurrent destination.
+    linkSync(tmp, file)
+  } finally {
     rmSync(tmp, { force: true })
-    throw err
   }
-}
-
-function removePreviousPoster(dir: string, relPath: string, id: string): void {
-  const prefix = `${POSTER_DIR}/`
-  if (!relPath.startsWith(prefix) || basename(relPath) === '' || !basename(relPath).startsWith(`${id}.`)) return
-  const previous = join(dir, basename(relPath))
-  const stat = linkStat(previous)
-  if (stat?.isFile() && !stat.isSymbolicLink() && isInside(realpathSync(dir), realpathSync(previous))) unlinkSync(previous)
 }
 
 function userFileError(message: string, cause: unknown): Error {
   return new Error(message, { cause })
 }
 
-/** The bytes of the poster already at `file`, or undefined. A link there is refused. */
-function currentPoster(file: string): Buffer | undefined {
-  const stat = linkStat(file)
-  if (!stat) return undefined
-  if (stat.isSymbolicLink() || !stat.isFile()) throw new Error(POSTER_PATH)
-  return readFileSync(file)
-}
-
-/** Puts back the poster that was there before the failed attempt, or removes the new copy when none was. */
-function undoPoster(file: string, previous: Buffer | undefined): void {
+/** Removes only the newly-created, not-yet-referenced poster after a failed Markdown write. */
+function undoPoster(file: string): void {
   try {
-    if (previous) writeFileAtomic(file, previous)
-    else rmSync(file, { force: true })
+    rmSync(file, { force: true })
   } catch (err) {
     // The error the user needs is the one from the Markdown; a copy that could not be undone is only logged.
     log.warn(`Pôster: não consegui desfazer a cópia de ${basename(file)} depois de uma falha: ${(err as Error).message}`)
