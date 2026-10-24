@@ -316,6 +316,26 @@ describe('resposta da Luna', () => {
     expect(planning.pendingProposals()).toHaveLength(0)
   })
 
+  it.each(['livro', 'filme', 'jogo'] as const)('devolve rascunho de mídia de %s sem proposta ou escrita', async (kind) => {
+    const { desk, planning } = setup(() => json({ operations: [], question: null, mediaDraft: { kind, title: 'Título sintético' } }))
+    const beforeTasks = tasksFile()
+    const beforeAgenda = agendaFile()
+    const result = await desk.send(desk.prepare(vault, 'Inclua o item Título sintético').token)
+
+    expect(result).toEqual({ kind: 'media-draft', draft: { kind, title: 'Título sintético' } })
+    expect(planning.pendingProposals()).toHaveLength(0)
+    expect(tasksFile()).toBe(beforeTasks)
+    expect(agendaFile()).toBe(beforeAgenda)
+    expect(readFileSync(join(data, 'planning.json'), 'utf8')).not.toContain('Título sintético')
+  })
+
+  it('uma resposta de mídia ambígua é pergunta, nunca proposta', async () => {
+    const { desk, planning } = setup(() => json({ operations: [], question: 'Você quer incluir um livro, filme ou jogo?' }))
+    const result = await desk.send(desk.prepare(vault, 'Inclua isso').token)
+    expect(result).toEqual({ kind: 'question', text: 'Você quer incluir um livro, filme ou jogo?' })
+    expect(planning.pendingProposals()).toHaveLength(0)
+  })
+
   it('referência ambígua (dois compromissos iguais): pergunta e nenhuma operação criada', async () => {
     const { desk, planning } = setup(() =>
       json({

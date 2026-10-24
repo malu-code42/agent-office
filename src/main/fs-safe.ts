@@ -27,13 +27,13 @@ export interface WriteOptions {
   tmpSuffix?: string
 }
 
-/** Writes text atomically and durably: the file holds either the old or the new text, never half. */
-export function writeFileAtomic(file: string, text: string, mode?: number, tmpSuffix = '.tmp'): void {
+/** Writes text (UTF-8) or raw bytes atomically and durably: the file holds either the old or the new content, never half. */
+export function writeFileAtomic(file: string, text: string | Uint8Array, mode?: number, tmpSuffix = '.tmp'): void {
   const tmp = file + tmpSuffix
   const fd = openSync(tmp, 'w', mode)
   try {
     try {
-      const buf = Buffer.from(text, 'utf8')
+      const buf = typeof text === 'string' ? Buffer.from(text, 'utf8') : text
       let off = 0
       while (off < buf.length) off += writeSync(fd, buf, off, buf.length - off)
       fsyncSync(fd)

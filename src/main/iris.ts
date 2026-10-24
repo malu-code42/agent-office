@@ -124,6 +124,7 @@ export class IrisDesk {
     this.pending = undefined
     const answer = await this.ask(p.context)
     if (answer.question) return { kind: 'question', text: answer.question }
+    if (answer.mediaDraft) return { kind: 'media-draft', draft: answer.mediaDraft }
     if (answer.profile && answer.operations.length === 0) return { kind: 'task', profile: answer.profile }
 
     // The files as they are now: an operation the text no longer matches becomes a question, not a proposal.

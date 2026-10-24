@@ -3,6 +3,7 @@ import { projectFor } from '@shared/projects'
 import { profileById } from '@shared/profiles'
 import { h } from './dom'
 import { cleanError, field, LAST_CWD, modal } from './modals/common'
+import { openMediaDraft } from './modals/media-draft'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
 
@@ -100,6 +101,11 @@ export function openIris(root: HTMLElement, toast: Toast): void {
         }
         question.textContent = 'A tarefa não começou porque nenhuma pasta foi escolhida.'
         question.classList.remove('hidden')
+        return
+      }
+      if (result.kind === 'media-draft') {
+        close()
+        openMediaDraft(root, result.draft, toast)
         return
       }
       if (result.kind === 'proposal') {
