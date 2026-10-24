@@ -12,6 +12,7 @@ import type { ClaudeStats } from './stats'
 import type { AgendaView } from '../agenda'
 import type { RoutineCandidate } from '../routine-personal'
 import type { FocusItem } from '../planning'
+import type { MediaCreateInput, MediaItemOf, MediaKind, MediaPosterResult, MediaUpdateInput } from '../media'
 import type { BarTimerView } from '../barTimer'
 import type { IrisPreview, IrisResult } from '../iris'
 import type { Proposal } from '../proposals'
@@ -61,6 +62,13 @@ export interface OpenTerminalResult {
   /** Error for the user (pt-BR) when ok is false. */
   message?: string
   via?: TerminalVia
+}
+
+export interface MediaPosterSelection {
+  token: string
+  previewDataUrl: string
+  extension: 'png' | 'jpeg' | 'webp'
+  sizeBytes: number
 }
 
 export interface OfficeState {
@@ -206,6 +214,18 @@ export interface RendererError {
 
 export interface OfficeAPI {
   getState(): Promise<OfficeState>
+  /** Opens the native poster picker; returns a short-lived in-memory selection, or null when cancelled. */
+  pickMediaPoster(): Promise<MediaPosterSelection | null>
+  /** Discards an unconfirmed poster selection. */
+  discardMediaPoster(token: string): Promise<void>
+  /** Saves one locally reviewed media item; a poster is referenced only by its one-shot token. */
+  createMediaItem(input: MediaCreateInput, posterToken?: string): Promise<string>
+  /** Re-reads one media library, updating the main-process stale-check snapshot. */
+  readMedia(kind: MediaKind): Promise<MediaItemOf<MediaKind>[]>
+  /** Applies locally reviewed changes to an item, optionally attaching a selected movie poster. */
+  updateMediaItem(input: MediaUpdateInput, posterToken?: string): Promise<void>
+  /** Returns a validated image data URL by movie ID; never accepts or returns a filesystem path. */
+  readMediaPoster(id: string): Promise<MediaPosterResult>
   /** Lê e interpreta listas de tarefas no vault indicado, sem escrever no arquivo. */
   readTasks(): Promise<ParsedBoard>
   /** Lê objetivos.md e tarefas.md; os objetivos continuam editáveis no Obsidian. */

@@ -20,6 +20,7 @@ import { openMoveMenu, openTaskMenu } from './tasks-move'
 import { openNewTask } from './tasks-new'
 import { openGoals } from './goals'
 import { openWritingLibrary } from './writing'
+import { openMediaLibrary } from './media-library'
 import { runDiscard, runReopen } from './tasks-discard'
 import { keepScroll } from './tasks-scroll'
 import './focus.css'
@@ -386,6 +387,7 @@ export async function openTasksBoard(
           { class: 'btn btn-small', type: 'button', 'data-focus-key': 'objetivos', onclick: () => openGoals(root, toast) },
           'Objetivos',
         ),
+        h('button', { class: 'btn btn-small', type: 'button', 'data-focus-key': 'midias', onclick: () => void openMediaLibrary(root, toast) }, 'Mídias'),
         h(
           'button',
           {

@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { ATTACH_LIMITS } from '@shared/attachments'
 import { HAIR_STYLES } from '@shared/describe'
 import { IRIS_NOT_UNDERSTOOD, type IrisAnswer } from '@shared/iris'
+import { MEDIA_STATUSES, type MediaCreateInput, type MediaUpdateInput } from '@shared/media'
 import { STEP_MAX } from '@shared/planning'
 import { isIsoDay, REFUSED_KINDS, REFUSED_MESSAGE, type Proposal, type ProposalOperation } from '@shared/proposals'
 import { PROFILE_IDS } from '@shared/profiles'
@@ -102,6 +103,85 @@ export const writingOriginalSchema = z.object({
 })
 export const writingReviewArgsSchema = z.tuple([writingSnippetIdSchema, writingVersionIdSchema, z.string().min(1).max(2_000)])
 export const writingDraftArgsSchema = z.tuple([writingTokenValueSchema, z.string().min(1).max(50_000)])
+/** O token temporário de uma seleção de pôster; nunca é um caminho de arquivo. */
+export const mediaPosterTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/)
+const mediaTitleSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .refine((v) => !/[\r\n]/.test(v))
+const mediaAgendaLinkSchema = z
+  .object({
+    day: z.string().refine(isIsoDay, 'A data do vínculo de agenda é inválida.'),
+    time: z.string().regex(TIME_FORMAT, 'O horário do vínculo de agenda é inválido.'),
+    title: mediaTitleSchema,
+  })
+  .strict()
+export const mediaCreateInputSchema: z.ZodType<MediaCreateInput> = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('livro'),
+      title: mediaTitleSchema,
+      status: z.enum(MEDIA_STATUSES),
+      pagesRead: z.number().int().min(0),
+      totalPages: z.number().int().min(0).optional(),
+      agenda: mediaAgendaLinkSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({ kind: z.literal('filme'), title: mediaTitleSchema, status: z.enum(MEDIA_STATUSES), agenda: mediaAgendaLinkSchema.optional() })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('jogo'),
+      title: mediaTitleSchema,
+      status: z.enum(MEDIA_STATUSES),
+      favorite: z.boolean(),
+      platinum: z.boolean(),
+      agenda: mediaAgendaLinkSchema.optional(),
+    })
+    .strict(),
+])
+export const createMediaItemArgsSchema = z.tuple([mediaCreateInputSchema, mediaPosterTokenSchema.optional()])
+const agendaLinkSchema = mediaAgendaLinkSchema.nullable()
+export const mediaUpdateInputSchema: z.ZodType<MediaUpdateInput> = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('livro'),
+      id: z.string().regex(/^m[a-z0-9]{8}$/),
+      title: mediaTitleSchema,
+      status: z.enum(MEDIA_STATUSES),
+      pagesRead: z.number().int().min(0),
+      totalPages: z.number().int().min(0).nullable(),
+      agenda: agendaLinkSchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('filme'),
+      id: z.string().regex(/^m[a-z0-9]{8}$/),
+      title: mediaTitleSchema,
+      status: z.enum(MEDIA_STATUSES),
+      agenda: agendaLinkSchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('jogo'),
+      id: z.string().regex(/^m[a-z0-9]{8}$/),
+      title: mediaTitleSchema,
+      status: z.enum(MEDIA_STATUSES),
+      favorite: z.boolean(),
+      platinum: z.boolean(),
+      agenda: agendaLinkSchema,
+    })
+    .strict(),
+])
+export const mediaUpdateArgsSchema = z.tuple([mediaUpdateInputSchema, mediaPosterTokenSchema.optional()])
+export const mediaReadArgsSchema = z.tuple([z.enum(['livro', 'filme', 'jogo'])])
+export const mediaPosterReadArgsSchema = z.tuple([z.string().regex(/^m[a-z0-9]{8}$/)])
+export const pickMediaPosterArgsSchema = z.tuple([])
 /** getSubagentLog(agentId, subId) */
 export const subagentLogArgsSchema = z.tuple([idSchema, idSchema])
 export const pathSchema = z.string().min(1).max(MAX_PATH)
@@ -201,6 +281,17 @@ export const proposalSchema: z.ZodType<Proposal> = z.object({
  */
 /** The suggested profile: only an id of profiles.ts (or none), never invented by the model. */
 export const profileIdSchema = z.enum(PROFILE_IDS).nullish()
+export const mediaDraftSchema = z
+  .object({
+    kind: z.enum(['livro', 'filme', 'jogo']),
+    title: z
+      .string()
+      .trim()
+      .min(1)
+      .max(200)
+      .refine((title) => !/[\r\n]/.test(title)),
+  })
+  .strict()
 
 /**
  * What the Luna answers (AO-13): operations to propose, or one question. The same operation kinds as a
@@ -212,8 +303,15 @@ export const irisAnswerSchema: z.ZodType<IrisAnswer> = z
     operations: z.array(proposalOperationSchema).max(50),
     question: z.string().trim().min(1).max(500).nullish(),
     profile: profileIdSchema,
+    mediaDraft: mediaDraftSchema.nullish(),
   })
-  .refine((a) => !!a.question || a.operations.length > 0 || !!a.profile, 'Resposta sem operações, perfil nem pergunta.')
+  .refine(
+    (a) =>
+      (a.question && !a.mediaDraft && a.operations.length === 0 && !a.profile) ||
+      (a.mediaDraft && a.operations.length === 0 && !a.profile && !a.question) ||
+      (!a.mediaDraft && (!!a.question || a.operations.length > 0 || !!a.profile)),
+    'Resposta ambígua ou sem ação.',
+  )
 
 /** The request box's text: the length the box allows is checked again by IrisDesk, in characters. */
 export const irisRequestSchema = z.string().max(20_000)

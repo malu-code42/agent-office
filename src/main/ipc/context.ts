@@ -19,6 +19,8 @@ import type { ProfileMemoryStore } from '../profile-memory'
 import type { UsageMonitor } from '../usage'
 import type { WritingAssistant } from '../writing-assistant'
 import type { WritingWriter } from '../writing-write'
+import type { MediaPosters } from '../media-posters'
+import type { MediaWriter } from '../media-write'
 import { idSchema, parse } from '../validate'
 
 /** What the IPC handlers (ipc/*.ts) share; built once in index.ts when the app is ready. */
@@ -36,6 +38,8 @@ export interface IpcContext {
   profileMemory: ProfileMemoryStore
   writing: WritingWriter
   writingAssistant: WritingAssistant
+  mediaPosters: MediaPosters
+  mediaWriter: MediaWriter
   book: CostBook
   desk: TicketDesk
   routines: RoutineScheduler
