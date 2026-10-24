@@ -7,3 +7,4 @@ export { openResume } from './resume'
 export { openRunSquad } from './run-squad'
 export { openCreateSquad } from './create-squad'
 export { openNewFloor } from './new-floor'
+export { openProfileMemories } from './profile-memory' // AO-43

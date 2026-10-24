@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -29,6 +30,47 @@ const put = (name: string, data: unknown) => writeFileSync(join(dir, name), type
 const read = (name: string) => JSON.parse(readFileSync(join(dir, name), 'utf8'))
 
 describe('daily backups', () => {
+  it('refuses symlinked backup roots and destinations before copying', () => {
+    const outside = mkdtempSync(join(tmpdir(), 'ao-backups-outside-'))
+    try {
+      put('office.json', { settings: {} })
+      symlinkSync(outside, backupsDir(dir), 'junction')
+      expect(() => dailyBackup(dir, new Date(2026, 9, 1))).toThrow(/link simbólico/)
+      expect(readdirSync(outside)).toEqual([])
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('refuses a symlinked destination folder', () => {
+    const outside = mkdtempSync(join(tmpdir(), 'ao-backups-outside-destination-'))
+    try {
+      put('office.json', { settings: {} })
+      mkdirSync(backupsDir(dir))
+      symlinkSync(outside, join(backupsDir(dir), '2026-10-01'), 'junction')
+      expect(() => dailyBackup(dir, new Date(2026, 9, 1))).toThrow(/link simbólico/)
+      expect(readdirSync(outside)).toEqual([])
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('does not list, prune, or restore through symlinked backup folders', () => {
+    const outside = mkdtempSync(join(tmpdir(), 'ao-backups-outside-dest-'))
+    try {
+      writeFileSync(join(outside, 'office.json'), JSON.stringify({ settings: {} }))
+      mkdirSync(backupsDir(dir))
+      symlinkSync(outside, join(backupsDir(dir), '2026-10-01'), 'junction')
+      expect(listBackups(dir)).toEqual([])
+      expect(backupCopies(dir, 'office.json')).toEqual([])
+      expect(() => readBackup(dir, '2026-10-01')).toThrow(/link simbólico/)
+      expect(() => snapshot(dir, new Date('2026-10-02T12:00:00.000Z'))).not.toThrow()
+      expect(readFileSync(join(outside, 'office.json'), 'utf8')).toContain('settings')
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
   it('one copy a day, the last 14 days kept', () => {
     put('office.json', { settings: {} })
     put('tickets.json', { seq: 1, tickets: [] })
@@ -47,6 +89,22 @@ describe('daily backups', () => {
     put('tickets.json', '{"seq":')
     dailyBackup(dir, new Date(2026, 9, 1))
     expect(readdirSync(join(backupsDir(dir), '2026-10-01'))).toEqual(['office.json'])
+  })
+
+  it('does not copy symlinked source data files', () => {
+    const outside = mkdtempSync(join(tmpdir(), 'ao-backups-outside-source-'))
+    try {
+      put('office.json', { settings: {} })
+      writeFileSync(join(outside, 'profile-memory.json'), JSON.stringify({ memories: { tecnica: { text: 'Resumo externo.', updatedAt: 1 } } }))
+      symlinkSync(join(outside, 'profile-memory.json'), join(dir, 'profile-memory.json'), 'file')
+
+      dailyBackup(dir, new Date(2026, 9, 1))
+
+      expect(readdirSync(join(backupsDir(dir), '2026-10-01'))).toEqual(['office.json'])
+      expect(readFileSync(join(outside, 'profile-memory.json'), 'utf8')).toContain('Resumo externo.')
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
   })
 
   it('the date comes from the folder name, not its mtime (AO-25)', () => {
@@ -79,6 +137,29 @@ describe('daily backups', () => {
 })
 
 describe('restore', () => {
+  it('ignores symlinked backup files when listing and restoring', () => {
+    const outside = mkdtempSync(join(tmpdir(), 'ao-backups-outside-file-'))
+    const day = join(backupsDir(dir), '2026-10-04')
+    const target = join(outside, 'profile-memory.json')
+    const original = JSON.stringify({ memories: { tecnica: { text: 'Resumo externo.', updatedAt: 1 } } })
+    try {
+      mkdirSync(day, { recursive: true })
+      writeFileSync(join(day, 'office.json'), JSON.stringify({ settings: {} }))
+      writeFileSync(target, original)
+      symlinkSync(target, join(day, 'profile-memory.json'), 'file')
+      put('profile-memory.json', { memories: { tecnica: { text: 'Memória local.', updatedAt: 2 } } })
+
+      expect(readBackup(dir, '2026-10-04')).not.toHaveProperty('profile-memory.json')
+      expect(listBackups(dir)).toEqual([{ id: '2026-10-04', kind: 'daily', at: expect.any(Number), size: lstatSync(join(day, 'office.json')).size, files: ['office.json'] }])
+      restoreBackup(dir, '2026-10-04')
+
+      expect(read('profile-memory.json')).toEqual({ memories: { tecnica: { text: 'Memória local.', updatedAt: 2 } } })
+      expect(readFileSync(target, 'utf8')).toBe(original)
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
   it('puts the backup in place; the snapshot keeps the state before', () => {
     put('office.json', { v: 'old' })
     put('tickets.json', { seq: 1, tickets: [] })
@@ -124,6 +205,7 @@ describe('restore', () => {
       'timer.json',
       'squad-proposals.json',
       'squad-queues.json',
+      'profile-memory.json',
     ])
     restoreBackup(dir, '2026-10-01')
     expect(read('office.json')).toEqual({ v: 'old' })
@@ -198,6 +280,43 @@ describe('export / import', () => {
     expect(parseExport('\uFEFF' + exp).files['office.json']).toEqual({ settings: {} })
     const bad = { format: 'agent-office-dados', version: 1, files: { 'office.json': { agents: {} } } }
     expect(() => parseExport(JSON.stringify(bad))).toThrow(/formato/)
+  })
+
+  it('rejects malformed or recognizable provider keys in imported profile memory', () => {
+    for (const text of ['sk-ant-api03-abcdefghijklmnopqrstuvwxyz1234567890', 'sk-proj-abcdefghijklmnopqrstuvwxyz1234567890']) {
+      const exp = {
+        format: 'agent-office-dados',
+        version: 1,
+        files: {
+          'office.json': { settings: {} },
+          'profile-memory.json': { memories: { tecnica: { text, updatedAt: 1 } } },
+        },
+      }
+      expect(() => parseExport(JSON.stringify(exp))).toThrow(/formato inesperado na exportação/)
+    }
+
+    const malformed = {
+      format: 'agent-office-dados',
+      version: 1,
+      files: { 'office.json': { settings: {} }, 'profile-memory.json': { memories: { tecnica: { updatedAt: 1 } } } },
+    }
+    expect(() => parseExport(JSON.stringify(malformed))).toThrow(/formato inesperado na exportação/)
+  })
+
+  it('rejects unknown profile-memory export fields at both levels', () => {
+    for (const profileMemory of [
+      { memories: { tecnica: { text: 'Resumo seguro.', updatedAt: 1 } }, credential: 'secret-value' },
+      { memories: { tecnica: { text: 'Resumo seguro.', updatedAt: 1, credential: 'secret-value' } } },
+      { memories: { 'nizzie-no-such': { text: 'Resumo seguro.', updatedAt: 1 } } },
+      { memories: { tecnica: { text: 'Resumo seguro.', updatedAt: Number.POSITIVE_INFINITY } } },
+    ]) {
+      const exp = {
+        format: 'agent-office-dados',
+        version: 1,
+        files: { 'office.json': { settings: {} }, 'profile-memory.json': profileMemory },
+      }
+      expect(() => parseExport(JSON.stringify(exp))).toThrow(/formato inesperado na exportação/)
+    }
   })
 
   it('rejects files that are not exports', () => {

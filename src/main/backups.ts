@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import type { BackupEntry } from '@shared/types'
 import { parseJson, writeFileAtomic, writeJsonAtomic } from './fs-safe'
+import { isProfileMemoryData } from '@shared/profile-memory'
 
 /**
  * Copies of the app's data in userData/backups/. No Electron here (the folder comes in),
@@ -23,6 +24,7 @@ export const DATA_FILES = [
   'timer.json',
   'squad-proposals.json',
   'squad-queues.json',
+  'profile-memory.json', // AO-43
 ] as const
 export type DataFile = (typeof DATA_FILES)[number]
 
@@ -32,6 +34,61 @@ const DAILY_RE = /^\d{4}-\d{2}-\d{2}$/
 const SNAPSHOT_RE = /^antes-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}(-\d{3})?$/
 
 export const backupsDir = (dataDir: string): string => join(dataDir, 'backups')
+
+const inside = (root: string, path: string): boolean => {
+  const rel = relative(root, path)
+  return rel === '' || (!isAbsolute(rel) && rel !== '..' && !rel.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`))
+}
+
+function checkedDirectory(path: string, root: string, label: string): boolean {
+  let info
+  try {
+    info = lstatSync(path)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false
+    throw err
+  }
+  if (info.isSymbolicLink() || !info.isDirectory())
+    throw new Error(`${label} inválido: não pode ser link simbólico nem outro tipo de arquivo.`)
+  const resolved = realpathSync(path)
+  if (!inside(root, resolved)) throw new Error(`${label} inválido: caminho fora dos dados do aplicativo.`)
+  return true
+}
+
+/** Returns metadata only for a regular file physically contained in a non-symlink directory. */
+function regularFileInDirectory(dir: string, name: string): { size: number } | undefined {
+  const path = join(dir, name)
+  if (!inside(resolve(dir), resolve(path))) return undefined
+  try {
+    const dirInfo = lstatSync(dir)
+    if (dirInfo.isSymbolicLink() || !dirInfo.isDirectory()) return undefined
+    const info = lstatSync(path)
+    if (info.isSymbolicLink() || !info.isFile()) return undefined
+    const root = realpathSync(dir)
+    return inside(root, realpathSync(path)) ? { size: info.size } : undefined
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+    throw err
+  }
+}
+
+/** Checks all backup directories without following links, creating only validated paths. */
+function ensureBackupDestination(dataDir: string, dest?: string, createRoot = true): { root: string; exists: boolean } {
+  const data = resolve(dataDir)
+  const dataInfo = lstatSync(data)
+  if (dataInfo.isSymbolicLink() || !dataInfo.isDirectory()) throw new Error('A pasta de dados do aplicativo não é um diretório seguro.')
+  const dataReal = realpathSync(data)
+  const root = backupsDir(data)
+  if (!checkedDirectory(root, dataReal, 'A pasta de backups')) {
+    if (!createRoot) return { root, exists: false }
+    mkdirSync(root)
+  }
+  checkedDirectory(root, dataReal, 'A pasta de backups')
+  if (!dest) return { root, exists: true }
+  const exists = checkedDirectory(dest, dataReal, 'A pasta de destino do backup')
+  if (exists) checkedDirectory(dest, dataReal, 'A pasta de destino do backup')
+  return { root, exists }
+}
 
 /** Local day as AAAA-MM-DD. */
 export function dayKey(d = new Date()): string {
@@ -65,6 +122,8 @@ export const DATA_SHAPES: Record<DataFile, (v: unknown) => boolean> = {
   'squad-proposals.json': (v) => isObj(v) && (v.proposals === undefined || Array.isArray(v.proposals)),
   // The queue of each squad: the ticket it works on and the ones waiting.
   'squad-queues.json': (v) => isObj(v) && isMap(v.queues),
+  // AO-43: one short summary per profile, written by the user — never raw prompts.
+  'profile-memory.json': isProfileMemoryData,
 }
 
 /** The `valid` option of loadJson for a data file. */
@@ -84,10 +143,11 @@ const isBackupId = (id: unknown): id is string => typeof id === 'string' && (DAI
 
 /** Copies the data files that parse into `dest`. A broken file is never copied over a good backup. */
 function copyGood(dataDir: string, dest: string): string[] {
-  mkdirSync(dest, { recursive: true })
+  if (!ensureBackupDestination(dataDir, dest).exists) mkdirSync(dest)
   const copied: string[] = []
   for (const name of DATA_FILES) {
     const src = join(dataDir, name)
+    if (!regularFileInDirectory(dataDir, name)) continue
     let text: string
     try {
       text = readFileSync(src, 'utf8')
@@ -103,7 +163,21 @@ function copyGood(dataDir: string, dest: string): string[] {
 
 function folders(dir: string, re: RegExp): string[] {
   try {
-    return readdirSync(dir).filter((n) => re.test(n) && statSync(join(dir, n)).isDirectory()).sort()
+    const rootInfo = lstatSync(dir)
+    if (rootInfo.isSymbolicLink() || !rootInfo.isDirectory()) return []
+    const root = realpathSync(dir)
+    return readdirSync(dir)
+      .filter((n) => {
+        if (!re.test(n)) return false
+        try {
+          const path = join(dir, n)
+          const info = lstatSync(path)
+          return !info.isSymbolicLink() && info.isDirectory() && inside(root, realpathSync(path))
+        } catch {
+          return false
+        }
+      })
+      .sort()
   } catch {
     return []
   }
@@ -119,8 +193,9 @@ function prune(dir: string, re: RegExp, keep: number): void {
 export function dailyBackup(dataDir: string, now = new Date()): string | null {
   const dir = backupsDir(dataDir)
   const dest = join(dir, dayKey(now))
-  if (existsSync(dest)) return null
   if (!DATA_FILES.some((n) => existsSync(join(dataDir, n)))) return null
+  const safe = ensureBackupDestination(dataDir, dest)
+  if (safe.exists) return null
   copyGood(dataDir, dest)
   prune(dir, DAILY_RE, KEEP_DAILY)
   return dest
@@ -130,6 +205,7 @@ export function dailyBackup(dataDir: string, now = new Date()): string | null {
 export function snapshot(dataDir: string, now = new Date()): string {
   const dir = backupsDir(dataDir)
   const dest = join(dir, `antes-${now.toISOString().slice(0, 23).replace(/[:.]/g, '-')}`)
+  ensureBackupDestination(dataDir, dest)
   copyGood(dataDir, dest)
   prune(dir, SNAPSHOT_RE, KEEP_SNAPSHOTS)
   return dest
@@ -155,8 +231,12 @@ export function listBackups(dataDir: string): BackupEntry[] {
   const out: BackupEntry[] = []
   for (const id of [...folders(dir, DAILY_RE), ...folders(dir, SNAPSHOT_RE)]) {
     const path = join(dir, id)
-    const files = DATA_FILES.filter((n) => existsSync(join(path, n)))
-    const size = files.reduce((sum, n) => sum + statSync(join(path, n)).size, 0)
+    const safeFiles = DATA_FILES.flatMap((n) => {
+      const info = regularFileInDirectory(path, n)
+      return info ? [{ name: n, size: info.size }] : []
+    })
+    const files = safeFiles.map(({ name }) => name)
+    const size = safeFiles.reduce((sum, file) => sum + file.size, 0)
     out.push({ id, kind: DAILY_RE.test(id) ? 'daily' : 'snapshot', at: backupTime(id), size, files })
   }
   return out.sort((a, b) => b.at - a.at)
@@ -168,7 +248,7 @@ export function backupCopies(dataDir: string, name: DataFile): string[] {
   return folders(dir, DAILY_RE)
     .reverse()
     .map((id) => join(dir, id, name))
-    .filter((p) => existsSync(p))
+    .filter((p) => !!regularFileInDirectory(dirname(p), name))
 }
 
 /**
@@ -203,12 +283,14 @@ export function replaceData(dataDir: string, files: DataSet): void {
 /** The files of a backup, checked: throws before anything changes when it cannot be used. */
 export function readBackup(dataDir: string, id: unknown): DataSet {
   if (!isBackupId(id)) throw new Error('Backup inválido.')
-  const path = join(backupsDir(dataDir), id)
-  if (!existsSync(path)) throw new Error('Esse backup não existe mais.')
+  const { root, exists: rootExists } = ensureBackupDestination(dataDir, undefined, false)
+  if (!rootExists) throw new Error('Esse backup não existe mais.')
+  const path = join(root, id)
+  if (!checkedDirectory(path, realpathSync(resolve(dataDir)), 'A pasta do backup')) throw new Error('Esse backup não existe mais.')
   const files: DataSet = {}
   for (const name of DATA_FILES) {
+    if (!regularFileInDirectory(path, name)) continue
     const p = join(path, name)
-    if (!existsSync(p)) continue
     const text = readFileSync(p, 'utf8')
     parseData(name, text) // a broken backup throws before anything changes
     files[name] = text
@@ -328,6 +410,9 @@ export function sanitizeImportedRoutines(data: unknown): unknown {
 export function importSet(exp: ExportFile, home = homedir()): DataSet {
   const files: DataSet = {}
   for (const name of DATA_FILES) {
+    if (name === 'profile-memory.json' && exp.files[name] !== undefined && !DATA_SHAPES[name](exp.files[name])) {
+      throw new Error(`${name} está num formato inesperado na exportação.`)
+    }
     const v =
       name === 'office.json' ? sanitizeImportedOffice(exp.files[name], home) : name === 'routines.json' ? sanitizeImportedRoutines(exp.files[name]) : exp.files[name]
     if (v !== undefined) files[name] = JSON.stringify(v)

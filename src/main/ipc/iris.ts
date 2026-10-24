@@ -19,6 +19,7 @@ export function registerIrisIpc(ctx: IpcContext, files: { tasks: TaskWriter; age
     agenda: files.agenda,
     interpreter: claudeIrisInterpreter(),
     log,
+    memories: () => ctx.profileMemory.summaries(), // AO-43
   })
 
   ipcMain.handle('office:prepareIris', async (_e, request: unknown) => {

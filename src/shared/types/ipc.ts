@@ -97,6 +97,13 @@ export interface DataNotice {
   path: string
 }
 
+/** AO-43: the memory of one profile — a short summary written by the person, with the time it was saved. */
+export interface ProfileMemoryEntry {
+  /** What Luna may read: what the person wrote, already trimmed, never raw prompts or credentials. */
+  text: string
+  updatedAt: number
+}
+
 /** A copy of the data in userData/backups/. */
 export interface BackupEntry {
   /** Folder name: AAAA-MM-DD (daily) or antes-<timestamp> (before a restore or import). */
@@ -248,6 +255,16 @@ export interface OfficeAPI {
   resetBarTimer(): Promise<BarTimerView | null>
   /** Troca (ou tira) o rótulo da tarefa ligada; nada guarda quando o Timer está Parado. */
   setBarTimerTask(task: { id?: string; text?: string } | null): Promise<BarTimerView | null>
+  // AO-43: memória dos perfis — um resumo curto por perfil, escrito pela pessoa.
+
+  /** A memória de todo perfil que tem uma, no formato { id da profile: entrada }. */
+  profileMemoryState(): Promise<Record<string, ProfileMemoryEntry>>
+  /** A memória de um perfil; null quando ele não tem nenhuma. */
+  readProfileMemory(profileId: string): Promise<ProfileMemoryEntry | null>
+  /** Salva (ou reescreve) a memória de um perfil; o texto é cortado nas pontas e não pode ficar vazio. */
+  editProfileMemory(profileId: string, text: string): Promise<ProfileMemoryEntry>
+  /** Apaga a memória de um perfil, de propósito mesmo. */
+  deleteProfileMemory(profileId: string): Promise<void>
   getLog(agentId: string): Promise<LogEntry[]>
   /** The log of one subagent of the agent (running or recently ended); [] when unknown. */
   getSubagentLog(agentId: string, subId: string): Promise<LogEntry[]>
