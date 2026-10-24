@@ -4,6 +4,7 @@ import {
   appendMediaItem,
   bookProgress,
   bookStatusAfterPrompt,
+  needsBookCompletionPrompt,
   newMediaItem,
   needsAgendaConfirmation,
   parseMedia,
@@ -399,6 +400,11 @@ describe('codec de mídias', () => {
   })
 
   it('só sugere conclusão do livro com confirmação explícita', () => {
+    expect(needsBookCompletionPrompt('planejado', 100, 100)).toBe(true)
+    expect(needsBookCompletionPrompt('em andamento', 100, 100)).toBe(true)
+    expect(needsBookCompletionPrompt('concluído', 100, 100)).toBe(false)
+    expect(needsBookCompletionPrompt('planejado', 99, 100)).toBe(false)
+    expect(needsBookCompletionPrompt('planejado', 100, undefined)).toBe(false)
     expect(bookStatusAfterPrompt('em andamento', 100, 100, false)).toBe('em andamento')
     expect(bookStatusAfterPrompt('em andamento', 100, 100, true)).toBe('concluído')
     expect(bookStatusAfterPrompt('planejado', 99, 100, true)).toBe('planejado')

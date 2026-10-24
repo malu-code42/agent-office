@@ -130,6 +130,11 @@ export function bookStatusAfterPrompt(
   return totalPages !== undefined && pagesRead === totalPages && confirmed ? 'concluído' : current
 }
 
+/** A completed status is already explicit; otherwise reaching a known total needs confirmation. */
+export function needsBookCompletionPrompt(status: MediaStatus, pagesRead: number, totalPages: number | undefined): boolean {
+  return status !== 'concluído' && totalPages !== undefined && pagesRead === totalPages
+}
+
 /** A cancelled native picker leaves the current selection untouched. */
 export function posterAfterPicker<T>(current: T | null, picked: T | null): T | null {
   return picked ?? current

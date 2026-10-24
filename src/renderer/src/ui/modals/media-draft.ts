@@ -1,8 +1,16 @@
-import type { MediaCreateInput, MediaKind, MediaStatus } from '@shared/media'
+import {
+  bookStatusAfterPrompt,
+  needsBookCompletionPrompt,
+  type MediaAgendaLink,
+  type MediaCreateInput,
+  type MediaKind,
+  type MediaStatus,
+} from '@shared/media'
 import type { IrisAnswer } from '@shared/iris'
 import type { MediaPosterSelection } from '@shared/types'
 import { h } from '../dom'
-import { cleanError, field, modal } from './common'
+import { readMediaAgendaLinks } from '../media-agenda'
+import { cleanError, confirmDialog, field, modal } from './common'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
 type Draft = NonNullable<IrisAnswer['mediaDraft']>
@@ -15,6 +23,14 @@ export function openMediaDraft(root: HTMLElement, draft: Draft, toast: Toast): v
   let poster: MediaPosterSelection | null = null
   const title = h('input', { type: 'text', maxlength: '200', value: draft.title, required: '', autocomplete: 'off' })
   const status = h('select', {}, ...STATUSES.map((value) => h('option', { value, selected: value === 'planejado' }, value)))
+  const agenda = h('select', { 'aria-label': 'Vínculo opcional à agenda' }, h('option', { value: '' }, 'Carregando compromissos…'))
+  const agendaError = h('div', { class: 'media-error hidden', role: 'alert' })
+  const agendaRetry = h(
+    'button',
+    { class: 'btn btn-small hidden', type: 'button', onclick: () => void loadAgenda() },
+    'Tentar carregar novamente',
+  )
+  const saveError = h('p', { class: 'media-error hidden', role: 'alert' })
   const preview = h('div', { class: 'media-draft-poster-preview hidden' })
   const save = h('button', { class: 'btn btn-primary', type: 'button', onclick: () => void confirm() }, 'Salvar item')
 
@@ -49,6 +65,10 @@ export function openMediaDraft(root: HTMLElement, draft: Draft, toast: Toast): v
     h('p', { class: 'hint' }, `A Luna sugeriu incluir este ${LABEL[draft.kind]}. Revise os dados; nada será gravado até você salvar.`),
     field('Título', title),
     field('Estado', status),
+    field('Agenda (opcional)', agenda),
+    agendaError,
+    agendaRetry,
+    saveError,
   ]
   let pagesRead: HTMLInputElement | undefined
   let totalPages: HTMLInputElement | undefined
@@ -109,12 +129,30 @@ export function openMediaDraft(root: HTMLElement, draft: Draft, toast: Toast): v
       input = { kind: 'filme', title: cleanTitle, status: status.value as MediaStatus }
     }
     save.setAttribute('disabled', '')
+    saveError.classList.add('hidden')
     try {
+      if (draft.kind === 'livro' && input.kind === 'livro' && needsBookCompletionPrompt(input.status, input.pagesRead, input.totalPages)) {
+        const confirmed = await confirmDialog(root, {
+          title: 'Livro concluído?',
+          text: 'Você chegou ao total de páginas. Quer marcar este livro como concluído?',
+          confirm: 'Marcar concluído',
+          cancel: 'Manter estado',
+        })
+        input = {
+          ...input,
+          status: bookStatusAfterPrompt(input.status, input.pagesRead, input.totalPages, confirmed),
+        }
+      }
+      const chosenAgenda = agenda.value ? (JSON.parse(agenda.value) as MediaAgendaLink) : undefined
+      if (chosenAgenda) input = { ...input, agenda: chosenAgenda }
       await window.office.createMediaItem(input, poster?.token)
       toast('Item adicionado à biblioteca de mídias.', 'ok')
       finish(true)
     } catch (err) {
-      toast(cleanError(err), 'err')
+      const message = cleanError(err)
+      saveError.textContent = `Não foi possível salvar o item: ${message}`
+      saveError.classList.remove('hidden')
+      toast(message, 'err')
       if (poster) {
         void window.office.discardMediaPoster(poster.token).catch(() => undefined)
         poster = null
@@ -123,6 +161,26 @@ export function openMediaDraft(root: HTMLElement, draft: Draft, toast: Toast): v
       }
     } finally {
       save.removeAttribute('disabled')
+    }
+  }
+
+  const loadAgenda = async () => {
+    agendaRetry.classList.add('hidden')
+    agendaError.classList.add('hidden')
+    agenda.replaceChildren(h('option', { value: '' }, 'Carregando compromissos…'))
+    try {
+      const links = await readMediaAgendaLinks()
+      if (done) return
+      agenda.replaceChildren(
+        h('option', { value: '' }, 'Sem vínculo'),
+        ...links.map((link) => h('option', { value: JSON.stringify(link) }, `${link.day} ${link.time} · ${link.title}`)),
+      )
+    } catch (err) {
+      if (done) return
+      agendaError.textContent = `Não foi possível carregar os compromissos: ${cleanError(err)}`
+      agendaError.classList.remove('hidden')
+      agendaRetry.classList.remove('hidden')
+      agenda.replaceChildren(h('option', { value: '' }, 'Agenda indisponível'))
     }
   }
 
@@ -149,4 +207,5 @@ export function openMediaDraft(root: HTMLElement, draft: Draft, toast: Toast): v
   const el = modal('Revisar item de mídia', body, [h('button', { class: 'btn', type: 'button', onclick: close }, 'Cancelar'), save], close)
   root.append(el)
   title.focus()
+  void loadAgenda()
 }

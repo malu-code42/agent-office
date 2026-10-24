@@ -13,6 +13,7 @@ import { h } from './dom'
 import { keepFocus } from './a11y'
 import { cleanError, confirmDialog, field, modal } from './modals/common'
 import type { Toast } from './tasks-complete'
+import { readMediaAgendaLinks, sameMediaAgendaLink } from './media-agenda'
 
 const KINDS: MediaKind[] = ['livro', 'filme', 'jogo']
 const LABEL: Record<MediaKind, string> = { livro: 'Livros', filme: 'Filmes', jogo: 'Jogos' }
@@ -125,7 +126,7 @@ async function mediaCard(item: MediaItem, onEdit: () => void): Promise<HTMLEleme
 }
 
 async function openEditor(root: HTMLElement, kind: MediaKind, item: MediaItem | undefined, toast: Toast, saved: () => void): Promise<void> {
-  const agendaLinks = await readAgendaLinks().catch((err) => {
+  const agendaLinks = await readMediaAgendaLinks().catch((err) => {
     toast(cleanError(err), 'err')
     return []
   })
@@ -148,9 +149,13 @@ async function openEditor(root: HTMLElement, kind: MediaKind, item: MediaItem | 
     { 'aria-label': 'Vínculo opcional à agenda' },
     h('option', { value: '' }, 'Sem vínculo'),
     ...agendaLinks.map((link) =>
-      h('option', { value: JSON.stringify(link), selected: sameLink(item?.agenda, link) }, `${link.day} ${link.time} · ${link.title}`),
+      h(
+        'option',
+        { value: JSON.stringify(link), selected: sameMediaAgendaLink(item?.agenda, link) },
+        `${link.day} ${link.time} · ${link.title}`,
+      ),
     ),
-    ...(item?.agenda && !agendaLinks.some((link) => sameLink(link, item.agenda))
+    ...(item?.agenda && !agendaLinks.some((link) => sameMediaAgendaLink(link, item.agenda))
       ? [
           h(
             'option',
@@ -305,19 +310,6 @@ async function openEditor(root: HTMLElement, kind: MediaKind, item: MediaItem | 
   title.focus()
 }
 
-async function readAgendaLinks(): Promise<MediaAgendaLink[]> {
-  const view = await window.office.readAgenda()
-  const links = new Map<string, MediaAgendaLink>()
-  for (const day of [...view.week, view.today])
-    for (const entry of day.entries) {
-      const title = entry.kind === 'commitment' ? entry.title : entry.kind === 'task' ? entry.text : null
-      if (!title || !('time' in entry)) continue
-      const link = { day: day.date, time: entry.time, title }
-      links.set(JSON.stringify(link), link)
-    }
-  return [...links.values()]
-}
-
 async function confirmAgenda(root: HTMLElement): Promise<boolean> {
   return confirmDialog(root, {
     title: 'Atualizar item vinculado à agenda?',
@@ -325,8 +317,4 @@ async function confirmAgenda(root: HTMLElement): Promise<boolean> {
     confirm: 'Confirmar alteração',
     cancel: 'Voltar',
   })
-}
-
-function sameLink(a: MediaAgendaLink | undefined, b: MediaAgendaLink | undefined): boolean {
-  return !!a && !!b && a.day === b.day && a.time === b.time && a.title === b.title
 }
