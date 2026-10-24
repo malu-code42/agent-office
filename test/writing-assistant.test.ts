@@ -41,14 +41,15 @@ afterEach(() => {
 })
 
 describe('WritingAssistant', () => {
-  it('prepara prévia restrita à versão escolhida, instrução e perfil Escrita', () => {
+  it('prepara contexto apenas com texto selecionado, instrução e perfil Escrita', () => {
     const root = vault()
     const { subject, id, selected } = seeded(root)
     const { assistant } = makeAssistant(subject)
     const prepared = assistant.prepare(root, id, selected.versionId, 'Revise a clareza.')
-    expect(prepared.preview).toContain('Meu texto')
-    expect(prepared.preview).toContain(id)
-    expect(prepared.preview).toContain(selected.versionId)
+    expect(prepared.context).toBe(prepared.preview)
+    expect(prepared.context).not.toContain('Meu texto')
+    expect(prepared.context).not.toContain(id)
+    expect(prepared.context).not.toContain(selected.versionId)
     expect(prepared.preview).toContain('Corpo selecionado.')
     expect(prepared.preview).toContain('Revise a clareza.')
     expect(prepared.preview).toContain('Work as Escrita')

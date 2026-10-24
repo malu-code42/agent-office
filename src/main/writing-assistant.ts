@@ -101,17 +101,7 @@ export class WritingAssistant {
     const snippet = snapshot.snippets.find((item) => item.id === snippetId)
     if (!snippet) throw new Error('O trecho solicitado não existe em escrita.md. Recarregue a biblioteca.')
     const version = snippet.version(versionId)
-    const context = [
-      'Perfil: Escrita',
-      profileTaskInstructions('escrita'),
-      `Título: ${snippet.title}`,
-      `ID do trecho: ${snippet.id}`,
-      `ID da versão selecionada: ${version.versionId}`,
-      'Texto selecionado:',
-      version.body,
-      'Instrução:',
-      instruction,
-    ].join('\n')
+    const context = [profileTaskInstructions('escrita'), 'Texto selecionado:', version.body, 'Instrução:', instruction].join('\n')
     const previewToken = token()
     this.ensureCapacity(this.previews)
     this.previews.set(previewToken, {

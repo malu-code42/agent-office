@@ -17,6 +17,15 @@ import { appendSnippet, appendVersion as appendVersionToDocument, parseWriting, 
 
 const WRITING_FILE = 'escrita.md'
 const CHANGED = 'O escrita.md mudou desde que você abriu a biblioteca, então nada foi escrito. Recarregue a biblioteca e tente outra vez.'
+const INVALID_UTF8 = 'O escrita.md contém UTF-8 inválido. Corrija o arquivo manualmente antes de continuar.'
+
+function decodeUtf8(bytes: Buffer): string {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
+    throw new Error(INVALID_UTF8)
+  }
+}
 
 export interface WritingWriterOptions {
   now?: () => Date
@@ -270,7 +279,9 @@ export function createWritingWriter(options: WritingWriterOptions = {}) {
     const file = fileOf(root)
     assertSafePath(root, file)
     try {
-      return readFileSync(file)
+      const bytes = readFileSync(file)
+      decodeUtf8(bytes)
+      return bytes
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
       throw error
@@ -373,14 +384,15 @@ export function createWritingWriter(options: WritingWriterOptions = {}) {
     read(vault: string) {
       const root = rootOf(vault)
       const text = readDisk(root)
-      const document = parseWriting(text?.toString('utf8') ?? '')
+      const decoded = text === null ? null : decodeUtf8(text)
+      const document = parseWriting(decoded ?? '')
       snapshots.set(root, text)
-      return { text: text?.toString('utf8') ?? null, snapshot: text?.toString('utf8') ?? null, snippets: document.snippets }
+      return { text: decoded, snapshot: decoded, snippets: document.snippets }
     },
     createOriginal(vault: string, input: { title: string; body: string }): string {
       const root = rootOf(vault)
       const before = snapshot(root)
-      const document = parseWriting(before?.toString('utf8') ?? '')
+      const document = parseWriting(before === null ? '' : decodeUtf8(before))
       const id = `w${newId()}`
       const snippet = WritingSnippet.createOriginal({ id, title: input.title, body: input.body, createdAt: now().toISOString() })
       const after = serializeWriting(appendSnippet(document, snippet))
@@ -399,7 +411,7 @@ export function createWritingWriter(options: WritingWriterOptions = {}) {
           : Buffer.from(input.expectedSnapshot!, 'utf8')
         : snapshot(root)
       if (!sameBytes(readDisk(root), before)) throw new Error(CHANGED)
-      const document = parseWriting(before?.toString('utf8') ?? '')
+      const document = parseWriting(before === null ? '' : decodeUtf8(before))
       const snippet = document.snippets.find((item) => item.id === input.snippetId)
       if (!snippet) throw new Error('O trecho solicitado não existe em escrita.md. Recarregue a biblioteca.')
       // Work on a detached aggregate: the domain method mutates its in-memory version list.

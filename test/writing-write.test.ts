@@ -43,6 +43,38 @@ afterEach(() => {
 })
 
 describe('createWritingWriter', () => {
+  it('recusa UTF-8 inválido na leitura sem alterar bytes nem criar backup', () => {
+    const root = vault()
+    const invalid = Buffer.from([0x23, 0x20, 0x4e, 0xff, 0x0a])
+    writeFileSync(join(root, 'escrita.md'), invalid)
+    const subject = writer()
+
+    expect(() => subject.read(root)).toThrow(/UTF-8 inválido.*manualmente/i)
+    expect(readFileSync(join(root, 'escrita.md'))).toEqual(invalid)
+    expect(() => readdirSync(join(root, 'backups', 'escrita'))).toThrow()
+  })
+
+  it('recusa salvar se escrita.md se tornar UTF-8 inválido após o snapshot', () => {
+    const root = vault()
+    const subject = writer()
+    subject.read(root)
+    subject.createOriginal(root, { title: 'Ideia', body: 'Original.' })
+    const selected = subject.read(root).snippets[0]!.latestVersion()
+    const invalid = Buffer.from([0x23, 0x20, 0xff, 0x0a])
+    const backupsBefore = backupFiles(root)
+    writeFileSync(join(root, 'escrita.md'), invalid)
+
+    expect(() =>
+      subject.appendVersion(root, {
+        snippetId: 'wabc12345',
+        baseVersionId: selected.versionId,
+        body: 'Revisado.',
+      }),
+    ).toThrow(/UTF-8 inválido.*manualmente/i)
+    expect(readFileSync(join(root, 'escrita.md'))).toEqual(invalid)
+    expect(backupFiles(root)).toEqual(backupsBefore)
+  })
+
   it('cria Original após read e mantém texto desconhecido intacto', () => {
     const root = vault()
     const subject = writer()
@@ -158,13 +190,13 @@ describe('createWritingWriter', () => {
     const subject = createWritingWriter({
       now: () => new Date(2026, 9, 24, 10, 11, 12),
       newId: () => 'abc12345',
-      afterCanonicalTempWrite: () => writeFileSync(join(root, 'escrita.md'), Buffer.from([0x61, 0xfe])),
+      afterCanonicalTempWrite: () => writeFileSync(join(root, 'escrita.md'), Buffer.from([0x61, 0x62])),
     })
-    writeFileSync(join(root, 'escrita.md'), Buffer.from([0x61, 0xff]))
+    writeFileSync(join(root, 'escrita.md'), Buffer.from([0x61, 0x63]))
     subject.read(root)
 
     expect(() => subject.createOriginal(root, { title: 'Ideia', body: 'Não gravar.' })).toThrow(/mudou|conflito/i)
-    expect(readFileSync(join(root, 'escrita.md'))).toEqual(Buffer.from([0x61, 0xfe]))
+    expect(readFileSync(join(root, 'escrita.md'))).toEqual(Buffer.from([0x61, 0x62]))
     expect(readdirSync(root).filter((name) => name.startsWith('escrita.md.'))).toEqual([])
   })
 
