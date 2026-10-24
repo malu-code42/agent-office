@@ -34,7 +34,7 @@
 - Ao abrir, guardar o snapshot de cada Markdown; antes de gravar, reler e recusar conflito se o conteúdo mudou no Obsidian.
 - Fazer backup datado sem sobrescrever cópias existentes e usar `writeFileAtomic` para Markdown.
 - Validar a referência de agenda por data/hora/título e persistir apenas a referência; não alterar `agenda.md` nem atualizar mídia automaticamente.
-- Implementar cópia de pôster para `midias/posters/<id>.<ext>` com escrita atômica, caminho relativo, validação de contenção no vault e limpeza compensatória se a gravação do registro falhar.
+- Implementar cópia de pôster para `midias/posters/<posterId>.<ext>` com escrita atômica, caminho relativo e validação de contenção no vault. Cada seleção usa novo ID; manter pôsteres anteriores para preservar backups datados de `filmes.md`. Se a gravação do registro falhar, remover somente o novo asset não referenciado.
 - Testes em diretórios temporários cobrem backup, conflito, falha de escrita, preservação de conteúdo desconhecido, path traversal/symlink e poster sem registro órfão em falhas tratáveis.
 
 ### 3. Seletor seguro de pôster

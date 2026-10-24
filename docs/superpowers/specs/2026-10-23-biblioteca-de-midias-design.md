@@ -58,10 +58,13 @@ preserva linhas e conteúdo desconhecidos. Os campos mínimos são:
   agenda. Não há progresso numérico nem integração Letterboxd neste escopo.
 - **Jogo:** ID, título, estado, favorito, platinado e vínculo(s) opcional(is) à agenda.
 
-Pôsteres ficam em `midias/posters/<id>.<ext>` no vault. `filmes.md` contém somente o caminho
-relativo, compatível com o vault editável e sincronizável. O renderer não recebe nem abre caminhos
-de arquivo arbitrários: o processo principal valida o arquivo e entrega conteúdo visual por uma
-API tipada.
+Pôsteres ficam em `midias/posters/<posterId>.<ext>` no vault, com um ID de asset único por seleção.
+`filmes.md` contém somente o caminho relativo, compatível com o vault editável e sincronizável. Ao
+substituir pôster, a imagem anterior permanece no vault para manter válidos os caminhos dos backups
+datados de `filmes.md`; pôsteres antigos não são removidos automaticamente. Se a gravação do registro
+falhar, somente o novo asset ainda não referenciado é removido. O renderer não recebe nem abre
+caminhos de arquivo arbitrários: o processo principal valida o arquivo e entrega conteúdo visual por
+uma API tipada.
 
 Writers dedicados leem novamente o arquivo antes de gravar, comparam o conteúdo lido anteriormente,
 criam backup datado sem substituir cópias existentes e escrevem atomicamente. Se o arquivo mudou no
