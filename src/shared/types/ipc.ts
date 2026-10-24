@@ -19,6 +19,24 @@ import type { ReviewChoices, ReviewPostpone, ReviewView } from '../review'
 import type { Goal, GoalDraft } from '../goals'
 import type { NewTaskDraft, ParsedBoard, Task, TaskDiscard, TaskMove, TaskRef, TaskReopen, TaskReschedule } from '../tasks'
 import type { DelegateTarget, Ticket, TicketDraft, TicketPatch, TicketStatus } from './tickets'
+import type { WritingVersion } from '../writing'
+
+export interface WritingSnippetView {
+  id: string
+  title: string
+  versions: readonly WritingVersion[]
+}
+export interface WritingPreviewView {
+  token: string
+  preview: string
+}
+export interface WritingDraftView {
+  draftToken: string
+  snippetId: string
+  baseVersionId: string
+  originalText: string
+  suggestedText: string
+}
 
 /** CPU (% of the whole machine) and memory (bytes), as in Activity Monitor. */
 export interface SystemStats {
@@ -230,6 +248,20 @@ export interface OfficeAPI {
   sendIris(token: string): Promise<IrisResult>
   /** Luna: descarta a prévia sem enviar nada. */
   cancelIris(token: string): Promise<void>
+  /** Lê os trechos e históricos locais do escrita.md no vault selecionado; nunca escreve. */
+  readWriting(): Promise<{ snippets: WritingSnippetView[] }>
+  /** Salva um Original somente após a confirmação explícita da pessoa. */
+  createWritingOriginal(input: { title: string; body: string }): Promise<string>
+  /** Monta a prévia exata da versão e instrução selecionadas, sem chamar Claude. */
+  prepareWritingReview(snippetId: string, versionId: string, instruction: string): Promise<WritingPreviewView>
+  /** Envia a prévia confirmada e devolve um rascunho efêmero, sem gravar no vault. */
+  sendWritingPreview(token: string): Promise<WritingDraftView>
+  /** Cancela uma prévia ou chamada de revisão sem gravar. */
+  cancelWritingPreview(token: string): Promise<void>
+  /** Anexa uma nova versão somente após a confirmação explícita de salvar. */
+  saveWritingDraft(draftToken: string, body: string): Promise<void>
+  /** Descarta o rascunho efêmero sem gravar. */
+  discardWritingDraft(draftToken: string): Promise<void>
   /** Starts the review offer for today, once per local day: true when it should be shown now. Without a vault, false. */
   reviewGate(): Promise<boolean>
   /** The review of today: the draft to resume (or the first step), the agenda of today and the focus as the files say now. Nothing is written. */

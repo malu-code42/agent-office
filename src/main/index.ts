@@ -46,6 +46,10 @@ import { registerBarTimerIpc } from './ipc/bar-timer'
 import { registerProfileMemoryIpc } from './ipc/profile-memory'
 import { registerRoutinesIpc } from './ipc/routines'
 import { registerTasksIpc } from './ipc/tasks'
+import { registerWritingIpc } from './ipc/writing'
+import { createWritingAssistant } from './writing-assistant'
+import { claudeWritingInterpreter } from './writing-claude'
+import { createWritingWriter } from './writing-write'
 import { registerGoalsIpc } from './ipc/goals'
 import { registerTicketsIpc } from './ipc/tickets'
 import { registerWorktreesIpc } from './ipc/worktrees'
@@ -206,6 +210,8 @@ log.info(`Agent Office ${app.getVersion()} iniciando (${process.platform} ${proc
 app.whenReady().then(async () => {
   await loadShellPath()
   const store = new Store()
+  const writing = createWritingWriter()
+  const writingAssistant = createWritingAssistant({ writer: writing, interpret: claudeWritingInterpreter().interpret })
   const manager = new AgentManager(store)
   const book = new CostBook(store)
   manager.book = book
@@ -564,6 +570,8 @@ app.whenReady().then(async () => {
     planning,
     barTimer,
     profileMemory,
+    writing,
+    writingAssistant,
     book,
     desk,
     routines,
@@ -595,6 +603,7 @@ app.whenReady().then(async () => {
   registerSquadsIpc(ipc)
   registerRoutinesIpc(ipc)
   registerTasksIpc(ipc)
+  registerWritingIpc(ipc)
   registerGoalsIpc(ipc)
   registerBarTimerIpc(ipc)
   registerProfileMemoryIpc(ipc)
@@ -635,6 +644,7 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) win = createWindow()
   })
   const stopAll = () => {
+    writingAssistant.shutdown()
     log.info('Saindo')
     updater.stop()
     bridge.stop()

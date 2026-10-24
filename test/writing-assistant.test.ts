@@ -187,6 +187,38 @@ describe('WritingAssistant', () => {
     await expect(sending).rejects.toThrow()
   })
 
+  it('shutdown aborta chamadas pendentes e limpa previews e drafts sem aceitar resposta tardia', async () => {
+    const root = vault()
+    const { subject, id, selected } = seeded(root)
+    let resolve!: (value: string) => void
+    let signal!: AbortSignal
+    let calls = 0
+    const interpret = vi.fn((_context: string, receivedSignal: AbortSignal) => {
+      if (++calls === 1) return Promise.resolve('Rascunho existente.')
+      signal = receivedSignal
+      return new Promise<string>((done) => (resolve = done))
+    })
+    const { assistant } = makeAssistant(subject, interpret)
+    const pendingPreview = assistant.prepare(root, id, selected.versionId, 'Revise.')
+    const remainingPreview = assistant.prepare(root, id, selected.versionId, 'Outra revisão.')
+    const draftPreview = assistant.prepare(root, id, selected.versionId, 'Gere um rascunho.')
+    const draft = await assistant.send(draftPreview.token)
+    const pendingSend = assistant.send(pendingPreview.token)
+
+    assistant.shutdown()
+
+    expect(signal.aborted).toBe(true)
+    expect(assistant['pending'].size).toBe(0)
+    expect(assistant['previews'].size).toBe(0)
+    expect(assistant['drafts'].size).toBe(0)
+    await expect(pendingSend).rejects.toThrow()
+    await expect(assistant.send(remainingPreview.token)).rejects.toThrow()
+    expect(() => assistant.saveDraft(draft.draftToken, 'Tentativa de salvar.')).toThrow()
+    resolve('Resposta tardia.')
+    await Promise.resolve()
+    expect(assistant['drafts'].size).toBe(0)
+  })
+
   it('send retorna rascunho efêmero sem gravar e consome token uma vez', async () => {
     const root = vault()
     const { subject, id, selected } = seeded(root)

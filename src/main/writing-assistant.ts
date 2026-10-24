@@ -212,7 +212,26 @@ export class WritingAssistant {
   }
 
   discard(draftToken: string): void {
+    const entry = this.drafts.get(draftToken)
+    if (entry) {
+      entry.vault = ''
+      entry.snapshot = null
+      entry.snippetId = ''
+      entry.baseVersionId = ''
+      entry.originalText = ''
+      entry.suggestedText = ''
+      entry.expiresAt = 0
+    }
     this.drafts.delete(draftToken)
+  }
+
+  /** Drop all ephemeral content and abort in-flight Claude calls when the app session ends. */
+  shutdown(): void {
+    for (const key of this.previews.keys()) this.cancel(key)
+    for (const operation of this.pending.values()) operation.interrupt(new Error('A revisão foi cancelada.'))
+    this.pending.clear()
+    for (const key of this.drafts.keys()) this.discard(key)
+    this.previews.clear()
   }
 
   saveDraft(draftToken: string, editedText: string): void {

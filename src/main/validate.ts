@@ -88,6 +88,20 @@ export function markdownFileName(raw: string): string {
 
 /** Agent, ticket, request and account ids: never empty, never huge. */
 export const idSchema = z.string().min(1).max(200)
+const writingSnippetIdSchema = z.string().regex(/^w[a-z0-9]{8,}$/)
+const writingVersionIdSchema = z.string().regex(/^v[a-z0-9]{8,}$/)
+const writingTokenValueSchema = z.string().regex(/^[a-f0-9]{48}$/)
+export const writingTokenSchema = writingTokenValueSchema
+export const writingOriginalSchema = z.object({
+  title: z
+    .string()
+    .min(1)
+    .max(200)
+    .refine((value) => !/[\r\n]/.test(value)),
+  body: z.string().min(1).max(50_000),
+})
+export const writingReviewArgsSchema = z.tuple([writingSnippetIdSchema, writingVersionIdSchema, z.string().min(1).max(2_000)])
+export const writingDraftArgsSchema = z.tuple([writingTokenValueSchema, z.string().min(1).max(50_000)])
 /** getSubagentLog(agentId, subId) */
 export const subagentLogArgsSchema = z.tuple([idSchema, idSchema])
 export const pathSchema = z.string().min(1).max(MAX_PATH)

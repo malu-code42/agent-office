@@ -201,7 +201,7 @@ function acquireWriteLock(root: string, write: (fd: number, buffer: Buffer, offs
         } catch (releaseError) {
           if ((releaseError as NodeJS.ErrnoException).code !== 'ENOENT')
             operationError = new Error(
-              'Nǜo foi poss��vel liberar o lock de escrita com seguran��a. Verifique escrita.md.lock e recupere-o manualmente somente ap��s confirmar que nǜo hǭ uma grava��ǜo ativa.',
+              'Não foi possível liberar o lock de escrita com segurança. Verifique escrita.md.lock e recupere-o manualmente somente após confirmar que não há uma gravação ativa.',
               { cause: releaseError },
             )
         }
