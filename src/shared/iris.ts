@@ -27,12 +27,15 @@ export interface IrisAnswer {
   question?: string | null | undefined
   /** At most one built-in profile for a clear new task; the renderer starts a fresh task in that scope. */
   profile?: ProfileId | null | undefined
+  /** AO-45: a suggestion only; the local editor owns all remaining fields and confirmation. */
+  mediaDraft?: { kind: 'livro' | 'filme' | 'jogo'; title: string } | null | undefined
 }
 
 /** Sending gives an organization proposal, a task profile to launch, or a question to answer in the same box. */
 export type IrisResult =
   | { kind: 'task'; profile: ProfileId }
   | { kind: 'proposal'; proposal: Proposal; profile?: ProfileId | null | undefined }
+  | { kind: 'media-draft'; draft: { kind: 'livro' | 'filme' | 'jogo'; title: string } }
   | { kind: 'question'; text: string }
 
 /** The exact text the Luna will receive, with the token that sends that same text. */

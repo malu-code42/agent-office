@@ -25,6 +25,8 @@ import { MacJobs } from './mac-jobs'
 import { RoutineScheduler, RoutineStore } from './routines'
 import { BarTimerStore } from './bar-timer-store'
 import { ProfileMemoryStore } from './profile-memory'
+import { createMediaPosters } from './media-posters'
+import { createMediaWriter } from './media-write'
 import { Store } from './store'
 import { SystemMonitor } from './system'
 import { StatsReader } from './stats'
@@ -44,6 +46,7 @@ import { registerSettingsIpc } from './ipc/settings'
 import { registerSquadsIpc } from './ipc/squads'
 import { registerBarTimerIpc } from './ipc/bar-timer'
 import { registerProfileMemoryIpc } from './ipc/profile-memory'
+import { registerMediaIpc } from './ipc/media'
 import { registerRoutinesIpc } from './ipc/routines'
 import { registerTasksIpc } from './ipc/tasks'
 import { registerGoalsIpc } from './ipc/goals'
@@ -222,6 +225,8 @@ app.whenReady().then(async () => {
   const routineStore = new RoutineStore(app.getPath('userData'))
   // The memory of the profiles (AO-43): one short summary written by the person, per profile.
   const profileMemory = new ProfileMemoryStore(app.getPath('userData'))
+  const mediaPosters = createMediaPosters()
+  const mediaWriter = createMediaWriter()
   // A fatal error saves what is in memory before asking what to do.
   onFatalFlush(() => {
     store.flush()
@@ -564,6 +569,8 @@ app.whenReady().then(async () => {
     planning,
     barTimer,
     profileMemory,
+    mediaPosters,
+    mediaWriter,
     book,
     desk,
     routines,
@@ -598,6 +605,7 @@ app.whenReady().then(async () => {
   registerGoalsIpc(ipc)
   registerBarTimerIpc(ipc)
   registerProfileMemoryIpc(ipc)
+  registerMediaIpc(ipc)
 
   // YouTube refuses embeds without a web Referer (error 153), and file:// sends none.
   session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['https://www.youtube-nocookie.com/embed/*'] }, (d, cb) => {

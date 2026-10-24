@@ -3,6 +3,12 @@ import type { OfficeAPI, OfficeEvent } from '@shared/types'
 
 const api: OfficeAPI = {
   getState: () => ipcRenderer.invoke('office:getState'),
+  pickMediaPoster: () => ipcRenderer.invoke('office:pickMediaPoster'),
+  discardMediaPoster: (token) => ipcRenderer.invoke('office:discardMediaPoster', token),
+  createMediaItem: (input, posterToken) => ipcRenderer.invoke('office:createMediaItem', input, posterToken),
+  readMedia: (kind) => ipcRenderer.invoke('office:readMedia', kind),
+  updateMediaItem: (input, posterToken) => ipcRenderer.invoke('office:updateMediaItem', input, posterToken),
+  readMediaPoster: (id) => ipcRenderer.invoke('office:readMediaPoster', id),
   readTasks: () => ipcRenderer.invoke('office:readTasks'),
   readGoals: () => ipcRenderer.invoke('office:readGoals'),
   createGoal: (draft) => ipcRenderer.invoke('office:createGoal', draft),

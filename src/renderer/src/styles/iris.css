@@ -32,3 +32,30 @@
   font-size: 13px;
   line-height: 1.5;
 }
+
+.media-draft-poster-controls {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  gap: 8px;
+  align-items: center;
+}
+
+.media-draft-poster-preview {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.media-draft-poster-preview img {
+  max-width: 120px;
+  max-height: 180px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.media-draft-poster-preview.hidden {
+  display: none;
+}

@@ -17,6 +17,8 @@ import type { TicketBoard } from '../tickets'
 import type { BarTimerStore } from '../bar-timer-store'
 import type { ProfileMemoryStore } from '../profile-memory'
 import type { UsageMonitor } from '../usage'
+import type { MediaPosters } from '../media-posters'
+import type { MediaWriter } from '../media-write'
 import { idSchema, parse } from '../validate'
 
 /** What the IPC handlers (ipc/*.ts) share; built once in index.ts when the app is ready. */
@@ -32,6 +34,8 @@ export interface IpcContext {
   barTimer: BarTimerStore
   /** The memory of the profiles (AO-43), one short summary per profile in profile-memory.json. */
   profileMemory: ProfileMemoryStore
+  mediaPosters: MediaPosters
+  mediaWriter: MediaWriter
   book: CostBook
   desk: TicketDesk
   routines: RoutineScheduler
