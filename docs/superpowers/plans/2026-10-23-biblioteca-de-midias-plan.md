@@ -67,7 +67,7 @@
 ### 6. Integração, revisão e entrega
 
 - Ligar dependências em `main/index.ts`, preload e `OfficeAPI`; validar todo IPC no main; manter writers fora do renderer.
-- Conferir que os três Markdown são incluídos nos backups/export/import com validação de schema; poster permanece relativo dentro do vault.
+- Verificar que os três Markdown recebem backups datados em `<vault>/backups/midias` e que os pôsteres permanecem relativos dentro do vault. Por decisão da usuária, não incluir esses arquivos nem os binários dos pôsteres no export/import global de `userData`; os dados de mídia pertencem ao vault Obsidian.
 - Verificação obrigatória: typecheck, ESLint dos arquivos tocados (binário do root se o wrapper falhar na worktree), testes focados, suíte completa, build, `git diff --check` e QA visual.
 - Registrar separadamente a falha preexistente `test/delegate-archive.test.ts` se persistir.
 - Luna implementa; outra sessão/contexto Luna revisa o diff independentemente. Corrigir achados e repetir revisão.
