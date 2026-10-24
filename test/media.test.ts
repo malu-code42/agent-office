@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { readPosterFile } from '../src/main/ipc/media'
 import {
   appendMediaItem,
   bookProgress,
@@ -59,6 +60,54 @@ const GAMES = [
   '- Favorito: não',
   '- Platina: sim',
 ].join('\n')
+
+describe('leitura limitada de pôster', () => {
+  it('recusa arquivo acima do limite pelo stat sem alocar nem ler seu conteúdo', async () => {
+    let allocated = false
+    let read = false
+    const handle = {
+      stat: async () => ({ size: 10 * 1024 * 1024 + 1 }),
+      read: async () => {
+        read = true
+        return { bytesRead: 0 }
+      },
+      close: async () => {},
+    }
+
+    await expect(
+      readPosterFile('poster.png', {
+        open: async () => handle,
+        alloc: (size) => {
+          allocated = true
+          return Buffer.alloc(size)
+        },
+      }),
+    ).rejects.toThrow('O pôster passa de 10 MiB. Escolha uma imagem menor.')
+    expect(allocated).toBe(false)
+    expect(read).toBe(false)
+  })
+
+  it('limita a leitura a 10 MiB + 1 byte se o arquivo crescer depois do stat e fecha o arquivo', async () => {
+    const reads: number[] = []
+    let closed = false
+    const handle = {
+      stat: async () => ({ size: 4 }),
+      read: async (buffer: Buffer, _offset: number, length: number, position: number) => {
+        reads.push(length)
+        buffer.fill(0x41, 0, length)
+        return { bytesRead: length, buffer, position }
+      },
+      close: async () => {
+        closed = true
+      },
+    }
+    await expect(readPosterFile('poster.png', { open: async () => handle })).rejects.toThrow(
+      'O pôster passa de 10 MiB. Escolha uma imagem menor.',
+    )
+    expect(reads).toEqual([10 * 1024 * 1024 + 1])
+    expect(closed).toBe(true)
+  })
+})
 
 describe('codec de mídias', () => {
   it('faz round-trip exato em LF, com texto fora dos itens e linhas desconhecidas', () => {

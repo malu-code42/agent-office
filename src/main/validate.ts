@@ -88,6 +88,9 @@ export function markdownFileName(raw: string): string {
 
 /** Agent, ticket, request and account ids: never empty, never huge. */
 export const idSchema = z.string().min(1).max(200)
+/** O token temporário de uma seleção de pôster; nunca é um caminho de arquivo. */
+export const mediaPosterTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/)
+export const pickMediaPosterArgsSchema = z.tuple([])
 /** getSubagentLog(agentId, subId) */
 export const subagentLogArgsSchema = z.tuple([idSchema, idSchema])
 export const pathSchema = z.string().min(1).max(MAX_PATH)

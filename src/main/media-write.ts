@@ -48,7 +48,7 @@ import { log } from './log'
 
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'
 const ID_ATTEMPTS = 100
-const POSTER_MAX_BYTES = 10 * 1024 * 1024
+export const POSTER_MAX_BYTES = 10 * 1024 * 1024
 const BOM = '\uFEFF'
 const LABEL: Record<MediaKind, string> = { livro: 'livros', filme: 'filmes', jogo: 'jogos' }
 const CHANGED = (file: string) =>
@@ -56,7 +56,7 @@ const CHANGED = (file: string) =>
 const NOT_FOUND = (file: string) => `Não encontrei este item em ${file}.`
 const POSTER_EXTENSION = 'Escolha um pôster PNG, JPEG ou WebP.'
 const POSTER_EMPTY = 'O arquivo escolhido está vazio.'
-const POSTER_SIZE = 'O pôster passa de 10 MiB. Escolha uma imagem menor.'
+const POSTER_SIZE = `O pôster passa de ${POSTER_MAX_BYTES / (1024 * 1024)} MiB. Escolha uma imagem menor.`
 const POSTER_PATH = `Caminho de pôster inválido: ${POSTER_DIR} precisa ser uma pasta real dentro do vault, sem links simbólicos nem atalhos.`
 const BACKUP_PATH =
   'Caminho de backup inválido: backups/midias precisa ser uma pasta real dentro do vault, sem links simbólicos nem atalhos.'
@@ -238,8 +238,7 @@ export function createMediaWriter(opts: MediaWriterOptions = {}) {
      */
     attachPoster(vault: string, id: string, poster: PosterInput): string {
       if (!MEDIA_ID_RE.test(id)) throw new Error(`O identificador "${id}" é inválido.`)
-      const type = posterType(poster.extension)
-      checkPosterBytes(poster.bytes, type)
+      validatePosterImage(poster.bytes, poster.extension)
       const extension = poster.extension.toLowerCase()
       const posterPath = `${POSTER_DIR}/${id}.${extension}`
 
@@ -353,6 +352,13 @@ function checkPosterBytes(bytes: Uint8Array, type: PosterType): void {
   if (bytes.byteLength === 0) throw new Error(POSTER_EMPTY)
   if (bytes.byteLength > POSTER_MAX_BYTES) throw new Error(POSTER_SIZE)
   if (!SIGNATURE[type](bytes)) throw new Error(`O arquivo não é um ${POSTER_LABEL[type]} válido.`)
+}
+
+/** Validates a poster's declared extension, actual signature and size; returns its canonical extension. */
+export function validatePosterImage(bytes: Uint8Array, extension: string): 'png' | 'jpeg' | 'webp' {
+  const type = posterType(extension)
+  checkPosterBytes(bytes, type)
+  return type
 }
 
 function matchesAt(bytes: Uint8Array, offset: number, expected: number[]): boolean {

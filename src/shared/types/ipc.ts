@@ -45,6 +45,13 @@ export interface OpenTerminalResult {
   via?: TerminalVia
 }
 
+export interface MediaPosterSelection {
+  token: string
+  previewDataUrl: string
+  extension: 'png' | 'jpeg' | 'webp'
+  sizeBytes: number
+}
+
 export interface OfficeState {
   agents: AgentSummary[]
   permissions: PermissionRequest[]
@@ -188,6 +195,10 @@ export interface RendererError {
 
 export interface OfficeAPI {
   getState(): Promise<OfficeState>
+  /** Opens the native poster picker; returns a short-lived in-memory selection, or null when cancelled. */
+  pickMediaPoster(): Promise<MediaPosterSelection | null>
+  /** Discards an unconfirmed poster selection. */
+  discardMediaPoster(token: string): Promise<void>
   /** Lê e interpreta listas de tarefas no vault indicado, sem escrever no arquivo. */
   readTasks(): Promise<ParsedBoard>
   /** Lê objetivos.md e tarefas.md; os objetivos continuam editáveis no Obsidian. */

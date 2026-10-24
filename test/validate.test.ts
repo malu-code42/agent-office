@@ -20,6 +20,7 @@ import {
   modeIsMorePermissive,
   externalUrlSchema,
   idSchema,
+  mediaPosterTokenSchema,
   MAX_LOGO_CHARS,
   parse,
   permissionDecisionSchema,
@@ -70,6 +71,14 @@ describe('parse', () => {
     expect(() => parse(idSchema, '', 'ruim')).toThrow('ruim')
     expect(() => parse(idSchema, 42, 'ruim')).toThrow('ruim')
     expect(() => parse(idSchema, 'x'.repeat(201), 'ruim')).toThrow('ruim')
+  })
+})
+
+describe('mediaPosterTokenSchema', () => {
+  it('aceita somente token aleatório com formato limitado e recusa valores inválidos', () => {
+    expect(mediaPosterTokenSchema.safeParse('a'.repeat(43)).success).toBe(true)
+    expect(mediaPosterTokenSchema.safeParse('../poster.png').success).toBe(false)
+    expect(mediaPosterTokenSchema.safeParse('a'.repeat(44)).success).toBe(false)
   })
 })
 
