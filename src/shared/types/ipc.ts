@@ -16,7 +16,8 @@ import type { BarTimerView } from '../barTimer'
 import type { IrisPreview, IrisResult } from '../iris'
 import type { Proposal } from '../proposals'
 import type { ReviewChoices, ReviewPostpone, ReviewView } from '../review'
-import type { NewTaskDraft, ParsedBoard, TaskDiscard, TaskMove, TaskRef, TaskReopen, TaskReschedule } from '../tasks'
+import type { Goal, GoalDraft } from '../goals'
+import type { NewTaskDraft, ParsedBoard, Task, TaskDiscard, TaskMove, TaskRef, TaskReopen, TaskReschedule } from '../tasks'
 import type { DelegateTarget, Ticket, TicketDraft, TicketPatch, TicketStatus } from './tickets'
 
 /** CPU (% of the whole machine) and memory (bytes), as in Activity Monitor. */
@@ -189,6 +190,16 @@ export interface OfficeAPI {
   getState(): Promise<OfficeState>
   /** Lê e interpreta listas de tarefas no vault indicado, sem escrever no arquivo. */
   readTasks(): Promise<ParsedBoard>
+  /** Lê objetivos.md e tarefas.md; os objetivos continuam editáveis no Obsidian. */
+  readGoals(): Promise<{ goals: Goal[]; tasks: Task[] }>
+  /** Cria um objetivo em objetivos.md, sem alterar tarefas.md. */
+  createGoal(draft: Omit<GoalDraft, 'id'>): Promise<string>
+  /** Marca/desmarca um marco do objetivo em objetivos.md. */
+  setGoalMilestone(id: string, index: number, done: boolean): Promise<void>
+  /** Vincula uma tarefa canônica uma única vez; não altera a tarefa. */
+  linkGoalTask(id: string, taskId: string): Promise<void>
+  /** Pede confirmação no processo principal antes de marcar alcançado; false quando cancelada. */
+  achieveGoal(id: string): Promise<boolean>
   /** Abre o seletor nativo, valida tarefas.md e salva o vault escolhido. */
   selectTasksVault(): Promise<{ vaultPath: string; board: ParsedBoard } | null>
   /** Cria uma tarefa no fim da lista escolhida do tarefas.md e devolve o id e o quadro lido de novo. */

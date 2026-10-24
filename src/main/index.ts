@@ -46,6 +46,7 @@ import { registerBarTimerIpc } from './ipc/bar-timer'
 import { registerProfileMemoryIpc } from './ipc/profile-memory'
 import { registerRoutinesIpc } from './ipc/routines'
 import { registerTasksIpc } from './ipc/tasks'
+import { registerGoalsIpc } from './ipc/goals'
 import { registerTicketsIpc } from './ipc/tickets'
 import { registerWorktreesIpc } from './ipc/worktrees'
 
@@ -594,6 +595,7 @@ app.whenReady().then(async () => {
   registerSquadsIpc(ipc)
   registerRoutinesIpc(ipc)
   registerTasksIpc(ipc)
+  registerGoalsIpc(ipc)
   registerBarTimerIpc(ipc)
   registerProfileMemoryIpc(ipc)
 

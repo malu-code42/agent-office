@@ -10,6 +10,7 @@ import { PROFILE_IDS } from '@shared/profiles'
 import { floorNameFor, MAX_PROJECT_FLOORS, projectFor } from '@shared/projects'
 import { SQUAD_NAME_MAX, SQUAD_ROOM_COUNT } from '@shared/types'
 import { REVIEW_STEPS, type FocusChoice, type ReviewChoices, type ReviewDraft, type ReviewPostpone } from '@shared/review'
+import { GOAL_ID_RE, GOAL_TASK_ID_RE } from '@shared/goals'
 import { scheduleError } from '@shared/schedule'
 import { isSafeProfileMemoryText } from '@shared/profile-memory'
 export { hasRecognizableProfileMemorySecret } from '@shared/profile-memory'
@@ -130,6 +131,18 @@ const isoDaySchema = z
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .refine(isIsoDay, 'Dia inválido. Use AAAA-MM-DD.')
 const timeSchema = z.string().regex(TIME_FORMAT, 'Hora inválida. Use HH:MM.')
+const goalIdSchema = z.string().regex(GOAL_ID_RE)
+const goalTaskIdSchema = z.string().regex(GOAL_TASK_ID_RE)
+export const createGoalSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  target: z.string().trim().min(1).max(500),
+  deadline: isoDaySchema,
+  milestones: z.array(z.object({ text: z.string().trim().min(1).max(500), done: z.boolean() })).max(100),
+  taskIds: z.array(goalTaskIdSchema).max(100),
+})
+export const setGoalMilestoneSchema = z.tuple([goalIdSchema, z.number().int().min(0).max(99), z.boolean()])
+export const linkGoalTaskSchema = z.tuple([goalIdSchema, goalTaskIdSchema])
+export const goalIdArgsSchema = z.tuple([goalIdSchema])
 /**
  * One change of a proposal. The kinds are closed: "concluir" (or any other kind) is not in the union,
  * so the schema refuses it. A proposal names tasks by id, never by line.

@@ -1,0 +1,102 @@
+.goals-content {
+  display: grid;
+  gap: 16px;
+}
+
+.goal-list {
+  display: grid;
+  gap: 12px;
+}
+
+.goal-card,
+.goal-create {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card-solid);
+}
+
+.goal-card h3,
+.goal-create h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.goal-card-head,
+.goal-progress-line,
+.goal-link-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.goal-card-head h3,
+.goal-progress-line > :first-child {
+  flex: 1;
+}
+
+.goal-state {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.goal-state-done {
+  color: var(--accent-solid);
+}
+
+.goal-target,
+.goal-deadline,
+.goal-progress-line,
+.goal-linked p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.goal-progress-line {
+  justify-content: space-between;
+  padding: 7px 9px;
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.goal-milestones,
+.goal-linked ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.goal-milestone {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.goal-milestone input {
+  margin: 2px 0 0;
+}
+
+.goal-linked {
+  display: grid;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.goal-task-select {
+  min-width: 0;
+  flex: 1;
+}
+
+.goal-create textarea {
+  min-height: 76px;
+  resize: vertical;
+}
