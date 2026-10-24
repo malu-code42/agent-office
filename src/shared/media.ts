@@ -4,6 +4,12 @@ export const MEDIA_STATUSES = ['planejado', 'em andamento', 'concluído'] as con
 export type MediaStatus = (typeof MEDIA_STATUSES)[number]
 export type MediaKind = 'livro' | 'filme' | 'jogo'
 
+/** Fields the local confirmation editor may send to create exactly one item. */
+export type MediaCreateInput =
+  | { kind: 'livro'; title: string; status: MediaStatus; pagesRead: number; totalPages?: number }
+  | { kind: 'filme'; title: string; status: MediaStatus }
+  | { kind: 'jogo'; title: string; status: MediaStatus; favorite: boolean; platinum: boolean }
+
 export const MEDIA_FILES: Record<MediaKind, string> = { livro: 'livros.md', filme: 'filmes.md', jogo: 'jogos.md' }
 export const MEDIA_ID_RE = /^m[a-z0-9]{8}$/
 export const POSTER_DIR = 'midias/posters'

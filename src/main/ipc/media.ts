@@ -1,8 +1,9 @@
 import { open as openFile } from 'node:fs/promises'
+import { statSync } from 'node:fs'
 import { extname } from 'node:path'
 import { dialog, ipcMain } from 'electron'
-import { parse, mediaPosterTokenSchema, pickMediaPosterArgsSchema } from '../validate'
-import { POSTER_MAX_BYTES } from '../media-write'
+import { parse, createMediaItemArgsSchema, mediaPosterTokenSchema, pickMediaPosterArgsSchema, vaultPathSchema } from '../validate'
+import { createMediaWriter, POSTER_MAX_BYTES } from '../media-write'
 import type { IpcContext } from './context'
 
 const POSTER_TOO_LARGE = `O pôster passa de ${POSTER_MAX_BYTES / (1024 * 1024)} MiB. Escolha uma imagem menor.`
@@ -40,6 +41,7 @@ export async function readPosterFile(source: string, options: PosterReadOptions 
 }
 
 export function registerMediaIpc(ctx: IpcContext): void {
+  const writer = createMediaWriter()
   ipcMain.handle('office:pickMediaPoster', async (_event, ...args: unknown[]) => {
     parse(pickMediaPosterArgsSchema, args, 'Não foi possível abrir o seletor de pôster.')
     const win = ctx.win()
@@ -69,5 +71,40 @@ export function registerMediaIpc(ctx: IpcContext): void {
   ipcMain.handle('office:discardMediaPoster', async (_event, token: unknown) => {
     const validToken = parse(mediaPosterTokenSchema, token, 'Seleção de pôster inválida ou expirada.')
     ctx.mediaPosters.discard(validToken)
+  })
+
+  ipcMain.handle('office:createMediaItem', async (_event, ...args: unknown[]) => {
+    const [input, posterToken] = parse(createMediaItemArgsSchema, args, 'Rascunho de mídia inválido.')
+    if (posterToken && input.kind !== 'filme') throw new Error('Pôster só pode ser anexado a um filme.')
+    const configured = ctx.store.settings.vaultPath
+    if (!configured) throw new Error('Configure a pasta do vault em Ajustes → Tarefas do Obsidian.')
+    const vault = parse(vaultPathSchema, configured, 'O caminho do vault precisa ser uma pasta absoluta.')
+    if (!vault || !statSync(vault).isDirectory()) throw new Error('A pasta do vault configurada não está disponível.')
+
+    let poster: Buffer | undefined
+    let extension: string | undefined
+    if (posterToken) {
+      const token = parse(mediaPosterTokenSchema, posterToken, 'Seleção de pôster inválida ou expirada.')
+      const selected = ctx.mediaPosters.take(token)
+      if (!selected) throw new Error('A seleção de pôster expirou. Escolha a imagem de novo.')
+      poster = selected.bytes
+      extension = selected.extension
+    }
+
+    try {
+      writer.read(vault, input.kind)
+      if (input.kind === 'filme') {
+        const id = writer.createMovieWithPoster(
+          vault,
+          { title: input.title, status: input.status },
+          poster && extension ? { bytes: poster, extension } : undefined,
+        )
+        return id
+      }
+      const { kind, ...draft } = input
+      return writer.create(vault, kind, draft)
+    } finally {
+      poster?.fill(0)
+    }
   })
 }

@@ -5,6 +5,7 @@ const api: OfficeAPI = {
   getState: () => ipcRenderer.invoke('office:getState'),
   pickMediaPoster: () => ipcRenderer.invoke('office:pickMediaPoster'),
   discardMediaPoster: (token) => ipcRenderer.invoke('office:discardMediaPoster', token),
+  createMediaItem: (input, posterToken) => ipcRenderer.invoke('office:createMediaItem', input, posterToken),
   readTasks: () => ipcRenderer.invoke('office:readTasks'),
   readGoals: () => ipcRenderer.invoke('office:readGoals'),
   createGoal: (draft) => ipcRenderer.invoke('office:createGoal', draft),

@@ -38,15 +38,18 @@ export function createMediaPosters(options: MediaPostersOptions = {}) {
   }
 
   const scheduleExpiry = (token: string, expiresAt: number): void => {
-    const timer = setTimeout(() => {
-      const selection = selections.get(token)
-      if (!selection || selection.expiresAt !== expiresAt) return
-      if (selection.expiresAt > now()) {
-        scheduleExpiry(token, selection.expiresAt)
-        return
-      }
-      remove(token)
-    }, Math.max(0, expiresAt - now()))
+    const timer = setTimeout(
+      () => {
+        const selection = selections.get(token)
+        if (!selection || selection.expiresAt !== expiresAt) return
+        if (selection.expiresAt > now()) {
+          scheduleExpiry(token, selection.expiresAt)
+          return
+        }
+        remove(token)
+      },
+      Math.max(0, expiresAt - now()),
+    )
     timer.unref?.()
     timers.set(token, timer)
   }
@@ -74,7 +77,7 @@ export function createMediaPosters(options: MediaPostersOptions = {}) {
       return { token, previewDataUrl: `data:image/${mime};base64,${bytes.toString('base64')}`, extension, sizeBytes: bytes.byteLength }
     },
     /** Consumes a live token once; returned bytes stay within the main process. */
-    take(token: string): Buffer | undefined {
+    take(token: string): { bytes: Buffer; extension: MediaPosterPreview['extension'] } | undefined {
       clearExpired()
       const selection = selections.get(token)
       if (!selection) return undefined
@@ -84,7 +87,7 @@ export function createMediaPosters(options: MediaPostersOptions = {}) {
       selections.delete(token)
       const bytes = Buffer.from(selection.bytes)
       selection.bytes.fill(0)
-      return bytes
+      return { bytes, extension: selection.extension }
     },
     discard(token: string): void {
       remove(token)

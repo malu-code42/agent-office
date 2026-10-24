@@ -12,6 +12,7 @@ import type { ClaudeStats } from './stats'
 import type { AgendaView } from '../agenda'
 import type { RoutineCandidate } from '../routine-personal'
 import type { FocusItem } from '../planning'
+import type { MediaCreateInput } from '../media'
 import type { BarTimerView } from '../barTimer'
 import type { IrisPreview, IrisResult } from '../iris'
 import type { Proposal } from '../proposals'
@@ -199,6 +200,8 @@ export interface OfficeAPI {
   pickMediaPoster(): Promise<MediaPosterSelection | null>
   /** Discards an unconfirmed poster selection. */
   discardMediaPoster(token: string): Promise<void>
+  /** Saves one locally reviewed media item; a poster is referenced only by its one-shot token. */
+  createMediaItem(input: MediaCreateInput, posterToken?: string): Promise<string>
   /** Lê e interpreta listas de tarefas no vault indicado, sem escrever no arquivo. */
   readTasks(): Promise<ParsedBoard>
   /** Lê objetivos.md e tarefas.md; os objetivos continuam editáveis no Obsidian. */

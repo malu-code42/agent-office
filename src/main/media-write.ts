@@ -203,6 +203,43 @@ export function createMediaWriter(opts: MediaWriterOptions = {}) {
     return id
   }
 
+  const createMovieWithPoster = (vault: string, draft: MediaDraft<'filme'>, poster?: PosterInput): string => {
+    const before = unchanged(vault, 'filme')
+    const text = before ?? ''
+    const taken = new Set(parseMedia('filme', text).items.map((item) => item.id))
+    const id = pickId(taken, newId)
+    const extension = poster ? validatePosterImage(poster.bytes, poster.extension) : undefined
+    const posterPath = extension ? `${POSTER_DIR}/${id}.${extension}` : undefined
+    const item = { ...draftItem('filme', id, draft), ...(posterPath ? { posterPath } : {}) }
+    const after = appendMediaItem(text, 'filme', item)
+    if (!poster || !extension || !posterPath) {
+      persist(vault, 'filme', before, after)
+      return id
+    }
+
+    let dir: string
+    try {
+      dir = posterDir(vault)
+    } catch (err) {
+      if (err instanceof Error && err.message === POSTER_PATH) throw err
+      throw userFileError('Não foi possível acessar a pasta de pôsteres. Verifique as permissões.', err)
+    }
+    const file = join(dir, `${id}.${extension}`)
+    if (linkStat(file)) throw new Error(POSTER_PATH)
+    try {
+      writePosterAtomic(file, poster.bytes)
+    } catch (err) {
+      throw userFileError('Não foi possível gravar o pôster. Verifique o espaço e as permissões.', err)
+    }
+    try {
+      persist(vault, 'filme', before, after)
+    } catch (err) {
+      undoPoster(file, undefined)
+      throw err
+    }
+    return id
+  }
+
   const updateItem = (vault: string, kind: MediaKind, id: string, change: AnyChange): void => {
     const before = unchanged(vault, kind)
     const text = before ?? ''
@@ -219,6 +256,10 @@ export function createMediaWriter(opts: MediaWriterOptions = {}) {
     /** Adds an item with a new id and returns the id. Refused, with nothing written, when the file changed since the read. */
     create<K extends MediaKind>(vault: string, kind: K, draft: MediaDraft<K>): string {
       return createItem(vault, kind, draft)
+    },
+    /** Creates a movie and optional poster as one confirmed operation; a Markdown failure removes the new poster. */
+    createMovieWithPoster(vault: string, draft: MediaDraft<'filme'>, poster?: PosterInput): string {
+      return createMovieWithPoster(vault, draft, poster)
     },
     /** Changes the fields of the item `id`. Only the fields the kind has are accepted. */
     update<K extends MediaKind>(vault: string, kind: K, id: string, change: MediaChange<K>): void {

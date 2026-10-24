@@ -19,14 +19,14 @@ describe('seleção temporária de pôsteres', () => {
       extension: 'png',
       sizeBytes: PNG.length,
     })
-    expect(posters.take(selection.token)).toEqual(PNG)
+    expect(posters.take(selection.token)).toEqual({ bytes: PNG, extension: 'png' })
     expect('filePath' in selection).toBe(false)
   })
 
   it('take consome o token uma única vez', () => {
     const posters = createMediaPosters({ newToken: () => 'token-1' })
     posters.add(PNG, 'png')
-    expect(posters.take('token-1')).toEqual(PNG)
+    expect(posters.take('token-1')).toEqual({ bytes: PNG, extension: 'png' })
     expect(posters.take('token-1')).toBeUndefined()
   })
 
@@ -63,10 +63,13 @@ describe('seleção temporária de pôsteres', () => {
 
   it('cancela timers quando consome, descarta ou limpa o store', () => {
     vi.useFakeTimers()
-    const posters = createMediaPosters({ ttlMs: 50, newToken: (() => {
-      let i = 0
-      return () => `token-${++i}`
-    })() })
+    const posters = createMediaPosters({
+      ttlMs: 50,
+      newToken: (() => {
+        let i = 0
+        return () => `token-${++i}`
+      })(),
+    })
     posters.add(PNG, 'png')
     posters.add(PNG, 'png')
     posters.take('token-1')

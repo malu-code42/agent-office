@@ -176,6 +176,41 @@ describe('create', () => {
   })
 })
 
+describe('createMovieWithPoster', () => {
+  it('cria o filme e seu pôster na mesma confirmação', () => {
+    const w = writer()
+    w.read(vault, 'filme')
+    expect(w.createMovieWithPoster(vault, { title: 'Ran' }, { bytes: PNG, extension: 'png' })).toBe('mnovo0001')
+    expect(w.read(vault, 'filme')).toEqual([
+      { kind: 'filme', id: 'mnovo0001', title: 'Ran', status: 'planejado', posterPath: 'midias/posters/mnovo0001.png' },
+    ])
+    expect(read('filmes.md')).toContain('- Pôster: midias/posters/mnovo0001.png')
+    expect(readFileSync(join(vault, 'midias', 'posters', 'mnovo0001.png'))).toEqual(PNG)
+  })
+
+  it('cria placeholder sem pôster quando nenhum foi escolhido', () => {
+    const w = writer()
+    w.read(vault, 'filme')
+    w.createMovieWithPoster(vault, { title: 'Ran' })
+    expect(w.read(vault, 'filme')).toEqual([{ kind: 'filme', id: 'mnovo0001', title: 'Ran', status: 'planejado' }])
+    expect(existsSync(join(vault, 'midias', 'posters'))).toBe(false)
+  })
+
+  it('rollback: falha ao gravar Markdown não deixa registro parcial nem pôster órfão', () => {
+    const w = writer({
+      writeText: () => {
+        throw new Error('disk full')
+      },
+    })
+    w.read(vault, 'filme')
+    expect(() => w.createMovieWithPoster(vault, { title: 'Ran' }, { bytes: PNG, extension: 'png' })).toThrow(
+      'Não foi possível gravar filmes.md',
+    )
+    expect(existsSync(join(vault, 'filmes.md'))).toBe(false)
+    expect(existsSync(join(vault, 'midias', 'posters', 'mnovo0001.png'))).toBe(false)
+  })
+})
+
 describe('update', () => {
   it('platina conclui o jogo e desmarcar a platina não reabre', () => {
     put('jogos.md', JOGOS)

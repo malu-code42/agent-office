@@ -20,6 +20,8 @@ import {
   modeIsMorePermissive,
   externalUrlSchema,
   idSchema,
+  irisAnswerSchema,
+  mediaDraftSchema,
   mediaPosterTokenSchema,
   MAX_LOGO_CHARS,
   parse,
@@ -79,6 +81,31 @@ describe('mediaPosterTokenSchema', () => {
     expect(mediaPosterTokenSchema.safeParse('a'.repeat(43)).success).toBe(true)
     expect(mediaPosterTokenSchema.safeParse('../poster.png').success).toBe(false)
     expect(mediaPosterTokenSchema.safeParse('a'.repeat(44)).success).toBe(false)
+  })
+})
+
+describe('rascunho de mídia da Luna', () => {
+  it.each(['livro', 'filme', 'jogo'])('aceita apenas tipo e título para %s', (kind) => {
+    expect(mediaDraftSchema.safeParse({ kind, title: 'Título válido' }).success).toBe(true)
+    expect(mediaDraftSchema.safeParse({ kind, title: 'Título válido', posterPath: 'x' }).success).toBe(false)
+  })
+
+  it('recusa tipo inválido, título vazio, multilinha ou longo demais', () => {
+    expect(mediaDraftSchema.safeParse({ kind: 'tarefa', title: 'A' }).success).toBe(false)
+    expect(mediaDraftSchema.safeParse({ kind: 'livro', title: '  ' }).success).toBe(false)
+    expect(mediaDraftSchema.safeParse({ kind: 'livro', title: 'A\nB' }).success).toBe(false)
+    expect(mediaDraftSchema.safeParse({ kind: 'livro', title: 'A'.repeat(201) }).success).toBe(false)
+  })
+
+  it('resposta Iris não aceita simultaneamente proposta, pergunta e rascunho', () => {
+    expect(irisAnswerSchema.safeParse({ operations: [], question: null, mediaDraft: { kind: 'filme', title: 'Ran' } }).success).toBe(true)
+    expect(
+      irisAnswerSchema.safeParse({
+        operations: [{ kind: 'focus', id: 'tabc123' }],
+        question: null,
+        mediaDraft: { kind: 'filme', title: 'Ran' },
+      }).success,
+    ).toBe(false)
   })
 })
 
