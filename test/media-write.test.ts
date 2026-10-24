@@ -219,6 +219,24 @@ describe('update', () => {
     expect(read('livros.md')).not.toContain('Total de páginas')
   })
 
+  it('atualiza item com Estado sem espaço após o hífen sem trocar o estado silenciosamente', () => {
+    const text = '## Livro\n- ID: mabc12345\n-Estado: concluído\n- Páginas lidas: 4\n'
+    put('livros.md', text)
+    const w = writer()
+    w.read(vault, 'livro')
+    w.update(vault, 'livro', 'mabc12345', { pagesRead: 5 })
+    expect(w.read(vault, 'livro')[0]).toMatchObject({ status: 'concluído', pagesRead: 5 })
+    expect(read('livros.md')).toContain('- Estado: concluído')
+  })
+
+  it('permite desmarcar platina e reabrir jogo na mesma atualização', () => {
+    put('jogos.md', JOGOS.replace('- Estado: em andamento', '- Estado: concluído').replace('- Platina: não', '- Platina: sim'))
+    const w = writer()
+    w.read(vault, 'jogo')
+    w.update(vault, 'jogo', 'mjogo0001', { platinum: false, status: 'planejado' })
+    expect(w.read(vault, 'jogo')[0]).toMatchObject({ platinum: false, status: 'planejado' })
+  })
+
   it('mudar o estado do filme mantém o pôster', () => {
     put('filmes.md', FILMES.replace('- Anotação', '- Pôster: midias/posters/mfilm0001.png\n- Anotação'))
     const w = writer()
@@ -384,7 +402,7 @@ describe('pôster', () => {
       },
     })
     w.read(vault, 'filme')
-    expect(() => w.attachPoster(vault, 'mfilm0001', { bytes: PNG, extension: 'png' })).toThrow('disco cheio')
+    expect(() => w.attachPoster(vault, 'mfilm0001', { bytes: PNG, extension: 'png' })).toThrow('Não foi possível gravar filmes.md')
     expect(existsSync(join(vault, 'midias', 'posters', 'mfilm0001.png'))).toBe(false)
     expect(read('filmes.md')).toBe(FILMES)
   })
@@ -401,10 +419,37 @@ describe('pôster', () => {
     })
     w.read(vault, 'filme')
     expect(() => w.attachPoster(vault, 'mfilm0001', { bytes: Buffer.concat([PNG, Buffer.from('novo')]), extension: 'png' })).toThrow(
-      'disco cheio',
+      'Não foi possível gravar filmes.md',
     )
     expect(readFileSync(join(vault, 'midias', 'posters', 'mfilm0001.png'))).toEqual(previous)
     expect(read('filmes.md')).toBe(FILMES)
+  })
+
+  it('falha no registro restaura o pôster anterior e remove o novo quando a extensão mudou', () => {
+    put('filmes.md', FILMES.replace('- Anotação', '- Pôster: midias/posters/mfilm0001.jpg\n- Anotação'))
+    mkdirSync(join(vault, 'midias', 'posters'), { recursive: true })
+    const previous = Buffer.concat([JPEG, Buffer.from('anterior')])
+    writeFileSync(join(vault, 'midias', 'posters', 'mfilm0001.jpg'), previous)
+    const w = writer({
+      writeText: (file) => {
+        if (file.endsWith('filmes.md')) throw new Error('disco cheio')
+      },
+    })
+    w.read(vault, 'filme')
+    expect(() => w.attachPoster(vault, 'mfilm0001', { bytes: PNG, extension: 'png' })).toThrow('Não foi possível gravar filmes.md')
+    expect(readFileSync(join(vault, 'midias', 'posters', 'mfilm0001.jpg'))).toEqual(previous)
+    expect(existsSync(join(vault, 'midias', 'posters', 'mfilm0001.png'))).toBe(false)
+  })
+
+  it('ao trocar a extensão com sucesso, remove o pôster anterior regular', () => {
+    put('filmes.md', FILMES.replace('- Anotação', '- Pôster: midias/posters/mfilm0001.jpg\n- Anotação'))
+    mkdirSync(join(vault, 'midias', 'posters'), { recursive: true })
+    writeFileSync(join(vault, 'midias', 'posters', 'mfilm0001.jpg'), JPEG)
+    const w = writer()
+    w.read(vault, 'filme')
+    w.attachPoster(vault, 'mfilm0001', { bytes: PNG, extension: 'png' })
+    expect(existsSync(join(vault, 'midias', 'posters', 'mfilm0001.jpg'))).toBe(false)
+    expect(readFileSync(join(vault, 'midias', 'posters', 'mfilm0001.png'))).toEqual(PNG)
   })
 
   it('trocar o pôster no mesmo caminho grava os bytes novos e mantém o registro', () => {
@@ -448,6 +493,54 @@ describe('pôster', () => {
       expect(readFileSync(target)).toEqual(PNG)
     } finally {
       rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it.runIf(canFileLink)('temporário de pôster que é link é recusado sem alterar alvo nem criar pôster', () => {
+    const outside = mkdtempSync(join(tmpdir(), 'ao-media-outside-'))
+    try {
+      const target = join(outside, 'alvo.png')
+      writeFileSync(target, Buffer.from('intacto'))
+      mkdirSync(join(vault, 'midias', 'posters'), { recursive: true })
+      symlinkSync(target, join(vault, 'midias', 'posters', 'mfilm0001.png.tmp'), 'file')
+      const w = withMovie()
+      expect(() => w.attachPoster(vault, 'mfilm0001', { bytes: PNG, extension: 'png' })).toThrow('Caminho de pôster inválido')
+      expect(readFileSync(target, 'utf8')).toBe('intacto')
+      expect(existsSync(join(vault, 'midias', 'posters', 'mfilm0001.png'))).toBe(false)
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it.runIf(canDirLink)('diretório backups/midias que aponta para fora é recusado sem escrita externa', () => {
+    const outside = mkdtempSync(join(tmpdir(), 'ao-media-outside-'))
+    try {
+      mkdirSync(join(vault, 'backups'))
+      symlinkSync(outside, backupsDir(), 'junction')
+      const w = withMovie()
+      expect(() => w.update(vault, 'filme', 'mfilm0001', { status: 'concluído' })).toThrow('Caminho de backup inválido')
+      expect(readdirSync(outside)).toEqual([])
+      expect(read('filmes.md')).toBe(FILMES)
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('erro de gravação do Markdown é apresentado em pt-BR e mantém a causa', () => {
+    put('livros.md', LIVROS)
+    const cause = Object.assign(new Error('disk full'), { code: 'ENOSPC' })
+    const w = writer({
+      writeText: () => {
+        throw cause
+      },
+    })
+    w.read(vault, 'livro')
+    try {
+      w.update(vault, 'livro', 'mabc12345', { pagesRead: 41 })
+      throw new Error('esperava falha')
+    } catch (err) {
+      expect((err as Error).message).toContain('Não foi possível gravar livros.md')
+      expect((err as Error & { cause?: unknown }).cause).toBe(cause)
     }
   })
 })

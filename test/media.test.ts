@@ -241,6 +241,13 @@ describe('codec de mídias', () => {
     expect(item).toMatchObject({ id: 'mabc12345', status: 'em andamento', pagesRead: 5 })
   })
 
+  it('reconhece campos conhecidos mesmo sem espaço depois do hífen', () => {
+    const text = '## Livro\n- ID: mabc12345\n-Estado: concluído\n'
+    const [item] = parseMedia('livro', text).items
+    expect(item).toMatchObject({ status: 'concluído' })
+    expect(replaceMediaItem(text, 'livro', { ...item!, title: 'Livro editado' })).toContain('- Estado: concluído')
+  })
+
   it('lança erro pt-BR quando a linha de ID está malformada, em vez de tratar a seção como texto livre', () => {
     expect(() => parseMedia('livro', '## Livro\n- ID mabc12345\n')).toThrow(/linha de ID de "Livro"/)
     expect(() => parseMedia('livro', '## Livro\n- ID\n')).toThrow(/linha de ID de "Livro"/)

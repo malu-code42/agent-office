@@ -16,7 +16,7 @@ const WINDOWS_RESERVED_RE = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 const TITLE_MAX = 200
 const HEADING = /^## (.+)$/
-const FIELD = /^- ([^:]+):[ ]*(.*)$/
+const FIELD = /^-[ ]*([^:]+):[ ]*(.*)$/
 const ID_LINE_WITHOUT_COLON = /^- ID(\s|$)[^:]*$/
 const AGENDA_FIELD = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}) (.+)$/
 

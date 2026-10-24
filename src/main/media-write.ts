@@ -1,5 +1,19 @@
 import { randomInt } from 'node:crypto'
-import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, type Stats } from 'node:fs'
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  unlinkSync,
+  writeSync,
+  type Stats,
+} from 'node:fs'
 import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 import {
   MEDIA_FILES,
@@ -44,6 +58,8 @@ const POSTER_EXTENSION = 'Escolha um pôster PNG, JPEG ou WebP.'
 const POSTER_EMPTY = 'O arquivo escolhido está vazio.'
 const POSTER_SIZE = 'O pôster passa de 10 MiB. Escolha uma imagem menor.'
 const POSTER_PATH = `Caminho de pôster inválido: ${POSTER_DIR} precisa ser uma pasta real dentro do vault, sem links simbólicos nem atalhos.`
+const BACKUP_PATH =
+  'Caminho de backup inválido: backups/midias precisa ser uma pasta real dentro do vault, sem links simbólicos nem atalhos.'
 
 type PosterType = 'png' | 'jpeg' | 'webp'
 
@@ -118,7 +134,7 @@ export function createMediaWriter(opts: MediaWriterOptions = {}) {
       return readFileSync(fileOf(vault, kind), 'utf8')
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null
-      throw err
+      throw userFileError(`Não foi possível ler ${MEDIA_FILES[kind]}. Verifique as permissões e tente novamente.`, err)
     }
   }
 
@@ -132,13 +148,22 @@ export function createMediaWriter(opts: MediaWriterOptions = {}) {
   }
 
   const backup = (vault: string, kind: MediaKind, text: string): void => {
-    const dir = join(vault, 'backups', 'midias')
-    mkdirSync(dir, { recursive: true })
+    let dir: string
+    try {
+      dir = safeDirectory(vault, ['backups', 'midias'], BACKUP_PATH)
+    } catch (err) {
+      if (err instanceof Error && err.message === BACKUP_PATH) throw err
+      throw userFileError('Não foi possível acessar a pasta de backups/midias. Verifique as permissões.', err)
+    }
     const base = basename(MEDIA_FILES[kind], '.md')
     const stamp = stampOf(now())
     let dest = join(dir, `${base}-${stamp}.md`)
     for (let n = 2; existsSync(dest); n++) dest = join(dir, `${base}-${stamp}-${n}.md`)
-    writeFileAtomic(dest, text)
+    try {
+      writeFileAtomic(dest, text)
+    } catch (err) {
+      throw userFileError('Não foi possível criar o backup da biblioteca de mídias. Verifique o espaço e as permissões.', err)
+    }
   }
 
   const save = (vault: string, kind: MediaKind, before: string | null, after: string): void => {
@@ -148,7 +173,11 @@ export function createMediaWriter(opts: MediaWriterOptions = {}) {
       backup(vault, kind, before ?? '')
       backedUp.add(key)
     }
-    writeText(fileOf(vault, kind), after)
+    try {
+      writeText(fileOf(vault, kind), after)
+    } catch (err) {
+      throw userFileError(`Não foi possível gravar ${MEDIA_FILES[kind]}. Verifique o espaço e as permissões.`, err)
+    }
     lastRead.set(key, after)
   }
 
@@ -220,14 +249,47 @@ export function createMediaWriter(opts: MediaWriterOptions = {}) {
       if (!movie) throw new Error(NOT_FOUND(MEDIA_FILES.filme))
       const next = replaceMediaItem(text, 'filme', { ...movie, posterPath, posterError: undefined })
 
-      const file = join(posterDir(vault), `${id}.${extension}`)
-      const previous = currentPoster(file)
-      writeFileAtomic(file, poster.bytes)
+      let dir: string
+      try {
+        dir = posterDir(vault)
+      } catch (err) {
+        if (err instanceof Error && err.message === POSTER_PATH) throw err
+        throw userFileError('Não foi possível acessar a pasta de pôsteres. Verifique as permissões.', err)
+      }
+      const file = join(dir, `${id}.${extension}`)
+      let previous: Buffer | undefined
+      try {
+        previous = currentPoster(file)
+      } catch (err) {
+        if (err instanceof Error && err.message === POSTER_PATH) throw err
+        throw userFileError('Não foi possível ler o pôster existente. Verifique as permissões.', err)
+      }
+      const tmp = `${file}.tmp`
+      let tmpStat: Stats | undefined
+      try {
+        tmpStat = linkStat(tmp)
+      } catch (err) {
+        throw userFileError('Não foi possível verificar o arquivo temporário do pôster.', err)
+      }
+      if (tmpStat?.isSymbolicLink()) throw new Error(POSTER_PATH)
+      try {
+        writePosterAtomic(file, poster.bytes)
+      } catch (err) {
+        throw userFileError('Não foi possível gravar o pôster. Verifique o espaço e as permissões.', err)
+      }
       try {
         persist(vault, 'filme', before, next)
       } catch (err) {
         undoPoster(file, previous)
         throw err
+      }
+      if (movie.posterPath && movie.posterPath !== posterPath) {
+        try {
+          removePreviousPoster(dir, movie.posterPath, id)
+        } catch {
+          // O registro novo já foi salvo; falhar ao limpar o anterior não deve marcar a operação como falha.
+          // Se a remoção falhar, o arquivo antigo permanece no lugar.
+        }
       }
       return posterPath
     },
@@ -269,6 +331,7 @@ function applyChange(item: MediaItem, change: AnyChange): MediaItem {
     if (change.totalPages !== undefined) next = { ...next, totalPages: change.totalPages ?? undefined }
     if (change.pagesRead !== undefined) next = setPagesRead(next, change.pagesRead)
   }
+  if (next.kind === 'jogo' && change.platinum !== undefined) next = setPlatinum(next, change.platinum)
   if (change.status !== undefined) {
     if (next.kind === 'jogo') next = setStatus(next, change.status)
     else if (next.kind === 'filme') next = setMovieStatus(next, change.status)
@@ -276,7 +339,6 @@ function applyChange(item: MediaItem, change: AnyChange): MediaItem {
   }
   if (next.kind === 'jogo') {
     if (change.favorite !== undefined) next = { ...next, favorite: change.favorite }
-    if (change.platinum !== undefined) next = setPlatinum(next, change.platinum)
   }
   return next
 }
@@ -302,18 +364,53 @@ function matchesAt(bytes: Uint8Array, offset: number, expected: number[]): boole
  * whose real location is inside the vault: a link or junction anywhere on the way is refused.
  */
 function posterDir(vault: string): string {
+  return safeDirectory(vault, POSTER_DIR.split('/'), POSTER_PATH)
+}
+
+function safeDirectory(vault: string, parts: string[], error: string): string {
   const root = resolve(vault)
+  const realRoot = realpathSync(root)
   let dir = root
-  for (const part of POSTER_DIR.split('/')) {
+  for (const part of parts) {
     dir = join(dir, part)
     const stat = linkStat(dir)
-    if (!stat) {
-      mkdirSync(dir)
-      continue
-    }
-    if (stat.isSymbolicLink() || !stat.isDirectory() || !isInside(realpathSync(root), realpathSync(dir))) throw new Error(POSTER_PATH)
+    if (!stat) mkdirSync(dir)
+    else if (stat.isSymbolicLink() || !stat.isDirectory() || !isInside(realRoot, realpathSync(dir))) throw new Error(error)
   }
   return dir
+}
+
+function writePosterAtomic(file: string, bytes: Uint8Array): void {
+  const tmp = `${file}.stage-${process.pid}-${randomInt(0x7fffffff)}`
+  const fd = openSync(tmp, 'wx')
+  try {
+    let offset = 0
+    while (offset < bytes.length) offset += writeSync(fd, bytes, offset, bytes.length - offset)
+    fsyncSync(fd)
+  } catch (err) {
+    closeSync(fd)
+    rmSync(tmp, { force: true })
+    throw err
+  }
+  closeSync(fd)
+  try {
+    renameSync(tmp, file)
+  } catch (err) {
+    rmSync(tmp, { force: true })
+    throw err
+  }
+}
+
+function removePreviousPoster(dir: string, relPath: string, id: string): void {
+  const prefix = `${POSTER_DIR}/`
+  if (!relPath.startsWith(prefix) || basename(relPath) === '' || !basename(relPath).startsWith(`${id}.`)) return
+  const previous = join(dir, basename(relPath))
+  const stat = linkStat(previous)
+  if (stat?.isFile() && !stat.isSymbolicLink() && isInside(realpathSync(dir), realpathSync(previous))) unlinkSync(previous)
+}
+
+function userFileError(message: string, cause: unknown): Error {
+  return new Error(message, { cause })
 }
 
 /** The bytes of the poster already at `file`, or undefined. A link there is refused. */
