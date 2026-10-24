@@ -67,6 +67,7 @@ export class WritingSnippet {
   }
 
   static validateInstruction(instruction: string): string {
+    if (!isWellFormedUnicode(instruction)) throw new Error('A instrução deve conter Unicode UTF-16 válido.')
     if (!instruction.trim() || instruction.length > 2_000) throw new Error('A instrução deve ter de 1 a 2.000 caracteres.')
     return instruction
   }
@@ -291,11 +292,26 @@ function validateVersionId(id: string): void {
   if (!VERSION_ID.test(id)) throw new Error('ID de versão inválido; use v seguido de ao menos 8 letras minúsculas ou dígitos.')
 }
 function validateTitle(title: string): void {
+  if (!isWellFormedUnicode(title)) throw new Error('O título deve conter Unicode UTF-16 válido.')
   if (!title.trim() || title.length > 200 || /[\r\n]/.test(title))
     throw new Error('O título deve ter de 1 a 200 caracteres em uma única linha.')
 }
 function validateBody(body: string): void {
+  if (!isWellFormedUnicode(body)) throw new Error('O corpo deve conter Unicode UTF-16 válido.')
   if (!body.length || body.length > MAX_BODY_LENGTH) throw new Error('O corpo deve ter de 1 a 50.000 caracteres.')
+}
+function isWellFormedUnicode(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const codeUnit = value.charCodeAt(index)
+    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+      const next = value.charCodeAt(index + 1)
+      if (next < 0xdc00 || next > 0xdfff || Number.isNaN(next)) return false
+      index += 1
+    } else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
+      return false
+    }
+  }
+  return true
 }
 function validateDate(date: string): void {
   if (!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)$/.test(date) || Number.isNaN(Date.parse(date)))

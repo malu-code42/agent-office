@@ -62,6 +62,24 @@ describe('WritingSnippet', () => {
     expect(() => WritingSnippet.validateInstruction('x'.repeat(2_001))).toThrow(/2\.000/)
     expect(WritingSnippet.validateInstruction('x'.repeat(2_000))).toBe('x'.repeat(2_000))
   })
+
+  it('rejeita Unicode UTF-16 malformado e preserva pares surrogate válidos', () => {
+    const malformed = '\uD800'
+    expect(() => WritingSnippet.createOriginal({ ...originalArgs, title: `t${malformed}` })).toThrow(/Unicode/i)
+    expect(() => WritingSnippet.createOriginal({ ...originalArgs, body: `b${malformed}` })).toThrow(/Unicode/i)
+    expect(() => WritingSnippet.validateInstruction(malformed)).toThrow(/Unicode/i)
+
+    const snippet = WritingSnippet.createOriginal({ ...originalArgs, title: 'Título 😀', body: 'Texto 😀' })
+    const original = snippet.latestVersion()
+    expect(() =>
+      snippet.appendVersion({
+        versionId: 'vdef67890',
+        baseVersionId: original.versionId,
+        body: `Revisão ${malformed}`,
+        createdAt: '2026-10-24T11:00:00.000Z',
+      }),
+    ).toThrow(/Unicode/i)
+  })
 })
 
 describe('codec de escrita.md', () => {
@@ -130,6 +148,16 @@ describe('codec de escrita.md', () => {
     expect(after).toContain(before)
     expect(after).toContain('linha desconhecida\n')
     expect(parseWriting(after).snippets[0]?.versions).toHaveLength(2)
+  })
+
+  it('preserva exatamente emoji válido ao serializar e analisar título e corpo', () => {
+    const title = 'Título 😀'
+    const body = 'Texto 😀'
+    const snippet = WritingSnippet.createOriginal({ ...originalArgs, title, body })
+    const serialized = serializeWriting(appendSnippet(parseWriting(''), snippet))
+
+    expect(parseWriting(serialized).snippets[0]?.title).toBe(title)
+    expect(parseWriting(serialized).snippets[0]?.latestVersion().body).toBe(body)
   })
 })
 
