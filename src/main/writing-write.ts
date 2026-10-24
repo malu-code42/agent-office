@@ -365,12 +365,17 @@ export function createWritingWriter(options: WritingWriterOptions = {}) {
   }
 
   return {
+    assertSnapshot(vault: string, expectedSnapshot: string | null): void {
+      const root = rootOf(vault)
+      const expected = expectedSnapshot === null ? null : Buffer.from(expectedSnapshot, 'utf8')
+      if (!sameBytes(readDisk(root), expected)) throw new Error(CHANGED)
+    },
     read(vault: string) {
       const root = rootOf(vault)
       const text = readDisk(root)
       const document = parseWriting(text?.toString('utf8') ?? '')
       snapshots.set(root, text)
-      return { text: text?.toString('utf8') ?? null, snippets: document.snippets }
+      return { text: text?.toString('utf8') ?? null, snapshot: text?.toString('utf8') ?? null, snippets: document.snippets }
     },
     createOriginal(vault: string, input: { title: string; body: string }): string {
       const root = rootOf(vault)
@@ -382,9 +387,18 @@ export function createWritingWriter(options: WritingWriterOptions = {}) {
       save(root, before, after)
       return id
     },
-    appendVersion(vault: string, input: { snippetId: string; baseVersionId: string; body: string }): void {
+    appendVersion(
+      vault: string,
+      input: { snippetId: string; baseVersionId: string; body: string; expectedSnapshot?: string | null },
+    ): void {
       const root = rootOf(vault)
-      const before = snapshot(root)
+      // A long-running assistant call must use the bytes captured before send, not a later read's cache.
+      const before = Object.hasOwn(input, 'expectedSnapshot')
+        ? input.expectedSnapshot === null
+          ? null
+          : Buffer.from(input.expectedSnapshot!, 'utf8')
+        : snapshot(root)
+      if (!sameBytes(readDisk(root), before)) throw new Error(CHANGED)
       const document = parseWriting(before?.toString('utf8') ?? '')
       const snippet = document.snippets.find((item) => item.id === input.snippetId)
       if (!snippet) throw new Error('O trecho solicitado não existe em escrita.md. Recarregue a biblioteca.')

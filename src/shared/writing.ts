@@ -231,7 +231,21 @@ export function appendVersion(document: WritingDocument, snippetId: string, vers
     throw new Error('A sequência de versões está fora de ordem.')
   validateVersion(version)
   const block = serializeVersion(version, document.lineEnding)
-  return parseWriting(appendBlock(document.source, block, document.lineEnding))
+  const lines = physicalLines(document.source)
+  const markerIndex = lines.findIndex((line) => {
+    const match = SNIPPET.exec(line.content)
+    if (!match) return false
+    try {
+      return (JSON.parse(match[1]!) as { id?: string }).id === snippetId
+    } catch {
+      return false
+    }
+  })
+  const nextMarker = lines.slice(markerIndex + 1).find((line) => SNIPPET.test(line.content))
+  if (!nextMarker) return parseWriting(appendBlock(document.source, block, document.lineEnding))
+  const prefix = document.source.slice(0, nextMarker.start)
+  const separator = prefix.endsWith('\n') ? '' : document.lineEnding
+  return parseWriting(`${prefix}${separator}${block}${document.lineEnding}${document.source.slice(nextMarker.start)}`)
 }
 
 function serializeSnippet(snippet: WritingSnippet, eol: string): string {
