@@ -6,9 +6,28 @@ export type MediaKind = 'livro' | 'filme' | 'jogo'
 
 /** Fields the local confirmation editor may send to create exactly one item. */
 export type MediaCreateInput =
-  | { kind: 'livro'; title: string; status: MediaStatus; pagesRead: number; totalPages?: number }
-  | { kind: 'filme'; title: string; status: MediaStatus }
-  | { kind: 'jogo'; title: string; status: MediaStatus; favorite: boolean; platinum: boolean }
+  | { kind: 'livro'; title: string; status: MediaStatus; pagesRead: number; totalPages?: number; agenda?: MediaAgendaLink }
+  | { kind: 'filme'; title: string; status: MediaStatus; agenda?: MediaAgendaLink }
+  | { kind: 'jogo'; title: string; status: MediaStatus; favorite: boolean; platinum: boolean; agenda?: MediaAgendaLink }
+
+/** Editable fields for an existing item; null clears an optional agenda link or page total. */
+export type MediaUpdateInput =
+  | {
+      kind: 'livro'
+      id: string
+      title: string
+      status: MediaStatus
+      pagesRead: number
+      totalPages: number | null
+      agenda: MediaAgendaLink | null
+    }
+  | { kind: 'filme'; id: string; title: string; status: MediaStatus; agenda: MediaAgendaLink | null }
+  | { kind: 'jogo'; id: string; title: string; status: MediaStatus; favorite: boolean; platinum: boolean; agenda: MediaAgendaLink | null }
+
+export interface MediaPosterResult {
+  dataUrl: string | null
+  error?: string
+}
 
 export const MEDIA_FILES: Record<MediaKind, string> = { livro: 'livros.md', filme: 'filmes.md', jogo: 'jogos.md' }
 export const MEDIA_ID_RE = /^m[a-z0-9]{8}$/
@@ -88,6 +107,32 @@ export interface BookProgress {
   pagesRead: number
   totalPages?: number
   percent: number
+}
+
+/** Agenda-linked state/progress edits require an explicit user confirmation. */
+export function needsAgendaConfirmation(item: MediaItem, change: Partial<MediaItem>): boolean {
+  if (!item.agenda) return false
+  if (change.status !== undefined && change.status !== item.status) return true
+  if (item.kind === 'livro' && change.kind === 'livro') {
+    return change.pagesRead !== undefined && change.pagesRead !== item.pagesRead
+  }
+  if (item.kind === 'jogo' && change.kind === 'jogo') return change.platinum !== undefined && change.platinum !== item.platinum
+  return false
+}
+
+/** A declined completion prompt preserves the existing state; reaching the total never completes silently. */
+export function bookStatusAfterPrompt(
+  current: MediaStatus,
+  pagesRead: number,
+  totalPages: number | undefined,
+  confirmed: boolean,
+): MediaStatus {
+  return totalPages !== undefined && pagesRead === totalPages && confirmed ? 'concluído' : current
+}
+
+/** A cancelled native picker leaves the current selection untouched. */
+export function posterAfterPicker<T>(current: T | null, picked: T | null): T | null {
+  return picked ?? current
 }
 
 /** Parses a media Markdown file, keeping every original line so untouched text round-trips exactly. */

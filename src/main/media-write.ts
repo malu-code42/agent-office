@@ -248,6 +248,65 @@ export function createMediaWriter(opts: MediaWriterOptions = {}) {
     persist(vault, kind, before, replaceMediaItem(text, kind, applyChange(item, change)))
   }
 
+  const updateFilmWithPoster = (vault: string, kind: MediaKind, id: string, change: AnyChange, poster: PosterInput): string => {
+    const before = unchanged(vault, 'filme')
+    if (kind !== 'filme') throw new Error('Pôster só pode ser anexado a um filme.')
+    if (!MEDIA_ID_RE.test(id)) throw new Error(`O identificador "${id}" é inválido.`)
+
+    const text = before ?? ''
+    const movie = parseMedia('filme', text).items.find((item) => item.id === id)
+    if (!movie) throw new Error(NOT_FOUND(MEDIA_FILES.filme))
+    const extension = validatePosterImage(poster.bytes, poster.extension)
+    const posterPath = `${POSTER_DIR}/${id}.${extension}`
+    const updated = applyChange(movie, change)
+    if (updated.kind !== 'filme') throw new Error('Pôster só pode ser anexado a um filme.')
+    const next = replaceMediaItem(text, 'filme', { ...updated, posterPath, posterError: undefined })
+
+    let dir: string
+    try {
+      dir = posterDir(vault)
+    } catch (err) {
+      if (err instanceof Error && err.message === POSTER_PATH) throw err
+      throw userFileError('Não foi possível acessar a pasta de pôsteres. Verifique as permissões.', err)
+    }
+    const file = join(dir, `${id}.${extension}`)
+    let previous: Buffer | undefined
+    try {
+      previous = currentPoster(file)
+    } catch (err) {
+      if (err instanceof Error && err.message === POSTER_PATH) throw err
+      throw userFileError('Não foi possível ler o pôster existente. Verifique as permissões.', err)
+    }
+    const tmp = `${file}.tmp`
+    let tmpStat: Stats | undefined
+    try {
+      tmpStat = linkStat(tmp)
+    } catch (err) {
+      throw userFileError('Não foi possível verificar o arquivo temporário do pôster.', err)
+    }
+    if (tmpStat?.isSymbolicLink()) throw new Error(POSTER_PATH)
+    try {
+      writePosterAtomic(file, poster.bytes)
+    } catch (err) {
+      throw userFileError('Não foi possível gravar o pôster. Verifique o espaço e as permissões.', err)
+    }
+    try {
+      persist(vault, 'filme', before, next)
+    } catch (err) {
+      undoPoster(file, previous)
+      throw err
+    }
+    if (movie.posterPath && movie.posterPath !== posterPath) {
+      try {
+        removePreviousPoster(dir, movie.posterPath, id)
+      } catch {
+        // O registro novo já foi salvo; falhar ao limpar o anterior não deve marcar a operação como falha.
+        // Se a remoção falhar, o arquivo antigo permanece no lugar.
+      }
+    }
+    return posterPath
+  }
+
   return {
     /** The items of the library, read now. A missing file is an empty library and nothing is created. */
     read<K extends MediaKind>(vault: string, kind: K): MediaItemOf<K>[] {
@@ -264,6 +323,10 @@ export function createMediaWriter(opts: MediaWriterOptions = {}) {
     /** Changes the fields of the item `id`. Only the fields the kind has are accepted. */
     update<K extends MediaKind>(vault: string, kind: K, id: string, change: MediaChange<K>): void {
       updateItem(vault, kind, id, change)
+    },
+    /** Updates movie fields and its poster as one operation; a failed Markdown write restores the destination poster. */
+    updateFilmWithPoster(vault: string, kind: MediaKind, id: string, change: MediaChange<MediaKind>, poster: PosterInput): string {
+      return updateFilmWithPoster(vault, kind, id, change, poster)
     },
     /** Stores the agenda reference of the item. Nothing else changes: no task, no recurrence, no agenda.md. */
     linkAgenda(vault: string, kind: MediaKind, id: string, agenda: MediaAgendaLink): void {

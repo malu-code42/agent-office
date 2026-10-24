@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { ATTACH_LIMITS } from '@shared/attachments'
 import { HAIR_STYLES } from '@shared/describe'
 import { IRIS_NOT_UNDERSTOOD, type IrisAnswer } from '@shared/iris'
-import { MEDIA_STATUSES, type MediaCreateInput } from '@shared/media'
+import { MEDIA_STATUSES, type MediaCreateInput, type MediaUpdateInput } from '@shared/media'
 import { STEP_MAX } from '@shared/planning'
 import { isIsoDay, REFUSED_KINDS, REFUSED_MESSAGE, type Proposal, type ProposalOperation } from '@shared/proposals'
 import { PROFILE_IDS } from '@shared/profiles'
@@ -97,6 +97,13 @@ const mediaTitleSchema = z
   .min(1)
   .max(200)
   .refine((v) => !/[\r\n]/.test(v))
+const mediaAgendaLinkSchema = z
+  .object({
+    day: z.string().refine(isIsoDay, 'A data do vínculo de agenda é inválida.'),
+    time: z.string().regex(TIME_FORMAT, 'O horário do vínculo de agenda é inválido.'),
+    title: mediaTitleSchema,
+  })
+  .strict()
 export const mediaCreateInputSchema: z.ZodType<MediaCreateInput> = z.discriminatedUnion('kind', [
   z
     .object({
@@ -105,9 +112,12 @@ export const mediaCreateInputSchema: z.ZodType<MediaCreateInput> = z.discriminat
       status: z.enum(MEDIA_STATUSES),
       pagesRead: z.number().int().min(0),
       totalPages: z.number().int().min(0).optional(),
+      agenda: mediaAgendaLinkSchema.optional(),
     })
     .strict(),
-  z.object({ kind: z.literal('filme'), title: mediaTitleSchema, status: z.enum(MEDIA_STATUSES) }).strict(),
+  z
+    .object({ kind: z.literal('filme'), title: mediaTitleSchema, status: z.enum(MEDIA_STATUSES), agenda: mediaAgendaLinkSchema.optional() })
+    .strict(),
   z
     .object({
       kind: z.literal('jogo'),
@@ -115,10 +125,48 @@ export const mediaCreateInputSchema: z.ZodType<MediaCreateInput> = z.discriminat
       status: z.enum(MEDIA_STATUSES),
       favorite: z.boolean(),
       platinum: z.boolean(),
+      agenda: mediaAgendaLinkSchema.optional(),
     })
     .strict(),
 ])
 export const createMediaItemArgsSchema = z.tuple([mediaCreateInputSchema, mediaPosterTokenSchema.optional()])
+const agendaLinkSchema = mediaAgendaLinkSchema.nullable()
+export const mediaUpdateInputSchema: z.ZodType<MediaUpdateInput> = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('livro'),
+      id: z.string().regex(/^m[a-z0-9]{8}$/),
+      title: mediaTitleSchema,
+      status: z.enum(MEDIA_STATUSES),
+      pagesRead: z.number().int().min(0),
+      totalPages: z.number().int().min(0).nullable(),
+      agenda: agendaLinkSchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('filme'),
+      id: z.string().regex(/^m[a-z0-9]{8}$/),
+      title: mediaTitleSchema,
+      status: z.enum(MEDIA_STATUSES),
+      agenda: agendaLinkSchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('jogo'),
+      id: z.string().regex(/^m[a-z0-9]{8}$/),
+      title: mediaTitleSchema,
+      status: z.enum(MEDIA_STATUSES),
+      favorite: z.boolean(),
+      platinum: z.boolean(),
+      agenda: agendaLinkSchema,
+    })
+    .strict(),
+])
+export const mediaUpdateArgsSchema = z.tuple([mediaUpdateInputSchema, mediaPosterTokenSchema.optional()])
+export const mediaReadArgsSchema = z.tuple([z.enum(['livro', 'filme', 'jogo'])])
+export const mediaPosterReadArgsSchema = z.tuple([z.string().regex(/^m[a-z0-9]{8}$/)])
 export const pickMediaPosterArgsSchema = z.tuple([])
 /** getSubagentLog(agentId, subId) */
 export const subagentLogArgsSchema = z.tuple([idSchema, idSchema])

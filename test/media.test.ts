@@ -3,8 +3,11 @@ import { readPosterFile } from '../src/main/ipc/media'
 import {
   appendMediaItem,
   bookProgress,
+  bookStatusAfterPrompt,
   newMediaItem,
+  needsAgendaConfirmation,
   parseMedia,
+  posterAfterPicker,
   replaceMediaItem,
   serializeMedia,
   setMovieStatus,
@@ -393,6 +396,44 @@ describe('codec de mídias', () => {
     expect(parseMedia('filme', '## Filme\n- ID: mfilm0001\n- Pôster: midias/posters/CONTEUDO.png\n').items[0]?.posterPath).toBe(
       'midias/posters/CONTEUDO.png',
     )
+  })
+
+  it('só sugere conclusão do livro com confirmação explícita', () => {
+    expect(bookStatusAfterPrompt('em andamento', 100, 100, false)).toBe('em andamento')
+    expect(bookStatusAfterPrompt('em andamento', 100, 100, true)).toBe('concluído')
+    expect(bookStatusAfterPrompt('planejado', 99, 100, true)).toBe('planejado')
+  })
+
+  it('mantém o pôster atual quando a seleção nativa é cancelada', () => {
+    const current = { token: 'seleção-existente' }
+    expect(posterAfterPicker(current, null)).toBe(current)
+    expect(posterAfterPicker(current, { token: 'nova-seleção' })).toEqual({ token: 'nova-seleção' })
+  })
+
+  it('exige confirmação para estado, progresso e platina ligados à agenda, mas não para favorito', () => {
+    const link = { day: '2026-10-30', time: '19:30', title: 'Sessão' }
+    const book = {
+      kind: 'livro',
+      id: 'mabc12345',
+      title: 'Livro',
+      status: 'planejado',
+      pagesRead: 10,
+      totalPages: 100,
+      agenda: link,
+    } as const
+    expect(needsAgendaConfirmation(book, { ...book, pagesRead: 11 })).toBe(true)
+    expect(needsAgendaConfirmation(book, { ...book, title: 'Título revisado' })).toBe(false)
+    const game = {
+      kind: 'jogo',
+      id: 'mabc12345',
+      title: 'Jogo',
+      status: 'concluído',
+      favorite: false,
+      platinum: false,
+      agenda: link,
+    } as const
+    expect(needsAgendaConfirmation(game, { ...game, favorite: true })).toBe(false)
+    expect(needsAgendaConfirmation(game, { ...game, platinum: true })).toBe(true)
   })
 })
 

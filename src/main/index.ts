@@ -26,6 +26,7 @@ import { RoutineScheduler, RoutineStore } from './routines'
 import { BarTimerStore } from './bar-timer-store'
 import { ProfileMemoryStore } from './profile-memory'
 import { createMediaPosters } from './media-posters'
+import { createMediaWriter } from './media-write'
 import { Store } from './store'
 import { SystemMonitor } from './system'
 import { StatsReader } from './stats'
@@ -225,6 +226,7 @@ app.whenReady().then(async () => {
   // The memory of the profiles (AO-43): one short summary written by the person, per profile.
   const profileMemory = new ProfileMemoryStore(app.getPath('userData'))
   const mediaPosters = createMediaPosters()
+  const mediaWriter = createMediaWriter()
   // A fatal error saves what is in memory before asking what to do.
   onFatalFlush(() => {
     store.flush()
@@ -568,6 +570,7 @@ app.whenReady().then(async () => {
     barTimer,
     profileMemory,
     mediaPosters,
+    mediaWriter,
     book,
     desk,
     routines,

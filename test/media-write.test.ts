@@ -366,6 +366,15 @@ describe('vínculo com a agenda', () => {
 })
 
 describe('pôster', () => {
+  it('recusa a operação transacional quando o tipo não é filme', () => {
+    const w = withMovie()
+    expect(() => w.updateFilmWithPoster(vault, 'livro', 'mfilm0001', {}, { bytes: JPEG, extension: 'jpeg' })).toThrow(
+      'Pôster só pode ser anexado a um filme.',
+    )
+    expect(read('filmes.md')).toBe(FILMES)
+    expect(existsSync(join(vault, 'midias'))).toBe(false)
+  })
+
   it.each([
     ['png', PNG],
     ['PNG', PNG],
