@@ -4,6 +4,7 @@ import {
   appendMediaItem,
   bookProgress,
   bookStatusAfterPrompt,
+  mediaAgendaLinks,
   needsBookCompletionPrompt,
   newMediaItem,
   needsAgendaConfirmation,
@@ -407,7 +408,19 @@ describe('codec de mídias', () => {
     expect(needsBookCompletionPrompt('planejado', 100, undefined)).toBe(false)
     expect(bookStatusAfterPrompt('em andamento', 100, 100, false)).toBe('em andamento')
     expect(bookStatusAfterPrompt('em andamento', 100, 100, true)).toBe('concluído')
+    expect(bookStatusAfterPrompt('planejado', 100, 100, false)).toBe('planejado')
+    expect(bookStatusAfterPrompt('planejado', 100, 100, true)).toBe('concluído')
     expect(bookStatusAfterPrompt('planejado', 99, 100, true)).toBe('planejado')
+  })
+
+  it('usa somente compromissos como vínculos disponíveis de agenda', () => {
+    const commitment = { kind: 'commitment' as const, time: '19:00', title: 'Leitura' }
+    const task = { kind: 'task' as const, time: '20:00', id: 't123456', text: 'Tarefa' }
+    const view = {
+      week: [{ date: '2026-10-30', entries: [commitment, task] }],
+      today: { date: '2026-10-30', entries: [commitment, task] },
+    }
+    expect(mediaAgendaLinks(view)).toEqual([{ day: '2026-10-30', time: '19:00', title: 'Leitura' }])
   })
 
   it('mantém o pôster atual quando a seleção nativa é cancelada', () => {

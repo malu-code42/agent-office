@@ -1,4 +1,5 @@
 import { isIsoDay } from './proposals'
+import type { AgendaView } from './agenda'
 
 export const MEDIA_STATUSES = ['planejado', 'em andamento', 'concluído'] as const
 export type MediaStatus = (typeof MEDIA_STATUSES)[number]
@@ -133,6 +134,19 @@ export function bookStatusAfterPrompt(
 /** A completed status is already explicit; otherwise reaching a known total needs confirmation. */
 export function needsBookCompletionPrompt(status: MediaStatus, pagesRead: number, totalPages: number | undefined): boolean {
   return status !== 'concluído' && totalPages !== undefined && pagesRead === totalPages
+}
+
+/** Only explicit agenda commitments are offered as media links; task references are not commitments. */
+export function mediaAgendaLinks(view: Pick<AgendaView, 'week' | 'today'>): MediaAgendaLink[] {
+  const links = new Map<string, MediaAgendaLink>()
+  for (const day of [...view.week, view.today]) {
+    for (const entry of day.entries) {
+      if (entry.kind !== 'commitment') continue
+      const link = { day: day.date, time: entry.time, title: entry.title }
+      links.set(JSON.stringify(link), link)
+    }
+  }
+  return [...links.values()]
 }
 
 /** A cancelled native picker leaves the current selection untouched. */

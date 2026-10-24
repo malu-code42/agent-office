@@ -1,5 +1,6 @@
 import {
   bookStatusAfterPrompt,
+  needsBookCompletionPrompt,
   needsAgendaConfirmation,
   posterAfterPicker,
   type MediaAgendaLink,
@@ -131,6 +132,7 @@ async function openEditor(root: HTMLElement, kind: MediaKind, item: MediaItem | 
     return []
   })
   let poster: Awaited<ReturnType<typeof window.office.pickMediaPoster>> = null
+  let currentPosterDataUrl: string | null = null
   let done = false
   const title = h('input', {
     type: 'text',
@@ -212,7 +214,8 @@ async function openEditor(root: HTMLElement, kind: MediaKind, item: MediaItem | 
     body.push(field('Pôster local', h('div', { class: 'media-poster-editor-controls' }, posterPreview, choose)))
     if (item?.kind === 'filme' && item.posterPath) {
       const current = await window.office.readMediaPoster(item.id)
-      if (current.dataUrl) drawPoster(current.dataUrl)
+      currentPosterDataUrl = current.dataUrl
+      if (currentPosterDataUrl) drawPoster(currentPosterDataUrl)
     }
   }
   const finish = () => {
@@ -247,17 +250,28 @@ async function openEditor(root: HTMLElement, kind: MediaKind, item: MediaItem | 
       }
       let finalStatus = common.status
       if (item?.kind === 'livro') {
-        if (total !== null && total === pages && pages !== item.pagesRead) {
+        if (needsBookCompletionPrompt(common.status, pages, total ?? undefined)) {
           const confirmed = await confirmDialog(root, {
             title: 'Livro concluído?',
             text: 'Você chegou ao total de páginas. Quer marcar este livro como concluído?',
             confirm: 'Marcar concluído',
             cancel: 'Manter estado',
           })
-          finalStatus = bookStatusAfterPrompt(item.status, pages, total, confirmed)
+          finalStatus = bookStatusAfterPrompt(common.status, pages, total ?? undefined, confirmed)
         }
         input = { kind, id: item.id, ...common, status: finalStatus, pagesRead: pages, totalPages: total }
-      } else input = { kind, ...createCommon, status: finalStatus, pagesRead: pages, ...(total === null ? {} : { totalPages: total }) }
+      } else {
+        if (needsBookCompletionPrompt(common.status, pages, total ?? undefined)) {
+          const confirmed = await confirmDialog(root, {
+            title: 'Livro concluído?',
+            text: 'Você chegou ao total de páginas. Quer marcar este livro como concluído?',
+            confirm: 'Marcar concluído',
+            cancel: 'Manter estado',
+          })
+          finalStatus = bookStatusAfterPrompt(common.status, pages, total ?? undefined, confirmed)
+        }
+        input = { kind, ...createCommon, status: finalStatus, pagesRead: pages, ...(total === null ? {} : { totalPages: total }) }
+      }
     } else if (kind === 'jogo') {
       const platinumValue = platinum!.checked
       const chosenStatus = platinumValue ? 'concluído' : common.status
@@ -278,7 +292,13 @@ async function openEditor(root: HTMLElement, kind: MediaKind, item: MediaItem | 
       el.remove()
       saved()
     } catch (err) {
-      toast(cleanError(err), 'err')
+      const failedPoster = poster
+      if (failedPoster) {
+        poster = null
+        await window.office.discardMediaPoster(failedPoster.token).catch(() => undefined)
+        drawPoster(currentPosterDataUrl ?? undefined)
+        toast(`${cleanError(err)} Se ainda quiser substituir o pôster, selecione-o novamente.`, 'err')
+      } else toast(cleanError(err), 'err')
     } finally {
       save.disabled = false
     }
