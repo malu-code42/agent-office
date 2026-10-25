@@ -215,7 +215,12 @@ export function registerTasksIpc(ctx: IpcContext): void {
   // Read on every call, so an edit made in Obsidian shows on the next read. Nothing here writes agenda.md or tarefas.md (AO-11).
   ipcMain.handle('office:readAgenda', async () => {
     const path = requireVault()
-    return buildAgendaView(readOptionalFile(path, 'agenda.md'), readOptionalFile(path, 'tarefas.md') ?? '', new Date())
+    return buildAgendaView(
+      readOptionalFile(path, 'agenda.md'),
+      readOptionalFile(path, 'tarefas.md') ?? '',
+      new Date(),
+      readOptionalFile(path, 'aulas.md'),
+    )
   })
 
   ipcMain.handle('office:focusTask', async (_e, line: unknown) => {

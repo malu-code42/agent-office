@@ -10,15 +10,37 @@ const brDate = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.sl
 const weekday = (iso: string) => WEEKDAYS[(new Date(`${iso}T12:00:00`).getDay() + 6) % 7]!
 
 function entryItem(entry: AgendaEntry): HTMLElement {
+  if (entry.kind === 'class') {
+    return h(
+      'li',
+      { class: `agenda-entry agenda-class${entry.conflict ? ' agenda-conflict' : ''}` },
+      h('span', { class: 'agenda-time' }, entry.time),
+      h('span', {}, h('small', { class: 'agenda-kind' }, 'Aula'), entry.title),
+      ...(entry.conflict
+        ? [h('span', { class: 'agenda-conflict-label', role: 'img', 'aria-label': 'Conflito de horário' }, 'Conflito de horário')]
+        : []),
+    )
+  }
   if (entry.kind === 'commitment') {
-    return h('li', { class: 'agenda-entry' }, h('span', { class: 'agenda-time' }, entry.time), h('span', {}, entry.title))
+    return h(
+      'li',
+      { class: `agenda-entry${entry.conflict ? ' agenda-conflict' : ''}` },
+      h('span', { class: 'agenda-time' }, entry.time),
+      h('span', {}, entry.title),
+      ...(entry.conflict
+        ? [h('span', { class: 'agenda-conflict-label', role: 'img', 'aria-label': 'Conflito de horário' }, 'Conflito de horário')]
+        : []),
+    )
   }
   if (entry.kind === 'task') {
     return h(
       'li',
-      { class: 'agenda-entry' },
+      { class: `agenda-entry${entry.conflict ? ' agenda-conflict' : ''}` },
       h('span', { class: 'agenda-time' }, entry.time),
       h('span', { class: entry.text === null ? 'agenda-missing' : '' }, entry.text ?? 'tarefa não encontrada'),
+      ...(entry.conflict
+        ? [h('span', { class: 'agenda-conflict-label', role: 'img', 'aria-label': 'Conflito de horário' }, 'Conflito de horário')]
+        : []),
     )
   }
   // The line as written, so a line the app does not know is still there to read.
@@ -30,7 +52,7 @@ function dayList(day: AgendaDay): HTMLElement {
 }
 
 function paint(view: AgendaView): HTMLElement[] {
-  if (!view.found) {
+  if (!view.found && !view.classesFound) {
     return [
       h(
         'div',
@@ -56,6 +78,15 @@ function paint(view: AgendaView): HTMLElement[] {
       ),
     ),
   ]
+  if (view.warnings.length)
+    sections.unshift(
+      h(
+        'div',
+        { class: 'agenda-warnings', role: 'alert' },
+        h('b', {}, 'Revise aulas.md:'),
+        ...view.warnings.map((warning) => h('p', {}, warning)),
+      ),
+    )
   if (view.undated.length) {
     sections.push(
       h(

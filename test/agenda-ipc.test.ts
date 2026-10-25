@@ -114,6 +114,19 @@ describe('agenda IPC', () => {
     expect(view).toMatchObject({ found: false, today: { date: '2026-10-17', entries: [] }, undated: [] })
   })
 
+  it('reads aulas.md from the configured vault even without agenda.md, without writing either file', async () => {
+    const source = Buffer.from('- id: aula-a | dia: sábado | hora: 09:00 | título: Aula A (SIMULADO)\n')
+    writeFileSync(join(vault, 'aulas.md'), source)
+    settings.vaultPath = vault
+
+    const view = (await invoke('office:readAgenda', 'C:/ignorado')) as View & { classesFound: boolean }
+
+    expect(view).toMatchObject({ found: false, classesFound: true })
+    expect(view.today.entries).toEqual([{ kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)' }])
+    expect(readFileSync(join(vault, 'aulas.md'))).toEqual(source)
+    expect(existsSync(join(vault, 'agenda.md'))).toBe(false)
+  })
+
   it('shows a missing id when tarefas.md is not in the vault, and does not fail', async () => {
     writeFileSync(join(vault, 'agenda.md'), '## 2026-10-17\n- 10:30 ↦ ^tabc123\n')
     settings.vaultPath = vault
