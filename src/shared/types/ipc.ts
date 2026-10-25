@@ -295,9 +295,9 @@ export interface OfficeAPI {
   confirmReview(choices: ReviewChoices): Promise<{ applied: number }>
   /** Rotinas pessoais do vault (AO-42): as de hoje e as linhas que precisam do usuário (candidatas da revisão do dia). Só lê rotinas-pessoais.md. */
   routineCandidates(): Promise<RoutineCandidate[]>
-  /** Lê agenda e pendências pessoais da semana local; sem criar tarefas. */
+  /** Projeta agenda e pendências pessoais da semana local; não altera o estado das ocorrências. */
   personalRoutineOverview(): Promise<PersonalRoutineOverview>
-  /** Confirma explicitamente os dias escolhidos para a meta desta semana. */
+  /** Confirma a distribuição semanal escolhida e materializa as ocorrências selecionadas. */
   confirmPersonalRoutineDistribution(routineId: string, days: number[]): Promise<PersonalRoutineOverview>
   /** Reserva e cria tarefa idempotente para uma ocorrência selecionada; renderer não envia caminho nem ID. */
   createPersonalRoutineTask(input: PersonalRoutineCreateInput): Promise<{ id: string; board: ParsedBoard; focus: FocusItem[] }>

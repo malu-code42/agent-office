@@ -12,7 +12,7 @@ export abstract class GameMovement extends GameSkull {
     const target = grid.walkable(tile[0], tile[1]) ? tile : grid.nearestWalkable(tile[0], tile[1])
     if (!target) return
     this.follow = true
-    const chair = this.player.floor === 0 && target[0] === 4 && target[1] === 2
+    const chair = this.player.floor === 0 && target[0] === Math.floor(L.BOSS_SEAT.x) && target[1] === Math.floor(L.BOSS_SEAT.z)
     this.route(this.player, target, chair ? L.BOSS_SEAT : null, () => {
       if (chair) this.sitPlayer()
     })
@@ -108,7 +108,7 @@ export abstract class GameMovement extends GameSkull {
 
   goHome(): void {
     this.goFloor(0)
-    this.walkPlayerTo([4, 2])
+    this.walkPlayerTo([Math.floor(L.BOSS_SEAT.x), Math.floor(L.BOSS_SEAT.z)])
   }
 
   /** Points the camera at an agent and keeps it there until the agent settles, even one still on its way in. */

@@ -30,6 +30,8 @@ export interface Partition {
   from: number
   to: number
   doors: number[] // tile indices along the span left open
+  /** Whether the wall is a low garden fence instead of beadboard. */
+  fence?: boolean
 }
 
 export const PARTITIONS: Partition[] = [
@@ -65,8 +67,8 @@ export const DESKS: DeskSlot[] = (() => {
   return out
 })()
 
-/** Where the player's own chair is, behind the big desk. */
-export const BOSS_SEAT = { x: 4.5, z: 2.5 }
+/** The user's seat by the round table on the ground floor. */
+export const BOSS_SEAT = { x: 5.52, z: 4.35 }
 export const BOSS_DESK = { x: 3, z: 3, w: 3 }
 /** Spots in front of the boss desk where visiting agents stand, best first. */
 export const VISIT_SPOTS: [number, number][] = [
@@ -90,11 +92,11 @@ export function behindBossDesk(x: number, z: number): boolean {
   return z <= 2 && x >= 2 && x <= 6
 }
 
-export const ELEVATOR = { x: 30, z: 0 }
-export const SPAWN_TILE: [number, number] = [30, 1]
+export const ELEVATOR = { x: 13.5, z: 0 }
+export const SPAWN_TILE: [number, number] = [13, 1]
 /** Where the elevator of the ground floor drops people. */
 export const SPAWN_POINT = { x: ELEVATOR.x, z: 0.45 }
-export const PLAYER_START: [number, number] = [4, 5]
+export const PLAYER_START: [number, number] = [5, 4]
 
 /** Where idle agents hang out: final position, the point they look at, and the tile they walk to first. */
 export interface HangSpot {
@@ -106,7 +108,7 @@ export interface HangSpot {
   kind: 'sit' | 'stand' | 'play'
 }
 
-// Lounge furniture centers, shared with office.ts.
+// Kept for the world's idle-agent behavior; the ground-floor anchors now live in the public home rooms.
 export const LOUNGE = {
   sofaA: { x: 14.5, z: 16.45 },
   tableA: { x: 14.5, z: 18.5 },
@@ -140,34 +142,33 @@ const around = (p: { x: number; z: number }, c: { x: number; z: number }, approa
   kind: 'sit',
 })
 
-/** Ordered so even a few idle agents spread across the lounge. */
+/** Public places only: idle agents never enter the private bedroom. */
 export const LOUNGE_SEATS: HangSpot[] = [
-  sofaSeat(14.5, 16.45),
-  { x: 21, z: 16.55, look: [21, 17.5], approach: [21, 16], kind: 'play' },
-  { x: 21, z: 18.45, look: [21, 17.5], approach: [21, 18], kind: 'play' },
-  sofaSeat(26.5, 16.45),
-  { x: 30.5, z: 16.45, look: [30.5, 15.5], approach: [30, 16], kind: 'play' },
-  { x: 28.3, z: 22.5, look: [30, 22.5], approach: [28, 22], kind: 'play' },
-  { x: 31.7, z: 22.5, look: [30, 22.5], approach: [31, 22], kind: 'play' },
-  // a coffee at the café counter
-  { x: 1.5, z: 14.6, look: [0.5, 14.6], approach: [1, 14], kind: 'stand' },
-  around(LOUNGE.armchairs[0], LOUNGE.tableA, [12, 19]),
-  around(LOUNGE.circleBags[0], LOUNGE.circle, [19, 20]),
-  sofaSeat(13.5, 16.45),
-  sofaSeat(25.5, 16.45),
-  { x: 31.5, z: 16.45, look: [31.5, 15.5], approach: [31, 16], kind: 'play' },
-  around(LOUNGE.bagsC[0], LOUNGE.tableC, [24, 21]),
-  around(LOUNGE.armchairs[1], LOUNGE.tableA, [16, 19]),
-  around(LOUNGE.circleBags[1], LOUNGE.circle, [21, 20]),
-  sofaSeat(15.5, 16.45),
-  sofaSeat(27.5, 16.45),
-  around(LOUNGE.bagsC[1], LOUNGE.tableC, [28, 21]),
-  around(LOUNGE.circleBags[2], LOUNGE.circle, [20, 23]),
-  around(LOUNGE.bagsC[2], LOUNGE.tableC, [26, 22]),
-  { x: 18.5, z: 19.5, look: [17.5, 19.5], approach: [18, 19], kind: 'stand' },
-  { x: 23.5, z: 19.5, look: [24.5, 19.5], approach: [23, 19], kind: 'stand' },
-  { x: 4.5, z: 16.5, look: [4.5, 15.5], approach: [4, 16], kind: 'stand' },
-  { x: 1.5, z: 16.6, look: [0.5, 16.6], approach: [1, 16], kind: 'stand' },
+  sofaSeat(13.1, 18.5),
+  around({ x: 10.9, z: 16.3 }, { x: 11.5, z: 18.5 }, [10, 17]),
+  { x: 21.9, z: 7.6, look: [22.8, 7.6], approach: [21, 8], kind: 'sit' },
+  { x: 23.7, z: 7.6, look: [22.8, 7.6], approach: [23, 8], kind: 'sit' },
+  { x: 28.2, z: 13.2, look: [29, 12.2], approach: [28, 12], kind: 'sit' },
+  { x: 29.8, z: 13.2, look: [29, 12.2], approach: [30, 12], kind: 'sit' },
+  { x: 19.4, z: 19.2, look: [17.4, 19], approach: [20, 19], kind: 'sit' },
+  { x: 16, z: 19.6, look: [17.4, 19], approach: [16, 20], kind: 'sit' },
+  { x: 10.9, z: 20.7, look: [11.4, 18.5], approach: [10, 20], kind: 'sit' },
+  { x: 19, z: 15.9, look: [19, 14.5], approach: [18, 16], kind: 'sit' },
+  { x: 29, z: 13.2, look: [29, 12.2], approach: [29, 14], kind: 'sit' },
+  { x: 22, z: 15.2, look: [22, 14.2], approach: [21, 15], kind: 'sit' },
+  { x: 20.6, z: 22.4, look: [18, 22], approach: [20, 22], kind: 'sit' },
+  { x: 31, z: 19.6, look: [29.6, 22.6], approach: [30, 20], kind: 'sit' },
+  { x: 27.4, z: 19.7, look: [27.4, 18.6], approach: [27, 20], kind: 'sit' },
+  { x: 13.1, z: 18.5, look: [10.9, 18.5], approach: [14, 18], kind: 'sit' },
+  { x: 17.4, z: 17.5, look: [17.4, 19], approach: [17, 17], kind: 'sit' },
+  { x: 20.6, z: 22.4, look: [18, 22], approach: [21, 22], kind: 'sit' },
+  { x: 10.9, z: 16.3, look: [11.4, 18.5], approach: [11, 17], kind: 'sit' },
+  { x: 16, z: 19.6, look: [17.4, 19], approach: [15, 20], kind: 'sit' },
+  { x: 28.2, z: 13.2, look: [29, 12.2], approach: [27, 12], kind: 'sit' },
+  { x: 22, z: 14.2, look: [22, 15.2], approach: [22, 13], kind: 'stand' },
+  { x: 14, z: 11.5, look: [13.5, 6], approach: [14, 12], kind: 'stand' },
+  { x: 19, z: 8, look: [19.6, 0.35], approach: [18, 8], kind: 'stand' },
+  { x: 14.5, z: 7.5, look: [13.5, 6], approach: [14, 7], kind: 'stand' },
 ]
 
 export function zoneAt(x: number, z: number): Zone | undefined {
@@ -175,7 +176,7 @@ export function zoneAt(x: number, z: number): Zone | undefined {
 }
 
 export function inBossRoom(x: number, z: number): boolean {
-  return x >= 0 && x < 9 && z >= 0 && z < 9
+  return x >= 0 && x < 10 && z >= 0 && z < 10
 }
 
 // ---------- project floors (1º andar and up) ----------

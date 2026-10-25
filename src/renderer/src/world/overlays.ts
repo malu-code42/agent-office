@@ -51,8 +51,16 @@ export class Tag {
     this.el.append(this.bubbleEl, pill)
     this.setName(name)
     if (onClick) {
+      pill.setAttribute('role', 'button')
+      pill.tabIndex = 0
+      pill.setAttribute('aria-label', `Abrir ${name.replace(' · ', ', ')}`)
       pill.addEventListener('click', onClick)
       this.bubbleEl.addEventListener('click', onClick)
+      pill.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        onClick()
+      })
     }
   }
 
@@ -66,6 +74,8 @@ export class Tag {
     this.nameEl.textContent = title
     if (this.roleEl.textContent !== role) this.roleEl.textContent = role
     this.roleEl.className = role ? 'tag-role' : 'tag-role hidden'
+    const pill = this.el.querySelector<HTMLElement>('.tag-pill')
+    if (pill?.getAttribute('role') === 'button') pill.setAttribute('aria-label', `Abrir ${name.replace(' · ', ', ')}`)
     this.changed = true
   }
 

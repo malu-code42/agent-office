@@ -4,13 +4,26 @@ import type { State } from '../state'
 import { Avatar, type Uniform } from '../world/avatar'
 import { Engine } from '../world/engine'
 import * as L from '../world/layout'
-import { buildOffice, type GroundFloor, type Office } from '../world/office'
+import { buildHome, type HomeFloor } from '../world/home'
+import type { Office } from '../world/office'
 import { Overlays, Tag } from '../world/overlays'
 import { Effects } from '../world/effects'
 import { FACE_CAMERA, skeleton } from '../world/skull'
 import { totem, type Totem } from '../world/totem'
 import { SeenFailures } from './failure-marks'
-import { center, OVERFLOW_TILES, SKULL_HOME, TOTEM_TILE, tileOf, type Actor, type FailureMark, type GameHooks, type Helper, type Member, type Upper } from './types'
+import {
+  center,
+  OVERFLOW_TILES,
+  SKULL_HOME,
+  TOTEM_TILE,
+  tileOf,
+  type Actor,
+  type FailureMark,
+  type GameHooks,
+  type Helper,
+  type Member,
+  type Upper,
+} from './types'
 
 /**
  * State shared by every part of the office (game/*.ts), the floor lookups and the
@@ -19,7 +32,7 @@ import { center, OVERFLOW_TILES, SKULL_HOME, TOTEM_TILE, tileOf, type Actor, typ
 export abstract class GameBase {
   readonly engine: Engine
   /** Ground floor. */
-  readonly office: GroundFloor
+  readonly office: HomeFloor
   /** Project floors, 1º andar first. */
   protected uppers: Upper[] = []
   protected uppersKey = ''
@@ -58,7 +71,7 @@ export abstract class GameBase {
   protected wheelAcc = 0
   protected effects: Effects
   protected skull: { root: THREE.Group; tag: Tag; eyes: THREE.MeshBasicMaterial }
-  /** The routines totem by the boss office and its "Rotinas" tag. */
+  /** Existing agent-routine scheduler totem, kept separate from the personal home board. */
   protected totem: { view: Totem; tag: Tag }
   /** Seconds until the totem's text is worked out again (at most once a second). */
   protected totemIn = 0
@@ -75,21 +88,24 @@ export abstract class GameBase {
     protected hooks: GameHooks,
   ) {
     this.engine = new Engine(container, state.settings.pixelSize)
-    this.office = buildOffice()
+    this.office = buildHome()
     this.engine.scene.add(this.office.group)
     this.overlays = new Overlays(overlayRoot, this.engine)
 
     this.office.setFloors(1)
-    for (const z of L.ZONES) {
-      const pos: Record<string, [number, number]> = {
-        boss: [4.5, 8.35],
-        team: [21, 5.5],
-        cafe: [4.5, 23.4],
-        lounge: [17.5, 23.4],
+    if (this.office.roomLabels) {
+      for (const room of this.office.roomLabels) this.overlays.label(room.label, room.x, room.z)
+    } else
+      for (const z of L.ZONES) {
+        const pos: Record<string, [number, number]> = {
+          boss: [4.5, 8.35],
+          team: [21, 5.5],
+          cafe: [4.5, 23.4],
+          lounge: [17.5, 23.4],
+        }
+        const [x, zz] = pos[z.id] ?? [(z.rect[0] + z.rect[2]) / 2, (z.rect[1] + z.rect[3]) / 2]
+        this.overlays.label(z.label, x, zz)
       }
-      const [x, zz] = pos[z.id] ?? [(z.rect[0] + z.rect[2]) / 2, (z.rect[1] + z.rect[3]) / 2]
-      this.overlays.label(z.label, x, zz)
-    }
 
     // player
     this.player = new Avatar(state.settings.playerLook, 'player')
@@ -128,20 +144,28 @@ export abstract class GameBase {
     tt.group.position.set(TOTEM_TILE[0] + 0.6, 0, TOTEM_TILE[1] + 0.5)
     tt.group.rotation.y = FACE_CAMERA
     this.office.group.add(tt.group)
-    const totemTag = this.overlays.add(new Tag(tt.anchor, 'Rotinas', false, () => hooks.onRoutines()))
+    const totemTag = this.overlays.add(new Tag(tt.anchor, 'Rotinas de agentes', false, () => hooks.onRoutines()))
     totemTag.el.classList.add('tag-totem')
     totemTag.setDot('routine-none')
     this.totem = { view: tt, tag: totemTag }
 
     // the player's own computer calls a new agent
     const pc = new THREE.Object3D()
-    pc.position.set(3.3, 1.35, L.BOSS_DESK.z + 0.5)
+    pc.position.set(5.31, 0.85, 4.85)
     this.engine.scene.add(pc)
     this.pcTag = this.overlays.add(new Tag(pc, 'Novo agente', false, () => hooks.onComputer()))
     this.pcTag.setDot('term')
 
     this.alarmTag = this.alarmTagFor(this.office.alarm)
     this.moneyTag = this.moneyTagFor(this.office.money)
+
+    for (const item of this.office.homeTags) {
+      const anchor = new THREE.Object3D()
+      anchor.position.set(item.x, item.y, item.z)
+      this.office.group.add(anchor)
+      const tag = this.overlays.add(new Tag(anchor, item.label, false, () => hooks.onHomeAction(item.action)))
+      tag.el.title = `Abrir ${item.label}`
+    }
   }
 
   /** Orchestrators of a floor by squad room. */
