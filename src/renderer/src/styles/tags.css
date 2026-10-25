@@ -36,6 +36,11 @@
   background: rgba(40, 32, 80, 0.95);
 }
 
+.tag-pill:focus-visible {
+  outline: 2px solid var(--accent-solid);
+  outline-offset: 2px;
+}
+
 /* name on top, paper below: the pill of the preview, stacked to stay compact */
 .tag-heading {
   display: flex;

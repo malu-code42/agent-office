@@ -61,6 +61,20 @@ afterEach(() => {
 })
 
 describe('tasks IPC', () => {
+  it('reading the personal-routine overview does not create occurrence state', async () => {
+    writeFileSync(join(vault, 'tarefas.md'), '## Casa\n', 'utf8')
+    writeFileSync(join(vault, 'rotinas-pessoais.md'), 'Rotina diária | cadência: diária', 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+    const occurrencePath = join(data, 'personal-routines.json')
+
+    expect(existsSync(occurrencePath)).toBe(false)
+    const overview = (await invoke('office:personalRoutineOverview')) as { candidates: { occurrenceId?: string }[] }
+
+    expect(overview.candidates[0]?.occurrenceId).toBeTruthy()
+    expect(existsSync(occurrencePath)).toBe(false)
+  })
+
   it('creates, retries, and completes a daily occurrence through the reserved linked task', async () => {
     const boardFile = join(vault, 'tarefas.md')
     writeFileSync(boardFile, '## Casa\n', 'utf8')
@@ -206,7 +220,7 @@ describe('tasks IPC', () => {
     expect(readFileSync(join(data, 'personal-routines.json'), 'utf8')).not.toContain('Objetivo original')
   })
 
-  it('overview releases a foreign task id without counting, resuming, or changing that task', async () => {
+  it('overview stays read-only; explicit resume releases a foreign task id without changing the task', async () => {
     const boardFile = join(vault, 'tarefas.md')
     writeFileSync(boardFile, '## Casa\n', 'utf8')
     writeFileSync(join(vault, 'rotinas-pessoais.md'), 'Rotina diária | cadência: diária', 'utf8')
@@ -230,10 +244,12 @@ describe('tasks IPC', () => {
       pending: { occurrenceId: string; taskId?: string }[]
       rows: { completed: number }[]
     }
-    expect(overview.pending.find((row) => row.occurrenceId === candidate.occurrenceId)?.taskId).toBeUndefined()
+    expect(overview.pending.find((row) => row.occurrenceId === candidate.occurrenceId)?.taskId).toBe(created.id)
     expect(overview.rows[0]?.completed).toBe(0)
     expect(planning.focus()).not.toContain(created.id)
     await expect(invoke('office:resumePersonalRoutineOccurrence', candidate.occurrenceId)).rejects.toThrow()
+    const afterResume = (await invoke('office:personalRoutineOverview')) as { pending: { occurrenceId: string; taskId?: string }[] }
+    expect(afterResume.pending.find((row) => row.occurrenceId === candidate.occurrenceId)?.taskId).toBeUndefined()
     expect(readFileSync(boardFile, 'utf8')).toBe(foreignText)
   })
 
@@ -342,7 +358,7 @@ describe('tasks IPC', () => {
     expect(readFileSync(join(vault, 'tarefas.md'), 'utf8').match(/Retomar rotina/g)).toHaveLength(1)
   })
 
-  it('recupera uma ocorrência ligada a uma tarefa removida e permite reservar outra tarefa', async () => {
+  it('opening overview preserves a missing link; explicit resume recovers it before another task is created', async () => {
     const yesterday = new Date()
     yesterday.setDate(yesterday.getDate() - 1)
     const day = dayKey(yesterday)
@@ -373,7 +389,10 @@ describe('tasks IPC', () => {
     const overview = (await invoke('office:personalRoutineOverview')) as {
       pending: { occurrenceId: string; taskId?: string }[]
     }
-    expect(overview.pending.find((row) => row.occurrenceId === occurrenceId)?.taskId).toBeUndefined()
+    expect(overview.pending.find((row) => row.occurrenceId === occurrenceId)?.taskId).toBe('tmis001')
+    await expect(invoke('office:resumePersonalRoutineOccurrence', occurrenceId)).rejects.toThrow(/não existe mais/)
+    const recovered = (await invoke('office:personalRoutineOverview')) as { pending: { occurrenceId: string; taskId?: string }[] }
+    expect(recovered.pending.find((row) => row.occurrenceId === occurrenceId)?.taskId).toBeUndefined()
     const task = (await invoke('office:createPersonalRoutineTask', {
       occurrenceId,
       objective: 'Tarefa substituta',
@@ -383,7 +402,7 @@ describe('tasks IPC', () => {
     expect(readFileSync(join(vault, 'tarefas.md'), 'utf8').match(/Tarefa substituta/g)).toHaveLength(1)
   })
 
-  it('reconcilia um taskId reservado que já foi gravado e retoma a mesma tarefa', async () => {
+  it('overview preserva uma reserva gravada e retomada explícita a vincula à mesma tarefa', async () => {
     const yesterday = new Date()
     yesterday.setDate(yesterday.getDate() - 1)
     const day = dayKey(yesterday)
@@ -437,6 +456,8 @@ describe('tasks IPC', () => {
     const todayWeekday = new Date(`${today}T12:00:00Z`).getUTCDay()
     await invoke('office:confirmPersonalRoutineDistribution', id, [todayWeekday, (todayWeekday + 1) % 7])
     const occurrenceId = `${id}:${today}`
+    const occurrenceState = JSON.parse(readFileSync(join(data, 'personal-routines.json'), 'utf8'))
+    expect(occurrenceState.occurrences[occurrenceId]).toMatchObject({ status: 'pending', routineId: id, day: today })
     const created = (await invoke('office:createPersonalRoutineTask', { occurrenceId, objective: 'Ler capítulo', list: 'Estudo' })) as {
       id: string
     }

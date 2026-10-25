@@ -33,6 +33,13 @@ export const CALM_BEACON = 0.15
 export interface GroundFloor extends Office {
   /** Lounge monitor where Claude FM plays. */
   tv: F.MonitorTv
+  /** Clickable home furniture; absent only on legacy/test floors. */
+  interactions?: { action: import('./home-layout').HomeAction; root: THREE.Object3D; highlight: THREE.Mesh }[]
+  /** Readable room labels placed over the ground-floor house. */
+  homeTags?: { action: import('./home-layout').HomeAction; label: string; x: number; z: number; y: number }[]
+  /** Luna is a persistent, non-agent character in the house. */
+  luna?: import('./avatar').Avatar
+  roomLabels?: { label: string; x: number; z: number }[]
 }
 
 const WALL = '#aaa6d6'

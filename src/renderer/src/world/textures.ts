@@ -180,6 +180,143 @@ export function rugTexture(w: number, h: number, base: string, border: string, a
   return pixelTexture(c)
 }
 
+/** Pixel floor for the approved home plan; each room keeps its own material palette. */
+export function homeFloorTexture(): THREE.CanvasTexture {
+  const [c, ctx] = canvas(W * TILE_PX, H * TILE_PX)
+  const rooms = [
+    { rect: [0, 0, 10, 10], colors: ['#795137', '#69432f'], kind: 'wood' },
+    { rect: [10, 0, 17, 10], colors: ['#d2aa7a', '#c79b69'], kind: 'wood' },
+    { rect: [17, 0, 25, 10], colors: ['#eee3d1', '#dfbca4'], kind: 'tile' },
+    { rect: [25, 0, 32, 10], colors: ['#7fae5a', '#73a252'], kind: 'grass' },
+    { rect: [0, 10, 8, 14], colors: ['#c9965f', '#b98450'], kind: 'herringbone' },
+    { rect: [8, 10, 23, 13], colors: ['#d2aa7a', '#c79b69'], kind: 'wood' },
+    { rect: [8, 13, 23, 24], colors: ['#c9965f', '#b98450'], kind: 'herringbone' },
+    { rect: [0, 14, 8, 24], colors: ['#e2cfad', '#d7c09a'], kind: 'wood' },
+    { rect: [23, 10, 32, 16], colors: ['#346e74', '#2c5e66'], kind: 'carpet' },
+    { rect: [23, 16, 32, 24], colors: ['#eee3d1', '#e4d5ba'], kind: 'wood' },
+  ] as const
+  const shade = (hex: string, amount: number) => {
+    const n = Number.parseInt(hex.slice(1), 16)
+    const ch = (shift: number) => Math.max(0, Math.min(255, ((n >> shift) & 255) + amount))
+    return `rgb(${ch(16)},${ch(8)},${ch(0)})`
+  }
+  let seed = 7
+  const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+  ctx.fillStyle = '#c79b69'
+  ctx.fillRect(0, 0, c.width, c.height)
+  for (const room of rooms) {
+    const [x0, z0, x1, z1] = room.rect
+    const x = x0 * TILE_PX
+    const z = z0 * TILE_PX
+    const width = (x1 - x0) * TILE_PX
+    const height = (z1 - z0) * TILE_PX
+    if (room.kind === 'wood') {
+      for (let row = 0; row < height; row += 4) {
+        let cursor = 0
+        while (cursor < width) {
+          const length = Math.min(width - cursor, 24 + Math.floor(random() * 40))
+          ctx.fillStyle = shade(room.colors[random() < 0.5 ? 0 : 1], Math.floor(random() * 10 - 5))
+          ctx.fillRect(x + cursor, z + row, length, 4)
+          ctx.fillStyle = 'rgba(48,31,19,0.26)'
+          ctx.fillRect(x + cursor, z + row + 3, length, 1)
+          cursor += length
+        }
+      }
+    } else if (room.kind === 'tile') {
+      for (let px = x; px < x + width; px += 8)
+        for (let pz = z; pz < z + height; pz += 8) {
+          ctx.fillStyle = room.colors[((px + pz) / 8) % 2]
+          ctx.fillRect(px, pz, 8, 8)
+          ctx.fillStyle = 'rgba(112,74,47,0.28)'
+          ctx.fillRect(px, pz, 8, 1)
+          ctx.fillRect(px, pz, 1, 8)
+        }
+    } else if (room.kind === 'herringbone') {
+      for (let px = x; px < x + width; px += 8)
+        for (let pz = z; pz < z + height; pz += 8) {
+          const flip = (Math.floor((px - x) / 8) + Math.floor((pz - z) / 8)) % 2
+          ctx.fillStyle = room.colors[flip]
+          ctx.fillRect(px, pz, 8, 8)
+          ctx.fillStyle = 'rgba(71,46,26,0.22)'
+          ctx.fillRect(px + (flip ? 4 : 0), pz, 1, 8)
+          ctx.fillRect(px, pz + (flip ? 0 : 4), 8, 1)
+        }
+    } else if (room.kind === 'carpet') {
+      for (let px = x; px < x + width; px += TILE_PX)
+        for (let pz = z; pz < z + height; pz += TILE_PX) {
+          ctx.fillStyle = ((px + pz) / TILE_PX) % 2 ? room.colors[0] : room.colors[1]
+          ctx.fillRect(px, pz, TILE_PX, TILE_PX)
+          ctx.fillStyle = '#d4a54e'
+          ctx.fillRect(px + 7, pz + 5, 2, 6)
+          ctx.fillRect(px + 5, pz + 7, 6, 2)
+        }
+    } else {
+      for (let px = x; px < x + width; px += 2)
+        for (let pz = z; pz < z + height; pz += 2) {
+          ctx.fillStyle = shade(room.colors[random() < 0.5 ? 0 : 1], Math.floor(random() * 16 - 8))
+          ctx.fillRect(px, pz, 2, 2)
+        }
+      for (let i = 0; i < 9; i++) {
+        const px = x + (0.4 + i * 0.62) * TILE_PX
+        const pz = z + (4.6 + Math.sin(i) * 0.5) * TILE_PX
+        ctx.fillStyle = '#b9a27f'
+        ctx.fillRect(px, pz, 8, 6)
+      }
+    }
+    ctx.fillStyle = 'rgba(40,24,14,0.34)'
+    ctx.fillRect(x, z, width, 1)
+    ctx.fillRect(x, z, 1, height)
+  }
+  return pixelTexture(c)
+}
+
+/** Generic artwork for live home links; it contains no user or vault-derived content. */
+export function homeBoardTexture(kind: 'agenda' | 'goals' | 'routines'): THREE.CanvasTexture {
+  const [c, ctx] = canvas(96, 64)
+  const board = kind === 'routines' ? '#eee2c6' : '#f4ead8'
+  ctx.fillStyle = '#5a3928'
+  ctx.fillRect(0, 0, 96, 64)
+  ctx.fillStyle = board
+  ctx.fillRect(3, 3, 90, 58)
+  if (kind === 'agenda') {
+    ctx.fillStyle = '#b95f3f'
+    ctx.fillRect(3, 3, 90, 10)
+    for (let y = 20; y < 57; y += 11) {
+      ctx.fillStyle = '#d2c4ad'
+      ctx.fillRect(8, y, 80, 1)
+      ctx.fillStyle = '#788c61'
+      ctx.fillRect(10, y - 4, 4, 4)
+      ctx.fillStyle = '#74634e'
+      ctx.fillRect(20, y - 3, 48, 2)
+    }
+  } else if (kind === 'goals') {
+    for (let i = 0; i < 3; i++) {
+      const y = 12 + i * 16
+      ctx.fillStyle = '#fffaf0'
+      ctx.fillRect(8, y, 80, 12)
+      ctx.fillStyle = ['#b56a4e', '#7d9462', '#547e80'][i]
+      ctx.fillRect(12, y + 3, 4, 6)
+      ctx.fillStyle = '#d0c3ad'
+      ctx.fillRect(21, y + 3, 56, 2)
+      ctx.strokeStyle = '#c8bda9'
+      ctx.strokeRect(21, y + 8, 62, 2)
+    }
+  } else {
+    for (let row = 0; row < 2; row++)
+      for (let day = 0; day < 7; day++) {
+        const x = 12 + day * 10
+        const y = 18 + row * 16
+        ctx.strokeStyle = '#a99b82'
+        ctx.strokeRect(x, y, 6, 6)
+      }
+    ctx.fillStyle = '#f1d878'
+    ctx.fillRect(18, 48, 34, 9)
+    ctx.fillStyle = '#5a4a2d'
+    ctx.fillRect(22, 51, 22, 2)
+  }
+  return pixelTexture(c)
+}
+
 export type SkyPhase = 'night' | 'dawn' | 'day' | 'dusk'
 
 // Brasília time, not the system's, so every machine sees the same sky.
@@ -265,7 +402,8 @@ export class WindowSky {
       ctx.fillStyle = r() < 0.5 ? p.buildings[0] : p.buildings[1]
       ctx.fillRect(x, 32 - bh, bw, bh)
       ctx.fillStyle = p.lit
-      for (let wy = 32 - bh + 2; wy < 31; wy += 3) for (let wx = x + 1; wx < x + bw - 1; wx += 2) if (r() < p.litChance) ctx.fillRect(wx, wy, 1, 1)
+      for (let wy = 32 - bh + 2; wy < 31; wy += 3)
+        for (let wx = x + 1; wx < x + bw - 1; wx += 2) if (r() < p.litChance) ctx.fillRect(wx, wy, 1, 1)
       x += bw + 1
     }
   }
