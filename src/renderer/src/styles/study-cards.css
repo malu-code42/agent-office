@@ -1,0 +1,88 @@
+.study-cards-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(68vh, 720px);
+  overflow: auto;
+}
+
+.study-cards-error {
+  margin: 0;
+  color: var(--red-text);
+}
+
+.study-card-note-row,
+.study-card-row,
+.study-card-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--card-solid);
+}
+
+.study-card-note-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  cursor: pointer;
+}
+
+.study-card-note-row input,
+.study-card-pending input {
+  margin-top: 3px;
+  accent-color: var(--accent-solid);
+}
+
+.study-card-note-row > span,
+.study-card-note-row strong,
+.study-card-note-row .study-card-source-ref {
+  display: block;
+}
+
+.study-card-note-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.study-card-source-ref {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.study-card-section h3,
+.study-card-row strong,
+.study-cards-list-head h3 {
+  margin: 0;
+}
+
+.study-card-section-input {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.study-card-pending {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.study-card-origin-changed {
+  color: var(--amber-text);
+}
+
+.study-cards-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+@media (max-width: 600px) {
+  .study-cards-list-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

@@ -274,6 +274,34 @@ export const startStudyRetestArgsSchema = z.tuple([
 export const answerStudyRetestArgsSchema = z.tuple([z.string().regex(/^q-[a-z0-9-]{8,72}$/i), z.string().trim().min(1).max(20_000)])
 export const verifyStudyRetestArgsSchema = z.tuple([])
 export const completeStudyRetestArgsSchema = z.tuple([])
+const studyNoteIdSchema = z.string().regex(/^sn-[a-z0-9-]{8,150}$/i)
+export const generateStudyCardDraftArgsSchema = z.tuple([
+  z
+    .array(studyNoteIdSchema)
+    .min(1)
+    .max(20)
+    .refine((ids) => new Set(ids).size === ids.length),
+])
+export const saveStudyCardDraftArgsSchema = z.tuple([
+  z.string().uuid(),
+  z
+    .object({
+      title: z.string().trim().min(1).max(200),
+      sections: z
+        .object({
+          information: z.string().max(20_000),
+          examplePractice: z.string().max(20_000),
+          connections: z.string().max(20_000),
+          sources: z.string().max(20_000),
+          connectionsPending: z.boolean(),
+          sourcesPending: z.boolean(),
+        })
+        .strict(),
+    })
+    .strict(),
+])
+export const setStudyCardPhysicalArgsSchema = z.tuple([z.string().regex(/^c-[a-z0-9-]{8,80}$/i), z.boolean()])
+export const listStudyCardsArgsSchema = z.tuple([])
 /** A task from the "Nova tarefa" form; the rules for each field are in shared/tasks.ts (taskDraftProblem). */
 export const newTaskSchema: z.ZodType<NewTaskDraft> = z.object({
   title: z.string().max(300),

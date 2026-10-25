@@ -25,6 +25,7 @@ import type { WritingVersion } from '../writing'
 import type { DecodedStudyBank, StudyQuestion } from '../study-questions'
 import type { StudyCycleState } from '../study-cycle'
 import type { StudyLibrarySearch } from '../study-library'
+import type { StudyCardDraft, StudyCardSummary, StudyCardsRead, StudyNotesRead } from '../study-cards'
 
 export interface StudyQuestionCandidates {
   token: string
@@ -293,6 +294,16 @@ export interface OfficeAPI {
   verifyStudyRetest(): Promise<StudyCycleState>
   /** Conclui o ciclo somente com aprovação explícita após o gate de 80%. */
   completeStudyRetest(): Promise<StudyCycleState>
+  /** Lê as notas de estudo editáveis e seus hashes de versão, sem enviar conteúdo a modelos. */
+  readStudyNotes(): Promise<StudyNotesRead>
+  /** Gera um rascunho somente das notas escolhidas; o main guarda os snapshots sob um token curto. */
+  generateStudyCardDraft(noteIds: string[]): Promise<{ token: string; draft: StudyCardDraft } | null>
+  /** Salva o rascunho aprovado pela estudante como cartão Markdown no Obsidian. */
+  saveStudyCardDraft(token: string, draft: Omit<StudyCardDraft, 'sourceSnapshots'>): Promise<StudyCardSummary | null>
+  /** Lista cartões e compara as origens com as versões atuais das notas. */
+  listStudyCards(): Promise<StudyCardsRead>
+  /** Marca manualmente se a cópia física do cartão foi escrita. */
+  setStudyCardPhysicalWritten(id: string, written: boolean): Promise<StudyCardSummary>
   /** Lê objetivos.md e tarefas.md; os objetivos continuam editáveis no Obsidian. */
   readGoals(): Promise<{ goals: Goal[]; tasks: Task[] }>
   /** Cria um objetivo em objetivos.md, sem alterar tarefas.md. */

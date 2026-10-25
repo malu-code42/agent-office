@@ -28,17 +28,34 @@ const ipc = vi.hoisted(() => ({
   selectedPath: null as string | null,
   canceled: false,
   confirmResponse: 1,
+  confirmResponses: [] as number[],
 }))
 const studyProviders = vi.hoisted(() => ({ webSearch: vi.fn(async () => []), generate: vi.fn(async () => []) }))
+const cardInterpreter = vi.hoisted(() => ({
+  generate: vi.fn(async () => ({
+    title: 'Cartão sintético',
+    sections: {
+      information: 'Informação.',
+      examplePractice: 'Exemplo.',
+      connections: '',
+      sources: '',
+      connectionsPending: true,
+      sourcesPending: true,
+    },
+  })),
+}))
 vi.mock('electron', () => ({
   ipcMain: { handle: (channel: string, handler: (...args: unknown[]) => unknown) => ipc.handlers.set(channel, handler) },
   dialog: {
     showOpenDialog: async () => ({ canceled: ipc.canceled, filePaths: ipc.selectedPath ? [ipc.selectedPath] : [] }),
-    showMessageBox: async () => ({ response: ipc.confirmResponse }),
+    showMessageBox: async () => ({ response: ipc.confirmResponses.shift() ?? ipc.confirmResponse }),
   },
 }))
 vi.mock('../src/main/study-questions-claude', () => ({
   claudeStudyQuestionProviders: () => ({ webSearch: studyProviders.webSearch, generate: studyProviders.generate }),
+}))
+vi.mock('../src/main/study-cards-claude', () => ({
+  claudeStudyCardInterpreter: () => ({ generate: cardInterpreter.generate }),
 }))
 
 const { registerTasksIpc } = await import('../src/main/ipc/tasks')
@@ -60,6 +77,8 @@ beforeEach(() => {
   ipc.selectedPath = null
   ipc.canceled = false
   ipc.confirmResponse = 1
+  ipc.confirmResponses = []
+  cardInterpreter.generate.mockClear()
   studyProviders.webSearch.mockClear()
   studyProviders.generate.mockClear()
   registerTasksIpc({
@@ -184,6 +203,49 @@ describe('tasks IPC', () => {
     expect(saved.notes).toHaveLength(1)
     expect(saved.questions[0]?.review?.sourceRefs).toContain(found.hits[0]?.sourceRef)
     expect(studyProviders.generate).not.toHaveBeenCalled()
+  })
+
+  it('requires a main-process consent dialog before card notes can be sent to Claude', async () => {
+    const noteId = 'sn-sc-123-abcdefgh-q-12345678-card'
+    writeFileSync(
+      join(vault, 'notas-estudo.md'),
+      `<!-- agent-office-study-note:${noteId} -->\n## Nota sintética\nFonte: study sources/fixture.md#exemplo:1\n\nConteúdo sintético.\n`,
+    )
+    settings.vaultPath = vault
+    Object.assign(settings, {
+      defaultAccounts: [],
+      accounts: [{ id: 'main', name: 'Principal', provider: 'claude', color: '#aabbcc' }],
+    })
+    const listed = (await invoke('office:readStudyNotes')) as { notes: { id: string }[] }
+    expect(listed.notes.map((note) => note.id)).toEqual([noteId])
+    ipc.confirmResponse = 1
+    const canceled = await invoke('office:generateStudyCardDraft', [noteId])
+    expect(canceled).toBeNull()
+    expect(cardInterpreter.generate).not.toHaveBeenCalled()
+    expect(existsSync(join(vault, 'cartoes-estudo'))).toBe(false)
+  })
+
+  it('does not save a digital card when the main-process approval is canceled', async () => {
+    const noteId = 'sn-sc-123-abcdefgh-q-12345678-card2'
+    writeFileSync(
+      join(vault, 'notas-estudo.md'),
+      `<!-- agent-office-study-note:${noteId} -->\n## Nota fixture\nFonte: study sources/fixture.md#exemplo:1\n\nConteúdo sintético.\n`,
+    )
+    settings.vaultPath = vault
+    Object.assign(settings, {
+      defaultAccounts: [],
+      accounts: [{ id: 'main', name: 'Principal', provider: 'claude', color: '#aabbcc' }],
+    })
+    ipc.confirmResponses = [0, 1]
+    const generated = (await invoke('office:generateStudyCardDraft', [noteId])) as {
+      token: string
+      draft: { title: string; sections: unknown }
+    }
+    expect(cardInterpreter.generate).toHaveBeenCalledOnce()
+    const { title, sections } = generated.draft
+    const canceled = await invoke('office:saveStudyCardDraft', generated.token, { title, sections })
+    expect(canceled).toBeNull()
+    expect(existsSync(join(vault, 'cartoes-estudo'))).toBe(false)
   })
 
   it('main process asks before completing a retest and still enforces the 80 percent gate', async () => {

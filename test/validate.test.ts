@@ -53,6 +53,10 @@ import {
   answerStudyRetestArgsSchema,
   verifyStudyRetestArgsSchema,
   completeStudyRetestArgsSchema,
+  generateStudyCardDraftArgsSchema,
+  saveStudyCardDraftArgsSchema,
+  listStudyCardsArgsSchema,
+  setStudyCardPhysicalArgsSchema,
 } from '../src/main/validate'
 
 const dir = mkdtempSync(join(tmpdir(), 'ao-validate-'))
@@ -702,5 +706,23 @@ describe('argumentos IPC do ciclo de estudo', () => {
     expect(verifyStudyRetestArgsSchema.safeParse([]).success).toBe(true)
     expect(completeStudyRetestArgsSchema.safeParse([]).success).toBe(true)
     expect(completeStudyRetestArgsSchema.safeParse([true]).success).toBe(false)
+    const draft = {
+      title: 'Eventos independentes',
+      sections: {
+        information: 'Informação',
+        examplePractice: 'Exemplo',
+        connections: '',
+        sources: '',
+        connectionsPending: true,
+        sourcesPending: true,
+      },
+    }
+    expect(generateStudyCardDraftArgsSchema.safeParse([['sn-sc-123-abcdefgh-q-12345678']]).success).toBe(true)
+    expect(generateStudyCardDraftArgsSchema.safeParse([['C:\\private\\note.md']]).success).toBe(false)
+    expect(saveStudyCardDraftArgsSchema.safeParse(['550e8400-e29b-41d4-a716-446655440000', draft]).success).toBe(true)
+    expect(saveStudyCardDraftArgsSchema.safeParse(['C:\\vault', draft]).success).toBe(false)
+    expect(listStudyCardsArgsSchema.safeParse([]).success).toBe(true)
+    expect(setStudyCardPhysicalArgsSchema.safeParse(['c-card00001', true]).success).toBe(true)
+    expect(setStudyCardPhysicalArgsSchema.safeParse(['C:\\vault\\card.md', true]).success).toBe(false)
   })
 })

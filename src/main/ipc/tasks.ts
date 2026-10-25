@@ -20,6 +20,8 @@ import { StudyCycleService } from '../study-cycle'
 import { StudyCycleStore } from '../study-cycle-store'
 import { claudeStudyTutor } from '../study-cycle-claude'
 import { StudyLibrary, StudyNotesWriter } from '../study-library'
+import { StudyCardsService } from '../study-cards'
+import { claudeStudyCardInterpreter } from '../study-cards-claude'
 import { MAIN_ACCOUNT } from '@shared/accounts'
 import { activeStudyCycle, retestScore } from '@shared/study-cycle'
 import {
@@ -53,6 +55,10 @@ import {
   answerStudyRetestArgsSchema,
   verifyStudyRetestArgsSchema,
   completeStudyRetestArgsSchema,
+  generateStudyCardDraftArgsSchema,
+  saveStudyCardDraftArgsSchema,
+  listStudyCardsArgsSchema,
+  setStudyCardPhysicalArgsSchema,
 } from '../validate'
 import type { IpcContext } from './context'
 
@@ -64,6 +70,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
   const personalRoutines = new PersonalRoutineStore(ctx.store.dataDirectory)
   const studyServices = new Map<string, StudyQuestionService>()
   const studyLibraries = new Map<string, StudyLibrary>()
+  const studyCards = new Map<string, StudyCardsService>()
   const studyCycleStore = new StudyCycleStore(ctx.store.dataDirectory)
   const read = (vaultPath: unknown) => readTasksAt(writer, vaultPath)
   const requireVault = (): string => {
@@ -100,6 +107,23 @@ export function registerTasksIpc(ctx: IpcContext): void {
       studyLibraries.set(vault, library)
     }
     return library
+  }
+  const studyCardsService = (): StudyCardsService => {
+    const vault = requireVault()
+    let service = studyCards.get(vault)
+    if (!service) {
+      service = new StudyCardsService(vault, {
+        generate(notes) {
+          const settings = ctx.store.settings
+          const accountId = settings.defaultAccounts[0] ?? MAIN_ACCOUNT
+          const account = settings.accounts.find((candidate) => candidate.id === accountId)
+          if (!account) throw new Error('A conta Claude definida não existe mais. Confira as contas nas configurações.')
+          return claudeStudyCardInterpreter(settings, account).generate(notes)
+        },
+      })
+      studyCards.set(vault, service)
+    }
+    return service
   }
   // Reads the file without remembering it: the board's line numbers come from its own read.
   const focusView = (lists: TaskList[]) => focusItems(lists, ctx.planning.focus(), ctx.planning.todaySteps(dayKey()))
@@ -226,6 +250,57 @@ export function registerTasksIpc(ctx: IpcContext): void {
     if (latest?.id !== cycle.id || latestScore === null || latestScore < 80)
       throw new Error('O ciclo mudou durante a confirmação. Confira o reteste novamente.')
     return studyCycleService().completeRetest()
+  })
+  ipcMain.handle('office:readStudyNotes', () => studyCardsService().readNotes())
+  ipcMain.handle('office:generateStudyCardDraft', async (_e, ...args: unknown[]) => {
+    const [noteIds] = parse(generateStudyCardDraftArgsSchema, args, 'Seleção de notas para cartão inválida.')
+    const cards = studyCardsService()
+    const available = cards.readNotes().notes
+    const selected = noteIds.map((id) => {
+      const note = available.find((candidate) => candidate.id === id)
+      if (!note) throw new Error('Uma nota selecionada mudou ou não existe mais. Recarregue a biblioteca.')
+      return note
+    })
+    const settings = ctx.store.settings
+    const accountId = settings.defaultAccounts[0] ?? MAIN_ACCOUNT
+    const account = settings.accounts.find((candidate) => candidate.id === accountId)
+    if (!account) throw new Error('A conta Claude definida não existe mais. Confira as contas nas configurações.')
+    const options = {
+      type: 'question' as const,
+      buttons: ['Enviar notas selecionadas', 'Cancelar'],
+      defaultId: 1,
+      cancelId: 1,
+      message: 'Enviar estas notas selecionadas ao Claude para preparar um rascunho?',
+      detail: `Serão enviados ${selected.length} snapshot(s): ${selected.map((note) => `${note.title} (${note.sourceRef})`).join('; ')}. Conta: ${account.name}. Modelo: ${settings.defaultModel || 'claude-haiku-5-5'}, esforço ${settings.defaultEffort || 'medium'}. Confirme que o ambiente dessa conta pode receber esse conteúdo. Nenhum cartão será salvo sem sua revisão posterior.`,
+    }
+    const win = ctx.win()
+    const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options)
+    if (response !== 0) return null
+    return cards.generateDraft(noteIds)
+  })
+  ipcMain.handle('office:saveStudyCardDraft', async (_e, ...args: unknown[]) => {
+    const [token, draft] = parse(saveStudyCardDraftArgsSchema, args, 'Rascunho de cartão inválido.')
+    const service = studyCardsService()
+    const sources = service.draftSources(token)
+    const options = {
+      type: 'question' as const,
+      buttons: ['Salvar cartão digital', 'Continuar revisando'],
+      defaultId: 1,
+      cancelId: 1,
+      message: `Salvar o cartão “${draft.title}” no Obsidian?`,
+      detail: `O cartão preservará ${sources.length} snapshot(s) de nota: ${sources.map((source) => source.title).join('; ')}. Essa aprovação não marca a cópia física como escrita e não altera o ciclo de estudo.`,
+    }
+    const win = ctx.win()
+    const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options)
+    return response === 0 ? service.saveDraft(token, draft) : null
+  })
+  ipcMain.handle('office:listStudyCards', (_e, ...args: unknown[]) => {
+    parse(listStudyCardsArgsSchema, args, 'Lista de cartões inválida.')
+    return studyCardsService().listCards()
+  })
+  ipcMain.handle('office:setStudyCardPhysicalWritten', (_e, ...args: unknown[]) => {
+    const [id, written] = parse(setStudyCardPhysicalArgsSchema, args, 'Estado da cópia física inválido.')
+    return studyCardsService().setPhysicalWritten(id, written)
   })
 
   ipcMain.handle('office:readTasks', async () => {
