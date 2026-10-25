@@ -301,6 +301,7 @@ export const saveStudyCardDraftArgsSchema = z.tuple([
     .strict(),
 ])
 export const setStudyCardPhysicalArgsSchema = z.tuple([z.string().regex(/^c-[a-z0-9-]{8,80}$/i), z.boolean()])
+export const telegramNoArgsSchema = z.tuple([])
 export const listStudyCardsArgsSchema = z.tuple([])
 /** A task from the "Nova tarefa" form; the rules for each field are in shared/tasks.ts (taskDraftProblem). */
 export const newTaskSchema: z.ZodType<NewTaskDraft> = z.object({
