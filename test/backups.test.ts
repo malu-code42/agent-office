@@ -5,6 +5,7 @@ import { basename, dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   applyImport,
+  DATA_SHAPES,
   backupCopies,
   backupsDir,
   backupTime,
@@ -18,6 +19,7 @@ import {
   restoreBackup,
   snapshot,
 } from '../src/main/backups'
+import { emptyStudyCycleState } from '../src/shared/study-cycle'
 
 let dir: string
 
@@ -30,6 +32,17 @@ const put = (name: string, data: unknown) => writeFileSync(join(dir, name), type
 const read = (name: string) => JSON.parse(readFileSync(join(dir, name), 'utf8'))
 
 describe('daily backups', () => {
+  it('validates and backs up the separate study cycle file', () => {
+    put('office.json', { settings: {}, agents: [], results: [], ledger: {}, ledgerSessions: {} })
+    put('study-cycle.json', emptyStudyCycleState())
+    expect(DATA_SHAPES['study-cycle.json'](read('study-cycle.json'))).toBe(true)
+    expect(DATA_SHAPES['study-cycle.json']({ activeId: 'missing', cycles: [] })).toBe(false)
+    expect(buildExport(dir).files['study-cycle.json']).toEqual(emptyStudyCycleState())
+    const backup = dailyBackup(dir, new Date(2026, 9, 2))!
+    expect(readFileSync(join(backup, 'study-cycle.json'), 'utf8')).toContain('"cycles":[]')
+    expect(listBackups(dir)[0]?.files).toContain('study-cycle.json')
+  })
+
   it('refuses symlinked backup roots and destinations before copying', () => {
     const outside = mkdtempSync(join(tmpdir(), 'ao-backups-outside-'))
     try {
@@ -212,6 +225,7 @@ describe('restore', () => {
       'squad-queues.json',
       'profile-memory.json',
       'personal-routines.json',
+      'study-cycle.json',
     ])
     restoreBackup(dir, '2026-10-01')
     expect(read('office.json')).toEqual({ v: 'old' })

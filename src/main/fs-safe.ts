@@ -210,6 +210,7 @@ const LABELS: Record<string, string> = {
   'squad-proposals.json': 'propostas de squad',
   'squad-queues.json': 'filas dos squads',
   'profile-memory.json': 'memória dos perfis', // AO-43
+  'study-cycle.json': 'ciclo de estudos', // AO-49
 }
 
 /** The warning the renderer shows for a restored or lost file; null when there is nothing to say. */

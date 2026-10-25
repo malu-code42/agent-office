@@ -27,6 +27,7 @@ import { cleanError, modal } from './modals/common'
 import { closeReviewAfterSave, createReviewDraftSaver } from './review-draft'
 import { openTaskMenu, type TaskMenuOption } from './tasks-move'
 import { openStudyQuestions } from './study-questions'
+import { openStudyCycle } from './study-cycle'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
 
@@ -987,7 +988,12 @@ export async function openReviewWizard(root: HTMLElement, toast: Toast): Promise
     }
     if (name === 'estudos')
       return [
-        h('p', {}, 'Banco de questões para estudo. Buscar não inicia ciclo nem salva candidatas; você revisa a origem e escolhe o que guardar.'),
+        h(
+          'p',
+          {},
+          'Ciclo de diagnóstico da Bonnie usa apenas questões que já estão no banco local. Buscar questões continua separado e nunca inicia o ciclo.',
+        ),
+        button('Diagnóstico com Bonnie', () => void openStudyCycle(root, toast), 'btn btn-primary'),
         button('Buscar questões', () => openStudyQuestions(root, toast), 'btn btn-primary'),
       ]
     if (current.problems.length) {

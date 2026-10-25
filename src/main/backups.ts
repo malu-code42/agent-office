@@ -5,6 +5,7 @@ import type { BackupEntry } from '@shared/types'
 import { parseJson, writeFileAtomic, writeJsonAtomic } from './fs-safe'
 import { isProfileMemoryData } from '@shared/profile-memory'
 import { isPersonalRoutineData } from './personal-routines-store'
+import { isStudyCycleState } from './study-cycle-schema'
 
 /**
  * Copies of the app's data in userData/backups/. No Electron here (the folder comes in),
@@ -27,6 +28,7 @@ export const DATA_FILES = [
   'squad-queues.json',
   'profile-memory.json', // AO-43
   'personal-routines.json', // AO-47
+  'study-cycle.json', // AO-49
 ] as const
 export type DataFile = (typeof DATA_FILES)[number]
 
@@ -128,6 +130,7 @@ export const DATA_SHAPES: Record<DataFile, (v: unknown) => boolean> = {
   // AO-43: one short summary per profile, written by the user — never raw prompts.
   'profile-memory.json': isProfileMemoryData,
   'personal-routines.json': isPersonalRoutineData,
+  'study-cycle.json': isStudyCycleState,
 }
 
 /** The `valid` option of loadJson for a data file. */

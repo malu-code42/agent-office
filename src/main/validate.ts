@@ -210,6 +210,24 @@ const studyQuestionSchema: z.ZodType<StudyQuestion> = z.object({
 export const studyQuestionSearchArgsSchema = z.tuple([z.string().trim().min(1).max(200), z.number().int().min(1).max(50).optional()])
 export const studyQuestionSaveArgsSchema = z.tuple([z.string().uuid(), z.array(studyQuestionSchema).min(1).max(100), z.boolean()])
 export const studyQuestionGenerateArgsSchema = z.tuple([z.string().uuid()])
+const studyBankQuestionIdSchema = z.string().regex(/^q-[a-z0-9-]{8,72}$/i)
+export const startStudyCycleArgsSchema = z.tuple([
+  z.string().trim().min(1).max(200),
+  z
+    .array(studyBankQuestionIdSchema)
+    .min(1)
+    .max(100)
+    .refine((ids) => new Set(ids).size === ids.length),
+])
+export const answerStudyCycleArgsSchema = z.tuple([
+  studyBankQuestionIdSchema,
+  z.string().trim().min(1).max(20_000),
+  z.boolean(),
+  z.string().max(20_000).optional(),
+])
+export const evaluateStudyAnswerArgsSchema = z.tuple([studyBankQuestionIdSchema])
+export const advanceStudyCycleArgsSchema = z.tuple([])
+export const resetStudyCycleArgsSchema = z.tuple([])
 /** A task from the "Nova tarefa" form; the rules for each field are in shared/tasks.ts (taskDraftProblem). */
 export const newTaskSchema: z.ZodType<NewTaskDraft> = z.object({
   title: z.string().max(300),

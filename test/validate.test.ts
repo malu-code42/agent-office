@@ -39,6 +39,11 @@ import {
   studyQuestionGenerateArgsSchema,
   studyQuestionSaveArgsSchema,
   studyQuestionSearchArgsSchema,
+  startStudyCycleArgsSchema,
+  answerStudyCycleArgsSchema,
+  evaluateStudyAnswerArgsSchema,
+  advanceStudyCycleArgsSchema,
+  resetStudyCycleArgsSchema,
 } from '../src/main/validate'
 
 const dir = mkdtempSync(join(tmpdir(), 'ao-validate-'))
@@ -640,5 +645,17 @@ describe('a proposta de um squad', () => {
     expect(squadRenameSchema.safeParse({ id: 'proposta-1', name: 'Equipe da busca' }).success).toBe(true)
     expect(squadRenameSchema.safeParse({ id: 'proposta-1', name: '  ' }).success).toBe(false)
     expect(squadRenameSchema.safeParse({ id: 'proposta-1', name: 'x'.repeat(61) }).success).toBe(false)
+  })
+})
+
+describe('argumentos IPC do ciclo de estudo', () => {
+  it('aceita IDs de questões do banco e recusa caminhos, IDs duplicados ou campos extra', () => {
+    expect(startStudyCycleArgsSchema.safeParse(['Probabilidade', ['q-12345678']]).success).toBe(true)
+    expect(startStudyCycleArgsSchema.safeParse(['Probabilidade', ['q-12345678', 'q-12345678']]).success).toBe(false)
+    expect(startStudyCycleArgsSchema.safeParse(['Probabilidade', ['D:\\private\\file.md']]).success).toBe(false)
+    expect(answerStudyCycleArgsSchema.safeParse(['q-12345678', 'Resposta', false, 'Trecho']).success).toBe(true)
+    expect(evaluateStudyAnswerArgsSchema.safeParse(['q-12345678', 'C:\\vault']).success).toBe(false)
+    expect(advanceStudyCycleArgsSchema.safeParse([]).success).toBe(true)
+    expect(resetStudyCycleArgsSchema.safeParse([]).success).toBe(true)
   })
 })

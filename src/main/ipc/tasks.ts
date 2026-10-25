@@ -16,6 +16,10 @@ import { PersonalRoutineStore } from '../personal-routines-store'
 import { personalRoutineTaskFingerprintFromLine, personalRoutineTaskFingerprintFromTask } from '../personal-routine-fingerprint'
 import { StudyQuestionService } from '../study-questions'
 import { claudeStudyQuestionProviders } from '../study-questions-claude'
+import { StudyCycleService } from '../study-cycle'
+import { StudyCycleStore } from '../study-cycle-store'
+import { claudeStudyTutor } from '../study-cycle-claude'
+import { MAIN_ACCOUNT } from '@shared/accounts'
 import {
   completeTaskSchema,
   discardTaskSchema,
@@ -32,6 +36,11 @@ import {
   studyQuestionSearchArgsSchema,
   studyQuestionSaveArgsSchema,
   studyQuestionGenerateArgsSchema,
+  startStudyCycleArgsSchema,
+  answerStudyCycleArgsSchema,
+  evaluateStudyAnswerArgsSchema,
+  advanceStudyCycleArgsSchema,
+  resetStudyCycleArgsSchema,
 } from '../validate'
 import type { IpcContext } from './context'
 
@@ -42,6 +51,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
   const undo = createCompletionUndo()
   const personalRoutines = new PersonalRoutineStore(ctx.store.dataDirectory)
   const studyServices = new Map<string, StudyQuestionService>()
+  const studyCycleStore = new StudyCycleStore(ctx.store.dataDirectory)
   const read = (vaultPath: unknown) => readTasksAt(writer, vaultPath)
   const requireVault = (): string => {
     const vaultPath = ctx.store.settings.vaultPath
@@ -56,6 +66,17 @@ export function registerTasksIpc(ctx: IpcContext): void {
       studyServices.set(vault, service)
     }
     return service
+  }
+  const studyCycleService = (): StudyCycleService => {
+    const evaluateTutor = (input: Parameters<ReturnType<typeof claudeStudyTutor>>[0]) => {
+      const settings = ctx.store.settings
+      const accountId = settings.defaultAccounts[0] ?? MAIN_ACCOUNT
+      const account = settings.accounts.find((candidate) => candidate.id === accountId)
+      if (!account) throw new Error('A conta definida para o Tutor não existe mais. Confira as contas nas configurações.')
+      // Resolve route only at the explicit Tutor action; local read/start/answer remain usable offline.
+      return claudeStudyTutor(settings, account)(input)
+    }
+    return new StudyCycleService(studyCycleStore, studyService(), evaluateTutor)
   }
   // Reads the file without remembering it: the board's line numbers come from its own read.
   const focusView = (lists: TaskList[]) => focusItems(lists, ctx.planning.focus(), ctx.planning.todaySteps(dayKey()))
@@ -94,6 +115,27 @@ export function registerTasksIpc(ctx: IpcContext): void {
   ipcMain.handle('office:saveStudyQuestions', async (_e, ...args: unknown[]) => {
     const [token, selection, reviewConfirmed] = parse(studyQuestionSaveArgsSchema, args, 'Seleção de questões inválida.')
     studyService().save(token, selection, reviewConfirmed)
+  })
+  ipcMain.handle('office:readStudyCycle', () => studyCycleStore.read())
+  ipcMain.handle('office:startStudyCycle', (_e, ...args: unknown[]) => {
+    const [topic, questionIds] = parse(startStudyCycleArgsSchema, args, 'Início do ciclo inválido.')
+    return studyCycleService().start(topic, questionIds)
+  })
+  ipcMain.handle('office:answerStudyCycle', (_e, ...args: unknown[]) => {
+    const [questionId, response, uncertain, providedExcerpt] = parse(answerStudyCycleArgsSchema, args, 'Resposta do diagnóstico inválida.')
+    return studyCycleService().answer(questionId, response, uncertain, providedExcerpt)
+  })
+  ipcMain.handle('office:evaluateStudyAnswer', async (_e, ...args: unknown[]) => {
+    const [questionId] = parse(evaluateStudyAnswerArgsSchema, args, 'Verificação do Tutor inválida.')
+    return studyCycleService().evaluateAnswer(questionId)
+  })
+  ipcMain.handle('office:advanceStudyCycle', (_e, ...args: unknown[]) => {
+    parse(advanceStudyCycleArgsSchema, args, 'Avanço do ciclo inválido.')
+    return studyCycleService().advance()
+  })
+  ipcMain.handle('office:resetStudyCycle', (_e, ...args: unknown[]) => {
+    parse(resetStudyCycleArgsSchema, args, 'Encerramento do ciclo inválido.')
+    return studyCycleService().reset()
   })
 
   ipcMain.handle('office:readTasks', async () => {

@@ -23,6 +23,7 @@ import type { PersonalRoutineCreateInput, PersonalRoutineOverview } from '../rou
 import type { DelegateTarget, Ticket, TicketDraft, TicketPatch, TicketStatus } from './tickets'
 import type { WritingVersion } from '../writing'
 import type { DecodedStudyBank, StudyQuestion } from '../study-questions'
+import type { StudyCycleState } from '../study-cycle'
 
 export interface StudyQuestionCandidates {
   token: string
@@ -257,6 +258,18 @@ export interface OfficeAPI {
   generateStudyQuestions(token: string): Promise<StudyQuestionGeneration>
   /** Salva somente candidatas escolhidas pela pessoa, se o banco não mudou desde a busca. */
   saveStudyQuestions(token: string, selection: StudyQuestion[], reviewConfirmed: boolean): Promise<void>
+  /** Lê/resume o ciclo local de diagnóstico, sem alterar vault, tarefas ou agentes. */
+  readStudyCycle(): Promise<StudyCycleState>
+  /** Inicia outro tópico preservando ciclos anteriores; IDs devem pertencer ao banco local atual. */
+  startStudyCycle(topic: string, questionIds: string[]): Promise<StudyCycleState>
+  /** Salva resposta, incerteza e eventual trecho local que a pessoa escolheu como evidência. */
+  answerStudyCycle(questionId: string, response: string, uncertain: boolean, providedExcerpt?: string): Promise<StudyCycleState>
+  /** Solicita explicitamente uma avaliação isolada de uma questão pelo Tutor. */
+  evaluateStudyAnswer(questionId: string): Promise<StudyCycleState>
+  /** Pede a Bonnie para aplicar o gate objetivo do diagnóstico. */
+  advanceStudyCycle(): Promise<StudyCycleState>
+  /** Desativa a seleção do ciclo, mantendo tópico e evidências no histórico local. */
+  resetStudyCycle(): Promise<StudyCycleState>
   /** Lê objetivos.md e tarefas.md; os objetivos continuam editáveis no Obsidian. */
   readGoals(): Promise<{ goals: Goal[]; tasks: Task[] }>
   /** Cria um objetivo em objetivos.md, sem alterar tarefas.md. */

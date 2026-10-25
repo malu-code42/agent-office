@@ -14,6 +14,13 @@ const api: OfficeAPI = {
   searchStudyQuestions: (topic, limit) => ipcRenderer.invoke('office:searchStudyQuestions', topic, limit ?? 20),
   generateStudyQuestions: (token) => ipcRenderer.invoke('office:generateStudyQuestions', token),
   saveStudyQuestions: (token, selection, reviewConfirmed) => ipcRenderer.invoke('office:saveStudyQuestions', token, selection, reviewConfirmed),
+  readStudyCycle: () => ipcRenderer.invoke('office:readStudyCycle'),
+  startStudyCycle: (topic, questionIds) => ipcRenderer.invoke('office:startStudyCycle', topic, questionIds),
+  answerStudyCycle: (questionId, response, uncertain, providedExcerpt) =>
+    ipcRenderer.invoke('office:answerStudyCycle', questionId, response, uncertain, providedExcerpt ?? ''),
+  evaluateStudyAnswer: (questionId) => ipcRenderer.invoke('office:evaluateStudyAnswer', questionId),
+  advanceStudyCycle: () => ipcRenderer.invoke('office:advanceStudyCycle'),
+  resetStudyCycle: () => ipcRenderer.invoke('office:resetStudyCycle'),
   readGoals: () => ipcRenderer.invoke('office:readGoals'),
   createGoal: (draft) => ipcRenderer.invoke('office:createGoal', draft),
   setGoalMilestone: (id, index, done) => ipcRenderer.invoke('office:setGoalMilestone', id, index, done),
