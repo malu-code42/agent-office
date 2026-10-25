@@ -5,6 +5,12 @@ import {
   answerStudyQuestion,
   assessStudyQuestion,
   advanceStudyCycle,
+  reviewStudyGap,
+  startStudyPracticeRound,
+  answerStudyPracticeQuestion,
+  practiceScore,
+  attachStudySource,
+  recordStudyNote,
   evaluateStudyGate,
   type StudyCycleQuestion,
 } from '../src/shared/study-cycle'
@@ -58,7 +64,9 @@ describe('ciclo de diagnóstico', () => {
     state = answerStudyQuestion(state, 'q-12345678', 'Resposta', true, 11)
     state = assessStudyQuestion(state, 'q-12345678', { kind: 'uncertain', rationale: 'Não há evidência suficiente' }, 12)
     expect(evaluateStudyGate(activeStudyCycle(state)!)).toMatchObject({ ready: true, nextStage: 'review-required' })
-    expect(activeStudyCycle(advanceStudyCycle(state, 13))?.stage).toBe('review-required')
+    const review = advanceStudyCycle(state, 13)
+    expect(activeStudyCycle(review)?.stage).toBe('review-required')
+    expect(() => advanceStudyCycle(review, 14)).toThrow(/causa e o próximo passo/i)
 
     let noKey = createStudyCycleState('Probabilidade', [question('q-abcdefgh', 'missing')], 10)
     noKey = answerStudyQuestion(noKey, 'q-abcdefgh', 'Resposta', false, 11)
@@ -79,5 +87,118 @@ describe('ciclo de diagnóstico', () => {
     expect(restored.cycles).toHaveLength(2)
     expect(restored.cycles[0]?.questions[0]?.sourceHash).toBe('hash-q-12345678')
     expect(activeStudyCycle(restored)?.topic).toBe('Estatística')
+  })
+
+  it('does not close the error-review gate until each gap has a cause and next step', () => {
+    const q = question('q-review01')
+    const state = createStudyCycleState('Probabilidade', [q], 10)
+    const answered = answerStudyQuestion(state, q.id, 'Resposta errada', false, 11)
+    const marked = assessStudyQuestion(answered, q.id, { kind: 'incorrect', rationale: 'O gabarito diverge.' }, 12)
+    const reviewReady = advanceStudyCycle(marked, 13)
+    expect(activeStudyCycle(reviewReady)?.stage).toBe('review-required')
+    expect(() => advanceStudyCycle(reviewReady, 14)).toThrow(/causa e o próximo passo/i)
+    const withCause = reviewStudyGap(reviewReady, q.id, 'Confundi os eventos', 'Rever o princípio da contagem', 15)
+    expect(() => advanceStudyCycle(withCause, 16)).toThrow(/vincule ao menos uma fonte/i)
+    const withSource = attachStudySource(withCause, q.id, 'study sources/probabilidade.md#eventos:1', 16)
+    expect(activeStudyCycle(advanceStudyCycle(withSource, 17))?.stage).toBe('practice')
+  })
+
+  it('requires non-empty new practice linked to gaps and blocks zero denominator or missing notes', () => {
+    let state = createStudyCycleState('Probabilidade', [question('q-review01')], 10)
+    state = answerStudyQuestion(state, 'q-review01', 'Resposta errada', false, 11)
+    state = assessStudyQuestion(state, 'q-review01', { kind: 'incorrect', rationale: 'Não confere.' }, 12)
+    state = advanceStudyCycle(state, 13)
+    state = reviewStudyGap(state, 'q-review01', 'Erro de leitura', 'Rever exemplos', 14)
+    state = attachStudySource(state, 'q-review01', 'study sources/probabilidade.md#contagem', 14)
+    state = advanceStudyCycle(state, 15)
+    expect(() => advanceStudyCycle(state, 16)).toThrow(/ao menos uma questão/i)
+    const practice = (id: string) => ({ ...question(id), gapQuestionIds: ['q-review01'] })
+    state = startStudyPracticeRound(state, [practice('q-practice01')], 16)
+    expect(() => startStudyPracticeRound(state, [practice('q-review01')], 16)).toThrow(/novas/i)
+    state = answerStudyPracticeQuestion(
+      state,
+      'q-practice01',
+      'Resposta',
+      { kind: 'correct', rationale: 'Gabarito conferido.', checkedAt: 17 },
+      17,
+    )
+    expect(() => advanceStudyCycle(state, 18)).toThrow(/nota/i)
+  })
+
+  it('scores only answered verified practice items and requires 80 percent before release', () => {
+    let state = createStudyCycleState('Probabilidade', [question('q-review01')], 10)
+    state = answerStudyQuestion(state, 'q-review01', 'Resposta errada', false, 11)
+    state = assessStudyQuestion(state, 'q-review01', { kind: 'incorrect', rationale: 'Não confere.' }, 12)
+    state = advanceStudyCycle(state, 13)
+    state = reviewStudyGap(state, 'q-review01', 'Erro de leitura', 'Rever exemplos', 14)
+    state = attachStudySource(state, 'q-review01', 'study sources/probabilidade.md#contagem', 14)
+    state = advanceStudyCycle(state, 15)
+    state = recordStudyNote(
+      state,
+      {
+        id: 'note-1',
+        gapQuestionId: 'q-review01',
+        sourceRef: 'study sources/probabilidade.md#contagem',
+        text: 'Vou listar os casos possíveis antes de calcular.',
+        savedAt: 16,
+      },
+      16,
+    )
+    state = startStudyPracticeRound(
+      state,
+      ['q-practice01', 'q-practice02', 'q-practice03', 'q-practice04', 'q-practice05'].map((id) => ({
+        ...question(id),
+        gapQuestionIds: ['q-review01'],
+      })),
+      16,
+    )
+    let answered = state
+    for (const [index, id] of ['q-practice01', 'q-practice02', 'q-practice03', 'q-practice04', 'q-practice05'].entries()) {
+      answered = answerStudyPracticeQuestion(
+        answered,
+        id,
+        'Resposta',
+        { kind: index === 0 ? 'incorrect' : 'correct', rationale: 'Gabarito conferido.', checkedAt: 20 + index },
+        20 + index,
+      )
+    }
+    const round = activeStudyCycle(answered)!.practiceRounds[0]!
+    expect(practiceScore(round)).toBe(80)
+    expect(activeStudyCycle(advanceStudyCycle(answered, 30))?.stage).toBe('retest-ready')
+  })
+
+  it('keeps unsupported practice answers pending and allows an explicit new set without scoring them', () => {
+    let state = createStudyCycleState('Probabilidade', [question('q-review02')], 10)
+    state = answerStudyQuestion(state, 'q-review02', 'Resposta errada', false, 11)
+    state = assessStudyQuestion(state, 'q-review02', { kind: 'incorrect', rationale: 'Não confere.' }, 12)
+    state = advanceStudyCycle(state, 13)
+    state = reviewStudyGap(state, 'q-review02', 'Erro de leitura', 'Rever exemplos', 14)
+    state = attachStudySource(state, 'q-review02', 'study sources/probabilidade.md#contagem', 14)
+    state = advanceStudyCycle(state, 15)
+    state = recordStudyNote(
+      state,
+      {
+        id: 'note-pending',
+        gapQuestionId: 'q-review02',
+        sourceRef: 'study sources/probabilidade.md#contagem',
+        text: 'Separar os casos antes de resolver.',
+        savedAt: 16,
+      },
+      16,
+    )
+    state = startStudyPracticeRound(state, [{ ...question('q-practice06'), gapQuestionIds: ['q-review02'] }], 17)
+    state = answerStudyPracticeQuestion(
+      state,
+      'q-practice06',
+      'Resposta',
+      { kind: 'pending', rationale: 'Evidência insuficiente', checkedAt: 18 },
+      18,
+    )
+    expect(practiceScore(activeStudyCycle(state)!.practiceRounds.at(-1)!)).toBe(0)
+    expect(() => advanceStudyCycle(state, 19)).toThrow(/conclua a verificação/i)
+    state = startStudyPracticeRound(state, [{ ...question('q-practice07'), gapQuestionIds: ['q-review02'] }], 20)
+    expect(activeStudyCycle(state)?.practiceRounds).toHaveLength(2)
+    expect(activeStudyCycle(state)?.practiceRounds[0]?.questions[0]?.assessment?.kind).toBe('pending')
+    expect(() => startStudyPracticeRound(state, [{ ...question('q-practice07'), gapQuestionIds: ['q-review02'] }], 21)).toThrow(/novas/i)
   })
 })

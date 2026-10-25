@@ -44,6 +44,11 @@ import {
   evaluateStudyAnswerArgsSchema,
   advanceStudyCycleArgsSchema,
   resetStudyCycleArgsSchema,
+  searchStudyLibraryArgsSchema,
+  studyLibrarySourceArgsSchema,
+  studyCycleNoteArgsSchema,
+  startStudyPracticeArgsSchema,
+  answerStudyPracticeArgsSchema,
 } from '../src/main/validate'
 
 const dir = mkdtempSync(join(tmpdir(), 'ao-validate-'))
@@ -79,15 +84,29 @@ const settings = (): Settings => ({
 
 describe('IPC do banco de questões', () => {
   const candidate = {
-    id: 'q-ipc00001', topic: 'Probabilidade', tags: [], question: 'Questão sintética?', answerStatus: 'unverified',
-    originKind: 'web', sourceTitle: 'Fonte sintética', sourceVisibility: 'unknown', sourceUrl: 'https://example.org/q',
-    attribution: 'Conferir', license: 'Não verificada',
+    id: 'q-ipc00001',
+    topic: 'Probabilidade',
+    tags: [],
+    question: 'Questão sintética?',
+    answerStatus: 'unverified',
+    originKind: 'web',
+    sourceTitle: 'Fonte sintética',
+    sourceVisibility: 'unknown',
+    sourceUrl: 'https://example.org/q',
+    attribution: 'Conferir',
+    license: 'Não verificada',
   }
   it('bounds search and generation arguments and rejects unsafe provenance URLs', () => {
     expect(studyQuestionSearchArgsSchema.safeParse(['Probabilidade', 10]).success).toBe(true)
     expect(studyQuestionSearchArgsSchema.safeParse(['x'.repeat(201), 10]).success).toBe(false)
     expect(studyQuestionGenerateArgsSchema.safeParse(['00000000-0000-4000-8000-000000000001']).success).toBe(true)
-    expect(studyQuestionSaveArgsSchema.safeParse(['00000000-0000-4000-8000-000000000001', [{ ...candidate, sourceUrl: 'file:///book.pdf' }], true]).success).toBe(false)
+    expect(
+      studyQuestionSaveArgsSchema.safeParse([
+        '00000000-0000-4000-8000-000000000001',
+        [{ ...candidate, sourceUrl: 'file:///book.pdf' }],
+        true,
+      ]).success,
+    ).toBe(false)
     expect(studyQuestionSaveArgsSchema.safeParse(['00000000-0000-4000-8000-000000000001', [candidate], false]).success).toBe(true)
   })
 })
@@ -657,5 +676,19 @@ describe('argumentos IPC do ciclo de estudo', () => {
     expect(evaluateStudyAnswerArgsSchema.safeParse(['q-12345678', 'C:\\vault']).success).toBe(false)
     expect(advanceStudyCycleArgsSchema.safeParse([]).success).toBe(true)
     expect(resetStudyCycleArgsSchema.safeParse([]).success).toBe(true)
+    expect(searchStudyLibraryArgsSchema.safeParse(['probabilidade']).success).toBe(true)
+    expect(searchStudyLibraryArgsSchema.safeParse(['C:\\private\\book.md']).success).toBe(true)
+    expect(studyLibrarySourceArgsSchema.safeParse(['q-12345678', '550e8400-e29b-41d4-a716-446655440000', 'a'.repeat(20)]).success).toBe(
+      true,
+    )
+    expect(studyLibrarySourceArgsSchema.safeParse(['q-12345678', 'not-a-token', 'C:\\private\\book.md']).success).toBe(false)
+    expect(studyCycleNoteArgsSchema.safeParse(['q-12345678', '550e8400-e29b-41d4-a716-446655440000', 'a'.repeat(20), 'Nota']).success).toBe(
+      true,
+    )
+    expect(startStudyPracticeArgsSchema.safeParse([[{ id: 'q-practice01', gapQuestionIds: ['q-12345678'] }]]).success).toBe(true)
+    expect(startStudyPracticeArgsSchema.safeParse([[{ id: 'q-practice01', gapQuestionIds: ['C:\\private\\question.md'] }]]).success).toBe(
+      false,
+    )
+    expect(answerStudyPracticeArgsSchema.safeParse(['q-practice01', 'Resposta']).success).toBe(true)
   })
 })

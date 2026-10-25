@@ -92,8 +92,9 @@ Alias `@shared/*` → `src/shared/*` em main, preload, renderer e testes.
 - O bridge faz backup de `~/.claude/settings.json` e preserva hooks do usuário. Mantenha isso.
 
 ### Dados do usuário
-- Ficam em `app.getPath('userData')`: `office.json`, `tickets.json`, `tickets-closed.json`, `routines.json`
-  (lista em `DATA_FILES` de `backups.ts`), além de `stats.json`, `bridge-token`, `logs/`, `backups/`.
+- Ficam em `app.getPath('userData')`: `office.json`, tickets, `routines.json`, `planning.json`, `timer.json`,
+  `personal-routines.json` e `study-cycle.json` (lista em `DATA_FILES` de `backups.ts`), além de `stats.json`,
+  `bridge-token`, `logs/` e `backups/`.
 - Escreva sempre com `writeJsonAtomic`/`writeFileAtomic` (`fs-safe.ts`). Nunca `fs.writeFile` direto em arquivo de dados.
 - `loadJson` move arquivo corrompido para `.corrupt-<ts>.json` e recupera de `.bak` ou backup diário. Erro de dados para o app em vez de sobrescrever.
 - Não há versão de schema nos arquivos. Campo novo: dê default e trate a migração em `migrateSettings` (`store.ts`).

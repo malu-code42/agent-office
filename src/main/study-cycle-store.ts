@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import { emptyStudyCycleState, type StudyCycleState } from '@shared/study-cycle'
 import { loadJson, reportLoad, writeJsonAtomic } from './fs-safe'
 import { backupCopies } from './backups'
-import { isStudyCycleState, studyCycleStateSchema } from './study-cycle-schema'
+import { isStudyCycleState, normalizeStudyCycleState, studyCycleStateSchema } from './study-cycle-schema'
 
 export const STUDY_CYCLE_FILE = 'study-cycle.json'
 
@@ -20,7 +20,7 @@ export class StudyCycleStore {
       fallbacks: backupCopies(this.dataDir, STUDY_CYCLE_FILE),
     })
     reportLoad(this.file, result)
-    return result.status === 'ok' || result.status === 'restored' ? result.data : emptyStudyCycleState()
+    return result.status === 'ok' || result.status === 'restored' ? normalizeStudyCycleState(result.data) : emptyStudyCycleState()
   }
 
   write(state: StudyCycleState): void {

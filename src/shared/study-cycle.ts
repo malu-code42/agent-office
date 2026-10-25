@@ -1,7 +1,31 @@
 import type { StudyQuestion } from './study-questions'
 
-export type StudyCycleStage = 'diagnosis' | 'review-required' | 'retest-ready'
+export type StudyCycleStage = 'diagnosis' | 'review-required' | 'practice' | 'retest-ready'
 export type StudyAssessment = { kind: 'correct' | 'incorrect' | 'uncertain' | 'pending'; rationale: string; checkedAt: number }
+
+export interface StudyGapReview {
+  cause: string
+  nextStep: string
+  sourceRefs: string[]
+}
+
+export interface StudyPracticeQuestion extends StudyCycleQuestion {
+  gapQuestionIds: string[]
+}
+
+export interface StudyPracticeRound {
+  id: string
+  questions: StudyPracticeQuestion[]
+  startedAt: number
+}
+
+export interface StudyCycleNote {
+  id: string
+  gapQuestionId: string
+  sourceRef: string
+  text: string
+  savedAt: number
+}
 
 /** Immutable copy of the bank record used by this cycle; its hash identifies the exact source version. */
 export interface StudyCycleQuestion {
@@ -12,6 +36,7 @@ export interface StudyCycleQuestion {
   providedExcerpt: string
   uncertain: boolean | null
   assessment: StudyAssessment | null
+  review?: StudyGapReview
 }
 
 export interface StudyCycle {
@@ -21,6 +46,8 @@ export interface StudyCycle {
   startedAt: number
   updatedAt: number
   questions: StudyCycleQuestion[]
+  practiceRounds: StudyPracticeRound[]
+  notes: StudyCycleNote[]
 }
 
 export interface StudyCycleState {
@@ -52,6 +79,8 @@ export function createStudyCycleState(
     startedAt: now,
     updatedAt: now,
     questions: questions.map((question) => ({ ...question, source: { ...question.source, tags: [...question.source.tags] } })),
+    practiceRounds: [],
+    notes: [],
   }
   return { activeId: cycle.id, cycles: [...(previous?.cycles ?? []), cycle] }
 }
@@ -124,14 +153,201 @@ export function evaluateStudyGate(cycle: StudyCycle): StudyGate {
 /** Bonnie's gate is explicit: callers must ask to advance after the objective criteria pass. */
 export function advanceStudyCycle(state: StudyCycleState, now = Date.now()): StudyCycleState {
   const cycle = activeCycle(state)
-  const gate = evaluateStudyGate(cycle)
-  if (!gate.ready)
-    throw new Error(
-      gate.reason === 'incomplete'
-        ? 'Responda todas as questões e marque sua incerteza.'
-        : 'Há respostas em verificação; tente novamente quando houver evidência suficiente.',
+  if (cycle.stage === 'diagnosis') {
+    const gate = evaluateStudyGate(cycle)
+    if (!gate.ready)
+      throw new Error(
+        gate.reason === 'incomplete'
+          ? 'Responda todas as questões e marque sua incerteza.'
+          : 'Há respostas em verificação; tente novamente quando houver evidência suficiente.',
+      )
+    return updateCycle(state, { ...cycle, stage: gate.nextStage, updatedAt: now })
+  }
+  if (cycle.stage === 'review-required') {
+    const gaps = studyGaps(cycle)
+    if (!gaps.length) throw new Error('Não há erros ou dúvidas para revisar; Bonnie deve liberar o reteste diretamente.')
+    if (gaps.some((question) => !question.review?.cause.trim() || !question.review.nextStep.trim()))
+      throw new Error('Registre a causa e o próximo passo de cada erro ou dúvida antes de continuar.')
+    if (gaps.some((question) => !question.review?.sourceRefs.length))
+      throw new Error('Consulte e vincule ao menos uma fonte local a cada erro ou dúvida antes da prática.')
+    return updateCycle(state, { ...cycle, stage: 'practice', updatedAt: now })
+  }
+  if (cycle.stage === 'practice') {
+    const round = cycle.practiceRounds.at(-1)
+    if (!round?.questions.length) throw new Error('Planeje ao menos uma questão de prática ligada a um erro ou dúvida.')
+    if (
+      round.questions.some(
+        (question) =>
+          !question.response || !question.assessment || question.assessment.kind === 'pending' || question.assessment.kind === 'uncertain',
+      )
     )
-  return updateCycle(state, { ...cycle, stage: gate.nextStage, updatedAt: now })
+      throw new Error('Conclua a verificação de todas as questões da prática antes de calcular o resultado.')
+    if (!cycle.notes.length) throw new Error('Registre ao menos uma nota durante a consulta de uma fonte.')
+    if (practiceScore(round) < 80) throw new Error('O resultado ficou abaixo de 80%. Revise os erros e planeje questões novas.')
+    return updateCycle(state, { ...cycle, stage: 'retest-ready', updatedAt: now })
+  }
+  throw new Error('O diagnóstico deste ciclo já foi encerrado.')
+}
+
+export function studyGaps(cycle: StudyCycle): StudyCycleQuestion[] {
+  return cycle.questions.filter(
+    (question) => question.uncertain === true || question.assessment?.kind === 'incorrect' || question.assessment?.kind === 'uncertain',
+  )
+}
+
+export function reviewStudyGap(
+  state: StudyCycleState,
+  questionId: string,
+  cause: string,
+  nextStep: string,
+  now = Date.now(),
+): StudyCycleState {
+  const cycle = activeCycle(state)
+  if (cycle.stage !== 'review-required') throw new Error('Bonnie ainda não liberou a revisão de erros e dúvidas.')
+  const target = studyGaps(cycle).find((question) => question.id === questionId)
+  const cleanCause = cause.trim()
+  const cleanNextStep = nextStep.trim()
+  if (!target) throw new Error('Essa questão não tem erro ou dúvida pendente de revisão.')
+  if (!cleanCause || cleanCause.length > 2000 || !cleanNextStep || cleanNextStep.length > 2000)
+    throw new Error('Informe uma causa e um próximo passo, cada um com até 2.000 caracteres.')
+  return updateCycle(state, {
+    ...cycle,
+    updatedAt: now,
+    questions: cycle.questions.map((question) =>
+      question.id === questionId
+        ? { ...question, review: { cause: cleanCause, nextStep: cleanNextStep, sourceRefs: question.review?.sourceRefs ?? [] } }
+        : question,
+    ),
+  })
+}
+
+export function attachStudySource(state: StudyCycleState, questionId: string, sourceRef: string, now = Date.now()): StudyCycleState {
+  const cycle = activeCycle(state)
+  if (cycle.stage !== 'review-required' && cycle.stage !== 'practice') throw new Error('Fontes ficam disponíveis na revisão e na prática.')
+  const target = studyGaps(cycle).find((question) => question.id === questionId)
+  const ref = sourceRef.trim()
+  if (!target || !target.review) throw new Error('Registre a causa e o próximo passo antes de vincular uma fonte.')
+  if (!ref || ref.length > 1000 || /[\r\n\0]/.test(ref)) throw new Error('Referência de fonte inválida.')
+  if (target.review.sourceRefs.includes(ref)) return state
+  return updateCycle(state, {
+    ...cycle,
+    updatedAt: now,
+    questions: cycle.questions.map((question) =>
+      question.id === questionId
+        ? { ...question, review: { ...question.review!, sourceRefs: [...question.review!.sourceRefs, ref] } }
+        : question,
+    ),
+  })
+}
+
+export function recordStudyNote(state: StudyCycleState, note: StudyCycleNote, now = Date.now()): StudyCycleState {
+  const cycle = activeCycle(state)
+  if (cycle.stage !== 'review-required' && cycle.stage !== 'practice')
+    throw new Error('Bonnie ainda não liberou o registro de nota da consulta.')
+  const gap = studyGaps(cycle).find((question) => question.id === note.gapQuestionId)
+  const id = note.id.trim()
+  const sourceRef = note.sourceRef.trim()
+  const text = note.text.trim()
+  if (!gap?.review || !gap.review.sourceRefs.includes(sourceRef))
+    throw new Error('Vincule a nota a uma fonte consultada para este erro ou dúvida.')
+  if (!id || id.length > 100 || cycle.notes.some((item) => item.id === id)) throw new Error('Identificador de nota inválido ou repetido.')
+  if (!text || text.length > 10_000) throw new Error('Escreva uma nota de até 10.000 caracteres.')
+  if (!Number.isFinite(note.savedAt)) throw new Error('Data da nota inválida.')
+  return updateCycle(state, { ...cycle, notes: [...cycle.notes, { ...note, id, sourceRef, text }], updatedAt: now })
+}
+
+export function startStudyPracticeRound(state: StudyCycleState, questions: StudyPracticeQuestion[], now = Date.now()): StudyCycleState {
+  const cycle = activeCycle(state)
+  if (cycle.stage !== 'practice') throw new Error('Bonnie ainda não liberou a prática.')
+  if (!questions.length || questions.length > 100) throw new Error('Planeje ao menos uma questão de prática.')
+  const gaps = new Set(studyGaps(cycle).map((question) => question.id))
+  const sourcedGaps = new Set(
+    studyGaps(cycle)
+      .filter((question) => question.review?.sourceRefs.length)
+      .map((question) => question.id),
+  )
+  const usedIds = new Set(cycle.questions.map((question) => question.id))
+  for (const round of cycle.practiceRounds) for (const item of round.questions) usedIds.add(item.id)
+  const roundIds = new Set<string>()
+  for (const question of questions) {
+    if (!question.gapQuestionIds.length || question.gapQuestionIds.some((id) => !gaps.has(id) || !sourcedGaps.has(id)))
+      throw new Error('Vincule cada questão de prática a um erro ou dúvida identificado.')
+    if (usedIds.has(question.id) || roundIds.has(question.id)) throw new Error('A prática precisa usar questões novas, sem repetição.')
+    roundIds.add(question.id)
+  }
+  const last = cycle.practiceRounds.at(-1)
+  if (last && roundComplete(last) && practiceScore(last) >= 80)
+    throw new Error('Bonnie já pode liberar o reteste; conclua esta etapa antes de iniciar outra rodada.')
+  const round: StudyPracticeRound = { id: `pr-${now}-${Math.random().toString(36).slice(2, 10)}`, questions, startedAt: now }
+  return updateCycle(state, { ...cycle, practiceRounds: [...cycle.practiceRounds, round], updatedAt: now })
+}
+
+export function answerStudyPracticeQuestion(
+  state: StudyCycleState,
+  questionId: string,
+  response: string,
+  assessment: StudyAssessment,
+  now = Date.now(),
+): StudyCycleState {
+  const cycle = activeCycle(state)
+  if (cycle.stage !== 'practice') throw new Error('Bonnie ainda não liberou a prática.')
+  const round = cycle.practiceRounds.at(-1)
+  if (!round) throw new Error('Planeje uma rodada de prática antes de responder.')
+  const clean = response.trim()
+  if (!clean || clean.length > 20_000) throw new Error('Escreva uma resposta de até 20.000 caracteres.')
+  if (assessment.kind === 'correct' && !round.questions.find((question) => question.id === questionId)?.source.answer)
+    throw new Error('Uma questão sem gabarito não pode contar como acerto.')
+  if (!round.questions.some((question) => question.id === questionId))
+    throw new Error('Essa questão não pertence à rodada de prática atual.')
+  const rounds = cycle.practiceRounds.map((item) =>
+    item.id === round.id
+      ? {
+          ...item,
+          questions: item.questions.map((question) =>
+            question.id === questionId ? { ...question, response: clean, assessment: { ...assessment, checkedAt: now } } : question,
+          ),
+        }
+      : item,
+  )
+  return updateCycle(state, { ...cycle, practiceRounds: rounds, updatedAt: now })
+}
+
+export function saveStudyPracticeResponse(state: StudyCycleState, questionId: string, response: string, now = Date.now()): StudyCycleState {
+  const cycle = activeCycle(state)
+  if (cycle.stage !== 'practice') throw new Error('Bonnie ainda não liberou a prática.')
+  const round = cycle.practiceRounds.at(-1)
+  if (!round) throw new Error('Planeje uma rodada de prática antes de responder.')
+  const clean = response.trim()
+  if (!clean || clean.length > 20_000) throw new Error('Escreva uma resposta de até 20.000 caracteres.')
+  if (!round.questions.some((question) => question.id === questionId))
+    throw new Error('Essa questão não pertence à rodada de prática atual.')
+  const rounds = cycle.practiceRounds.map((item) =>
+    item.id === round.id
+      ? {
+          ...item,
+          questions: item.questions.map((question) =>
+            question.id === questionId ? { ...question, response: clean, assessment: null } : question,
+          ),
+        }
+      : item,
+  )
+  return updateCycle(state, { ...cycle, practiceRounds: rounds, updatedAt: now })
+}
+
+export function practiceScore(round: StudyPracticeRound): number {
+  if (!round.questions.length || !roundComplete(round)) return 0
+  const correct = round.questions.filter((question) => question.assessment?.kind === 'correct').length
+  return Math.floor((correct / round.questions.length) * 100)
+}
+
+function roundComplete(round: StudyPracticeRound): boolean {
+  return (
+    round.questions.length > 0 &&
+    round.questions.every(
+      (question) =>
+        !!question.response && !!question.assessment && question.assessment.kind !== 'pending' && question.assessment.kind !== 'uncertain',
+    )
+  )
 }
 
 export function activeStudyCycle(state: StudyCycleState): StudyCycle | null {

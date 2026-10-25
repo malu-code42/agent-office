@@ -39,6 +39,14 @@ const questionSchema = z
       })
       .strict()
       .nullable(),
+    review: z
+      .object({
+        cause: z.string().min(1).max(2000),
+        nextStep: z.string().min(1).max(2000),
+        sourceRefs: z.array(z.string().min(1).max(1000)).max(100),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .refine((question) => question.id === question.source.id && question.sourceHash === hashStudyQuestion(question.source))
@@ -50,17 +58,70 @@ const questionSchema = z
     }
   })
 
+const practiceQuestionSchema = z.intersection(
+  questionSchema,
+  z
+    .object({
+      gapQuestionIds: z
+        .array(z.string().regex(/^q-[a-z0-9-]{8,72}$/i))
+        .min(1)
+        .max(100),
+    })
+    .strict(),
+)
+
 const cycleSchema = z
   .object({
     id: z.string().min(1).max(100),
     topic: z.string().min(1).max(200),
-    stage: z.enum(['diagnosis', 'review-required', 'retest-ready']),
+    stage: z.enum(['diagnosis', 'review-required', 'practice', 'retest-ready']),
     startedAt: z.number().finite(),
     updatedAt: z.number().finite(),
     questions: z.array(questionSchema).min(1).max(100),
+    practiceRounds: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1).max(100),
+            startedAt: z.number().finite(),
+            questions: z.array(practiceQuestionSchema).min(1).max(100),
+          })
+          .strict(),
+      )
+      .max(100)
+      .default([]),
+    notes: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1).max(100),
+            gapQuestionId: z.string().regex(/^q-[a-z0-9-]{8,72}$/i),
+            sourceRef: z.string().min(1).max(1000),
+            text: z.string().min(1).max(10_000),
+            savedAt: z.number().finite(),
+          })
+          .strict(),
+      )
+      .max(1000)
+      .default([]),
   })
   .strict()
   .refine((cycle) => new Set(cycle.questions.map((question) => question.id)).size === cycle.questions.length)
+  .superRefine((cycle, context) => {
+    const gaps = new Set(
+      cycle.questions
+        .filter((question) => question.uncertain || question.assessment?.kind === 'incorrect' || question.assessment?.kind === 'uncertain')
+        .map((question) => question.id),
+    )
+    for (const round of cycle.practiceRounds) {
+      for (const question of round.questions) {
+        if (question.gapQuestionIds.some((id) => !gaps.has(id)))
+          context.addIssue({ code: 'custom', message: 'Questão de prática sem lacuna vinculada.' })
+      }
+    }
+    for (const note of cycle.notes)
+      if (!gaps.has(note.gapQuestionId)) context.addIssue({ code: 'custom', message: 'Nota sem lacuna válida.' })
+  })
 
 export const studyCycleStateSchema: z.ZodType<StudyCycleState> = z
   .object({ activeId: z.string().min(1).max(100).nullable(), cycles: z.array(cycleSchema).max(1000) })
@@ -70,6 +131,11 @@ export const studyCycleStateSchema: z.ZodType<StudyCycleState> = z
 
 export function isStudyCycleState(value: unknown): value is StudyCycleState {
   return studyCycleStateSchema.safeParse(value).success
+}
+
+/** Adds defaults for cycle files written before AO-50 added review and practice state. */
+export function normalizeStudyCycleState(value: unknown): StudyCycleState {
+  return studyCycleStateSchema.parse(value)
 }
 
 export function hashStudyQuestion(question: unknown): string {

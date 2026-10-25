@@ -55,6 +55,46 @@
   border-radius: 12px;
 }
 
+.study-cycle-gap,
+.study-cycle-source-hit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--card-solid);
+}
+
+.study-cycle-gap h4,
+.study-cycle-source-hit h4,
+.study-cycle-gap p,
+.study-cycle-source-hit p {
+  margin: 0;
+}
+
+.study-cycle-source-list {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.study-cycle-library-search {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.study-cycle-library-search .input {
+  flex: 1;
+}
+
+.study-cycle-source-hit .input,
+.study-cycle-bank-row .input {
+  min-width: 0;
+}
+
 .study-cycle-question h4,
 .study-cycle-question p {
   margin: 0;
@@ -111,5 +151,10 @@
 
   .study-cycle-question-actions > .btn {
     flex: 1 1 auto;
+  }
+
+  .study-cycle-library-search {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

@@ -9,6 +9,16 @@ import { PersonalRoutineStore } from '../src/main/personal-routines-store'
 import { personalRoutineTaskFingerprint } from '../src/main/personal-routine-fingerprint'
 import { dayLabel } from '../src/shared/tasks'
 import { encodeStudyQuestion, type StudyQuestion } from '../src/shared/study-questions'
+import { StudyCycleStore } from '../src/main/study-cycle-store'
+import {
+  advanceStudyCycle,
+  answerStudyQuestion,
+  assessStudyQuestion,
+  createStudyCycleState,
+  reviewStudyGap,
+  type StudyCycleQuestion,
+} from '../src/shared/study-cycle'
+import { hashStudyQuestion } from '../src/main/study-cycle-schema'
 
 const ipc = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
@@ -111,9 +121,62 @@ describe('tasks IPC', () => {
     expect(found.sourceCandidates).toEqual([])
     expect(studyProviders.webSearch).not.toHaveBeenCalled()
     await expect(invoke('office:generateStudyQuestions', found.token)).rejects.toThrow(/busca local ficou incompleta/i)
-    await expect(invoke('office:saveStudyQuestions', found.token, [bankQuestion], true)).rejects.toThrow(
-      /busca local ficou incompleta/i,
-    )
+    await expect(invoke('office:saveStudyQuestions', found.token, [bankQuestion], true)).rejects.toThrow(/busca local ficou incompleta/i)
+    expect(studyProviders.generate).not.toHaveBeenCalled()
+  })
+
+  it('Cora searches local fixtures only and saves a source-linked note once', async () => {
+    const item: StudyQuestion = {
+      id: 'q-local0001',
+      topic: 'Probabilidade',
+      tags: ['eventos'],
+      question: 'Qual a probabilidade conjunta?',
+      answer: '1/4',
+      answerStatus: 'verified',
+      originKind: 'enem',
+      sourceTitle: 'Fixture sintética',
+      sourceVisibility: 'local',
+      sourceReference: 'questoes-estudo.md',
+      attribution: 'Fixture',
+      license: 'Uso sintético',
+    }
+    writeFileSync(join(vault, 'questoes-estudo.md'), `${encodeStudyQuestion(item)}\n`)
+    const sources = join(vault, 'study sources')
+    mkdirSync(sources)
+    writeFileSync(join(sources, 'probabilidade.md'), '# Eventos\n\nProbabilidade conjunta usa a multiplicação de eventos independentes.\n')
+    settings.vaultPath = vault
+
+    const selected: StudyCycleQuestion = {
+      id: item.id,
+      sourceHash: hashStudyQuestion(item),
+      source: item,
+      response: '',
+      providedExcerpt: '',
+      uncertain: null,
+      assessment: null,
+    }
+    let cycle = createStudyCycleState('Probabilidade', [selected], 10)
+    cycle = answerStudyQuestion(cycle, item.id, 'Resposta incorreta', false, 11)
+    cycle = assessStudyQuestion(cycle, item.id, { kind: 'incorrect', rationale: 'Fixture.' }, 12)
+    cycle = advanceStudyCycle(cycle, 13)
+    cycle = reviewStudyGap(cycle, item.id, 'Confundi eventos', 'Rever o exemplo local', 14)
+    new StudyCycleStore(data).write(cycle)
+
+    const found = (await invoke('office:searchStudyLibrary', 'probabilidade conjunta')) as {
+      token: string
+      complete: boolean
+      hits: { id: string; sourceRef: string }[]
+    }
+    expect(found.complete).toBe(true)
+    expect(found.hits[0]?.sourceRef).toMatch(/^study sources\//)
+    expect(studyProviders.webSearch).not.toHaveBeenCalled()
+    await invoke('office:saveStudyCycleNote', item.id, found.token, found.hits[0]!.id, 'Anotei a relação entre os eventos.')
+    await invoke('office:saveStudyCycleNote', item.id, found.token, found.hits[0]!.id, 'Anotei a relação entre os eventos.')
+    const noteFile = readFileSync(join(vault, 'notas-estudo.md'), 'utf8')
+    const saved = new StudyCycleStore(data).read().cycles[0]!
+    expect(noteFile.match(/agent-office-study-note:/g)).toHaveLength(1)
+    expect(saved.notes).toHaveLength(1)
+    expect(saved.questions[0]?.review?.sourceRefs).toContain(found.hits[0]?.sourceRef)
     expect(studyProviders.generate).not.toHaveBeenCalled()
   })
 
