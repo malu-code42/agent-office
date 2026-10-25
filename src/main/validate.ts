@@ -28,6 +28,7 @@ import {
 import { STATUSES } from '@shared/tickets'
 import { EFFORT_LEVELS, ROUTINE_LIMITS } from '@shared/types'
 import type { VideoSettings } from '@shared/video'
+import type { PersonalRoutineCreateInput } from '@shared/routine-personal'
 import type {
   Account,
   AgentBrain,
@@ -211,6 +212,21 @@ export const rescheduleTaskSchema: z.ZodType<TaskReschedule> = z.object({
 export const taskLineSchema = z.number().int().min(1).max(10_000_000)
 /** A task id as tarefas.md writes it: ^t and six letters or digits. */
 export const taskIdSchema = z.string().regex(/^t[a-z0-9]{6}$/i)
+const personalRoutineIdSchema = z.string().regex(/^r[a-z0-9]{1,8}$/)
+const personalOccurrenceIdSchema = z.string().regex(/^r[a-z0-9]{1,8}:\d{4}-\d{2}-\d{2}$/)
+export const confirmPersonalRoutineDistributionSchema = z.tuple([
+  personalRoutineIdSchema,
+  z.array(z.number().int().min(0).max(6)).min(1).max(7),
+])
+export const personalRoutineOccurrenceSchema = personalOccurrenceIdSchema
+export const createPersonalRoutineTaskSchema: z.ZodType<PersonalRoutineCreateInput> = z
+  .object({
+    occurrenceId: personalOccurrenceIdSchema,
+    objective: z.string().trim().min(1).max(300),
+    list: z.string().trim().min(1).max(200),
+    time: z.string().regex(TIME_FORMAT, 'Hora inválida. Use HH:MM.').optional(),
+  })
+  .strict()
 /** The task to act on: the line as the board read it, or the id of a task in focus. */
 export const taskRefSchema: z.ZodType<TaskRef> = z.union([z.object({ line: taskLineSchema }), z.object({ id: taskIdSchema })])
 /** The task to complete (see taskRefSchema). */

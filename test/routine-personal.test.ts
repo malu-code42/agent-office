@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { parsePersonalRoutines, routineCandidates, routineDueOn, type PersonalRoutineItem } from '../src/shared/routine-personal'
+import {
+  localWeek,
+  parsePersonalRoutines,
+  routineCandidates,
+  routineDueOn,
+  routineId,
+  routineDistributionStatusFocusKey,
+  uniqueRoutineIds,
+  weeklyOccurrenceDates,
+  type PersonalRoutineItem,
+} from '../src/shared/routine-personal'
 
 /**
  * The lines of rotinas-pessoais.md (AO-42), as text only: synthetic fixtures here, never the real
@@ -38,15 +48,13 @@ describe('as linhas de rotinas-pessoais.md', () => {
   })
 
   it('marcadores de lista e comentários do arquivo: a linha conta na numeração, marca e # não', () => {
-    const lines = parsePersonalRoutines(
-      '# Minhas rotinas\n\n- Rotina A | cadência: semanal | dias: seg\n* Rotina B | cadência: diária',
-    )
+    const lines = parsePersonalRoutines('# Minhas rotinas\n\n- Rotina A | cadência: semanal | dias: seg\n* Rotina B | cadência: diária')
     expect(lines.map((l) => l.item?.title)).toEqual(['Rotina A', 'Rotina B'])
   })
 
   it('linhas com problema carregam o número de 1 e um motivo para o usuário consertar', () => {
     expect(parsePersonalRoutines('# Minhas rotinas\n\nRotina A')).toEqual([
-      { line: 3, title: 'Rotina A', problem: expect.stringContaining('cadência') },
+      { line: 3, raw: 'Rotina A', title: 'Rotina A', problem: expect.stringContaining('cadência') },
     ])
   })
 
@@ -60,6 +68,17 @@ describe('as linhas de rotinas-pessoais.md', () => {
     const row = firstRow('Rotina A | cadência: semanal')
     expect(row?.item).toBeUndefined()
     expect(row?.problem).toContain('dias')
+  })
+
+  it('aceita meta semanal sem distribuir dias na definição e preserva campos desconhecidos', () => {
+    expect(firstItem('Rotina A | cadência: semanal | meta: 3')).toEqual({
+      title: 'Rotina A',
+      cadence: 'semanal',
+      target: 3,
+    })
+    const unknown = firstRow('Rotina A | cadência: semanal | campo-futuro: x')
+    expect(unknown?.problem).toContain('campo-futuro')
+    expect(unknown?.raw).toContain('campo-futuro')
   })
 
   it('um token de dia desconhecido vira needsInput, nunca uma ocorrência não vencida silenciosa', () => {
@@ -95,6 +114,56 @@ describe('as linhas de rotinas-pessoais.md', () => {
     const row = firstRow('| cadência: diária')
     expect(row?.item).toBeUndefined()
     expect(row?.problem).toBeTruthy()
+  })
+})
+
+describe('agenda semanal de rotinas pessoais', () => {
+  it('tem uma chave estável para devolver foco ao status sem depender do botão removido', () => {
+    expect(routineDistributionStatusFocusKey('rabc123')).toBe('routine-distribution-status-rabc123')
+    expect(routineDistributionStatusFocusKey('rabc123')).toBe(routineDistributionStatusFocusKey('rabc123'))
+  })
+
+  it('calcula segunda-domingo em calendário local sem atravessar por UTC', () => {
+    expect(localWeek('2026-10-25')).toEqual({ start: '2026-10-19', end: '2026-10-25' })
+    expect(localWeek('2026-10-26')).toEqual({ start: '2026-10-26', end: '2026-11-01' })
+  })
+
+  it('distribui somente após confirmação e inclui os sete dias possíveis', () => {
+    expect(weeklyOccurrenceDates('2026-10-21', [1, 3, 6])).toEqual(['2026-10-19', '2026-10-21', '2026-10-24'])
+  })
+
+  it('gera ids estáveis por definição e dia', () => {
+    const item = firstItem('Rotina A | cadência: semanal | meta: 2')!
+    expect(routineId(item)).toBe(routineId({ ...item }))
+    expect(routineId(item)).not.toBe(routineId({ ...item, title: 'Rotina B' }))
+  })
+
+  it('falha de modo claro para duas linhas com a mesma identidade, sem fundir as rotinas', () => {
+    const duplicateLines = parsePersonalRoutines(
+      ['Rotina A | cadência: semanal | meta: 2', 'Rotina A | cadência: semanal | meta: 2'].join('\n'),
+    ).flatMap((row) => (row.item ? [{ line: row.line, item: row.item }] : []))
+    expect(() => uniqueRoutineIds(duplicateLines)).toThrow(/linhas 1 e 2/)
+  })
+
+  it('detecta colisão no resolvedor sem persistir/mesclar identidades', () => {
+    const lines = [
+      { line: 2, item: { title: 'Rotina A', cadence: 'diária' as const } },
+      { line: 9, item: { title: 'Rotina B', cadence: 'diária' as const } },
+    ]
+    expect(() => uniqueRoutineIds(lines, () => 'rforcedcollision')).toThrow(/colisão.*linhas 2 e 9/i)
+  })
+
+  it('uma edição da definição produz identidade nova; o estado anterior não é reassociado silenciosamente', () => {
+    const before = firstItem('Rotina A | cadência: semanal | meta: 2')!
+    const after = firstItem('Rotina A revisada | cadência: semanal | meta: 2')!
+    expect(routineId(before)).not.toBe(routineId(after))
+  })
+
+  it('inclui dias normalizados na identidade de cadências semanais legadas', () => {
+    const monday = { title: 'Rotina A', cadence: 'semanal' as const, days: ['seg'], time: '08:00' }
+    const wednesday = { ...monday, days: ['qua'] }
+    expect(routineId(monday)).not.toBe(routineId(wednesday))
+    expect(routineId({ ...monday, days: ['segunda'] })).toBe(routineId({ ...monday, days: ['seg'] }))
   })
 })
 

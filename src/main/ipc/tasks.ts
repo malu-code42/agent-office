@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { dialog, ipcMain } from 'electron'
 import { buildAgendaView } from '@shared/agenda'
 import { focusItems, focusKey } from '@shared/planning'
-import { parseTasksFile, type TaskList, type TaskRef } from '@shared/tasks'
+import { ARCHIVE_LIST, parseTasksFile, type TaskList, type TaskRef } from '@shared/tasks'
 import type { Proposal } from '@shared/proposals'
 import { createAgendaWriter } from '../agenda-write'
 import { dayKey } from '../backups'
@@ -12,6 +12,8 @@ import { registerIrisIpc } from './iris'
 import { registerReviewIpc } from './review'
 import { createTaskWriter, type TaskWriter } from '../tasks-write'
 import { createCompletionUndo } from '../tasks-undo'
+import { PersonalRoutineStore } from '../personal-routines-store'
+import { personalRoutineTaskFingerprintFromLine, personalRoutineTaskFingerprintFromTask } from '../personal-routine-fingerprint'
 import {
   completeTaskSchema,
   discardTaskSchema,
@@ -33,6 +35,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
   // Shared with the proposals below: one read of tarefas.md is what the next confirmation checks against.
   const agenda = createAgendaWriter()
   const undo = createCompletionUndo()
+  const personalRoutines = new PersonalRoutineStore(ctx.store.dataDirectory)
   const read = (vaultPath: unknown) => readTasksAt(writer, vaultPath)
   const requireVault = (): string => {
     const vaultPath = ctx.store.settings.vaultPath
@@ -47,8 +50,21 @@ export function registerTasksIpc(ctx: IpcContext): void {
     writer.remember(path, content)
     return focusView(parseTasksFile(content).lists)
   }
+  const taskAt = (path: string, target: number | string) => {
+    const board = parseTasksFile(writer.current(path))
+    for (const list of board.lists) {
+      const task = list.tasks.find((item) => (typeof target === 'number' ? item.line === target : item.id === target))
+      if (task) return { list: list.name, task }
+    }
+    return undefined
+  }
+  const routineTaskMatches = (id: string, task: { text: string; date?: string; time?: string }, list: string): boolean => {
+    if (!personalRoutines.hasTaskLink(id)) return false
+    const origin = list === ARCHIVE_LIST ? ctx.planning.archivedOf(id)?.origin : list
+    return !!origin && personalRoutines.matchesTaskFingerprint(id, personalRoutineTaskFingerprintFromTask(task, origin))
+  }
 
-  registerReviewIpc(ctx, { tasks: writer, agenda, vault: requireVault })
+  registerReviewIpc(ctx, { tasks: writer, agenda, vault: requireVault }, personalRoutines)
   registerIrisIpc(ctx, { tasks: writer, agenda, vault: requireVault })
 
   ipcMain.handle('office:readTasks', async () => {
@@ -103,9 +119,17 @@ export function registerTasksIpc(ctx: IpcContext): void {
   ipcMain.handle('office:completeTask', async (_e, target: unknown) => {
     const input = parse(completeTaskSchema, target, 'Tarefa inválida.')
     const path = requireVault()
+    const targetId = targetOf(input)
+    const before = taskAt(path, targetId)
+    const linkedRoutineId = before?.task.id && personalRoutines.hasTaskLink(before.task.id) ? before.task.id : undefined
+    const linkedRoutineMatches = !!linkedRoutineId && routineTaskMatches(linkedRoutineId, before!.task, before!.list)
     const done = writer.complete(path, 'line' in input ? input.line : input.id)
     const wasFocused = ctx.planning.focus().includes(focusKey(done.id))
     ctx.planning.archive(done.id, { origin: done.origin, completedAt: done.completedAt, originalLine: done.originalLine })
+    if (linkedRoutineId === done.id) {
+      if (linkedRoutineMatches) personalRoutines.completeTask(done.id, dayKey())
+      else personalRoutines.recoverMissingTask(done.id)
+    }
     undo.remember({ ...done, vault: path, wasFocused })
     const board = read(path)
     return { id: done.id, board, focus: focusView(board.lists) }
@@ -115,8 +139,15 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const taskId = parse(taskIdSchema, id, 'Identificador inválido.')
     const path = requireVault()
     const done = undo.peek(taskId, path)
+    const linkedRoutine = personalRoutines.hasTaskLink(taskId)
+    const fingerprint = personalRoutineTaskFingerprintFromLine(done.originalLine, done.origin)
+    const linkedRoutineMatches = linkedRoutine && !!fingerprint && personalRoutines.matchesTaskFingerprint(taskId, fingerprint)
     writer.undoComplete(path, done)
     undo.forget(taskId)
+    if (linkedRoutine) {
+      if (linkedRoutineMatches) personalRoutines.reopenTask(taskId)
+      else personalRoutines.recoverMissingTask(taskId)
+    }
     ctx.planning.restore(done.id, done.wasFocused)
     const board = read(path)
     return { board, focus: focusView(board.lists) }
@@ -128,9 +159,16 @@ export function registerTasksIpc(ctx: IpcContext): void {
   ipcMain.handle('office:discardTask', async (_e, raw: unknown) => {
     const input = parse(discardTaskSchema, raw, 'Descarte inválido.')
     const path = requireVault()
+    const before = taskAt(path, targetOf(input.target))
+    const linkedRoutineId = before?.task.id && personalRoutines.hasTaskLink(before.task.id) ? before.task.id : undefined
+    const linkedRoutineMatches = !!linkedRoutineId && routineTaskMatches(linkedRoutineId, before!.task, before!.list)
     const done = writer.discard(path, targetOf(input.target), input.reason)
     try {
       ctx.planning.archive(done.id, { origin: done.origin, completedAt: done.completedAt, originalLine: done.originalLine })
+      if (linkedRoutineId === done.id) {
+        if (linkedRoutineMatches) personalRoutines.discardTask(done.id)
+        else personalRoutines.recoverMissingTask(done.id)
+      }
     } catch (err) {
       throw new Error('A tarefa foi descartada no tarefas.md, mas não consegui atualizar o planning.json. Abra o quadro Tarefas de novo.', {
         cause: err,
@@ -145,10 +183,18 @@ export function registerTasksIpc(ctx: IpcContext): void {
   ipcMain.handle('office:reopenTask', async (_e, raw: unknown) => {
     const input = parse(reopenTaskSchema, raw, 'Reabertura inválida.')
     const path = requireVault()
+    const before = taskAt(path, targetOf(input.target))
+    const taskId = before?.task.id
+    const linkedRoutine = !!taskId && personalRoutines.hasTaskLink(taskId)
+    const linkedRoutineMatches = !!taskId && !!before && routineTaskMatches(taskId, before.task, before.list)
     const plan = writer.reopen(path, targetOf(input.target), { list: input.list, archived: (id) => ctx.planning.archivedOf(id) })
     if (plan.status === 'choose') return plan
     if (plan.id) {
       undo.forget(plan.id)
+      if (linkedRoutine && taskId === plan.id) {
+        if (linkedRoutineMatches) personalRoutines.reopenTask(plan.id)
+        else personalRoutines.recoverMissingTask(plan.id)
+      }
       if (ctx.planning.archivedOf(plan.id)) {
         try {
           ctx.planning.unarchive(plan.id)

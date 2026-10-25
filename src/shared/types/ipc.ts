@@ -19,6 +19,7 @@ import type { Proposal } from '../proposals'
 import type { ReviewChoices, ReviewPostpone, ReviewView } from '../review'
 import type { Goal, GoalDraft } from '../goals'
 import type { NewTaskDraft, ParsedBoard, Task, TaskDiscard, TaskMove, TaskRef, TaskReopen, TaskReschedule } from '../tasks'
+import type { PersonalRoutineCreateInput, PersonalRoutineOverview } from '../routine-personal'
 import type { DelegateTarget, Ticket, TicketDraft, TicketPatch, TicketStatus } from './tickets'
 import type { WritingVersion } from '../writing'
 
@@ -294,6 +295,14 @@ export interface OfficeAPI {
   confirmReview(choices: ReviewChoices): Promise<{ applied: number }>
   /** Rotinas pessoais do vault (AO-42): as de hoje e as linhas que precisam do usuário (candidatas da revisão do dia). Só lê rotinas-pessoais.md. */
   routineCandidates(): Promise<RoutineCandidate[]>
+  /** Lê agenda e pendências pessoais da semana local; sem criar tarefas. */
+  personalRoutineOverview(): Promise<PersonalRoutineOverview>
+  /** Confirma explicitamente os dias escolhidos para a meta desta semana. */
+  confirmPersonalRoutineDistribution(routineId: string, days: number[]): Promise<PersonalRoutineOverview>
+  /** Reserva e cria tarefa idempotente para uma ocorrência selecionada; renderer não envia caminho nem ID. */
+  createPersonalRoutineTask(input: PersonalRoutineCreateInput): Promise<{ id: string; board: ParsedBoard; focus: FocusItem[] }>
+  /** Retoma a tarefa aberta já vinculada, sem criar duplicata. */
+  resumePersonalRoutineOccurrence(occurrenceId: string): Promise<{ id: string; board: ParsedBoard; focus: FocusItem[] }>
   /** Opens the configured rotinas-pessoais.md in the user's default editor; the app does not write it. */
   openPersonalRoutines(): Promise<void>
   /** Lê o agenda.md do vault: o dia, a semana (segunda a domingo) e as linhas sem data. Só lê; não escreve em nenhum arquivo. */

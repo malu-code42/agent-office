@@ -29,6 +29,7 @@ beforeEach(() => {
   registerTasksIpc({
     win: () => ({}) as never,
     store: {
+      dataDirectory: data,
       get settings() {
         return settings
       },

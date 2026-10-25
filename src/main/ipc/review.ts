@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AgendaWriter } from '../agenda-write'
 import { dayKey } from '../backups'
+import { focusItems } from '@shared/planning'
 import {
   confirmReview,
   hasDraftToday,
@@ -14,8 +15,21 @@ import {
   type ReviewDeps,
 } from '../review'
 import type { TaskWriter } from '../tasks-write'
-import { PERSONAL_ROUTINES_FILE, personalRoutineCandidates } from '../routines-personal'
-import { parse, reviewChoicesSchema, reviewPostponeSchema, reviewStepSchema } from '../validate'
+import { taskIdsIn } from '../tasks-write'
+import { PERSONAL_ROUTINES_FILE, personalRoutineCandidates, personalRoutineDefinition, personalRoutineOverview } from '../routines-personal'
+import { localWeek } from '@shared/routine-personal'
+import type { PersonalRoutineStore } from '../personal-routines-store'
+import { personalRoutineTaskFingerprint, personalRoutineTaskFingerprintFromTask } from '../personal-routine-fingerprint'
+import { ARCHIVE_LIST, dayLabel, parseTasksFile, taskDraftProblem } from '@shared/tasks'
+import {
+  confirmPersonalRoutineDistributionSchema,
+  createPersonalRoutineTaskSchema,
+  parse,
+  personalRoutineOccurrenceSchema,
+  reviewChoicesSchema,
+  reviewPostponeSchema,
+  reviewStepSchema,
+} from '../validate'
 import type { IpcContext } from './context'
 
 /**
@@ -23,9 +37,38 @@ import type { IpcContext } from './context'
  * in planning.json and, on confirmation, applies one proposal. `files` are the writers of tasks.ts, so one read
  * of tarefas.md is what every confirmation checks against.
  */
-export function registerReviewIpc(ctx: IpcContext, files: { tasks: TaskWriter; agenda: AgendaWriter; vault(): string }): void {
+export function registerReviewIpc(
+  ctx: IpcContext,
+  files: { tasks: TaskWriter; agenda: AgendaWriter; vault(): string },
+  personalRoutines: PersonalRoutineStore,
+): void {
   const deps = (): ReviewDeps => ({ planning: ctx.planning, tasks: files.tasks, agenda: files.agenda, now: () => new Date() })
   const draftChanged = () => ctx.broadcast({ type: 'review:draft', draft: hasDraftToday(ctx.planning, new Date()) })
+  const readPersonalRoutineOverview = (path: string) => {
+    const board = parseTasksFile(files.tasks.current(path))
+    for (const occurrence of personalRoutines.list()) {
+      if (!occurrence.taskId) continue
+      const found = board.lists
+        .flatMap((list) => list.tasks.map((task) => ({ list: list.name, task })))
+        .find(({ task }) => task.id === occurrence.taskId)
+      if (!found) {
+        if (occurrence.taskLinkState !== 'reserved') personalRoutines.recoverMissingTask(occurrence.taskId)
+        continue
+      }
+      const archived = found.list === ARCHIVE_LIST ? ctx.planning.archivedOf(occurrence.taskId) : undefined
+      const fingerprintList = archived?.origin ?? (found.list === ARCHIVE_LIST ? undefined : found.list)
+      const actualFingerprint = fingerprintList ? personalRoutineTaskFingerprintFromTask(found.task, fingerprintList) : undefined
+      if (!actualFingerprint || !personalRoutines.matchesTaskFingerprint(occurrence.taskId, actualFingerprint)) {
+        personalRoutines.recoverMissingTask(occurrence.taskId)
+        continue
+      }
+      if (found.task.status === 'completed' && found.list === ARCHIVE_LIST) personalRoutines.completeTask(occurrence.taskId, dayKey())
+      else if (found.task.status === 'discarded' && found.list === ARCHIVE_LIST) personalRoutines.discardTask(occurrence.taskId)
+      else if (occurrence.taskLinkState !== 'linked' || occurrence.status !== 'pending')
+        personalRoutines.setTask(occurrence.id, occurrence.taskId, actualFingerprint)
+    }
+    return personalRoutineOverview(path, dayKey(), personalRoutines)
+  }
 
   // The offer is shown once per local day. Without a vault there is nothing to review, so no offer and no mark.
   ipcMain.handle('office:reviewGate', async () => {
@@ -38,8 +81,131 @@ export function registerReviewIpc(ctx: IpcContext, files: { tasks: TaskWriter; a
 
   ipcMain.handle('office:openReview', async () => openReview(files.vault(), deps()))
 
-  // Rotinas pessoais (AO-42): só leitura de rotinas-pessoais.md; nada aqui escreve no arquivo.
+  // AO-47: definitions remain read-only in the vault; distribution/occurrence state stays in userData.
   ipcMain.handle('office:routineCandidates', async () => personalRoutineCandidates(files.vault(), dayKey()))
+  ipcMain.handle('office:personalRoutineOverview', async () => {
+    const path = files.vault()
+    return readPersonalRoutineOverview(path)
+  })
+  ipcMain.handle('office:confirmPersonalRoutineDistribution', async (_e, rawId: unknown, rawDays: unknown) => {
+    const [id, days] = parse(confirmPersonalRoutineDistributionSchema, [rawId, rawDays], 'Distribuição semanal inválida.')
+    const path = files.vault()
+    const routine = personalRoutineOverview(path, dayKey(), personalRoutines).rows.find((row) => row.routineId === id)
+    if (!routine?.target || days.length !== routine.target)
+      throw new Error(`Escolha exatamente ${routine?.target ?? 'a meta'} dias para esta semana.`)
+    personalRoutines.confirmDistribution(`${localWeek(dayKey()).start}:${id}`, days)
+    return personalRoutineOverview(path, dayKey(), personalRoutines)
+  })
+  const resumeOccurrence = (occurrenceId: string) => {
+    const occurrence = personalRoutines.occurrence(occurrenceId)
+    if (!occurrence?.taskId) throw new Error('Esta ocorrência ainda não tem tarefa para retomar.')
+    const path = files.vault()
+    const parsed = parseTasksFile(files.tasks.current(path))
+    const task = parsed.lists
+      .flatMap((list) => list.tasks.map((item) => ({ list: list.name, item })))
+      .find(({ item }) => item.id === occurrence.taskId)
+    if (!task) {
+      personalRoutines.recoverMissingTask(occurrence.taskId)
+      throw new Error('A tarefa vinculada não existe mais; a ocorrência foi liberada para uma nova tarefa.')
+    }
+    const archived = task.list === ARCHIVE_LIST ? ctx.planning.archivedOf(occurrence.taskId) : undefined
+    const fingerprintList = archived?.origin ?? (task.list === ARCHIVE_LIST ? undefined : task.list)
+    const actualFingerprint = fingerprintList ? personalRoutineTaskFingerprintFromTask(task.item, fingerprintList) : undefined
+    if (!actualFingerprint || !personalRoutines.matchesTaskFingerprint(occurrence.taskId, actualFingerprint)) {
+      personalRoutines.recoverMissingTask(occurrence.taskId)
+      throw new Error('O conteúdo da tarefa vinculada mudou; a associação foi liberada e a ocorrência continua pendente.')
+    }
+    if (task.list === ARCHIVE_LIST || task.item.status !== 'open') {
+      if (task.item.status === 'completed') personalRoutines.completeTask(occurrence.taskId, dayKey())
+      else if (task.item.status === 'discarded') personalRoutines.discardTask(occurrence.taskId)
+      throw new Error('A tarefa vinculada não está aberta no tarefas.md; a ocorrência continua pendente.')
+    }
+    ctx.planning.add(task.item.id!)
+    const board = parseTasksFile(files.tasks.current(path))
+    return { id: task.item.id!, board, focus: focusItems(board.lists, ctx.planning.focus(), ctx.planning.todaySteps(dayKey())) }
+  }
+  ipcMain.handle('office:resumePersonalRoutineOccurrence', async (_e, raw: unknown) => {
+    const id = parse(personalRoutineOccurrenceSchema, raw, 'Ocorrência inválida.')
+    return resumeOccurrence(id)
+  })
+  ipcMain.handle('office:createPersonalRoutineTask', async (_e, raw: unknown) => {
+    const input = parse(createPersonalRoutineTaskSchema, raw, 'Tarefa de rotina inválida.')
+    const path = files.vault()
+    const [routineId, occurrenceDay] = input.occurrenceId.split(':')
+    if (!routineId || !occurrenceDay) throw new Error('Ocorrência inválida.')
+    const definition = personalRoutineDefinition(path, routineId)
+    if (!definition) throw new Error('A definição desta rotina não existe mais na nota.')
+    if (input.time !== definition.time) throw new Error('O horário informado não corresponde à definição atual da rotina.')
+    const taskFields = {
+      title: input.objective,
+      list: input.list,
+      date: dayLabel(new Date()),
+      ...(definition.time ? { time: definition.time } : {}),
+    }
+    const taskFingerprint = personalRoutineTaskFingerprint(taskFields)
+    const previousOccurrence = personalRoutines.occurrence(input.occurrenceId)
+    const previousText = files.tasks.current(path)
+    const previousTask = previousOccurrence?.taskId
+      ? parseTasksFile(previousText)
+          .lists.flatMap((list) => list.tasks.map((task) => ({ list: list.name, task })))
+          .find(({ task }) => task.id === previousOccurrence.taskId)
+      : undefined
+    const previousArchive = previousOccurrence?.taskId ? ctx.planning.archivedOf(previousOccurrence.taskId) : undefined
+    const previousFingerprintList = previousArchive?.origin ?? (previousTask?.list === ARCHIVE_LIST ? undefined : previousTask?.list)
+    const previousFingerprint =
+      previousTask && previousFingerprintList
+        ? personalRoutineTaskFingerprintFromTask(previousTask.task, previousFingerprintList)
+        : undefined
+    const linkedTaskMismatch =
+      !!previousOccurrence?.taskId &&
+      !!previousTask &&
+      (!previousFingerprint || !personalRoutines.matchesTaskFingerprint(previousOccurrence.taskId, previousFingerprint))
+    const overview = readPersonalRoutineOverview(path)
+    if (linkedTaskMismatch)
+      throw new Error(
+        'A tarefa com o ID reservado foi alterada e não corresponde mais à rotina. A associação foi liberada; confira e tente criar uma nova tarefa.',
+      )
+    const allowed =
+      overview.rows.some(
+        (row) => row.confirmed && row.occurrenceIds.includes(input.occurrenceId) && input.occurrenceId.endsWith(`:${overview.today}`),
+      ) || overview.pending.some((row) => row.occurrenceId === input.occurrenceId)
+    if (!allowed) throw new Error('Esta ocorrência não está confirmada para inclusão no foco.')
+    const currentText = files.tasks.current(path)
+    const reservation = personalRoutines.reserve(input.occurrenceId, routineId, occurrenceDay, taskIdsIn(currentText), taskFingerprint)
+    const draft = { ...taskFields, id: reservation.taskId }
+    const current = parseTasksFile(currentText)
+    const existing = current.lists
+      .flatMap((list) => list.tasks.map((task) => ({ list: list.name, task })))
+      .find(({ task }) => task.id === reservation.taskId)
+    if (existing) {
+      if (existing.list === ARCHIVE_LIST || existing.task.status !== 'open')
+        throw new Error('A tarefa reservada já está concluída ou descartada; ela não será duplicada.')
+      const existingFingerprint = personalRoutineTaskFingerprint({
+        title: existing.task.text,
+        list: existing.list,
+        date: existing.task.date,
+        time: existing.task.time,
+      })
+      if (reservation.taskFingerprint !== undefined && reservation.taskFingerprint !== existingFingerprint) {
+        personalRoutines.recoverMissingTask(reservation.taskId!)
+        throw new Error(
+          'O conteúdo da tarefa aberta com esse ID não corresponde ao fingerprint reservado. A associação foi liberada; a tarefa não foi alterada.',
+        )
+      }
+      if (existingFingerprint !== taskFingerprint)
+        throw new Error('A tarefa já existe com outro rascunho. Ela foi preservada; reabra a ocorrência para iniciar uma tarefa nova.')
+      personalRoutines.setTask(input.occurrenceId, reservation.taskId!, taskFingerprint)
+      return resumeOccurrence(input.occurrenceId)
+    }
+    const problem = taskDraftProblem(
+      draft,
+      current.lists.map((list) => list.name),
+    )
+    if (problem) throw new Error(problem)
+    const id = files.tasks.create(files.vault(), draft)
+    personalRoutines.setTask(input.occurrenceId, id, taskFingerprint)
+    return resumeOccurrence(input.occurrenceId)
+  })
   ipcMain.handle('office:openPersonalRoutines', async () => {
     const path = join(files.vault(), PERSONAL_ROUTINES_FILE)
     if (!existsSync(path)) throw new Error('Não encontrei rotinas-pessoais.md no vault. Crie a nota no Obsidian e tente de novo.')

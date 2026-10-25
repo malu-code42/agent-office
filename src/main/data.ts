@@ -32,6 +32,7 @@ const WHAT: Record<DataFile, string> = {
   'squad-proposals.json': 'propostas de squad',
   'squad-queues.json': 'filas dos squads',
   'profile-memory.json': 'a memória dos perfis',
+  'personal-routines.json': 'o estado das rotinas pessoais',
 }
 
 /** What a restore or import leaves as it is, for the confirmation (AO-25). */
