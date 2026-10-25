@@ -4,6 +4,7 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import type { BackupEntry } from '@shared/types'
 import { parseJson, writeFileAtomic, writeJsonAtomic } from './fs-safe'
 import { isProfileMemoryData } from '@shared/profile-memory'
+import { isPersonalRoutineData } from './personal-routines-store'
 
 /**
  * Copies of the app's data in userData/backups/. No Electron here (the folder comes in),
@@ -25,6 +26,7 @@ export const DATA_FILES = [
   'squad-proposals.json',
   'squad-queues.json',
   'profile-memory.json', // AO-43
+  'personal-routines.json', // AO-47
 ] as const
 export type DataFile = (typeof DATA_FILES)[number]
 
@@ -105,7 +107,8 @@ const isMap = (v: unknown): boolean => v === undefined || isObj(v)
  * ({"tickets":{}}) would crash the board later, so it counts as corrupt (AO-24).
  */
 export const DATA_SHAPES: Record<DataFile, (v: unknown) => boolean> = {
-  'office.json': (v) => isObj(v) && isMap(v.settings) && isList(v.agents) && isList(v.results) && isMap(v.ledger) && isMap(v.ledgerSessions),
+  'office.json': (v) =>
+    isObj(v) && isMap(v.settings) && isList(v.agents) && isList(v.results) && isMap(v.ledger) && isMap(v.ledgerSessions),
   'tickets.json': (v) => isObj(v) && (v.seq === undefined || (typeof v.seq === 'number' && Number.isFinite(v.seq))) && isList(v.tickets),
   'tickets-closed.json': (v) => isObj(v) && isList(v.tickets),
   'routines.json': (v) => isObj(v) && isList(v.routines),
@@ -124,6 +127,7 @@ export const DATA_SHAPES: Record<DataFile, (v: unknown) => boolean> = {
   'squad-queues.json': (v) => isObj(v) && isMap(v.queues),
   // AO-43: one short summary per profile, written by the user — never raw prompts.
   'profile-memory.json': isProfileMemoryData,
+  'personal-routines.json': isPersonalRoutineData,
 }
 
 /** The `valid` option of loadJson for a data file. */
@@ -346,7 +350,8 @@ export function parseExport(text: string): ExportFile {
   }
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   if (r.format !== EXPORT_FORMAT) throw new Error('Esse arquivo não é uma exportação do Agent Office.')
-  if (typeof r.version !== 'number' || r.version > EXPORT_VERSION) throw new Error('Essa exportação veio de uma versão mais nova do Agent Office. Atualize o app.')
+  if (typeof r.version !== 'number' || r.version > EXPORT_VERSION)
+    throw new Error('Essa exportação veio de uma versão mais nova do Agent Office. Atualize o app.')
   const files = (r.files && typeof r.files === 'object' ? r.files : {}) as Record<string, unknown>
   const out: ExportFile['files'] = {}
   for (const name of DATA_FILES) {
@@ -414,7 +419,11 @@ export function importSet(exp: ExportFile, home = homedir()): DataSet {
       throw new Error(`${name} está num formato inesperado na exportação.`)
     }
     const v =
-      name === 'office.json' ? sanitizeImportedOffice(exp.files[name], home) : name === 'routines.json' ? sanitizeImportedRoutines(exp.files[name]) : exp.files[name]
+      name === 'office.json'
+        ? sanitizeImportedOffice(exp.files[name], home)
+        : name === 'routines.json'
+          ? sanitizeImportedRoutines(exp.files[name])
+          : exp.files[name]
     if (v !== undefined) files[name] = JSON.stringify(v)
   }
   return files

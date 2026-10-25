@@ -113,6 +113,44 @@
   gap: 4px;
 }
 
+.review-routine-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.review-routine-day {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--muted);
+}
+
+.review-routine-day input {
+  accent-color: var(--accent-solid);
+}
+
+.review-routine-calendar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.review-routine-calendar li {
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--line);
+  color: var(--text);
+  font-size: 12px;
+}
+
 .review-problems {
   margin: 0;
   padding-left: 18px;

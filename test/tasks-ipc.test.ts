@@ -3,6 +3,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PlanningStore } from '../src/main/planning'
+import { routineId } from '../src/shared/routine-personal'
+import { dayKey } from '../src/main/backups'
+import { PersonalRoutineStore } from '../src/main/personal-routines-store'
+import { personalRoutineTaskFingerprint } from '../src/main/personal-routine-fingerprint'
+import { dayLabel } from '../src/shared/tasks'
 
 const ipc = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
@@ -37,6 +42,7 @@ beforeEach(() => {
   registerTasksIpc({
     win: () => ({}) as never,
     store: {
+      dataDirectory: data,
       get settings() {
         return settings
       },
@@ -55,6 +61,410 @@ afterEach(() => {
 })
 
 describe('tasks IPC', () => {
+  it('creates, retries, and completes a daily occurrence through the reserved linked task', async () => {
+    const boardFile = join(vault, 'tarefas.md')
+    writeFileSync(boardFile, '## Casa\n', 'utf8')
+    writeFileSync(join(vault, 'rotinas-pessoais.md'), 'Rotina diária | cadência: diária', 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+    const overview = (await invoke('office:personalRoutineOverview')) as {
+      today: string
+      candidates: { item?: { title: string }; occurrenceId?: string }[]
+    }
+    const candidate = overview.candidates.find((row) => row.item?.title === 'Rotina diária')
+    expect(candidate?.occurrenceId).toBeTruthy()
+    const input = { occurrenceId: candidate!.occurrenceId!, objective: 'Dez minutos de leitura', list: 'Casa' }
+    const first = (await invoke('office:createPersonalRoutineTask', input)) as { id: string }
+    await invoke('office:readTasks')
+    const retry = (await invoke('office:createPersonalRoutineTask', input)) as { id: string }
+    expect(retry.id).toBe(first.id)
+    expect(readFileSync(boardFile, 'utf8').match(/Dez minutos de leitura/g)).toHaveLength(1)
+
+    await invoke('office:completeTask', { id: first.id })
+    const afterCompletion = (await invoke('office:personalRoutineOverview')) as {
+      rows: { title: string; completed: number }[]
+      candidates: { item?: { title: string } }[]
+    }
+    expect(afterCompletion.rows.find((row) => row.title === 'Rotina diária')?.completed).toBe(1)
+    expect(afterCompletion.candidates.some((row) => row.item?.title === 'Rotina diária')).toBe(false)
+  })
+
+  it('tracks a legacy weekly dias occurrence, enforces its hour, and counts manual completion', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 21, 10, 0))
+    try {
+      const boardFile = join(vault, 'tarefas.md')
+      writeFileSync(boardFile, '## Estudo\n', 'utf8')
+      writeFileSync(join(vault, 'rotinas-pessoais.md'), 'Rotina A | cadência: semanal | dias: qua | hora: 09:30', 'utf8')
+      settings.vaultPath = vault
+      await invoke('office:readTasks')
+      const overview = (await invoke('office:personalRoutineOverview')) as {
+        today: string
+        rows: { title: string; fixedSchedule?: boolean; days?: number[]; target?: number; confirmed: boolean }[]
+        candidates: { item?: { title: string; time?: string }; occurrenceId?: string }[]
+      }
+      expect(overview.today).toBe('2026-10-21')
+      expect(overview.rows[0]).toMatchObject({ title: 'Rotina A', fixedSchedule: true, days: [3], target: 1, confirmed: true })
+      const candidate = overview.candidates.find((row) => row.item?.title === 'Rotina A')!
+      expect(candidate.occurrenceId).toBeTruthy()
+      expect(candidate.item?.time).toBe('09:30')
+
+      await expect(
+        invoke('office:createPersonalRoutineTask', {
+          occurrenceId: candidate.occurrenceId,
+          objective: 'Ler o capítulo',
+          list: 'Estudo',
+          time: '08:00',
+        }),
+      ).rejects.toThrow(/horário.*definição/i)
+      expect(readFileSync(boardFile, 'utf8')).toBe('## Estudo\n')
+
+      const created = (await invoke('office:createPersonalRoutineTask', {
+        occurrenceId: candidate.occurrenceId,
+        objective: 'Ler o capítulo',
+        list: 'Estudo',
+        time: '09:30',
+      })) as { id: string }
+      const tasks = (await invoke('office:readTasks')) as { lists: { tasks: { id?: string; time?: string }[] }[] }
+      expect(tasks.lists.flatMap((list) => list.tasks).find((task) => task.id === created.id)?.time).toBe('09:30')
+      await invoke('office:completeTask', { id: created.id })
+      const after = (await invoke('office:personalRoutineOverview')) as {
+        rows: { title: string; completed: number }[]
+        candidates: { item?: { title: string } }[]
+      }
+      expect(after.rows[0]).toMatchObject({ title: 'Rotina A', completed: 1 })
+      expect(after.candidates.some((row) => row.item?.title === 'Rotina A')).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('propagates the definition hour into the task/fingerprint and rejects a renderer override', async () => {
+    const boardFile = join(vault, 'tarefas.md')
+    writeFileSync(boardFile, '## Casa\n', 'utf8')
+    writeFileSync(join(vault, 'rotinas-pessoais.md'), 'Rotina com hora | cadência: diária | hora: 09:30', 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+    const overview = (await invoke('office:personalRoutineOverview')) as {
+      candidates: { item?: { title: string; time?: string }; occurrenceId?: string }[]
+    }
+    const candidate = overview.candidates.find((row) => row.item?.title === 'Rotina com hora')!
+    const input = {
+      occurrenceId: candidate.occurrenceId!,
+      objective: 'Leitura com horário',
+      list: 'Casa',
+      time: '09:30',
+    }
+    const created = (await invoke('office:createPersonalRoutineTask', input)) as { id: string }
+    const task = ((await invoke('office:readTasks')) as { lists: { tasks: { id?: string; time?: string }[] }[] }).lists
+      .flatMap((list) => list.tasks)
+      .find((entry) => entry.id === created.id)
+    expect(task?.time).toBe('09:30')
+    const stateText = readFileSync(join(data, 'personal-routines.json'), 'utf8')
+    const occurrence = JSON.parse(stateText).occurrences[candidate.occurrenceId!]
+    expect(occurrence.taskFingerprint).toBe(
+      personalRoutineTaskFingerprint({
+        title: input.objective,
+        list: input.list,
+        date: dayLabel(new Date()),
+        time: '09:30',
+      }),
+    )
+    expect(stateText).not.toContain('Leitura com horário')
+    await invoke('office:readTasks')
+    const retry = (await invoke('office:createPersonalRoutineTask', input)) as { id: string }
+    expect(retry.id).toBe(created.id)
+    await invoke('office:readTasks')
+    await expect(invoke('office:createPersonalRoutineTask', { ...input, time: '08:00' })).rejects.toThrow(/horário.*definição/i)
+    expect(readFileSync(boardFile, 'utf8').match(/Leitura com horário/g)).toHaveLength(1)
+  })
+
+  it('refuses to link/resume a reserved id when the existing task draft fingerprint differs', async () => {
+    const boardFile = join(vault, 'tarefas.md')
+    writeFileSync(boardFile, '## Casa\n', 'utf8')
+    writeFileSync(join(vault, 'rotinas-pessoais.md'), 'Rotina diária | cadência: diária', 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+    const overview = (await invoke('office:personalRoutineOverview')) as {
+      candidates: { item?: { title: string }; occurrenceId?: string }[]
+    }
+    const occurrenceId = overview.candidates.find((row) => row.item?.title === 'Rotina diária')!.occurrenceId!
+    const draft = { occurrenceId, objective: 'Objetivo original', list: 'Casa' }
+    const created = (await invoke('office:createPersonalRoutineTask', draft)) as { id: string }
+    planning.remove(created.id)
+    const changed = readFileSync(boardFile, 'utf8').replace('## Casa', '## Lista externa').replace('Objetivo original', 'Objetivo externo')
+    writeFileSync(boardFile, changed, 'utf8')
+    await invoke('office:readTasks')
+
+    await expect(invoke('office:createPersonalRoutineTask', draft)).rejects.toThrow(/conteúdo.*mudou|não corresponde/i)
+    expect(readFileSync(boardFile, 'utf8')).toBe(changed)
+    expect(planning.focus()).not.toContain(created.id)
+    const saved = JSON.parse(readFileSync(join(data, 'personal-routines.json'), 'utf8'))
+    expect(saved.occurrences[occurrenceId].taskId).toBeUndefined()
+    expect(saved.occurrences[occurrenceId].status).toBe('pending')
+    expect(saved.occurrences[occurrenceId].taskFingerprint).toMatch(/^[a-f0-9]{64}$/)
+    expect(readFileSync(join(data, 'personal-routines.json'), 'utf8')).not.toContain('Objetivo original')
+  })
+
+  it('overview releases a foreign task id without counting, resuming, or changing that task', async () => {
+    const boardFile = join(vault, 'tarefas.md')
+    writeFileSync(boardFile, '## Casa\n', 'utf8')
+    writeFileSync(join(vault, 'rotinas-pessoais.md'), 'Rotina diária | cadência: diária', 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+    const initial = (await invoke('office:personalRoutineOverview')) as {
+      candidates: { item?: { title: string }; occurrenceId?: string }[]
+    }
+    const candidate = initial.candidates.find((row) => row.item?.title === 'Rotina diária')!
+    const created = (await invoke('office:createPersonalRoutineTask', {
+      occurrenceId: candidate.occurrenceId!,
+      objective: 'Objetivo esperado',
+      list: 'Casa',
+    })) as { id: string }
+    planning.remove(created.id)
+    const foreignText = readFileSync(boardFile, 'utf8').replace('Objetivo esperado', 'Tarefa externa')
+    writeFileSync(boardFile, foreignText, 'utf8')
+    await invoke('office:readTasks')
+
+    const overview = (await invoke('office:personalRoutineOverview')) as {
+      pending: { occurrenceId: string; taskId?: string }[]
+      rows: { completed: number }[]
+    }
+    expect(overview.pending.find((row) => row.occurrenceId === candidate.occurrenceId)?.taskId).toBeUndefined()
+    expect(overview.rows[0]?.completed).toBe(0)
+    expect(planning.focus()).not.toContain(created.id)
+    await expect(invoke('office:resumePersonalRoutineOccurrence', candidate.occurrenceId)).rejects.toThrow()
+    expect(readFileSync(boardFile, 'utf8')).toBe(foreignText)
+  })
+
+  it('manual completion of a foreign task proceeds but does not count the routine', async () => {
+    const boardFile = join(vault, 'tarefas.md')
+    writeFileSync(boardFile, '## Casa\n', 'utf8')
+    writeFileSync(join(vault, 'rotinas-pessoais.md'), 'Rotina diária | cadência: diária', 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+    const initial = (await invoke('office:personalRoutineOverview')) as {
+      candidates: { item?: { title: string }; occurrenceId?: string }[]
+    }
+    const candidate = initial.candidates.find((row) => row.item?.title === 'Rotina diária')!
+    const created = (await invoke('office:createPersonalRoutineTask', {
+      occurrenceId: candidate.occurrenceId!,
+      objective: 'Objetivo esperado',
+      list: 'Casa',
+    })) as { id: string }
+    planning.remove(created.id)
+    writeFileSync(boardFile, readFileSync(boardFile, 'utf8').replace('Objetivo esperado', 'Tarefa externa'), 'utf8')
+    await invoke('office:readTasks')
+
+    const completed = (await invoke('office:completeTask', { id: created.id })) as {
+      board: { lists: { name: string; tasks: { id?: string; status: string }[] }[] }
+    }
+    expect(completed.board.lists.find((list) => list.name === 'Archive')?.tasks.find((task) => task.id === created.id)?.status).toBe(
+      'completed',
+    )
+    const state = JSON.parse(readFileSync(join(data, 'personal-routines.json'), 'utf8'))
+    expect(state.occurrences[candidate.occurrenceId!].status).toBe('pending')
+    expect(state.occurrences[candidate.occurrenceId!].taskId).toBeUndefined()
+  })
+
+  it('reabre normalmente uma tarefa editada, mas não restaura seu vínculo com a rotina', async () => {
+    const boardFile = join(vault, 'tarefas.md')
+    writeFileSync(boardFile, '## Casa\n', 'utf8')
+    writeFileSync(join(vault, 'rotinas-pessoais.md'), 'Rotina diária | cadência: diária', 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+    const initial = (await invoke('office:personalRoutineOverview')) as {
+      candidates: { item?: { title: string }; occurrenceId?: string }[]
+    }
+    const candidate = initial.candidates.find((row) => row.item?.title === 'Rotina diária')!
+    const created = (await invoke('office:createPersonalRoutineTask', {
+      occurrenceId: candidate.occurrenceId!,
+      objective: 'Objetivo esperado',
+      list: 'Casa',
+    })) as { id: string }
+    await invoke('office:completeTask', { id: created.id })
+    writeFileSync(boardFile, readFileSync(boardFile, 'utf8').replace('Objetivo esperado', 'Tarefa externa'), 'utf8')
+    await invoke('office:readTasks')
+
+    const reopened = (await invoke('office:reopenTask', { target: { id: created.id } })) as {
+      status: string
+      board: { lists: { name: string; tasks: { id?: string; text: string }[] }[] }
+    }
+    expect(reopened.status).toBe('done')
+    expect(reopened.board.lists.find((list) => list.name === 'Casa')?.tasks.find((task) => task.id === created.id)?.text).toBe(
+      'Tarefa externa',
+    )
+    const state = JSON.parse(readFileSync(join(data, 'personal-routines.json'), 'utf8'))
+    expect(state.occurrences[candidate.occurrenceId!].status).toBe('pending')
+    expect(state.occurrences[candidate.occurrenceId!].taskId).toBeUndefined()
+  })
+
+  it('reoffers yesterday’s discarded occurrence for an explicit new task', async () => {
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    const day = dayKey(yesterday)
+    const item = { title: 'Rotina diária', cadence: 'diária' as const }
+    const id = routineId(item)
+    const occurrenceId = `${id}:${day}`
+    const initial = new PersonalRoutineStore(data)
+    initial.ensureOccurrence(occurrenceId, id, day)
+    initial.setTask(occurrenceId, 'told123')
+    writeFileSync(join(vault, 'tarefas.md'), '## Casa\n- [ ] Objetivo antigo ^told123\n', 'utf8')
+    writeFileSync(join(vault, 'rotinas-pessoais.md'), 'Rotina diária | cadência: diária', 'utf8')
+    settings.vaultPath = vault
+    registerTasksIpc({
+      win: () => ({}) as never,
+      store: {
+        dataDirectory: data,
+        get settings() {
+          return settings
+        },
+        set settings(value) {
+          settings = value
+        },
+      } as never,
+      planning,
+      broadcast,
+    } as never)
+    await invoke('office:readTasks')
+    await invoke('office:discardTask', { target: { id: 'told123' }, reason: 'Adiado ontem' })
+
+    const overview = (await invoke('office:personalRoutineOverview')) as {
+      pending: { occurrenceId: string; taskId?: string; day: string }[]
+    }
+    expect(overview.pending).toContainEqual({ occurrenceId, routineId: id, day })
+    const task = (await invoke('office:createPersonalRoutineTask', {
+      occurrenceId,
+      objective: 'Retomar rotina',
+      list: 'Casa',
+    })) as { id: string }
+    expect(task.id).not.toBe('told123')
+    expect(readFileSync(join(vault, 'tarefas.md'), 'utf8').match(/Retomar rotina/g)).toHaveLength(1)
+  })
+
+  it('recupera uma ocorrência ligada a uma tarefa removida e permite reservar outra tarefa', async () => {
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    const day = dayKey(yesterday)
+    const item = { title: 'Rotina diária', cadence: 'diária' as const }
+    const id = routineId(item)
+    const occurrenceId = `${id}:${day}`
+    const initial = new PersonalRoutineStore(data)
+    initial.ensureOccurrence(occurrenceId, id, day)
+    initial.setTask(occurrenceId, 'tmis001')
+    writeFileSync(join(vault, 'tarefas.md'), '## Casa\n', 'utf8')
+    writeFileSync(join(vault, 'rotinas-pessoais.md'), 'Rotina diária | cadência: diária', 'utf8')
+    settings.vaultPath = vault
+    registerTasksIpc({
+      win: () => ({}) as never,
+      store: {
+        dataDirectory: data,
+        get settings() {
+          return settings
+        },
+        set settings(value) {
+          settings = value
+        },
+      } as never,
+      planning,
+      broadcast,
+    } as never)
+    await invoke('office:readTasks')
+    const overview = (await invoke('office:personalRoutineOverview')) as {
+      pending: { occurrenceId: string; taskId?: string }[]
+    }
+    expect(overview.pending.find((row) => row.occurrenceId === occurrenceId)?.taskId).toBeUndefined()
+    const task = (await invoke('office:createPersonalRoutineTask', {
+      occurrenceId,
+      objective: 'Tarefa substituta',
+      list: 'Casa',
+    })) as { id: string }
+    expect(task.id).not.toBe('tmis001')
+    expect(readFileSync(join(vault, 'tarefas.md'), 'utf8').match(/Tarefa substituta/g)).toHaveLength(1)
+  })
+
+  it('reconcilia um taskId reservado que já foi gravado e retoma a mesma tarefa', async () => {
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    const day = dayKey(yesterday)
+    const item = { title: 'Rotina diária', cadence: 'diária' as const }
+    const id = routineId(item)
+    const occurrenceId = `${id}:${day}`
+    const seed = new PersonalRoutineStore(data, () => 'tresrv1')
+    seed.ensureOccurrence(occurrenceId, id, day)
+    const taskDraft = { title: 'Tarefa persistida', list: 'Casa', date: dayLabel(new Date()) }
+    const reserved = seed.reserve(occurrenceId, id, day, new Set(), personalRoutineTaskFingerprint(taskDraft))
+    writeFileSync(join(vault, 'tarefas.md'), `## Casa\n- [ ] ${taskDraft.date} | Casa | Tarefa persistida ^${reserved.taskId}\n`, 'utf8')
+    writeFileSync(join(vault, 'rotinas-pessoais.md'), 'Rotina diária | cadência: diária', 'utf8')
+    settings.vaultPath = vault
+    registerTasksIpc({
+      win: () => ({}) as never,
+      store: {
+        dataDirectory: data,
+        get settings() {
+          return settings
+        },
+        set settings(value) {
+          settings = value
+        },
+      } as never,
+      planning,
+      broadcast,
+    } as never)
+    await invoke('office:readTasks')
+
+    const overview = (await invoke('office:personalRoutineOverview')) as {
+      pending: { occurrenceId: string; taskId?: string }[]
+    }
+    expect(overview.pending.find((row) => row.occurrenceId === occurrenceId)?.taskId).toBe(reserved.taskId)
+    const resumed = (await invoke('office:resumePersonalRoutineOccurrence', occurrenceId)) as { id: string }
+    expect(resumed.id).toBe(reserved.taskId)
+    expect(readFileSync(join(vault, 'tarefas.md'), 'utf8').match(/Tarefa persistida/g)).toHaveLength(1)
+  })
+
+  it('requires explicit weekly distribution, then creates one linked task idempotently', async () => {
+    const boardFile = join(vault, 'tarefas.md')
+    writeFileSync(boardFile, '## Estudo\n', 'utf8')
+    writeFileSync(join(vault, 'rotinas-pessoais.md'), 'Rotina A | cadência: semanal | meta: 2', 'utf8')
+    settings.vaultPath = vault
+    await invoke('office:readTasks')
+    const item = { title: 'Rotina A', cadence: 'semanal' as const, target: 2 }
+    const id = routineId(item)
+    const unconfirmed = (await invoke('office:personalRoutineOverview')) as { rows: { confirmed: boolean }[]; candidates: unknown[] }
+    expect(unconfirmed.rows[0]?.confirmed).toBe(false)
+    expect(unconfirmed.candidates).toEqual([])
+    const today = dayKey()
+    const todayWeekday = new Date(`${today}T12:00:00Z`).getUTCDay()
+    await invoke('office:confirmPersonalRoutineDistribution', id, [todayWeekday, (todayWeekday + 1) % 7])
+    const occurrenceId = `${id}:${today}`
+    const created = (await invoke('office:createPersonalRoutineTask', { occurrenceId, objective: 'Ler capítulo', list: 'Estudo' })) as {
+      id: string
+    }
+    expect(created.id).toMatch(/^t[a-z0-9]{6}$/)
+    expect(readFileSync(boardFile, 'utf8')).toContain(`Ler capítulo ^${created.id}`)
+    expect(planning.focus()).toContain(created.id)
+    await invoke('office:readTasks')
+    const retried = (await invoke('office:createPersonalRoutineTask', { occurrenceId, objective: 'Ler capítulo', list: 'Estudo' })) as {
+      id: string
+    }
+    expect(retried.id).toBe(created.id)
+    expect(readFileSync(boardFile, 'utf8').match(/Ler capítulo/g)).toHaveLength(1)
+    const occurrencePath = join(data, 'personal-routines.json')
+    await invoke('office:completeTask', { id: created.id })
+    expect(JSON.parse(readFileSync(occurrencePath, 'utf8')).occurrences[occurrenceId].status).toBe('completed')
+    await invoke('office:undoCompleteTask', created.id)
+    expect(JSON.parse(readFileSync(occurrencePath, 'utf8')).occurrences[occurrenceId].status).toBe('pending')
+    const resumed = (await invoke('office:resumePersonalRoutineOccurrence', occurrenceId)) as { id: string }
+    expect(resumed.id).toBe(created.id)
+    expect(readFileSync(boardFile, 'utf8').match(/Ler capítulo/g)).toHaveLength(1)
+    await invoke('office:completeTask', { id: created.id })
+    await invoke('office:reopenTask', { target: { id: created.id } })
+    expect(JSON.parse(readFileSync(occurrencePath, 'utf8')).occurrences[occurrenceId].status).toBe('pending')
+    await invoke('office:discardTask', { target: { id: created.id }, reason: 'Adiado' })
+    expect(JSON.parse(readFileSync(occurrencePath, 'utf8')).occurrences[occurrenceId].status).toBe('pending')
+    expect(JSON.parse(readFileSync(occurrencePath, 'utf8')).occurrences[occurrenceId].taskId).toBeUndefined()
+  })
+
   it('reads only the vault selected and saved through the native folder dialog', async () => {
     const source = '---\nkanban-plugin: board\n---\n## Casa\n- [ ] Lavar roupa ^t1a2b3c\n## Leituras\n'
     const file = join(vault, 'tarefas.md')
@@ -387,6 +797,7 @@ describe('discarding and reopening IPC', () => {
     registerTasksIpc({
       win: () => ({}) as never,
       store: {
+        dataDirectory: data,
         get settings() {
           return settings
         },

@@ -23,6 +23,8 @@ import {
   irisAnswerSchema,
   mediaDraftSchema,
   mediaPosterTokenSchema,
+  confirmPersonalRoutineDistributionSchema,
+  createPersonalRoutineTaskSchema,
   MAX_LOGO_CHARS,
   parse,
   permissionDecisionSchema,
@@ -68,6 +70,19 @@ const settings = (): Settings => ({
 })
 
 describe('parse', () => {
+  it('valida distribuições e tarefas de ocorrência sem aceitar campos de caminho', () => {
+    expect(parse(confirmPersonalRoutineDistributionSchema, ['rabc123', [0, 6]], 'Distribuição inválida.')).toEqual(['rabc123', [0, 6]])
+    expect(confirmPersonalRoutineDistributionSchema.safeParse(['rabc123', [7]]).success).toBe(false)
+    expect(
+      createPersonalRoutineTaskSchema.safeParse({
+        occurrenceId: 'rabc123:2026-10-24',
+        objective: 'Ler',
+        list: 'Estudo',
+        vaultPath: 'C:/vault',
+      }).success,
+    ).toBe(false)
+  })
+
   it('devolve o valor válido e lança a mensagem dada no inválido', () => {
     expect(parse(idSchema, 'abc', 'ruim')).toBe('abc')
     expect(() => parse(idSchema, '', 'ruim')).toThrow('ruim')

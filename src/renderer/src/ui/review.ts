@@ -1,6 +1,11 @@
 import { dayPt, type ProposalOperation } from '@shared/proposals'
 import { ARCHIVE_LIST, dayLabel, taskDraftProblem } from '@shared/tasks'
-import type { RoutineCandidate } from '@shared/routine-personal'
+import {
+  routineDistributionStatusFocusKey,
+  routineOccurrenceId,
+  type PersonalRoutineOverview,
+  type RoutineCandidate,
+} from '@shared/routine-personal'
 import {
   ddmmOf,
   describeReviewOperations,
@@ -17,6 +22,7 @@ import {
   type ReviewView,
 } from '@shared/review'
 import { h } from './dom'
+import { announce } from './a11y'
 import { cleanError, modal } from './modals/common'
 import { closeReviewAfterSave, createReviewDraftSaver } from './review-draft'
 import { openTaskMenu, type TaskMenuOption } from './tasks-move'
@@ -42,8 +48,9 @@ interface RoutineAddition {
   editing: boolean
   list?: string
   submitted?: { id: string; title: string; list: string; date: string; time?: string }
-  created?: { id: string; line?: number }
+  created?: { id: string; line?: number; title?: string; list?: string; date?: string }
   focused: boolean
+  occurrenceId?: string
   busy: boolean
   error?: string
 }
@@ -150,15 +157,17 @@ export function openReviewOffer(root: HTMLElement, toast: Toast): void {
 export async function openReviewWizard(root: HTMLElement, toast: Toast): Promise<void> {
   let view: ReviewView
   let routines: RoutineCandidate[] = []
+  let routineOverview: PersonalRoutineOverview | null = null
   let vaultPath = ''
   try {
-    const [opened, candidates, state] = await Promise.all([
+    const [opened, overview, state] = await Promise.all([
       window.office.openReview(),
-      window.office.routineCandidates(),
+      window.office.personalRoutineOverview(),
       window.office.getState(),
     ])
     view = opened
-    routines = candidates
+    routineOverview = overview
+    routines = overview.candidates
     vaultPath = state.settings.vaultPath ?? ''
   } catch (err) {
     toast(cleanError(err), 'err')
@@ -296,13 +305,30 @@ export async function openReviewWizard(root: HTMLElement, toast: Toast): Promise
 
   // Rotinas pessoais (AO-42): acceptance needs an objective; ids stay in-memory for safe create/focus retries.
   const routineAdditions = new Map<number, RoutineAddition>()
+  const pendingRoutineAdditions = new Map<string, RoutineAddition>()
   const retryKey = (ro: RoutineCandidate) => `${vaultPath}\u001f${view.day}\u001f${ro.line}\u001f${JSON.stringify(ro.item ?? ro.title)}`
+  const pendingRetryKey = (occurrenceId: string) => `${vaultPath}\u001f${occurrenceId}`
 
   const additionFor = (ro: RoutineCandidate): RoutineAddition => {
     let addition = routineAdditions.get(ro.line)
     if (!addition) {
       addition = pendingRoutineRetries.get(retryKey(ro)) ?? { objective: '', editing: false, focused: false, busy: false }
       routineAdditions.set(ro.line, addition)
+    }
+    return addition
+  }
+
+  const pendingAdditionFor = (occurrenceId: string): RoutineAddition => {
+    let addition = pendingRoutineAdditions.get(occurrenceId)
+    if (!addition) {
+      addition = pendingRoutineRetries.get(pendingRetryKey(occurrenceId)) ?? {
+        objective: '',
+        editing: false,
+        focused: false,
+        busy: false,
+      }
+      addition.occurrenceId = occurrenceId
+      pendingRoutineAdditions.set(occurrenceId, addition)
     }
     return addition
   }
@@ -377,12 +403,62 @@ export async function openReviewWizard(root: HTMLElement, toast: Toast): Promise
           throw new Error('A tarefa com este identificador já não está aberta. Ela não será criada de novo.')
         addition.created = { id: draft.id, line: existing.task.line }
       } else {
-        const { id, board } = await window.office.createTask(draft)
+        const { id, board } = addition.occurrenceId
+          ? await window.office.createPersonalRoutineTask({
+              occurrenceId: addition.occurrenceId,
+              objective: draft.title,
+              list: draft.list,
+              ...(draft.time ? { time: draft.time } : {}),
+            })
+          : await window.office.createTask(draft)
         addition.created = { id, line: board.lists.flatMap((list) => list.tasks).find((task) => task.id === id)?.line }
       }
       addition.editing = false
       addition.busy = false
       await focusCreatedRoutine(ro, addition)
+    } catch (err) {
+      addition.error = cleanError(err)
+      toast(addition.error, 'err')
+    } finally {
+      addition.busy = false
+      render()
+    }
+  }
+
+  const createPendingRoutineTask = async (occurrenceId: string, addition: RoutineAddition, time?: string): Promise<void> => {
+    if (addition.busy || addition.created || !addition.objective.trim() || !addition.list) return
+    const draft = {
+      id: addition.submitted?.id ?? routineTaskId(),
+      title: addition.objective.trim(),
+      list: addition.list,
+      date: dayLabel(new Date()),
+      ...(time ? { time } : {}),
+    }
+    const problem = taskDraftProblem(draft, [draft.list])
+    if (problem) {
+      addition.error = problem
+      render()
+      return
+    }
+    addition.submitted = draft
+    pendingRoutineRetries.set(pendingRetryKey(occurrenceId), addition)
+    addition.busy = true
+    addition.error = undefined
+    render()
+    try {
+      const { id } = await window.office.createPersonalRoutineTask({
+        occurrenceId,
+        objective: draft.title,
+        list: draft.list,
+        ...(draft.time ? { time: draft.time } : {}),
+      })
+      addition.created = { id, title: draft.title, list: draft.list, date: draft.date }
+      addition.editing = false
+      addition.focused = true
+      pendingRoutineRetries.delete(pendingRetryKey(occurrenceId))
+      routineOverview = await window.office.personalRoutineOverview()
+      routines = routineOverview.candidates
+      toast('Nova tarefa criada e adicionada ao foco.', 'ok')
     } catch (err) {
       addition.error = cleanError(err)
       toast(addition.error, 'err')
@@ -435,7 +511,7 @@ export async function openReviewWizard(root: HTMLElement, toast: Toast): Promise
 
   /** The routines of rotinas-pessoais.md for the foco step, beside the focused tasks. Null = none. */
   const routineSection = (): HTMLElement | null => {
-    if (!routines.length) return null
+    if (!routines.length && !routineOverview?.pending.length) return null
     const rows = routines.map((ro) => {
       const title = ro.item?.title ?? ro.title ?? `Linha ${ro.line} de rotinas-pessoais.md`
       // The numbered line keeps what the file shows the user.
@@ -447,7 +523,30 @@ export async function openReviewWizard(root: HTMLElement, toast: Toast): Promise
         const when = routineWhen(ro)
         if (when) children.push(h('div', { class: 'field-hint' }, when))
         const addition = additionFor(ro)
-        if (addition.created) {
+        addition.occurrenceId = ro.occurrenceId
+        const linkedOccurrence = routineOverview?.pending.find(
+          (occurrence) => occurrence.occurrenceId === ro.occurrenceId && !!occurrence.taskId,
+        )
+        if (linkedOccurrence) {
+          children.push(
+            h(
+              'button',
+              {
+                class: 'btn btn-small',
+                type: 'button',
+                onclick: async () => {
+                  try {
+                    await window.office.resumePersonalRoutineOccurrence(linkedOccurrence.occurrenceId)
+                    toast('Tarefa vinculada retomada no foco.', 'ok')
+                  } catch (err) {
+                    toast(cleanError(err), 'err')
+                  }
+                },
+              },
+              'Retomar tarefa vinculada',
+            ),
+          )
+        } else if (addition.created) {
           children.push(
             h(
               'div',
@@ -593,10 +692,262 @@ export async function openReviewWizard(root: HTMLElement, toast: Toast): Promise
       }
       return h('div', { class: `review-task${ro.kind === 'due' ? '' : ' review-task-missing'}` }, ...children)
     })
+    const weekRows = (routineOverview?.rows ?? []).filter((row) => row.cadence === 'semanal')
+    const weekGrid = weekRows.map((row) => {
+      const weekdayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+      const selected = new Set(row.days ?? [])
+      const dayControls = weekdayNames.map((name, day) =>
+        h(
+          'label',
+          { class: 'review-routine-day' },
+          h('input', {
+            type: 'checkbox',
+            value: String(day),
+            checked: selected.has(day),
+            disabled: row.confirmed || undefined,
+            'aria-label': `${name} para ${row.title}`,
+          }),
+          h('span', {}, name),
+        ),
+      )
+      const add = additionFor({
+        line: row.line,
+        title: row.title,
+        kind: 'due',
+        item: { title: row.title, cadence: row.cadence, target: row.target },
+      })
+      const occurrenceId = routineOccurrenceId(row.routineId, routineOverview!.today)
+      add.occurrenceId = occurrenceId
+      const isTodaySelected = selected.has(new Date(`${routineOverview!.today}T12:00:00Z`).getUTCDay())
+      const controls: HTMLElement[] = []
+      if (!row.confirmed) {
+        const confirmDays = h(
+          'button',
+          {
+            class: 'btn btn-small btn-primary',
+            type: 'button',
+            onclick: () => {
+              const days = dayControls.flatMap((control, day) =>
+                (control.querySelector('input') as HTMLInputElement).checked ? [day] : [],
+              )
+              if (days.length !== row.target) {
+                toast(`Escolha exatamente ${row.target} dias, incluindo sábado ou domingo se quiser.`, 'err')
+                return
+              }
+              void window.office
+                .confirmPersonalRoutineDistribution(row.routineId, days)
+                .then((next) => {
+                  routineOverview = next
+                  routines = next.candidates
+                  render()
+                  const focusKey = routineDistributionStatusFocusKey(row.routineId)
+                  content.querySelector<HTMLElement>(`[data-focus-key="${focusKey}"]`)?.focus({ preventScroll: true })
+                  announce(`Distribuição semanal de ${row.title} confirmada.`)
+                })
+                .catch((err) => toast(cleanError(err), 'err'))
+            },
+          },
+          'Confirmar distribuição da semana',
+        )
+        controls.push(
+          h('div', { class: 'review-routine-days', role: 'group', 'aria-label': `Distribuição semanal de ${row.title}` }, ...dayControls),
+          confirmDays,
+        )
+      } else {
+        controls.push(
+          h('div', { class: 'review-routine-days', role: 'group', 'aria-label': `Dias escolhidos para ${row.title}` }, ...dayControls),
+          h(
+            'div',
+            {
+              class: 'field-hint',
+              role: 'status',
+              tabindex: '-1',
+              'data-focus-key': routineDistributionStatusFocusKey(row.routineId),
+            },
+            row.fixedSchedule
+              ? `Dias definidos na nota: ${row.completed} de ${row.target} ocorrências concluídas manualmente.`
+              : `Distribuição da semana confirmada. Meta: ${row.completed} de ${row.target} concluídas manualmente.`,
+          ),
+          h(
+            'ul',
+            { class: 'review-routine-calendar', 'aria-label': `Ocorrências da semana para ${row.title}` },
+            ...row.occurrenceIds.map((id) => h('li', {}, id.split(':')[1] ?? id)),
+          ),
+        )
+        if (isTodaySelected && !routineOverview!.pending.some((pending) => pending.occurrenceId === occurrenceId)) {
+          const candidate = routines.find((item) => item.line === row.line && item.kind === 'due')
+          if (candidate) {
+            const addition = additionFor(candidate)
+            addition.occurrenceId = occurrenceId
+            if (!addition.created && !addition.editing)
+              controls.push(
+                h(
+                  'button',
+                  {
+                    class: 'btn btn-small',
+                    type: 'button',
+                    onclick: () => {
+                      addition.editing = true
+                      addition.occurrenceId = occurrenceId
+                      render()
+                    },
+                  },
+                  'Definir objetivo de hoje',
+                ),
+              )
+            else if (addition.editing) {
+              const objective = h('textarea', {
+                class: 'input',
+                rows: '2',
+                maxlength: '200',
+                value: addition.objective,
+                placeholder: 'O que você pretende fazer hoje?',
+                'aria-label': `Objetivo de hoje para ${row.title}`,
+                oninput: (event: Event) => {
+                  addition.objective = (event.currentTarget as HTMLTextAreaElement).value
+                },
+              }) as HTMLTextAreaElement
+              const listButton = h(
+                'button',
+                { class: 'btn btn-small', type: 'button', onclick: () => chooseRoutineList(candidate, addition, listButton) },
+                addition.list ? `Lista: ${addition.list} · trocar` : 'Escolher lista',
+              ) as HTMLButtonElement
+              controls.push(
+                h('label', { class: 'review-detail' }, h('span', { class: 'field-label' }, 'Objetivo de hoje'), objective),
+                listButton,
+                h(
+                  'button',
+                  {
+                    class: 'btn btn-small btn-primary',
+                    type: 'button',
+                    disabled: !addition.objective.trim() || !addition.list || addition.busy || undefined,
+                    onclick: () => void createRoutineTask(candidate, addition),
+                  },
+                  'Criar tarefa e adicionar ao foco',
+                ),
+              )
+            }
+          }
+        }
+      }
+      return h(
+        'div',
+        { class: 'review-task' },
+        h('div', { class: 'review-task-title' }, row.fixedSchedule ? `${row.title} · dias definidos` : `${row.title} · meta ${row.target}`),
+        ...controls,
+      )
+    })
+    const pendingRows = (routineOverview?.pending ?? []).map((occurrence) => {
+      const routine = routineOverview?.rows.find((row) => row.routineId === occurrence.routineId)
+      const title = routine?.title ?? 'Rotina pessoal'
+      const addition = pendingAdditionFor(occurrence.occurrenceId)
+      const candidate: RoutineCandidate = {
+        line: routine?.line ?? 1,
+        title,
+        item: { title, cadence: routine?.cadence ?? 'diária', ...(routine?.time ? { time: routine.time } : {}) },
+        kind: 'due',
+        occurrenceId: occurrence.occurrenceId,
+      }
+      const children: HTMLElement[] = [h('div', { class: 'review-task-title' }, `${title} · pendente de ${occurrence.day}`)]
+      if (occurrence.taskId) {
+        children.push(
+          h(
+            'button',
+            {
+              class: 'btn btn-small',
+              type: 'button',
+              onclick: async () => {
+                try {
+                  await window.office.resumePersonalRoutineOccurrence(occurrence.occurrenceId)
+                  toast('Tarefa vinculada retomada no foco.', 'ok')
+                } catch (err) {
+                  toast(cleanError(err), 'err')
+                  try {
+                    await window.office.readTasks()
+                    routineOverview = await window.office.personalRoutineOverview()
+                    routines = routineOverview.candidates
+                    render()
+                  } catch (refreshError) {
+                    toast(cleanError(refreshError), 'err')
+                  }
+                }
+              },
+            },
+            'Retomar tarefa vinculada',
+          ),
+        )
+      } else if (addition.created) {
+        children.push(h('div', { class: 'review-suggest' }, `Tarefa ${addition.created.id} adicionada ao foco.`))
+      } else if (addition.editing || addition.submitted) {
+        const objective = h('textarea', {
+          class: 'input',
+          rows: '2',
+          maxlength: '200',
+          value: addition.submitted?.title ?? addition.objective,
+          placeholder: 'O que você pretende fazer hoje? ',
+          'aria-label': `Objetivo para ${title}`,
+          disabled: addition.busy || !!addition.submitted || undefined,
+          oninput: (event: Event) => {
+            addition.objective = (event.currentTarget as HTMLTextAreaElement).value
+          },
+        }) as HTMLTextAreaElement
+        const listButton = h(
+          'button',
+          {
+            class: 'btn btn-small',
+            type: 'button',
+            disabled: addition.busy || !!addition.submitted || undefined,
+            onclick: () => chooseRoutineList(candidate, addition, listButton),
+          },
+          addition.list ? `Lista: ${addition.list} · trocar` : 'Escolher lista',
+        ) as HTMLButtonElement
+        children.push(
+          h('label', { class: 'review-detail' }, h('span', { class: 'field-label' }, 'Objetivo para hoje'), objective),
+          ...(addition.error ? [h('div', { class: 'field-hint', role: 'alert' }, addition.error)] : []),
+          listButton,
+          h(
+            'button',
+            {
+              class: 'btn btn-small btn-primary',
+              type: 'button',
+              disabled: !addition.objective.trim() || !addition.list || addition.busy || undefined,
+              onclick: () => void createPendingRoutineTask(occurrence.occurrenceId, addition, candidate.item?.time),
+            },
+            addition.busy
+              ? 'Criando tarefa…'
+              : addition.submitted
+                ? 'Tentar criar tarefa e incluir no foco'
+                : 'Criar tarefa e incluir no foco',
+          ),
+        )
+      } else {
+        children.push(
+          h(
+            'button',
+            {
+              class: 'btn btn-small',
+              type: 'button',
+              onclick: () => {
+                addition.editing = true
+                render()
+              },
+            },
+            'Definir objetivo e criar tarefa',
+          ),
+        )
+      }
+      return h('div', { class: 'review-task' }, ...children)
+    })
     return h(
       'div',
       { class: 'review-foco-routines' },
-      h('p', { class: 'field-hint' }, 'Rotinas pessoais de hoje (de rotinas-pessoais.md; entra no foco só com o seu clique):'),
+      h(
+        'p',
+        { class: 'field-hint' },
+        `Agenda de rotinas · semana de ${routineOverview?.weekStart ?? ''} a ${routineOverview?.weekEnd ?? ''}. A distribuição é sua; só a conclusão manual conta.`,
+      ),
+      ...weekGrid,
+      ...(pendingRows.length ? [h('h4', {}, 'Pendentes para retomar'), ...pendingRows] : []),
       ...rows,
     )
   }

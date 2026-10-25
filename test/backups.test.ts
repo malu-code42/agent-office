@@ -95,7 +95,10 @@ describe('daily backups', () => {
     const outside = mkdtempSync(join(tmpdir(), 'ao-backups-outside-source-'))
     try {
       put('office.json', { settings: {} })
-      writeFileSync(join(outside, 'profile-memory.json'), JSON.stringify({ memories: { tecnica: { text: 'Resumo externo.', updatedAt: 1 } } }))
+      writeFileSync(
+        join(outside, 'profile-memory.json'),
+        JSON.stringify({ memories: { tecnica: { text: 'Resumo externo.', updatedAt: 1 } } }),
+      )
       symlinkSync(join(outside, 'profile-memory.json'), join(dir, 'profile-memory.json'), 'file')
 
       dailyBackup(dir, new Date(2026, 9, 1))
@@ -150,7 +153,9 @@ describe('restore', () => {
       put('profile-memory.json', { memories: { tecnica: { text: 'Memória local.', updatedAt: 2 } } })
 
       expect(readBackup(dir, '2026-10-04')).not.toHaveProperty('profile-memory.json')
-      expect(listBackups(dir)).toEqual([{ id: '2026-10-04', kind: 'daily', at: expect.any(Number), size: lstatSync(join(day, 'office.json')).size, files: ['office.json'] }])
+      expect(listBackups(dir)).toEqual([
+        { id: '2026-10-04', kind: 'daily', at: expect.any(Number), size: lstatSync(join(day, 'office.json')).size, files: ['office.json'] },
+      ])
       restoreBackup(dir, '2026-10-04')
 
       expect(read('profile-memory.json')).toEqual({ memories: { tecnica: { text: 'Memória local.', updatedAt: 2 } } })
@@ -206,6 +211,7 @@ describe('restore', () => {
       'squad-proposals.json',
       'squad-queues.json',
       'profile-memory.json',
+      'personal-routines.json',
     ])
     restoreBackup(dir, '2026-10-01')
     expect(read('office.json')).toEqual({ v: 'old' })
@@ -269,7 +275,9 @@ describe('export / import', () => {
     const other = mkdtempSync(join(tmpdir(), 'ao-import-'))
     try {
       applyImport(other, parseExport(JSON.stringify(buildExport(dir))), '/Users/outra')
-      expect(JSON.parse(readFileSync(join(other, 'office.json'), 'utf8')).settings.accounts).toEqual([{ id: 'b', configDir: join('/Users/outra', '.claude-trabalho') }])
+      expect(JSON.parse(readFileSync(join(other, 'office.json'), 'utf8')).settings.accounts).toEqual([
+        { id: 'b', configDir: join('/Users/outra', '.claude-trabalho') },
+      ])
     } finally {
       rmSync(other, { recursive: true, force: true })
     }

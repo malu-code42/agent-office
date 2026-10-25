@@ -94,6 +94,10 @@ export class Store {
   /** Set while a restore or import replaces the files: nothing in memory may land on them. */
   private locked = false
 
+  get dataDirectory(): string {
+    return this.dir
+  }
+
   constructor() {
     this.dir = app.getPath('userData')
     mkdirSync(this.dir, { recursive: true })
