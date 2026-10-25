@@ -59,3 +59,36 @@
   white-space: pre-wrap;
   color: var(--muted);
 }
+
+.agenda-class {
+  border-color: var(--accent-solid);
+}
+
+.agenda-kind {
+  display: block;
+  color: var(--accent-solid);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.agenda-conflict {
+  border-color: var(--danger, #ff8a8a);
+}
+
+.agenda-conflict-label {
+  margin-left: auto;
+  color: var(--danger, #ff8a8a);
+  font-size: 11px;
+}
+
+.agenda-warnings {
+  padding: 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--muted);
+}
+
+.agenda-warnings p {
+  margin: 4px 0;
+}

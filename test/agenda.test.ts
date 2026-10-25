@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildAgendaView, parseAgenda } from '../src/shared/agenda'
+import { buildAgendaView, parseAgenda, parseClasses } from '../src/shared/agenda'
+import { mediaAgendaLinks } from '../src/shared/media'
 
 const agenda = [
   '# Agenda',
@@ -52,6 +53,157 @@ describe('agenda parse', () => {
 })
 
 describe('agenda view', () => {
+  it('parses editable weekly classes and date-specific cancellation/overrides', () => {
+    const parsed = parseClasses(
+      [
+        '# Aulas',
+        '## Regras semanais',
+        '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A (SIMULADO)',
+        '## Exceções',
+        '- id: aula-a | data: 2026-10-19 | hora: 10:00 | título: Aula especial (SIMULADO)',
+        '- id: aula-a | data: 2026-10-26 | cancelar',
+      ].join('\r\n'),
+    )
+    expect(parsed.rules).toEqual([{ id: 'aula-a', weekday: 1, time: '09:00', title: 'Aula A (SIMULADO)' }])
+    expect(parsed.exceptions).toEqual([
+      { id: 'aula-a', date: '2026-10-19', time: '10:00', title: 'Aula especial (SIMULADO)' },
+      { id: 'aula-a', date: '2026-10-26', cancelled: true },
+    ])
+    expect(parsed.warnings).toEqual([])
+  })
+
+  it('expands local weekly classes and applies exceptions only to their date', () => {
+    const source = [
+      '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A (SIMULADO)',
+      '- id: aula-b | dia: domingo | hora: 12:00 | título: Aula B (SIMULADO)',
+      '- id: aula-a | data: 2026-10-19 | hora: 10:00 | título: Reposição (SIMULADO)',
+      '- id: aula-b | data: 2026-10-25 | cancelar',
+    ].join('\n')
+    const view = buildAgendaView(null, '', new Date(2026, 9, 19, 0, 30), source)
+    expect(view.found).toBe(false)
+    expect(view.classesFound).toBe(true)
+    expect(view.week[0]!.entries).toEqual([{ kind: 'class', id: 'aula-a', time: '10:00', title: 'Reposição (SIMULADO)' }])
+    expect(view.week[6]!.entries).toEqual([])
+    expect(buildAgendaView(null, '', new Date(2026, 9, 26), source).today.entries).toEqual([
+      { kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)' },
+    ])
+  })
+
+  it('shows malformed content warnings and rejects invalid or duplicate rule identifiers', () => {
+    expect(parseClasses('- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A (SIMULADO)\nlinha perdida').warnings).toContain(
+      'Linha 2: conteúdo não reconhecido em aulas.md: "linha perdida".',
+    )
+    expect(
+      parseClasses(
+        [
+          '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A (SIMULADO)',
+          '- id: aula-a | dia: domingo | hora: 10:00 | título: Outra (SIMULADO)',
+          '- id: aula-c | dia: segunda | hora: 25:00 | título: Inválida',
+          '- id: aula-d | data: 2026-02-31 | cancelar',
+        ].join('\n'),
+      ).warnings,
+    ).toHaveLength(3)
+    expect(parseClasses(null)).toEqual({ rules: [], exceptions: [], warnings: [] })
+  })
+
+  it('deduplicates exact class/commitment entries and marks distinct same-time entries as conflicts', () => {
+    const agendaText = '## 2026-10-19\n- 09:00 Aula A (SIMULADO)\n- 09:00 Outro compromisso'
+    const classText =
+      '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A (SIMULADO)\n- id: aula-b | dia: segunda | hora: 09:00 | título: Aula B (SIMULADO)'
+    const view = buildAgendaView(agendaText, '', new Date(2026, 9, 19), classText)
+    expect(view.today.entries).toEqual([
+      { kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)', conflict: true },
+      { kind: 'commitment', time: '09:00', title: 'Outro compromisso', conflict: true },
+      { kind: 'class', id: 'aula-b', time: '09:00', title: 'Aula B (SIMULADO)', conflict: true },
+    ])
+  })
+
+  it('replaces a matched commitment in place before later agenda entries', () => {
+    const view = buildAgendaView(
+      '## 2026-10-19\n- 09:00 Aula A (SIMULADO)\n- 10:00 Compromisso posterior (SIMULADO)',
+      '',
+      new Date(2026, 9, 19),
+      '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A (SIMULADO)',
+    )
+
+    expect(view.today.entries).toEqual([
+      { kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)' },
+      { kind: 'commitment', time: '10:00', title: 'Compromisso posterior (SIMULADO)' },
+    ])
+  })
+
+  it('merges a class with matching commitment and resolved task entries into one class without conflict', () => {
+    const view = buildAgendaView(
+      '## 2026-10-19\n- 09:00 Aula A (SIMULADO)\n- 09:00 ↦ ^tabc123',
+      '## Casa\n- [ ] Aula A (SIMULADO) ^tabc123',
+      new Date(2026, 9, 19),
+      '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A (SIMULADO)',
+    )
+
+    expect(view.today.entries).toEqual([{ kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)' }])
+  })
+
+  it('replaces a matching resolved task reference with the class view entry', () => {
+    const view = buildAgendaView(
+      '## 2026-10-19\n- 09:00 ↦ ^tabc123',
+      '## Casa\n- [ ] Aula A (SIMULADO) ^tabc123',
+      new Date(2026, 9, 19),
+      '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A (SIMULADO)',
+    )
+
+    expect(view.today.entries).toEqual([{ kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)' }])
+  })
+
+  it('preserves repeated unmatched commitments, unresolved task references, and unknown lines', () => {
+    const view = buildAgendaView(
+      '## 2026-10-19\n- 08:00 Repetido (SIMULADO)\n- 08:00 Repetido (SIMULADO)\n- 09:00 ↦ ^tzzzzzz\n- 09:00 ↦ ^tzzzzzz\nAnotação sem formato',
+      '',
+      new Date(2026, 9, 19),
+      '- id: aula-a | dia: segunda | hora: 10:00 | título: Aula A (SIMULADO)',
+    )
+
+    expect(view.today.entries).toEqual([
+      { kind: 'commitment', time: '08:00', title: 'Repetido (SIMULADO)', conflict: true },
+      { kind: 'commitment', time: '08:00', title: 'Repetido (SIMULADO)', conflict: true },
+      { kind: 'task', time: '09:00', id: 'tzzzzzz', text: null, conflict: true },
+      { kind: 'task', time: '09:00', id: 'tzzzzzz', text: null, conflict: true },
+      { kind: 'unknown', text: 'Anotação sem formato' },
+      { kind: 'class', id: 'aula-a', time: '10:00', title: 'Aula A (SIMULADO)' },
+    ])
+  })
+
+  it('allows time-only and title-only exceptions for one date, preserving the weekly rule', () => {
+    const source = [
+      '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A (SIMULADO)',
+      '- id: aula-a | data: 2026-10-19 | hora: 10:00',
+      '- id: aula-a | data: 2026-10-26 | título: Aula especial (SIMULADO)',
+    ].join('\n')
+
+    expect(parseClasses(source).warnings).toEqual([])
+    expect(buildAgendaView(null, '', new Date(2026, 9, 19), source).today.entries).toEqual([
+      { kind: 'class', id: 'aula-a', time: '10:00', title: 'Aula A (SIMULADO)' },
+    ])
+    expect(buildAgendaView(null, '', new Date(2026, 9, 26), source).today.entries).toEqual([
+      { kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula especial (SIMULADO)' },
+    ])
+    expect(buildAgendaView(null, '', new Date(2026, 10, 2), source).today.entries).toEqual([
+      { kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)' },
+    ])
+  })
+
+  it('rejects an exception without cancellation or any override', () => {
+    expect(parseClasses('- id: aula-a | data: 2026-10-19 |').warnings).toHaveLength(1)
+  })
+
+  it('keeps classes out of media commitment links', () => {
+    const view = buildAgendaView(
+      '## 2026-10-19\n- 11:00 Compromisso (SIMULADO)',
+      '',
+      new Date(2026, 9, 19),
+      '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A (SIMULADO)',
+    )
+    expect(mediaAgendaLinks(view)).toEqual([{ day: '2026-10-19', time: '11:00', title: 'Compromisso (SIMULADO)' }])
+  })
   it('shows the local day and the Monday-to-Sunday week, for a Sunday', () => {
     const view = buildAgendaView(agenda, tasks, new Date(2026, 9, 18, 9))
 
