@@ -1,6 +1,6 @@
 import type { StudyQuestion } from './study-questions'
 
-export type StudyCycleStage = 'diagnosis' | 'review-required' | 'practice' | 'retest-ready'
+export type StudyCycleStage = 'diagnosis' | 'review-required' | 'practice' | 'retest-ready' | 'retest' | 'completed'
 export type StudyAssessment = { kind: 'correct' | 'incorrect' | 'uncertain' | 'pending'; rationale: string; checkedAt: number }
 
 export interface StudyGapReview {
@@ -27,6 +27,12 @@ export interface StudyCycleNote {
   savedAt: number
 }
 
+export interface StudyRetestAttempt {
+  id: string
+  questions: StudyCycleQuestion[]
+  startedAt: number
+}
+
 /** Immutable copy of the bank record used by this cycle; its hash identifies the exact source version. */
 export interface StudyCycleQuestion {
   id: string
@@ -48,6 +54,7 @@ export interface StudyCycle {
   questions: StudyCycleQuestion[]
   practiceRounds: StudyPracticeRound[]
   notes: StudyCycleNote[]
+  retests: StudyRetestAttempt[]
 }
 
 export interface StudyCycleState {
@@ -81,6 +88,7 @@ export function createStudyCycleState(
     questions: questions.map((question) => ({ ...question, source: { ...question.source, tags: [...question.source.tags] } })),
     practiceRounds: [],
     notes: [],
+    retests: [],
   }
   return { activeId: cycle.id, cycles: [...(previous?.cycles ?? []), cycle] }
 }
@@ -340,6 +348,131 @@ export function practiceScore(round: StudyPracticeRound): number {
   return Math.floor((correct / round.questions.length) * 100)
 }
 
+/** Creates a fresh retest from at least ten never-before-used questions with verified keys. */
+export function startStudyRetest(state: StudyCycleState, questions: StudyCycleQuestion[], now = Date.now()): StudyCycleState {
+  const cycle = activeCycle(state)
+  if (cycle.stage !== 'retest-ready' && cycle.stage !== 'retest') throw new Error('Bonnie ainda não liberou o reteste.')
+  if (questions.length < 10 || questions.length > 100) throw new Error('O reteste precisa conter pelo menos 10 questões novas.')
+  const latest = cycle.retests.at(-1)
+  if (latest && retestScore(latest) !== null && retestScore(latest)! >= 80)
+    throw new Error('O reteste já atingiu 80%; peça a confirmação da estudante para concluir o ciclo.')
+  if (latest && latest.questions.some((question) => !question.response || !question.assessment))
+    throw new Error('Responda e verifique todas as questões do reteste atual antes de planejar outro conjunto.')
+  const usedIds = new Set(cycle.questions.map((question) => question.id))
+  const usedPrompts = new Set(cycle.questions.map((question) => normalizePrompt(question.source.question)))
+  for (const round of cycle.practiceRounds) {
+    for (const question of round.questions) {
+      usedIds.add(question.id)
+      usedPrompts.add(normalizePrompt(question.source.question))
+    }
+  }
+  for (const attempt of cycle.retests) {
+    for (const question of attempt.questions) {
+      usedIds.add(question.id)
+      usedPrompts.add(normalizePrompt(question.source.question))
+    }
+  }
+  const ids = new Set<string>()
+  const prompts = new Set<string>()
+  for (const question of questions) {
+    const prompt = normalizePrompt(question.source.question)
+    if (question.source.sourceOnly || question.source.answerStatus !== 'verified' || !question.source.answer)
+      throw new Error('O reteste aceita somente questões com gabarito conferido.')
+    if (usedIds.has(question.id) || ids.has(question.id) || usedPrompts.has(prompt) || prompts.has(prompt))
+      throw new Error('O reteste precisa conter questões novas e sem repetição.')
+    ids.add(question.id)
+    prompts.add(prompt)
+  }
+  const attempt: StudyRetestAttempt = {
+    id: `rt-${now}-${Math.random().toString(36).slice(2, 10)}`,
+    startedAt: now,
+    questions: questions.map((question) => ({
+      ...question,
+      source: { ...question.source, tags: [...question.source.tags] },
+      response: '',
+      providedExcerpt: '',
+      uncertain: false,
+      assessment: null,
+    })),
+  }
+  return updateCycle(state, { ...cycle, stage: 'retest', retests: [...cycle.retests, attempt], updatedAt: now })
+}
+
+export function answerStudyRetestQuestion(state: StudyCycleState, questionId: string, response: string, now = Date.now()): StudyCycleState {
+  const cycle = activeCycle(state)
+  if (cycle.stage !== 'retest') throw new Error('Bonnie ainda não liberou o reteste.')
+  const attempt = cycle.retests.at(-1)
+  const clean = response.trim()
+  if (!clean || clean.length > 20_000) throw new Error('Escreva uma resposta de até 20.000 caracteres.')
+  if (!attempt?.questions.some((question) => question.id === questionId)) throw new Error('Essa questão não pertence ao reteste atual.')
+  return updateCycle(state, {
+    ...cycle,
+    updatedAt: now,
+    retests: cycle.retests.map((item) =>
+      item.id === attempt.id
+        ? {
+            ...item,
+            questions: item.questions.map((question) =>
+              question.id === questionId ? { ...question, response: clean, assessment: null } : question,
+            ),
+          }
+        : item,
+    ),
+  })
+}
+
+export function assessStudyRetestQuestion(
+  state: StudyCycleState,
+  questionId: string,
+  result: Pick<StudyAssessment, 'kind' | 'rationale'>,
+  now = Date.now(),
+): StudyCycleState {
+  const cycle = activeCycle(state)
+  if (cycle.stage !== 'retest') throw new Error('Bonnie ainda não liberou o reteste.')
+  const attempt = cycle.retests.at(-1)
+  const target = attempt?.questions.find((question) => question.id === questionId)
+  if (!attempt || !target?.response) throw new Error('Responda a questão antes de verificar o reteste.')
+  return updateCycle(state, {
+    ...cycle,
+    updatedAt: now,
+    retests: cycle.retests.map((item) =>
+      item.id === attempt.id
+        ? {
+            ...item,
+            questions: item.questions.map((question) =>
+              question.id === questionId
+                ? { ...question, assessment: { ...result, rationale: result.rationale.slice(0, 2000), checkedAt: now } }
+                : question,
+            ),
+          }
+        : item,
+    ),
+  })
+}
+
+/** Returns null until every retest answer has an evidence-backed correct/incorrect assessment. */
+export function retestScore(attempt: StudyRetestAttempt): number | null {
+  if (
+    attempt.questions.length < 10 ||
+    attempt.questions.some(
+      (question) => !question.response || !question.assessment || !['correct', 'incorrect'].includes(question.assessment.kind),
+    )
+  )
+    return null
+  const correct = attempt.questions.filter((question) => question.assessment?.kind === 'correct').length
+  return Math.floor((correct / attempt.questions.length) * 100)
+}
+
+/** Completion is separate from scoring: the student must confirm the result explicitly. */
+export function completeStudyCycle(state: StudyCycleState, confirmed: boolean, now = Date.now()): StudyCycleState {
+  const cycle = activeCycle(state)
+  if (cycle.stage !== 'retest') throw new Error('O ciclo só pode ser concluído após o reteste.')
+  const score = cycle.retests.at(-1) ? retestScore(cycle.retests.at(-1)!) : null
+  if (score === null || score < 80) throw new Error('O reteste precisa de pelo menos 10 questões verificadas e 80% de acertos.')
+  if (!confirmed) return state
+  return updateCycle(state, { ...cycle, stage: 'completed', updatedAt: now })
+}
+
 function roundComplete(round: StudyPracticeRound): boolean {
   return (
     round.questions.length > 0 &&
@@ -348,6 +481,10 @@ function roundComplete(round: StudyPracticeRound): boolean {
         !!question.response && !!question.assessment && question.assessment.kind !== 'pending' && question.assessment.kind !== 'uncertain',
     )
   )
+}
+
+function normalizePrompt(prompt: string): string {
+  return prompt.toLocaleLowerCase('pt-BR').replace(/\s+/g, ' ').trim()
 }
 
 export function activeStudyCycle(state: StudyCycleState): StudyCycle | null {

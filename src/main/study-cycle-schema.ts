@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import type { StudyCycleState } from '@shared/study-cycle'
 import { validateStudyQuestion } from '@shared/study-questions'
+import { retestScore } from '@shared/study-cycle'
 
 const questionSchema = z
   .object({
@@ -74,7 +75,7 @@ const cycleSchema = z
   .object({
     id: z.string().min(1).max(100),
     topic: z.string().min(1).max(200),
-    stage: z.enum(['diagnosis', 'review-required', 'practice', 'retest-ready']),
+    stage: z.enum(['diagnosis', 'review-required', 'practice', 'retest-ready', 'retest', 'completed']),
     startedAt: z.number().finite(),
     updatedAt: z.number().finite(),
     questions: z.array(questionSchema).min(1).max(100),
@@ -104,10 +105,27 @@ const cycleSchema = z
       )
       .max(1000)
       .default([]),
+    retests: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1).max(100),
+            startedAt: z.number().finite(),
+            questions: z.array(questionSchema).min(10).max(100),
+          })
+          .strict(),
+      )
+      .max(100)
+      .default([]),
   })
   .strict()
   .refine((cycle) => new Set(cycle.questions.map((question) => question.id)).size === cycle.questions.length)
   .superRefine((cycle, context) => {
+    const latestRetest = cycle.retests.at(-1)
+    if (cycle.stage === 'retest' && !latestRetest)
+      context.addIssue({ code: 'custom', message: 'Ciclo em reteste sem conjunto persistido.' })
+    if (cycle.stage === 'completed' && (!latestRetest || retestScore(latestRetest) === null || retestScore(latestRetest)! < 80))
+      context.addIssue({ code: 'custom', message: 'Ciclo concluído sem reteste válido de pelo menos 80%.' })
     const gaps = new Set(
       cycle.questions
         .filter((question) => question.uncertain || question.assessment?.kind === 'incorrect' || question.assessment?.kind === 'uncertain')
@@ -121,6 +139,39 @@ const cycleSchema = z
     }
     for (const note of cycle.notes)
       if (!gaps.has(note.gapQuestionId)) context.addIssue({ code: 'custom', message: 'Nota sem lacuna válida.' })
+    const retestIds = new Set<string>()
+    const retestPrompts = new Set<string>()
+    for (const attempt of cycle.retests) {
+      const ids = new Set<string>()
+      const prompts = new Set<string>()
+      for (const question of attempt.questions) {
+        const normalized = question.source.question.toLocaleLowerCase('pt-BR').replace(/\s+/g, ' ').trim()
+        if (
+          question.source.answerStatus !== 'verified' ||
+          !question.source.answer ||
+          ids.has(question.id) ||
+          prompts.has(normalized) ||
+          retestIds.has(question.id) ||
+          retestPrompts.has(normalized) ||
+          cycle.questions.some(
+            (original) =>
+              original.id === question.id || original.source.question.toLocaleLowerCase('pt-BR').replace(/\s+/g, ' ').trim() === normalized,
+          ) ||
+          cycle.practiceRounds.some((round) =>
+            round.questions.some(
+              (practice) =>
+                practice.id === question.id ||
+                practice.source.question.toLocaleLowerCase('pt-BR').replace(/\s+/g, ' ').trim() === normalized,
+            ),
+          )
+        )
+          context.addIssue({ code: 'custom', message: 'Questão de reteste repetida, inválida ou sem gabarito conferido.' })
+        ids.add(question.id)
+        prompts.add(normalized)
+        retestIds.add(question.id)
+        retestPrompts.add(normalized)
+      }
+    }
   })
 
 export const studyCycleStateSchema: z.ZodType<StudyCycleState> = z
@@ -133,7 +184,7 @@ export function isStudyCycleState(value: unknown): value is StudyCycleState {
   return studyCycleStateSchema.safeParse(value).success
 }
 
-/** Adds defaults for cycle files written before AO-50 added review and practice state. */
+/** Adds defaults for cycle files written before AO-50 review/practice and AO-51 retest state. */
 export function normalizeStudyCycleState(value: unknown): StudyCycleState {
   return studyCycleStateSchema.parse(value)
 }

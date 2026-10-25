@@ -2,6 +2,7 @@ import {
   activeStudyCycle,
   evaluateStudyGate,
   practiceScore,
+  retestScore,
   studyGaps,
   type StudyCycle,
   type StudyCycleQuestion,
@@ -37,6 +38,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
 
   let topic = activeStudyCycle(state)?.topic ?? ''
   const selected = new Set<string>()
+  const selectedRetest = new Set<string>()
   const gapDrafts = new Map<string, { cause: string; nextStep: string }>()
   const selectedPracticeGaps = new Map<string, string>()
   const notesByHit = new Map<string, string>()
@@ -52,14 +54,15 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
     error.textContent = message
     error.hidden = !message
   }
-  const save = async (action: () => Promise<StudyCycleState>, success?: string) => {
+  const save = async (action: () => Promise<StudyCycleState>, success?: string | ((state: StudyCycleState) => string | undefined)) => {
     if (busy) return
     busy = true
     tell('')
     render()
     try {
       state = await action()
-      if (success) toast(success, 'ok')
+      const message = typeof success === 'function' ? success(state) : success
+      if (message) toast(message, 'ok')
     } catch (err) {
       tell(cleanError(err))
     } finally {
@@ -174,7 +177,11 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
           ? 'Erros e dúvidas · registre causa e próximo passo para cada lacuna antes de abrir a prática.'
           : cycle.stage === 'practice'
             ? 'Prática e fontes · vincule materiais às lacunas, escreva uma nota e alcance 80% nas questões planejadas.'
-            : 'Bonnie liberou o reteste. A execução do reteste será implementada no próximo ticket.'
+            : cycle.stage === 'retest-ready'
+              ? 'Reteste liberado · selecione ao menos dez questões novas com gabaritos conferidos. Sem dicas durante as respostas.'
+              : cycle.stage === 'retest'
+                ? 'Reteste em andamento · responda todas as questões sem consulta. O resultado só aparece depois da conferência final.'
+                : 'Ciclo concluído com sua confirmação. O histórico permanece salvo.'
     const body: HTMLElement[] = [
       h('p', { class: 'study-cycle-status', role: 'status' }, status),
       h(
@@ -186,6 +193,19 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
     ]
     if (cycle.stage === 'review-required') body.push(...reviewBody(cycle))
     if (cycle.stage === 'practice') body.push(...practiceBody(cycle))
+    if (cycle.stage === 'retest-ready') body.push(...retestPickerBody(cycle))
+    if (cycle.stage === 'retest') body.push(...retestBody(cycle))
+    if (cycle.stage === 'completed') {
+      const finalAttempt = cycle.retests.at(-1)
+      const finalScore = finalAttempt ? retestScore(finalAttempt) : null
+      body.push(
+        h(
+          'p',
+          { class: 'study-cycle-status', role: 'status' },
+          `Bonnie registrou o ciclo como concluído após sua confirmação · ${finalScore ?? 0}% no reteste.`,
+        ),
+      )
+    }
     if (cycle.stage === 'diagnosis') {
       if (gate.ready) {
         body.push(
@@ -599,6 +619,202 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
     )
   }
 
+  const retestPickerBody = (cycle: StudyCycle): HTMLElement[] => {
+    const usedIds = new Set(cycle.questions.map((question) => question.id))
+    const usedPrompts = new Set(cycle.questions.map((question) => normalizePrompt(question.source.question)))
+    for (const round of cycle.practiceRounds) {
+      for (const question of round.questions) {
+        usedIds.add(question.id)
+        usedPrompts.add(normalizePrompt(question.source.question))
+      }
+    }
+    for (const attempt of cycle.retests) {
+      for (const question of attempt.questions) {
+        usedIds.add(question.id)
+        usedPrompts.add(normalizePrompt(question.source.question))
+      }
+    }
+    const candidates = bank.filter(
+      (question) =>
+        !question.sourceOnly &&
+        question.question.trim() &&
+        question.answerStatus === 'verified' &&
+        question.answer &&
+        !usedIds.has(question.id) &&
+        !usedPrompts.has(normalizePrompt(question.question)),
+    )
+    const rows = candidates.map((question) =>
+      h(
+        'label',
+        { class: 'study-cycle-bank-row' },
+        h('input', {
+          type: 'checkbox',
+          checked: selectedRetest.has(question.id),
+          'aria-label': `Selecionar para reteste: ${question.topic} · ${question.question}`,
+          onchange: (event: Event) => {
+            const input = event.currentTarget as HTMLInputElement
+            if (input.checked) selectedRetest.add(question.id)
+            else selectedRetest.delete(question.id)
+          },
+        }),
+        h(
+          'span',
+          {},
+          h('strong', {}, `${question.topic} · ${originLabel[question.originKind]} · gabarito conferido`),
+          h('span', {}, question.question),
+        ),
+      ),
+    )
+    return [
+      h('h3', {}, cycle.retests.length ? 'Planejar novo reteste' : 'Planejar reteste'),
+      h(
+        'p',
+        { class: 'field-hint' },
+        'Escolha pelo menos dez questões novas. Durante o reteste, o app não mostra gabaritos nem avaliações até você responder tudo e pedir a conferência.',
+      ),
+      ...(rows.length
+        ? rows
+        : [
+            h(
+              'p',
+              { class: 'field-hint' },
+              'Não há dez questões novas com gabarito conferido no banco. Adicione questões antes de iniciar o reteste.',
+            ),
+          ]),
+      h(
+        'button',
+        {
+          class: 'btn btn-small btn-primary',
+          type: 'button',
+          disabled: busy || selectedRetest.size < 10 || undefined,
+          onclick: () => {
+            const ids = [...selectedRetest]
+            selectedRetest.clear()
+            void save(() => window.office.startStudyRetest(ids), 'Reteste iniciado com questões novas.')
+          },
+        },
+        `Iniciar reteste (${selectedRetest.size}/10)`,
+      ),
+    ]
+  }
+
+  const retestBody = (cycle: StudyCycle): HTMLElement[] => {
+    const attempt = cycle.retests.at(-1)
+    if (!attempt)
+      return [h('p', { class: 'field-hint', role: 'alert' }, 'O reteste ativo não tem um conjunto salvo. Inicie um reteste novo.')]
+    const score = retestScore(attempt)
+    const allAnswered = attempt.questions.every((question) => !!question.response)
+    const result =
+      score === null
+        ? null
+        : h(
+            'section',
+            { class: 'study-cycle-retest-result', role: 'status' },
+            h('h3', {}, `Resultado do reteste: ${score}%`),
+            h(
+              'p',
+              {},
+              score >= 80
+                ? 'O gate de nota foi cumprido. A conclusão ainda exige sua confirmação.'
+                : 'A nota ficou abaixo de 80%. Bonnie pede outra revisão e um conjunto novo.',
+            ),
+            ...attempt.questions.map((question) =>
+              h(
+                'p',
+                { class: `study-cycle-assessment study-cycle-assessment-${question.assessment?.kind ?? 'pending'}` },
+                `${question.source.topic} · ${assessmentLabel(question.assessment?.kind ?? 'pending')}`,
+              ),
+            ),
+          )
+    const pending = attempt.questions.some(
+      (question) => question.assessment?.kind === 'pending' || question.assessment?.kind === 'uncertain',
+    )
+    const body: HTMLElement[] = [
+      h(
+        'p',
+        { class: 'field-hint' },
+        'Responda sem abrir fontes, ver gabaritos ou receber dicas. A conferência do Tutor acontece somente depois que todas as respostas forem salvas.',
+      ),
+      ...attempt.questions.map((question) => retestQuestionForm(question, score !== null)),
+      ...(result ? [result] : []),
+      ...(!result && pending
+        ? [
+            h(
+              'p',
+              { class: 'field-hint', role: 'status' },
+              'Há resposta Em verificação. Você pode tentar a conferência novamente ou planejar um conjunto novo; ela não conta como acerto nem erro.',
+            ),
+          ]
+        : []),
+    ]
+    if (score === null) {
+      actions.append(
+        h(
+          'button',
+          {
+            class: 'btn btn-primary',
+            type: 'button',
+            disabled: busy || !allAnswered || undefined,
+            onclick: () => void save(() => window.office.verifyStudyRetest(), 'Conferência do reteste concluída.'),
+          },
+          'Conferir reteste sem ajuda',
+        ),
+      )
+      if (allAnswered && pending) body.push(...retestPickerBody(cycle))
+    } else if (score >= 80) {
+      actions.append(
+        h(
+          'button',
+          {
+            class: 'btn btn-primary',
+            type: 'button',
+            disabled: busy || undefined,
+            onclick: () =>
+              void save(
+                () => window.office.completeStudyRetest(),
+                (next) => (activeStudyCycle(next)?.stage === 'completed' ? 'Ciclo de estudo concluído com sua confirmação.' : undefined),
+              ),
+          },
+          'Confirmar conclusão do ciclo',
+        ),
+      )
+    } else body.push(...retestPickerBody(cycle))
+    return body
+  }
+
+  const retestQuestionForm = (item: StudyCycleQuestion, locked: boolean): HTMLElement => {
+    const response = h('textarea', {
+      class: 'input study-cycle-answer',
+      rows: '3',
+      maxlength: '20000',
+      'aria-label': `Resposta do reteste ${item.id}`,
+      value: item.response,
+      disabled: busy || locked || undefined,
+    }) as HTMLTextAreaElement
+    return h(
+      'article',
+      { class: 'study-cycle-question' },
+      h('h4', {}, `${item.source.topic} · ${originLabel[item.source.originKind]}`),
+      h('p', { class: 'study-cycle-prompt' }, item.source.question),
+      h('label', { class: 'study-cycle-field' }, h('span', { class: 'field-label' }, 'Sua resposta, sem consulta'), response),
+      ...(locked
+        ? []
+        : [
+            h(
+              'button',
+              {
+                class: 'btn btn-small',
+                type: 'button',
+                disabled: busy || !response.value.trim() || undefined,
+                onclick: () =>
+                  void save(() => window.office.answerStudyRetest(item.id, response.value), 'Resposta do reteste salva localmente.'),
+              },
+              'Salvar resposta',
+            ),
+          ]),
+    )
+  }
+
   const pickerBody = (): HTMLElement[] => {
     const topicInput = h('input', {
       class: 'input',
@@ -660,6 +876,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
             disabled: busy || undefined,
             onclick: () => {
               selected.clear()
+              selectedRetest.clear()
               selectedPracticeGaps.clear()
               libraryResult = null
               void save(() => window.office.resetStudyCycle(), 'Ciclo preservado no histórico. Escolha outro tópico quando quiser.')
@@ -702,6 +919,10 @@ function assessmentLabel(kind: 'correct' | 'incorrect' | 'uncertain' | 'pending'
     uncertain: 'Dúvida marcada · revisão necessária',
     pending: 'Em verificação',
   }[kind]
+}
+
+function normalizePrompt(prompt: string): string {
+  return prompt.toLocaleLowerCase('pt-BR').replace(/\s+/g, ' ').trim()
 }
 
 function practiceGateMessage(

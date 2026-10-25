@@ -285,6 +285,14 @@ export interface OfficeAPI {
   evaluateStudyPractice(questionId: string): Promise<StudyCycleState>
   /** Planeja questões novas de prática, ligando cada uma a uma lacuna identificada. */
   startStudyPractice(questions: { id: string; gapQuestionIds: string[] }[]): Promise<StudyCycleState>
+  /** Planeja ao menos dez questões novas de reteste com gabaritos conferidos. */
+  startStudyRetest(questionIds: string[]): Promise<StudyCycleState>
+  /** Salva somente a resposta, sem mostrar gabarito nem avaliação durante o reteste. */
+  answerStudyRetest(questionId: string, response: string): Promise<StudyCycleState>
+  /** Confere o reteste completo somente após todas as respostas serem salvas. */
+  verifyStudyRetest(): Promise<StudyCycleState>
+  /** Conclui o ciclo somente com aprovação explícita após o gate de 80%. */
+  completeStudyRetest(): Promise<StudyCycleState>
   /** Lê objetivos.md e tarefas.md; os objetivos continuam editáveis no Obsidian. */
   readGoals(): Promise<{ goals: Goal[]; tasks: Task[] }>
   /** Cria um objetivo em objetivos.md, sem alterar tarefas.md. */

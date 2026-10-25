@@ -13,9 +13,12 @@ import { StudyCycleStore } from '../src/main/study-cycle-store'
 import {
   advanceStudyCycle,
   answerStudyQuestion,
+  answerStudyRetestQuestion,
   assessStudyQuestion,
+  assessStudyRetestQuestion,
   createStudyCycleState,
   reviewStudyGap,
+  startStudyRetest,
   type StudyCycleQuestion,
 } from '../src/shared/study-cycle'
 import { hashStudyQuestion } from '../src/main/study-cycle-schema'
@@ -24,12 +27,14 @@ const ipc = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
   selectedPath: null as string | null,
   canceled: false,
+  confirmResponse: 1,
 }))
 const studyProviders = vi.hoisted(() => ({ webSearch: vi.fn(async () => []), generate: vi.fn(async () => []) }))
 vi.mock('electron', () => ({
   ipcMain: { handle: (channel: string, handler: (...args: unknown[]) => unknown) => ipc.handlers.set(channel, handler) },
   dialog: {
     showOpenDialog: async () => ({ canceled: ipc.canceled, filePaths: ipc.selectedPath ? [ipc.selectedPath] : [] }),
+    showMessageBox: async () => ({ response: ipc.confirmResponse }),
   },
 }))
 vi.mock('../src/main/study-questions-claude', () => ({
@@ -54,6 +59,7 @@ beforeEach(() => {
   ipc.handlers.clear()
   ipc.selectedPath = null
   ipc.canceled = false
+  ipc.confirmResponse = 1
   studyProviders.webSearch.mockClear()
   studyProviders.generate.mockClear()
   registerTasksIpc({
@@ -178,6 +184,71 @@ describe('tasks IPC', () => {
     expect(saved.notes).toHaveLength(1)
     expect(saved.questions[0]?.review?.sourceRefs).toContain(found.hits[0]?.sourceRef)
     expect(studyProviders.generate).not.toHaveBeenCalled()
+  })
+
+  it('main process asks before completing a retest and still enforces the 80 percent gate', async () => {
+    settings.vaultPath = vault
+    const diagnostic: StudyQuestion = {
+      id: 'q-diagipc01',
+      topic: 'Probabilidade',
+      tags: [],
+      question: 'Questão diagnóstica fixture?',
+      answer: '1/2',
+      answerStatus: 'verified',
+      originKind: 'enem',
+      sourceTitle: 'Fixture',
+      sourceVisibility: 'local',
+      attribution: 'Fixture',
+      license: 'Sintética',
+    }
+    const source = (id: string): StudyQuestion => ({
+      ...diagnostic,
+      id,
+      question: `Questão de reteste ${id}?`,
+    })
+    let state = createStudyCycleState(
+      'Probabilidade',
+      [
+        {
+          id: diagnostic.id,
+          sourceHash: hashStudyQuestion(diagnostic),
+          source: diagnostic,
+          response: '',
+          providedExcerpt: '',
+          uncertain: null,
+          assessment: null,
+        },
+      ],
+      10,
+    )
+    state = answerStudyQuestion(state, diagnostic.id, 'Resposta', false, 11)
+    state = assessStudyQuestion(state, diagnostic.id, { kind: 'correct', rationale: 'Fixture' }, 12)
+    state = advanceStudyCycle(state, 13)
+    const retestQuestions = Array.from({ length: 10 }, (_, index) => source(`q-retestipc${String(index).padStart(2, '0')}`))
+    state = startStudyRetest(
+      state,
+      retestQuestions.map((item) => ({
+        id: item.id,
+        sourceHash: hashStudyQuestion(item),
+        source: item,
+        response: '',
+        providedExcerpt: '',
+        uncertain: false,
+        assessment: null,
+      })),
+      14,
+    )
+    for (const [index, item] of retestQuestions.entries()) {
+      state = answerStudyRetestQuestion(state, item.id, `Resposta ${index}`, 15 + index)
+      state = assessStudyRetestQuestion(state, item.id, { kind: index < 8 ? 'correct' : 'incorrect', rationale: 'Fixture' }, 30 + index)
+    }
+    new StudyCycleStore(data).write(state)
+
+    const canceled = (await invoke('office:completeStudyRetest')) as { cycles: { stage: string }[] }
+    expect(canceled.cycles[0]?.stage).toBe('retest')
+    ipc.confirmResponse = 0
+    const completed = (await invoke('office:completeStudyRetest')) as { cycles: { stage: string }[] }
+    expect(completed.cycles[0]?.stage).toBe('completed')
   })
 
   it('reading the personal-routine overview does not create occurrence state', async () => {

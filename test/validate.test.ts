@@ -49,6 +49,10 @@ import {
   studyCycleNoteArgsSchema,
   startStudyPracticeArgsSchema,
   answerStudyPracticeArgsSchema,
+  startStudyRetestArgsSchema,
+  answerStudyRetestArgsSchema,
+  verifyStudyRetestArgsSchema,
+  completeStudyRetestArgsSchema,
 } from '../src/main/validate'
 
 const dir = mkdtempSync(join(tmpdir(), 'ao-validate-'))
@@ -690,5 +694,13 @@ describe('argumentos IPC do ciclo de estudo', () => {
       false,
     )
     expect(answerStudyPracticeArgsSchema.safeParse(['q-practice01', 'Resposta']).success).toBe(true)
+    expect(
+      startStudyRetestArgsSchema.safeParse([Array.from({ length: 10 }, (_, i) => `q-retest${String(i).padStart(2, '0')}`)]).success,
+    ).toBe(true)
+    expect(startStudyRetestArgsSchema.safeParse([['q-12345678']]).success).toBe(false)
+    expect(answerStudyRetestArgsSchema.safeParse(['q-retest01', 'Resposta sem consulta']).success).toBe(true)
+    expect(verifyStudyRetestArgsSchema.safeParse([]).success).toBe(true)
+    expect(completeStudyRetestArgsSchema.safeParse([]).success).toBe(true)
+    expect(completeStudyRetestArgsSchema.safeParse([true]).success).toBe(false)
   })
 })

@@ -6,7 +6,8 @@ import type { StudyQuestion } from '../src/shared/study-questions'
 import { StudyCycleService } from '../src/main/study-cycle'
 import { StudyCycleStore } from '../src/main/study-cycle-store'
 import { parseTutorResult, tutorEvidence } from '../src/main/study-cycle-claude'
-import { hashStudyQuestion } from '../src/main/study-cycle-schema'
+import { hashStudyQuestion, isStudyCycleState } from '../src/main/study-cycle-schema'
+import { retestScore } from '../src/shared/study-cycle'
 import {
   advanceStudyCycle,
   answerStudyPracticeQuestion,
@@ -171,6 +172,68 @@ describe('persistência do ciclo de estudo', () => {
     }
   })
 
+  it('checks a complete retest only after explicit submit and requires confirmation to conclude', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'study-cycle-'))
+    try {
+      const diagnostic = question({ id: 'q-diag00003' })
+      const retestQuestions = Array.from({ length: 10 }, (_, index) =>
+        question({ id: `q-live${String(index).padStart(5, '0')}`, question: `Questão inédita ${index}?` }),
+      )
+      const bank = { read: () => ({ questions: [diagnostic, ...retestQuestions] }) }
+      let calls = 0
+      const service = new StudyCycleService(new StudyCycleStore(dir), bank, async (input) => {
+        calls++
+        expect(input.providedEvidence).toBe('Gabarito conferido: 1/2')
+        return { kind: calls === 1 || calls <= 9 ? 'correct' : 'incorrect', rationale: 'Conferência independente.' }
+      })
+      service.start('Probabilidade', [diagnostic.id])
+      service.answer(diagnostic.id, 'Resposta', false)
+      expect(calls).toBe(0)
+      await service.evaluateAnswer(diagnostic.id)
+      service.advance()
+      expect(service.read().cycles[0]?.stage).toBe('retest-ready')
+      service.startRetest(retestQuestions.map((item) => item.id))
+      await expect(service.verifyRetest()).rejects.toThrow(/responda todas/i)
+      expect(calls).toBe(1)
+      for (const [index, item] of retestQuestions.entries()) service.answerRetest(item.id, `Minha resposta ${index}`)
+      expect(calls).toBe(1)
+      const checked = await service.verifyRetest()
+      const attempt = checked.cycles[0]?.retests[0]
+      expect(attempt?.questions).toHaveLength(10)
+      expect(retestScore(attempt!)).toBe(80)
+      expect(calls).toBe(11)
+      expect(service.read()).toEqual(checked)
+      expect(service.read().cycles[0]?.stage).toBe('retest')
+      expect(service.completeRetest().cycles[0]?.stage).toBe('completed')
+      expect(new StudyCycleStore(dir).read().cycles[0]?.stage).toBe('completed')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('refuses a persisted completed state without a verified passing retest', () => {
+    const state = createStudyCycleState(
+      'Probabilidade',
+      [
+        {
+          id: 'q-diagnostic01',
+          sourceHash: hashStudyQuestion(question({ id: 'q-diagnostic01' })),
+          source: question({ id: 'q-diagnostic01' }),
+          response: '',
+          providedExcerpt: '',
+          uncertain: null,
+          assessment: null,
+        },
+      ],
+      10,
+    )
+    const forged = {
+      ...state,
+      cycles: state.cycles.map((cycle) => ({ ...cycle, stage: 'completed' as const })),
+    }
+    expect(isStudyCycleState(forged)).toBe(false)
+  })
+
   it('persists reviewed gaps, source-linked notes and practice results across service recreation', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'study-cycle-'))
     try {
@@ -331,6 +394,7 @@ describe('persistência do ciclo de estudo', () => {
         questions: [{ response: 'Resposta', assessment: { kind: 'incorrect' } }],
         practiceRounds: [],
         notes: [],
+        retests: [],
       })
     } finally {
       rmSync(dir, { recursive: true, force: true })

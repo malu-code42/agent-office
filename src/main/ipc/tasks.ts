@@ -21,6 +21,7 @@ import { StudyCycleStore } from '../study-cycle-store'
 import { claudeStudyTutor } from '../study-cycle-claude'
 import { StudyLibrary, StudyNotesWriter } from '../study-library'
 import { MAIN_ACCOUNT } from '@shared/accounts'
+import { activeStudyCycle, retestScore } from '@shared/study-cycle'
 import {
   completeTaskSchema,
   discardTaskSchema,
@@ -48,6 +49,10 @@ import {
   startStudyPracticeArgsSchema,
   answerStudyPracticeArgsSchema,
   reviewStudyGapArgsSchema,
+  startStudyRetestArgsSchema,
+  answerStudyRetestArgsSchema,
+  verifyStudyRetestArgsSchema,
+  completeStudyRetestArgsSchema,
 } from '../validate'
 import type { IpcContext } from './context'
 
@@ -186,6 +191,41 @@ export function registerTasksIpc(ctx: IpcContext): void {
   ipcMain.handle('office:evaluateStudyPractice', async (_e, ...args: unknown[]) => {
     const [questionId] = parse(evaluateStudyAnswerArgsSchema, args, 'Verificação da prática inválida.')
     return studyCycleService().evaluatePracticeAnswer(questionId)
+  })
+  ipcMain.handle('office:startStudyRetest', (_e, ...args: unknown[]) => {
+    const [questionIds] = parse(startStudyRetestArgsSchema, args, 'Plano de reteste inválido.')
+    return studyCycleService().startRetest(questionIds)
+  })
+  ipcMain.handle('office:answerStudyRetest', (_e, ...args: unknown[]) => {
+    const [questionId, response] = parse(answerStudyRetestArgsSchema, args, 'Resposta de reteste inválida.')
+    return studyCycleService().answerRetest(questionId, response)
+  })
+  ipcMain.handle('office:verifyStudyRetest', async (_e, ...args: unknown[]) => {
+    parse(verifyStudyRetestArgsSchema, args, 'Conferência de reteste inválida.')
+    return studyCycleService().verifyRetest()
+  })
+  ipcMain.handle('office:completeStudyRetest', async (_e, ...args: unknown[]) => {
+    parse(completeStudyRetestArgsSchema, args, 'Confirmação do reteste inválida.')
+    const cycle = activeStudyCycle(studyCycleStore.read())
+    const score = cycle?.retests.at(-1) ? retestScore(cycle.retests.at(-1)!) : null
+    if (cycle?.stage !== 'retest' || score === null || score < 80)
+      throw new Error('O ciclo só pode ser concluído após um reteste verificado com pelo menos 80%.')
+    const options = {
+      type: 'question' as const,
+      buttons: ['Concluir ciclo', 'Continuar estudando'],
+      defaultId: 1,
+      cancelId: 1,
+      message: 'Concluir ciclo de estudo?',
+      detail: `Você atingiu ${score}% no reteste. Confirma que quer concluir este ciclo?`,
+    }
+    const win = ctx.win()
+    const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options)
+    if (response !== 0) return studyCycleStore.read()
+    const latest = activeStudyCycle(studyCycleStore.read())
+    const latestScore = latest?.retests.at(-1) ? retestScore(latest.retests.at(-1)!) : null
+    if (latest?.id !== cycle.id || latestScore === null || latestScore < 80)
+      throw new Error('O ciclo mudou durante a confirmação. Confira o reteste novamente.')
+    return studyCycleService().completeRetest()
   })
 
   ipcMain.handle('office:readTasks', async () => {

@@ -9,6 +9,11 @@ import {
   startStudyPracticeRound,
   answerStudyPracticeQuestion,
   practiceScore,
+  startStudyRetest,
+  answerStudyRetestQuestion,
+  assessStudyRetestQuestion,
+  retestScore,
+  completeStudyCycle,
   attachStudySource,
   recordStudyNote,
   evaluateStudyGate,
@@ -200,5 +205,53 @@ describe('ciclo de diagnóstico', () => {
     expect(activeStudyCycle(state)?.practiceRounds).toHaveLength(2)
     expect(activeStudyCycle(state)?.practiceRounds[0]?.questions[0]?.assessment?.kind).toBe('pending')
     expect(() => startStudyPracticeRound(state, [{ ...question('q-practice07'), gapQuestionIds: ['q-review02'] }], 21)).toThrow(/novas/i)
+  })
+
+  it('requires ten distinct verified new questions, at least 80 percent and explicit confirmation', () => {
+    let state = createStudyCycleState('Probabilidade', [question('q-diag00001')], 10)
+    state = answerStudyQuestion(state, 'q-diag00001', 'Resposta', false, 11)
+    state = assessStudyQuestion(state, 'q-diag00001', { kind: 'correct', rationale: 'Fixture correta.' }, 12)
+    state = advanceStudyCycle(state, 13)
+    expect(activeStudyCycle(state)?.stage).toBe('retest-ready')
+
+    const retestQuestions = Array.from({ length: 10 }, (_, index) => question(`q-retest${String(index).padStart(2, '0')}`))
+    const repeated = question('q-repeat001')
+    repeated.source.question = question('q-diag00001').source.question
+    const noKey = question('q-nokey001', 'unverified')
+    expect(() => startStudyRetest(state, retestQuestions.slice(0, 9), 14)).toThrow(/pelo menos 10/i)
+    expect(() => startStudyRetest(state, [repeated, ...retestQuestions.slice(1)], 14)).toThrow(/novas e sem repetição/i)
+    expect(() => startStudyRetest(state, [noKey, ...retestQuestions.slice(1)], 14)).toThrow(/gabarito conferido/i)
+    state = startStudyRetest(state, retestQuestions, 14)
+    expect(activeStudyCycle(state)?.stage).toBe('retest')
+    expect(retestScore(activeStudyCycle(state)!.retests[0]!)).toBeNull()
+    for (const [index, item] of retestQuestions.entries()) {
+      state = answerStudyRetestQuestion(state, item.id, `Resposta ${index}`, 20 + index)
+      state = assessStudyRetestQuestion(
+        state,
+        item.id,
+        { kind: index < 8 ? 'correct' : 'incorrect', rationale: 'Verificada sem dicas.' },
+        30 + index,
+      )
+    }
+    expect(retestScore(activeStudyCycle(state)!.retests[0]!)).toBe(80)
+    expect(completeStudyCycle(state, false, 50)).toBe(state)
+    expect(activeStudyCycle(completeStudyCycle(state, true, 51))?.stage).toBe('completed')
+  })
+
+  it('keeps an under-80 retest open and rejects questions already used in practice', () => {
+    let state = createStudyCycleState('Probabilidade', [question('q-diag00002')], 10)
+    state = answerStudyQuestion(state, 'q-diag00002', 'Resposta', false, 11)
+    state = assessStudyQuestion(state, 'q-diag00002', { kind: 'correct', rationale: 'Fixture correta.' }, 12)
+    state = advanceStudyCycle(state, 13)
+    const retest = Array.from({ length: 10 }, (_, index) => question(`q-retestx${String(index).padStart(2, '0')}`))
+    state = startStudyRetest(state, retest, 14)
+    for (const item of retest) {
+      state = answerStudyRetestQuestion(state, item.id, 'Resposta', 20)
+      state = assessStudyRetestQuestion(state, item.id, { kind: 'incorrect', rationale: 'Não confere.' }, 21)
+    }
+    expect(() => startStudyRetest(state, [question('q-diag00002'), ...retest.slice(1)], 22)).toThrow(/novas e sem repetição/i)
+    expect(retestScore(activeStudyCycle(state)!.retests[0]!)).toBe(0)
+    expect(() => completeStudyCycle(state, true, 22)).toThrow(/80%/i)
+    expect(activeStudyCycle(state)?.stage).toBe('retest')
   })
 })

@@ -3,14 +3,18 @@ import {
   advanceStudyCycle,
   answerStudyQuestion,
   answerStudyPracticeQuestion,
+  answerStudyRetestQuestion,
   assessStudyQuestion,
   attachStudySource,
   createStudyCycleState,
+  assessStudyRetestQuestion,
+  completeStudyCycle,
   recordStudyNote,
   reviewStudyGap,
   resetActiveStudyCycle,
   startStudyPracticeRound,
   saveStudyPracticeResponse,
+  startStudyRetest,
   type StudyCycleQuestion,
   type StudyCycleNote,
   type StudyPracticeQuestion,
@@ -123,6 +127,74 @@ export class StudyCycleService {
       }
     })
     const next = startStudyPracticeRound(this.store.read(), questions, this.now())
+    this.store.write(next)
+    return next
+  }
+
+  startRetest(questionIds: string[]): StudyCycleState {
+    if (!Array.isArray(questionIds) || questionIds.length < 10 || questionIds.length > 100)
+      throw new Error('Selecione pelo menos 10 questões novas para o reteste.')
+    const bank = this.bank.read().questions
+    const questions: StudyCycleQuestion[] = questionIds.map((id) => {
+      const source = bank.find((question) => question.id === id)
+      if (!source || source.sourceOnly || !source.question.trim() || source.answerStatus !== 'verified' || !source.answer)
+        throw new Error('O reteste aceita somente questões do banco com gabarito conferido.')
+      return {
+        id: source.id,
+        sourceHash: hashStudyQuestion(source),
+        source,
+        response: '',
+        providedExcerpt: '',
+        uncertain: false,
+        assessment: null,
+      }
+    })
+    const next = startStudyRetest(this.store.read(), questions, this.now())
+    this.store.write(next)
+    return next
+  }
+
+  answerRetest(questionId: string, response: string): StudyCycleState {
+    const next = answerStudyRetestQuestion(this.store.read(), questionId, response, this.now())
+    this.store.write(next)
+    return next
+  }
+
+  async verifyRetest(): Promise<StudyCycleState> {
+    let state = this.store.read()
+    const cycle = activeStudyCycle(state)
+    const attempt = cycle?.retests.at(-1)
+    if (!cycle || cycle.stage !== 'retest' || !attempt) throw new Error('Bonnie ainda não abriu um reteste.')
+    if (attempt.questions.some((question) => !question.response))
+      throw new Error('Responda todas as questões do reteste antes de conferir o resultado.')
+    for (const question of attempt.questions) {
+      if (question.assessment && question.assessment.kind !== 'pending' && question.assessment.kind !== 'uncertain') continue
+      const evidence = tutorEvidence(question)
+      if (!evidence) throw new Error('Há questão sem gabarito conferido; ela não pode contar no reteste.')
+      const result = await this.evaluate({
+        question: question.source.question,
+        studentAnswer: question.response,
+        providedEvidence: evidence,
+      })
+      const latest = this.store.read()
+      const latestCycle = activeStudyCycle(latest)
+      const latestAttempt = latestCycle?.retests.at(-1)
+      const latestQuestion = latestAttempt?.questions.find((item) => item.id === question.id)
+      if (
+        latestCycle?.id !== cycle.id ||
+        latestAttempt?.id !== attempt.id ||
+        latestQuestion?.response !== question.response ||
+        latestQuestion.sourceHash !== question.sourceHash
+      )
+        throw new Error('O ciclo ou as respostas mudaram durante a conferência. Os dados foram preservados; tente novamente.')
+      state = assessStudyRetestQuestion(latest, question.id, result, this.now())
+      this.store.write(state)
+    }
+    return state
+  }
+
+  completeRetest(): StudyCycleState {
+    const next = completeStudyCycle(this.store.read(), true, this.now())
     this.store.write(next)
     return next
   }
