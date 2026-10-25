@@ -26,7 +26,7 @@ describe('the ride between floors', () => {
   it('walks to the elevator of the floor the agent is on', () => {
     const up = rideBetween(0, 1)
     expect(up.from).toEqual(SPAWN_TILE)
-    expect(up.at).toEqual({ x: 30, z: 0.45 })
+    expect(up.at).toEqual({ x: 13.5, z: 0.45 })
     const down = rideBetween(1, 0)
     expect(down.from).toEqual(UPPER_SPAWN_TILE)
     expect(down.at).toEqual({ x: 15.5, z: 0.45 })
@@ -34,7 +34,7 @@ describe('the ride between floors', () => {
 
   it('steps out of the elevator of the floor the agent is going to', () => {
     expect(rideBetween(0, 1).to).toEqual({ x: 15.5, z: 0.45 })
-    expect(rideBetween(1, 0).to).toEqual({ x: 30, z: 0.45 })
+    expect(rideBetween(1, 0).to).toEqual({ x: 13.5, z: 0.45 })
   })
 
   it('never mixes the two ends: the walk belongs to the floor it leaves', () => {

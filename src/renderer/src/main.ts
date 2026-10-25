@@ -12,6 +12,11 @@ import { DEFAULT_VIDEO, effectiveVideo, frameInterval } from '@shared/video'
 import { openAccounts } from './ui/accounts'
 import { openSkull } from './ui/skull'
 import { openRoutines } from './ui/routines'
+import { openAgenda } from './ui/agenda'
+import { openGoals } from './ui/goals'
+import { openMediaLibrary } from './ui/media-library'
+import { openPersonalRoutinesPanel } from './ui/personal-routines'
+import { openWritingLibrary } from './ui/writing'
 import { openTasksBoard } from './ui/tasks-board'
 import { openFocusPopup } from './ui/focus-popup'
 import { openTimerPopup } from './ui/timer-popup'
@@ -209,6 +214,15 @@ async function boot(): Promise<void> {
         },
         project: () => game.currentProject,
       }),
+    onHomeAction: (action) => {
+      if (action === 'agenda') openAgenda(ui)
+      else if (action === 'goals') openGoals(ui, toast)
+      else if (action === 'media') void openMediaLibrary(ui, toast)
+      else if (action === 'writing') openWritingLibrary(ui, toast)
+      else if (action === 'personal-routines') void openPersonalRoutinesPanel(ui, toast)
+      else if (action === 'luna') openIris(ui, toast)
+      else if (action === 'radio') void radio.toggle()
+    },
     // Something of the project does not fit on its floor: the user has to know.
     // The members with no place in the scene are named, so nobody thinks they are gone.
     onIncompatible: (_project, issues) =>

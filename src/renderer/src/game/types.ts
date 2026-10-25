@@ -6,6 +6,7 @@ import type { Tag, BubbleKind } from '../world/overlays'
 import type { UpperFloor } from '../world/upper-floor'
 import type { ScreenMode } from '../world/screens'
 import type { HelperReturn } from './helper-return'
+import type { HomeAction } from '../world/home-layout'
 
 export type Goal = 'desk' | 'boss' | 'hang' | 'leave' | 'chat'
 
@@ -141,6 +142,8 @@ export interface GameHooks {
   onTv(): void
   /** Player clicked the routines totem by their office. */
   onRoutines(): void
+  /** Player clicked an interactive object in the ground-floor house. */
+  onHomeAction(action: HomeAction): void
   /** The floor has more squads than rooms (or a composition that does not fit): the user has to know. */
   onIncompatible?(
     project: ProjectFloor,
@@ -150,8 +153,8 @@ export interface GameHooks {
   onRoomClick?(project: ProjectFloor, room: L.SquadRoom): void
 }
 
-/** Tile outside the glass of the boss office, by its upper corner, where the routines totem stands. */
-export const TOTEM_TILE: [number, number] = [9, 2]
+/** Entry-hall tile reserved for the existing agent-routine scheduler totem. */
+export const TOTEM_TILE: [number, number] = [16, 8]
 /** Floor spot by the boss office where the skeleton stands. */
 export const SKULL_HOME = { x: 2.5, y: 0, z: 12.3 }
 /** Seconds the camera gets to reach a dismissed agent before the skull drops. */

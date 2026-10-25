@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import * as L from '../world/layout'
 import { GameMovement } from './movement'
 import { SKULL_HOME, type Point } from './types'
 
@@ -53,7 +52,11 @@ export abstract class GameInput extends GameMovement {
       if (!d || d.moved || d.button !== 0) return
       this.click(e.clientX, e.clientY)
     })
-    el.addEventListener('pointerleave', () => (this.hover.visible = false))
+    el.addEventListener('pointerleave', () => {
+      this.hover.visible = false
+      for (const interaction of this.office.interactions) interaction.highlight.visible = false
+      document.body.style.cursor = ''
+    })
     el.addEventListener(
       'wheel',
       (e) => {
@@ -94,6 +97,11 @@ export abstract class GameInput extends GameMovement {
       this.hooks.onTv()
       return
     }
+    const homeAction = this.homeActionAt(x, y)
+    if (homeAction) {
+      this.hooks.onHomeAction(homeAction)
+      return
+    }
     if (this.onTotem(x, y)) {
       this.hooks.onRoutines()
       return
@@ -123,6 +131,24 @@ export abstract class GameInput extends GameMovement {
     return this.player.floor === 0 && this.engine.pick(x, y, [this.totem.view.group]).length > 0
   }
 
+  /** Interactive furniture in the home routes to the matching existing app flow. */
+  protected homeInteractionAt(x: number, y: number) {
+    if (this.player.floor !== 0) return undefined
+    const hit = this.engine.pick(
+      x,
+      y,
+      this.office.interactions.map((item) => item.root),
+    )[0]
+    if (!hit) return undefined
+    let root: THREE.Object3D | null = hit.object
+    while (root && !this.office.interactions.some((item) => item.root === root)) root = root.parent
+    return this.office.interactions.find((item) => item.root === root)
+  }
+
+  protected homeActionAt(x: number, y: number) {
+    return this.homeInteractionAt(x, y)?.action
+  }
+
   protected onSkull(x: number, y: number): boolean {
     return this.player.floor === 0 && this.engine.pick(x, y, [this.skull.root]).length > 0
   }
@@ -143,6 +169,8 @@ export abstract class GameInput extends GameMovement {
   }
 
   protected updateHover(x: number, y: number): void {
+    const homeInteraction = this.homeInteractionAt(x, y)
+    for (const interaction of this.office.interactions) interaction.highlight.visible = interaction === homeInteraction
     const p = this.engine.pickFloor(x, y)
     const grid = this.floorOf(this.player.floor).grid
     if (!p || !grid.inside(Math.floor(p.x), Math.floor(p.z)) || this.agentAt(x, y)) {
@@ -150,7 +178,7 @@ export abstract class GameInput extends GameMovement {
       document.body.style.cursor = this.agentAt(x, y) ? 'pointer' : ''
       return
     }
-    if (this.onTv(x, y) || this.onSkull(x, y) || this.onTotem(x, y)) {
+    if (homeInteraction || this.onSkull(x, y) || this.onTotem(x, y)) {
       this.hover.visible = false
       document.body.style.cursor = 'pointer'
       return
@@ -169,9 +197,9 @@ export abstract class GameInput extends GameMovement {
   tourSpot(id: string): THREE.Vector3 | null {
     switch (id) {
       case 'desk':
-        return new THREE.Vector3(3.3, 1.35, L.BOSS_DESK.z + 0.5)
+        return new THREE.Vector3(5, 1, 5.6)
       case 'team':
-        return new THREE.Vector3(21, 1, 5.5)
+        return new THREE.Vector3(13.1, 1, 18.5)
       case 'skull':
         return new THREE.Vector3(SKULL_HOME.x, 1, SKULL_HOME.z)
       case 'tv':

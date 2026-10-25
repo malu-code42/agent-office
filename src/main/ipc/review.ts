@@ -17,7 +17,7 @@ import {
 import type { TaskWriter } from '../tasks-write'
 import { taskIdsIn } from '../tasks-write'
 import { PERSONAL_ROUTINES_FILE, personalRoutineCandidates, personalRoutineDefinition, personalRoutineOverview } from '../routines-personal'
-import { localWeek } from '@shared/routine-personal'
+import { localWeek, routineOccurrenceId, weeklyOccurrenceDates } from '@shared/routine-personal'
 import type { PersonalRoutineStore } from '../personal-routines-store'
 import { personalRoutineTaskFingerprint, personalRoutineTaskFingerprintFromTask } from '../personal-routine-fingerprint'
 import { ARCHIVE_LIST, dayLabel, parseTasksFile, taskDraftProblem } from '@shared/tasks'
@@ -44,32 +44,6 @@ export function registerReviewIpc(
 ): void {
   const deps = (): ReviewDeps => ({ planning: ctx.planning, tasks: files.tasks, agenda: files.agenda, now: () => new Date() })
   const draftChanged = () => ctx.broadcast({ type: 'review:draft', draft: hasDraftToday(ctx.planning, new Date()) })
-  const readPersonalRoutineOverview = (path: string) => {
-    const board = parseTasksFile(files.tasks.current(path))
-    for (const occurrence of personalRoutines.list()) {
-      if (!occurrence.taskId) continue
-      const found = board.lists
-        .flatMap((list) => list.tasks.map((task) => ({ list: list.name, task })))
-        .find(({ task }) => task.id === occurrence.taskId)
-      if (!found) {
-        if (occurrence.taskLinkState !== 'reserved') personalRoutines.recoverMissingTask(occurrence.taskId)
-        continue
-      }
-      const archived = found.list === ARCHIVE_LIST ? ctx.planning.archivedOf(occurrence.taskId) : undefined
-      const fingerprintList = archived?.origin ?? (found.list === ARCHIVE_LIST ? undefined : found.list)
-      const actualFingerprint = fingerprintList ? personalRoutineTaskFingerprintFromTask(found.task, fingerprintList) : undefined
-      if (!actualFingerprint || !personalRoutines.matchesTaskFingerprint(occurrence.taskId, actualFingerprint)) {
-        personalRoutines.recoverMissingTask(occurrence.taskId)
-        continue
-      }
-      if (found.task.status === 'completed' && found.list === ARCHIVE_LIST) personalRoutines.completeTask(occurrence.taskId, dayKey())
-      else if (found.task.status === 'discarded' && found.list === ARCHIVE_LIST) personalRoutines.discardTask(occurrence.taskId)
-      else if (occurrence.taskLinkState !== 'linked' || occurrence.status !== 'pending')
-        personalRoutines.setTask(occurrence.id, occurrence.taskId, actualFingerprint)
-    }
-    return personalRoutineOverview(path, dayKey(), personalRoutines)
-  }
-
   // The offer is shown once per local day. Without a vault there is nothing to review, so no offer and no mark.
   ipcMain.handle('office:reviewGate', async () => {
     if (!ctx.store.settings.vaultPath) return false
@@ -85,7 +59,7 @@ export function registerReviewIpc(
   ipcMain.handle('office:routineCandidates', async () => personalRoutineCandidates(files.vault(), dayKey()))
   ipcMain.handle('office:personalRoutineOverview', async () => {
     const path = files.vault()
-    return readPersonalRoutineOverview(path)
+    return personalRoutineOverview(path, dayKey(), personalRoutines)
   })
   ipcMain.handle('office:confirmPersonalRoutineDistribution', async (_e, rawId: unknown, rawDays: unknown) => {
     const [id, days] = parse(confirmPersonalRoutineDistributionSchema, [rawId, rawDays], 'Distribuição semanal inválida.')
@@ -93,7 +67,9 @@ export function registerReviewIpc(
     const routine = personalRoutineOverview(path, dayKey(), personalRoutines).rows.find((row) => row.routineId === id)
     if (!routine?.target || days.length !== routine.target)
       throw new Error(`Escolha exatamente ${routine?.target ?? 'a meta'} dias para esta semana.`)
-    personalRoutines.confirmDistribution(`${localWeek(dayKey()).start}:${id}`, days)
+    const today = dayKey()
+    personalRoutines.confirmDistribution(`${localWeek(today).start}:${id}`, days)
+    for (const date of weeklyOccurrenceDates(today, days)) personalRoutines.ensureOccurrence(routineOccurrenceId(id, date), id, date)
     return personalRoutineOverview(path, dayKey(), personalRoutines)
   })
   const resumeOccurrence = (occurrenceId: string) => {
@@ -111,10 +87,12 @@ export function registerReviewIpc(
     const archived = task.list === ARCHIVE_LIST ? ctx.planning.archivedOf(occurrence.taskId) : undefined
     const fingerprintList = archived?.origin ?? (task.list === ARCHIVE_LIST ? undefined : task.list)
     const actualFingerprint = fingerprintList ? personalRoutineTaskFingerprintFromTask(task.item, fingerprintList) : undefined
-    if (!actualFingerprint || !personalRoutines.matchesTaskFingerprint(occurrence.taskId, actualFingerprint)) {
+    const reservedMatch = occurrence.taskLinkState === 'reserved' && occurrence.taskFingerprint === actualFingerprint
+    if (!actualFingerprint || (!reservedMatch && !personalRoutines.matchesTaskFingerprint(occurrence.taskId, actualFingerprint))) {
       personalRoutines.recoverMissingTask(occurrence.taskId)
       throw new Error('O conteúdo da tarefa vinculada mudou; a associação foi liberada e a ocorrência continua pendente.')
     }
+    if (reservedMatch) personalRoutines.setTask(occurrence.id, occurrence.taskId, actualFingerprint)
     if (task.list === ARCHIVE_LIST || task.item.status !== 'open') {
       if (task.item.status === 'completed') personalRoutines.completeTask(occurrence.taskId, dayKey())
       else if (task.item.status === 'discarded') personalRoutines.discardTask(occurrence.taskId)
@@ -160,11 +138,13 @@ export function registerReviewIpc(
       !!previousOccurrence?.taskId &&
       !!previousTask &&
       (!previousFingerprint || !personalRoutines.matchesTaskFingerprint(previousOccurrence.taskId, previousFingerprint))
-    const overview = readPersonalRoutineOverview(path)
-    if (linkedTaskMismatch)
+    const overview = personalRoutineOverview(path, dayKey(), personalRoutines)
+    if (linkedTaskMismatch && previousOccurrence?.taskId) {
+      personalRoutines.recoverMissingTask(previousOccurrence.taskId)
       throw new Error(
         'A tarefa com o ID reservado foi alterada e não corresponde mais à rotina. A associação foi liberada; confira e tente criar uma nova tarefa.',
       )
+    }
     const allowed =
       overview.rows.some(
         (row) => row.confirmed && row.occurrenceIds.includes(input.occurrenceId) && input.occurrenceId.endsWith(`:${overview.today}`),
