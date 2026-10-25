@@ -22,6 +22,26 @@ import type { NewTaskDraft, ParsedBoard, Task, TaskDiscard, TaskMove, TaskRef, T
 import type { PersonalRoutineCreateInput, PersonalRoutineOverview } from '../routine-personal'
 import type { DelegateTarget, Ticket, TicketDraft, TicketPatch, TicketStatus } from './tickets'
 import type { WritingVersion } from '../writing'
+import type { DecodedStudyBank, StudyQuestion } from '../study-questions'
+
+export interface StudyQuestionCandidates {
+  token: string
+  status: 'found' | 'insufficient' | 'noResults' | 'error' | 'incomplete'
+  localScanComplete: boolean
+  local: StudyQuestion[]
+  sourceCandidates: StudyQuestion[]
+  web: StudyQuestion[]
+  generated: StudyQuestion[]
+  canGenerate: boolean
+  warning?: string
+}
+export interface StudyQuestionGeneration {
+  token: string
+  status: 'found' | 'noResults' | 'error'
+  generated: StudyQuestion[]
+  canGenerate: boolean
+  warning?: string
+}
 
 export interface WritingSnippetView {
   id: string
@@ -229,6 +249,14 @@ export interface OfficeAPI {
   readMediaPoster(id: string): Promise<MediaPosterResult>
   /** Lê e interpreta listas de tarefas no vault indicado, sem escrever no arquivo. */
   readTasks(): Promise<ParsedBoard>
+  /** Lê o banco de questões canônico do vault configurado; não inicia ciclo de estudo. */
+  readStudyQuestions(): Promise<DecodedStudyBank>
+  /** Busca no banco primeiro; resultados online/IA são apenas candidatas até seleção explícita. */
+  searchStudyQuestions(topic: string, limit?: number): Promise<StudyQuestionCandidates>
+  /** Gera candidatas IA somente após a pessoa solicitar, com token de uma busca concluída. */
+  generateStudyQuestions(token: string): Promise<StudyQuestionGeneration>
+  /** Salva somente candidatas escolhidas pela pessoa, se o banco não mudou desde a busca. */
+  saveStudyQuestions(token: string, selection: StudyQuestion[], reviewConfirmed: boolean): Promise<void>
   /** Lê objetivos.md e tarefas.md; os objetivos continuam editáveis no Obsidian. */
   readGoals(): Promise<{ goals: Goal[]; tasks: Task[] }>
   /** Cria um objetivo em objetivos.md, sem alterar tarefas.md. */

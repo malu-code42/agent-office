@@ -14,6 +14,8 @@ import { createTaskWriter, type TaskWriter } from '../tasks-write'
 import { createCompletionUndo } from '../tasks-undo'
 import { PersonalRoutineStore } from '../personal-routines-store'
 import { personalRoutineTaskFingerprintFromLine, personalRoutineTaskFingerprintFromTask } from '../personal-routine-fingerprint'
+import { StudyQuestionService } from '../study-questions'
+import { claudeStudyQuestionProviders } from '../study-questions-claude'
 import {
   completeTaskSchema,
   discardTaskSchema,
@@ -27,6 +29,9 @@ import {
   taskIdSchema,
   taskLineSchema,
   vaultPathSchema,
+  studyQuestionSearchArgsSchema,
+  studyQuestionSaveArgsSchema,
+  studyQuestionGenerateArgsSchema,
 } from '../validate'
 import type { IpcContext } from './context'
 
@@ -36,11 +41,21 @@ export function registerTasksIpc(ctx: IpcContext): void {
   const agenda = createAgendaWriter()
   const undo = createCompletionUndo()
   const personalRoutines = new PersonalRoutineStore(ctx.store.dataDirectory)
+  const studyServices = new Map<string, StudyQuestionService>()
   const read = (vaultPath: unknown) => readTasksAt(writer, vaultPath)
   const requireVault = (): string => {
     const vaultPath = ctx.store.settings.vaultPath
     if (!vaultPath) throw new Error('Configure a pasta do vault em Ajustes → Tarefas do Obsidian.')
     return checkedVault(vaultPath)
+  }
+  const studyService = (): StudyQuestionService => {
+    const vault = requireVault()
+    let service = studyServices.get(vault)
+    if (!service) {
+      service = new StudyQuestionService(vault, claudeStudyQuestionProviders())
+      studyServices.set(vault, service)
+    }
+    return service
   }
   // Reads the file without remembering it: the board's line numbers come from its own read.
   const focusView = (lists: TaskList[]) => focusItems(lists, ctx.planning.focus(), ctx.planning.todaySteps(dayKey()))
@@ -66,6 +81,20 @@ export function registerTasksIpc(ctx: IpcContext): void {
 
   registerReviewIpc(ctx, { tasks: writer, agenda, vault: requireVault }, personalRoutines)
   registerIrisIpc(ctx, { tasks: writer, agenda, vault: requireVault })
+
+  ipcMain.handle('office:readStudyQuestions', async () => studyService().read())
+  ipcMain.handle('office:searchStudyQuestions', async (_e, ...args: unknown[]) => {
+    const [topic, limit] = parse(studyQuestionSearchArgsSchema, args, 'Busca de questões inválida.')
+    return studyService().search(topic, limit)
+  })
+  ipcMain.handle('office:generateStudyQuestions', async (_e, ...args: unknown[]) => {
+    const [token] = parse(studyQuestionGenerateArgsSchema, args, 'Geração de questões inválida.')
+    return studyService().generate(token)
+  })
+  ipcMain.handle('office:saveStudyQuestions', async (_e, ...args: unknown[]) => {
+    const [token, selection, reviewConfirmed] = parse(studyQuestionSaveArgsSchema, args, 'Seleção de questões inválida.')
+    studyService().save(token, selection, reviewConfirmed)
+  })
 
   ipcMain.handle('office:readTasks', async () => {
     const vaultPath = ctx.store.settings.vaultPath

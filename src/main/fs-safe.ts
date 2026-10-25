@@ -49,6 +49,30 @@ export function writeFileAtomic(file: string, text: string | Uint8Array, mode?: 
   fsyncDir(dirname(file))
 }
 
+/** Atomic text replace with a synchronous last-moment validation callback immediately before rename. */
+export function writeFileAtomicChecked(file: string, text: string | Uint8Array, beforeRename: () => void, tmpSuffix = '.tmp'): void {
+  const tmp = file + tmpSuffix
+  const fd = openSync(tmp, 'wx', 0o600)
+  try {
+    const buf = typeof text === 'string' ? Buffer.from(text, 'utf8') : text
+    let off = 0
+    while (off < buf.length) off += writeSync(fd, buf, off, buf.length - off)
+    fsyncSync(fd)
+    closeSync(fd)
+    beforeRename()
+    renameSync(tmp, file)
+  } catch (err) {
+    try {
+      closeSync(fd)
+    } catch {
+      // The descriptor may already have been closed before the validation callback failed.
+    }
+    rmSync(tmp, { force: true })
+    throw err
+  }
+  fsyncDir(dirname(file))
+}
+
 /** The one way the app writes its JSON files. */
 export function writeJsonAtomic(file: string, data: unknown, opts: WriteOptions = {}): void {
   writeFileAtomic(file, JSON.stringify(data, null, opts.space) + (opts.newline ? '\n' : ''), opts.mode, opts.tmpSuffix)

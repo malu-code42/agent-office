@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,17 +8,22 @@ import { dayKey } from '../src/main/backups'
 import { PersonalRoutineStore } from '../src/main/personal-routines-store'
 import { personalRoutineTaskFingerprint } from '../src/main/personal-routine-fingerprint'
 import { dayLabel } from '../src/shared/tasks'
+import { encodeStudyQuestion, type StudyQuestion } from '../src/shared/study-questions'
 
 const ipc = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
   selectedPath: null as string | null,
   canceled: false,
 }))
+const studyProviders = vi.hoisted(() => ({ webSearch: vi.fn(async () => []), generate: vi.fn(async () => []) }))
 vi.mock('electron', () => ({
   ipcMain: { handle: (channel: string, handler: (...args: unknown[]) => unknown) => ipc.handlers.set(channel, handler) },
   dialog: {
     showOpenDialog: async () => ({ canceled: ipc.canceled, filePaths: ipc.selectedPath ? [ipc.selectedPath] : [] }),
   },
+}))
+vi.mock('../src/main/study-questions-claude', () => ({
+  claudeStudyQuestionProviders: () => ({ webSearch: studyProviders.webSearch, generate: studyProviders.generate }),
 }))
 
 const { registerTasksIpc } = await import('../src/main/ipc/tasks')
@@ -39,6 +44,8 @@ beforeEach(() => {
   ipc.handlers.clear()
   ipc.selectedPath = null
   ipc.canceled = false
+  studyProviders.webSearch.mockClear()
+  studyProviders.generate.mockClear()
   registerTasksIpc({
     win: () => ({}) as never,
     store: {
@@ -61,6 +68,55 @@ afterEach(() => {
 })
 
 describe('tasks IPC', () => {
+  it('refuses AI generation through IPC when the bounded local source scan is incomplete', async () => {
+    const bankQuestion: StudyQuestion = {
+      id: 'q-bankipc01',
+      topic: 'Probabilidade',
+      tags: [],
+      question: 'Questão canônica de Probabilidade?',
+      answerStatus: 'unverified',
+      originKind: 'enem',
+      sourceTitle: 'Banco local sintético',
+      sourceVisibility: 'local',
+      sourceReference: 'questoes-estudo.md',
+      attribution: 'Fixture',
+      license: 'Banco local',
+    }
+    writeFileSync(join(vault, 'questoes-estudo.md'), `${encodeStudyQuestion(bankQuestion)}\n`)
+    const sources = join(vault, 'study sources')
+    mkdirSync(sources)
+    const row = [
+      'Título: Fonte sintética',
+      'Origem: livro',
+      'Licença: CC BY 4.0',
+      'Atribuição: fixture',
+      'Tópico: Probabilidade',
+      'Questão: Probabilidade sintética?',
+    ].join('\n')
+    for (let i = 0; i < 251; i++) writeFileSync(join(sources, `source-${String(i).padStart(3, '0')}.txt`), row)
+    settings.vaultPath = vault
+
+    const found = (await invoke('office:searchStudyQuestions', 'Probabilidade', 2)) as {
+      token: string
+      localScanComplete: boolean
+      canGenerate: boolean
+      warning?: string
+      sourceCandidates: unknown[]
+      local: StudyQuestion[]
+    }
+    expect(found.localScanComplete).toBe(false)
+    expect(found.canGenerate).toBe(false)
+    expect(found.warning).toMatch(/incompleta/i)
+    expect(found.local).toEqual([bankQuestion])
+    expect(found.sourceCandidates).toEqual([])
+    expect(studyProviders.webSearch).not.toHaveBeenCalled()
+    await expect(invoke('office:generateStudyQuestions', found.token)).rejects.toThrow(/busca local ficou incompleta/i)
+    await expect(invoke('office:saveStudyQuestions', found.token, [bankQuestion], true)).rejects.toThrow(
+      /busca local ficou incompleta/i,
+    )
+    expect(studyProviders.generate).not.toHaveBeenCalled()
+  })
+
   it('creates, retries, and completes a daily occurrence through the reserved linked task', async () => {
     const boardFile = join(vault, 'tarefas.md')
     writeFileSync(boardFile, '## Casa\n', 'utf8')

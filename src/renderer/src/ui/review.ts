@@ -26,6 +26,7 @@ import { announce } from './a11y'
 import { cleanError, modal } from './modals/common'
 import { closeReviewAfterSave, createReviewDraftSaver } from './review-draft'
 import { openTaskMenu, type TaskMenuOption } from './tasks-move'
+import { openStudyQuestions } from './study-questions'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
 
@@ -984,7 +985,11 @@ export async function openReviewWizard(root: HTMLElement, toast: Toast): Promise
         ]
       return [...view.focus.map(focusRow), ...(sec ? [sec] : [])]
     }
-    if (name === 'estudos') return [h('p', {}, 'Estudos e andares ficam para as próximas entregas.')]
+    if (name === 'estudos')
+      return [
+        h('p', {}, 'Banco de questões para estudo. Buscar não inicia ciclo nem salva candidatas; você revisa a origem e escolhe o que guardar.'),
+        button('Buscar questões', () => openStudyQuestions(root, toast), 'btn btn-primary'),
+      ]
     if (current.problems.length) {
       return [h('ul', { class: 'review-problems', role: 'alert' }, ...current.problems.map((t) => h('li', {}, t)))]
     }

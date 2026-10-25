@@ -36,6 +36,9 @@ import {
   squadRenameSchema,
   ticketDraftSchema,
   ticketPatchSchema,
+  studyQuestionGenerateArgsSchema,
+  studyQuestionSaveArgsSchema,
+  studyQuestionSearchArgsSchema,
 } from '../src/main/validate'
 
 const dir = mkdtempSync(join(tmpdir(), 'ao-validate-'))
@@ -67,6 +70,21 @@ const settings = (): Settings => ({
   agentBudgetUsd: 0,
   templates: [],
   video: { ...DEFAULT_VIDEO },
+})
+
+describe('IPC do banco de questões', () => {
+  const candidate = {
+    id: 'q-ipc00001', topic: 'Probabilidade', tags: [], question: 'Questão sintética?', answerStatus: 'unverified',
+    originKind: 'web', sourceTitle: 'Fonte sintética', sourceVisibility: 'unknown', sourceUrl: 'https://example.org/q',
+    attribution: 'Conferir', license: 'Não verificada',
+  }
+  it('bounds search and generation arguments and rejects unsafe provenance URLs', () => {
+    expect(studyQuestionSearchArgsSchema.safeParse(['Probabilidade', 10]).success).toBe(true)
+    expect(studyQuestionSearchArgsSchema.safeParse(['x'.repeat(201), 10]).success).toBe(false)
+    expect(studyQuestionGenerateArgsSchema.safeParse(['00000000-0000-4000-8000-000000000001']).success).toBe(true)
+    expect(studyQuestionSaveArgsSchema.safeParse(['00000000-0000-4000-8000-000000000001', [{ ...candidate, sourceUrl: 'file:///book.pdf' }], true]).success).toBe(false)
+    expect(studyQuestionSaveArgsSchema.safeParse(['00000000-0000-4000-8000-000000000001', [candidate], false]).success).toBe(true)
+  })
 })
 
 describe('parse', () => {
