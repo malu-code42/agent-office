@@ -4,7 +4,7 @@
 
 **Status:** arquivada e supersedida (2026-10-21); aprovação histórica de planejamento, não autorização atual de implementação.
 **Data:** 2026-10-18
-**Relaciona-se a:** `.scratch/correcoes-agent-office/issues/02-refazer-logica-dos-squads.md`, `.scratch/correcoes-agent-office/issues/03-rever-modos-de-permissao.md`, `.scratch/entrega-1-planejamento/issues/14-integrar-codex-e-opencode.md`.
+**Relaciona-se a:** tickets historicos preservados fora do repositorio em `D:\Documents\agent-office-arquivo\scratch-legado-2026-10-22\`; nao sao fontes ativas.
 
 ## 1. Objetivo
 

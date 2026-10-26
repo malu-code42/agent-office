@@ -115,7 +115,7 @@ export function startRoutineDemo(manager: AgentManager, routines: RoutineSchedul
   // days back to the last Monday before today
   const lastMonday = ((new Date(now).getDay() + 6) % 7) || 7
   const rita = manager.demoAgent('Rita', '/Users/demo/relatorios')
-  const otto = manager.demoAgent('Otto', '/Users/demo/loja')
+  const emi = manager.demoAgent('Emi', '/Users/demo/loja')
   const vera = manager.demoAgent('Vera', '/Users/demo/suporte')
   /** A past run at hh:mm, `daysAgo` days back (0 = today, a few minutes back when that time has not come yet). */
   const ran = (daysAgo: number, hhmm: string, agent: { id: string; name: string }, status: RoutineRun['status'], costUsd: number, error?: string): RoutineRun => {
@@ -156,9 +156,9 @@ export function startRoutineDemo(manager: AgentManager, routines: RoutineSchedul
     routine(
       'Revisar dependências',
       'Liste as dependências desatualizadas ou com falhas de segurança conhecidas (npm outdated, npm audit) e diga quais atualizar primeiro. Não altere arquivos.',
-      otto,
+      emi,
       { kind: 'weekly', days: [1], time: '10:00' },
-      [ran(lastMonday, '10:00', otto, 'failed', 0.07, 'npm audit não conseguiu falar com o registro: sem rede (falha simulada).'), ran(lastMonday + 7, '10:00', otto, 'ok', 0.21)],
+      [ran(lastMonday, '10:00', emi, 'failed', 0.07, 'npm audit não conseguiu falar com o registro: sem rede (falha simulada).'), ran(lastMonday + 7, '10:00', emi, 'ok', 0.21)],
     ),
     triage,
   ])
