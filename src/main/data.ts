@@ -34,6 +34,7 @@ const WHAT: Record<DataFile, string> = {
   'profile-memory.json': 'a memória dos perfis',
   'personal-routines.json': 'o estado das rotinas pessoais',
   'study-cycle.json': 'o ciclo de estudos',
+  'audio-dictionary.json': 'o dicionário local de áudio',
 }
 
 /** What a restore or import leaves as it is, for the confirmation (AO-25). */

@@ -211,6 +211,7 @@ const LABELS: Record<string, string> = {
   'squad-queues.json': 'filas dos squads',
   'profile-memory.json': 'memória dos perfis', // AO-43
   'study-cycle.json': 'ciclo de estudos', // AO-49
+  'audio-dictionary.json': 'dicionário local de áudio', // AO-54
 }
 
 /** The warning the renderer shows for a restored or lost file; null when there is nothing to say. */

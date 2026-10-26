@@ -403,6 +403,10 @@ export const proposalSchema: z.ZodType<Proposal> = z.object({
   source: z.string().trim().min(1).max(80),
   createdAt: z.number().finite(),
   operations: z.array(proposalOperationSchema).min(1).max(50),
+  captureId: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional(),
   failure: z.object({ index: z.number().int().min(0), message: z.string().max(2000) }).optional(),
 })
 

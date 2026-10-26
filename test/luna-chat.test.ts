@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { AttachmentInput } from '../src/shared/types'
 import type { IrisPreview, IrisResult } from '../src/shared/iris'
 import { LunaChat } from '../src/main/luna-chat'
 
@@ -15,17 +16,57 @@ function setup(result: IrisResult = { kind: 'question', text: 'Qual lista?' }) {
     status: vi.fn(),
     startProfileTask: vi.fn(async () => undefined),
     openMediaDraft: vi.fn(),
+    transcribeAudio: vi.fn(async () => undefined),
   }
   const chat = new LunaChat(desk, host, () => 'C:/vault')
   return { chat, desk, host, decide: (yes: boolean) => allow?.(yes) }
 }
 
 describe('LunaChat', () => {
+  it('devolve o resultado do processamento de áudio para que Telegram mantenha pendências', async () => {
+    const { chat, desk, host } = setup()
+    const processed = await chat.enqueueTelegramAudio(async () => 'pending')
+
+    expect(processed).toBe('pending')
+    expect(host.log).toHaveBeenCalledWith('user', 'Áudio recebido pelo Telegram para transcrição local.')
+    expect(desk.prepare).not.toHaveBeenCalled()
+  })
+
+  it('envia grupo encaminhado pela captura direto ao fluxo comum com chave idempotente', async () => {
+    const { chat, desk, host, decide } = setup()
+    const captureId = 'a'.repeat(64)
+    const pending = chat.sendDirect('Trecho aprovado para agenda: Dentista às 16', captureId)
+    expect(host.log).toHaveBeenCalledWith('user', 'Trecho aprovado para agenda: Dentista às 16')
+    expect(desk.prepare).toHaveBeenCalledWith('C:/vault', 'Trecho aprovado para agenda: Dentista às 16', captureId)
+    decide(true)
+    await expect(pending).resolves.toBe(true)
+  })
+
+  it('envia anexos de áudio somente ao transcritor local, sem passar por Iris/Claude', async () => {
+    const { chat, desk, host } = setup()
+    const audio: AttachmentInput = { name: 'sintetico.wav', mime: 'audio/wav', path: 'C:/synthetic/sintetico.wav' }
+    await chat.send('Transcreva este áudio', [audio])
+
+    expect(host.transcribeAudio).toHaveBeenCalledWith(audio, 'Transcreva este áudio')
+    expect(desk.prepare).not.toHaveBeenCalled()
+    expect(desk.send).not.toHaveBeenCalled()
+  })
+
+  it('recusa anexos não-audio do agente built-in sem invocar nenhum interpretador', async () => {
+    const { chat, desk, host } = setup()
+    const document: AttachmentInput = { name: 'nota.txt', mime: 'text/plain', path: 'C:/synthetic/nota.txt' }
+    await chat.send('', [document])
+
+    expect(host.transcribeAudio).not.toHaveBeenCalled()
+    expect(host.log).toHaveBeenCalledWith('error', 'A Luna aceita somente um anexo de áudio por vez.')
+    expect(desk.prepare).not.toHaveBeenCalled()
+  })
+
   it('exibe a prévia pelo fluxo de pergunta do agente e não envia antes da aprovação', async () => {
     const { chat, desk, host, decide } = setup()
     const pending = chat.send('Organize minhas tarefas')
 
-    expect(desk.prepare).toHaveBeenCalledWith('C:/vault', 'Organize minhas tarefas')
+    expect(desk.prepare).toHaveBeenCalledWith('C:/vault', 'Organize minhas tarefas', undefined)
     expect(host.confirmContext).toHaveBeenCalledWith({ token: 'preview-1', context: 'Contexto exato' })
     expect(desk.send).not.toHaveBeenCalled()
 

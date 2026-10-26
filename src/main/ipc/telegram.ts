@@ -11,6 +11,8 @@ export function registerTelegramIpc(ctx: IpcContext): void {
     safeStorage,
     onMessage: (message) => ctx.broadcast({ type: 'telegram:message', ...message }),
     onExpired: (message) => ctx.broadcast({ type: 'telegram:expired', ...message }),
+    onAudio: (audio) => ctx.onTelegramAudio?.(audio) ?? 'pending',
+    onAudioError: (notice) => ctx.broadcast({ type: 'telegram:audio-error', ...notice }),
   })
   app.once('browser-window-created', (_event, window) => {
     if (window.webContents.isLoading()) window.webContents.once('did-finish-load', () => telegram.start())

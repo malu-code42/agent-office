@@ -23,6 +23,7 @@ import { openTimerPopup } from './ui/timer-popup'
 import { openProposalReview } from './ui/proposals'
 import { openReviewOffer, openReviewWizard } from './ui/review'
 import { profileById } from '@shared/profiles'
+import { LUNA_AGENT_ID } from '@shared/luna'
 import { startLunaProfileTask } from './ui/luna-actions'
 import { openMediaDraft } from './ui/modals/media-draft'
 import { openReports } from './ui/reports'
@@ -455,6 +456,11 @@ async function boot(): Promise<void> {
     if (e.type === 'data:notice') return notice(e.notice)
     if (e.type === 'telegram:message') return toast(`Telegram · ${e.text.slice(0, 180)}`, 'info')
     if (e.type === 'telegram:expired') return toast('Uma mensagem do Telegram expirou. Reenvie-a ao bot.', 'err')
+    if (e.type === 'telegram:audio-error')
+      return toast(
+        'Um áudio do Telegram ficou pendente após falha local ou de exclusão. Confira a mensagem e remova-a manualmente, se necessário.',
+        'err',
+      )
     if (e.type === 'luna:profile-task') {
       void startLunaProfileTask(e.profile, e.task)
         .then((agent) => {
@@ -471,6 +477,10 @@ async function boot(): Promise<void> {
     }
     if (e.type === 'luna:media-draft') {
       openMediaDraft(ui, e.draft, toast)
+      return
+    }
+    if (e.type === 'luna:transcript') {
+      showAgent(LUNA_AGENT_ID).then(() => panel.showLocalTranscript(e.text))
       return
     }
     if (e.type === 'agent:chat') return game.chat(e.fromId, e.toId, e.text)

@@ -27,7 +27,7 @@ import type { DecodedStudyBank, StudyQuestion } from '../study-questions'
 import type { StudyCycleState } from '../study-cycle'
 import type { StudyLibrarySearch } from '../study-library'
 import type { StudyCardDraft, StudyCardSummary, StudyCardsRead, StudyNotesRead } from '../study-cards'
-import type { TelegramExpiredNotice, TelegramMessageNotice, TelegramStatus } from '../telegram'
+import type { TelegramAudioErrorNotice, TelegramExpiredNotice, TelegramMessageNotice, TelegramStatus } from '../telegram'
 
 export interface StudyQuestionCandidates {
   token: string
@@ -221,8 +221,10 @@ export type OfficeEvent =
   | { type: 'barTimer'; timer: BarTimerView | null }
   | ({ type: 'telegram:message' } & TelegramMessageNotice)
   | ({ type: 'telegram:expired' } & TelegramExpiredNotice)
+  | ({ type: 'telegram:audio-error' } & TelegramAudioErrorNotice)
   | { type: 'luna:profile-task'; profile: ProfileId; task: string }
   | { type: 'luna:media-draft'; draft: Extract<IrisResult, { kind: 'media-draft' }>['draft'] }
+  | { type: 'luna:transcript'; text: string }
 
 /** A reopen either put the task back (`list` is where it went) or waits for the user to choose one of `lists`. */
 export type ReopenResult = { status: 'done'; list: string; board: ParsedBoard; focus: FocusItem[] } | { status: 'choose'; lists: string[] }

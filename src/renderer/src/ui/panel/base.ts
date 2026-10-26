@@ -154,7 +154,7 @@ export abstract class PanelBase {
       this.composer,
     )
     this.el.addEventListener('dragover', (e) => {
-      if (!e.dataTransfer?.types.includes('Files') || this.terminal || this.state.agents.get(this.agentId ?? '')?.builtIn) return
+      if (!e.dataTransfer?.types.includes('Files') || this.terminal) return
       e.preventDefault()
       this.el.classList.add('drop-target')
     })
@@ -163,7 +163,7 @@ export abstract class PanelBase {
     })
     this.el.addEventListener('drop', (e) => {
       this.el.classList.remove('drop-target')
-      if (!e.dataTransfer?.files.length || this.terminal || this.state.agents.get(this.agentId ?? '')?.builtIn) return
+      if (!e.dataTransfer?.files.length || this.terminal) return
       e.preventDefault()
       this.attach([...e.dataTransfer.files])
       this.input.focus()

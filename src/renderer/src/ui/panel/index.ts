@@ -1,6 +1,7 @@
 import { h } from '../dom'
 import { FEED_MAX } from './helpers'
 import { PanelComposer } from './composer'
+import { LUNA_AGENT_ID } from '@shared/luna'
 
 export type { PanelActions } from './helpers'
 export { contextLevel, helpersChip, modelLabel } from './helpers'
@@ -39,6 +40,12 @@ export class AgentPanel extends PanelComposer {
     this.log = []
     this.from = 0
     this.el.classList.add('hidden')
+  }
+
+  /** Shows a corrected local transcript for this app session only; the raw transcript is not persisted. */
+  showLocalTranscript(text: string): void {
+    if (this.agentId !== LUNA_AGENT_ID) return
+    this.append({ id: crypto.randomUUID(), t: Date.now(), kind: 'assistant', text: `Transcrição local corrigida:\n${text}` })
   }
 
   get isOpen(): boolean {

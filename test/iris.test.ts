@@ -224,6 +224,28 @@ describe('resposta da Luna', () => {
     expect(pending[0]!.operations).toHaveLength(2)
   })
 
+  it('uma rota de áudio reenviada reutiliza a proposta pendente pelo captureId', async () => {
+    const { desk, planning, interpreter } = setup(() =>
+      json({
+        operations: [{ kind: 'add-commitment', day: '2026-10-17', time: '16:00', title: 'Dentista' }],
+        question: null,
+      }),
+    )
+    const captureId = 'a'.repeat(64)
+    const first = desk.prepare(vault, 'Trecho de áudio aprovado para agenda: Dentista às 16', captureId)
+    const original = await desk.send(first.token)
+    expect(original.kind).toBe('proposal')
+    expect(planning.pendingProposals()).toHaveLength(1)
+    expect(planning.pendingProposals()[0]?.captureId).toBe(captureId)
+
+    const retry = desk.prepare(vault, 'Trecho de áudio aprovado para agenda: Dentista às 16', captureId)
+    const repeated = await desk.send(retry.token)
+
+    expect(repeated).toEqual(original)
+    expect(interpreter.sent).toHaveLength(1)
+    expect(planning.pendingProposals()).toHaveLength(1)
+  })
+
   it('tarefas.md e agenda.md ficam byte a byte iguais até uma proposta confirmada', async () => {
     const before = [readFileSync(join(vault, 'tarefas.md')), readFileSync(join(vault, 'agenda.md'))]
     const { desk, planning, tasks, agenda } = setup(() =>

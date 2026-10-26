@@ -180,6 +180,7 @@ describe('restore', () => {
 
   it('puts the backup in place; the snapshot keeps the state before', () => {
     put('office.json', { v: 'old' })
+    put('audio-dictionary.json', { entries: [] })
     put('tickets.json', { seq: 1, tickets: [] })
     dailyBackup(dir, new Date(2026, 9, 1))
     put('office.json', { v: 'new' })
@@ -226,6 +227,7 @@ describe('restore', () => {
       'profile-memory.json',
       'personal-routines.json',
       'study-cycle.json',
+      'audio-dictionary.json',
     ])
     restoreBackup(dir, '2026-10-01')
     expect(read('office.json')).toEqual({ v: 'old' })

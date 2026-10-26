@@ -389,11 +389,17 @@ export function createWritingWriter(options: WritingWriterOptions = {}) {
       snapshots.set(root, text)
       return { text: decoded, snapshot: decoded, snippets: document.snippets }
     },
-    createOriginal(vault: string, input: { title: string; body: string }): string {
+    createOriginal(vault: string, input: { title: string; body: string; id?: string }): string {
       const root = rootOf(vault)
       const before = snapshot(root)
       const document = parseWriting(before === null ? '' : decodeUtf8(before))
-      const id = `w${newId()}`
+      const id = input.id ?? `w${newId()}`
+      const existing = document.snippets.find((snippet) => snippet.id === id)
+      if (existing) {
+        const original = existing.versions.find((version) => version.number === 1)
+        if (existing.title === input.title && original?.source === 'original' && original.body === input.body) return id
+        throw new Error('O identificador do trecho já pertence a outro Original. Nada foi sobrescrito.')
+      }
       const snippet = WritingSnippet.createOriginal({ id, title: input.title, body: input.body, createdAt: now().toISOString() })
       const after = serializeWriting(appendSnippet(document, snippet))
       save(root, before, after)

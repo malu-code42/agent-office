@@ -61,7 +61,7 @@ describe('cap central de hires e summons (AO-42)', () => {
     expect(luna?.status).toBe('idle')
     manager.sendMessage(LUNA_AGENT_ID, 'Ajude a organizar o dia')
 
-    expect(handler).toHaveBeenCalledWith(LUNA_AGENT_ID, 'Ajude a organizar o dia')
+    expect(handler).toHaveBeenCalledWith(LUNA_AGENT_ID, 'Ajude a organizar o dia', [])
     expect(manager.getLog(LUNA_AGENT_ID).at(-1)).toMatchObject({ kind: 'user', text: 'Ajude a organizar o dia' })
     const answer = vi.fn()
     const requestId = manager.requestDecision(

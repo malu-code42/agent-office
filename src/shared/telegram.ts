@@ -14,3 +14,7 @@ export interface TelegramMessageNotice {
 export interface TelegramExpiredNotice {
   receivedAt: number
 }
+
+export interface TelegramAudioErrorNotice {
+  receivedAt: number
+}

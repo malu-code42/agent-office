@@ -28,9 +28,9 @@ import { profileById, profileTaskInstructions } from '@shared/profiles'
 export abstract class AgentOffice extends AgentBase {
   /** AO-42: reserve synchronously so concurrent worktree creation cannot take the same seat. */
   private capReservations = new AgentCapReservations()
-  private builtInMessageHandler?: (id: string, text: string) => void | Promise<void>
+  private builtInMessageHandler?: (id: string, text: string, attachments: AttachmentInput[]) => void | Promise<void>
 
-  setBuiltInMessageHandler(handler: (id: string, text: string) => void | Promise<void>): void {
+  setBuiltInMessageHandler(handler: (id: string, text: string, attachments: AttachmentInput[]) => void | Promise<void>): void {
     this.builtInMessageHandler = handler
   }
 
@@ -370,8 +370,8 @@ export abstract class AgentOffice extends AgentBase {
     const agent = this.agents.get(id)
     if (!agent || agent.summary.source !== 'office' || agent.summary.departed || agent.demo) return
     if (agent.summary.builtIn === 'luna') {
-      if (attachments.length) throw new Error('A Luna ainda não recebe anexos pelo chat.')
-      this.addLog(agent, 'user', display ?? text)
+      const userText = display ?? text
+      this.addLog(agent, 'user', attachments.length ? `${userText || 'Áudio anexado para transcrição local.'}\n[Áudio anexado]` : userText)
       this.dropResults(id)
       if (this.simulate) {
         this.addLog(agent, 'assistant', 'A conversa com Luna está em modo de demonstração; nenhum pedido será enviado ou executado.')
@@ -384,7 +384,7 @@ export abstract class AgentOffice extends AgentBase {
         this.setStatus(agent, 'idle', 'Pronta para ajudar')
         return
       }
-      void Promise.resolve(this.builtInMessageHandler(id, text)).catch(() => {
+      void Promise.resolve(this.builtInMessageHandler(id, text, attachments)).catch(() => {
         this.addLog(agent, 'error', 'A Luna não conseguiu concluir esse pedido. Tente novamente.')
         if (!this.pendingRequests().some((request) => request.agentId === id)) this.setStatus(agent, 'idle', 'Pronta para ajudar')
       })
