@@ -15,7 +15,7 @@ export class Game extends GameInput {
   constructor(container: HTMLElement, overlayRoot: HTMLElement, state: State, hooks: GameHooks) {
     super(container, overlayRoot, state, hooks)
     this.setProjects(state.settings.projects, state.squads, state.squadProposals, false)
-    for (const a of state.agents.values()) this.addActor(a, false)
+    for (const a of state.agents.values()) if (!a.builtIn) this.addActor(a, false)
     state.onChange(() => {
       this.sync()
       this.wake()

@@ -156,7 +156,7 @@ export class WritingAssistant {
       if (operation.controller.signal.aborted || this.pending.get(previewToken) !== operation) throw new Error('A revisão foi cancelada.')
       if (this.now() >= entry.expiresAt) throw new Error('A prévia expirou. Prepare a revisão novamente.')
       if (typeof suggestedText !== 'string' || !suggestedText.trim() || suggestedText.length > MAX_RESPONSE_LENGTH)
-        throw new Error('A Escrita não devolveu um rascunho válido. Tente novamente.')
+        throw new Error('Agatha não devolveu um rascunho válido. Tente novamente.')
       // Refuse a stale result before exposing a draft; Save independently rechecks the captured bytes.
       this.options.writer.assertSnapshot(entry.vault, entry.snapshot)
       const draftToken = token()
@@ -179,11 +179,11 @@ export class WritingAssistant {
       }
       if (error instanceof Error && error.message === 'A revisão excedeu o tempo limite.') throw error
       if (error instanceof Error && error.message === 'A prévia expirou. Prepare a revisão novamente.') throw error
-      if (error instanceof Error && error.message === 'A Escrita não devolveu um rascunho válido. Tente novamente.') throw error
+      if (error instanceof Error && error.message === 'Agatha não devolveu um rascunho válido. Tente novamente.') throw error
       if (error instanceof Error && error.message.includes('mudou desde que você abriu')) throw error
       // Do not retain an interpreter error as `cause`: it could contain the prompt or response text.
       // eslint-disable-next-line preserve-caught-error
-      throw new Error('Não foi possível concluir a revisão com a Escrita.')
+      throw new Error('Não foi possível concluir a revisão com a Agatha.')
     } finally {
       clearTimeout(timeout)
       if (this.pending.get(previewToken) === operation) this.pending.delete(previewToken)

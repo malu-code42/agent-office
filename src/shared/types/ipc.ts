@@ -14,7 +14,8 @@ import type { RoutineCandidate } from '../routine-personal'
 import type { FocusItem } from '../planning'
 import type { MediaCreateInput, MediaItemOf, MediaKind, MediaPosterResult, MediaUpdateInput } from '../media'
 import type { BarTimerView } from '../barTimer'
-import type { IrisPreview, IrisResult } from '../iris'
+import type { IrisResult } from '../iris'
+import type { ProfileId } from '../profiles'
 import type { Proposal } from '../proposals'
 import type { ReviewChoices, ReviewPostpone, ReviewView } from '../review'
 import type { Goal, GoalDraft } from '../goals'
@@ -220,6 +221,8 @@ export type OfficeEvent =
   | { type: 'barTimer'; timer: BarTimerView | null }
   | ({ type: 'telegram:message' } & TelegramMessageNotice)
   | ({ type: 'telegram:expired' } & TelegramExpiredNotice)
+  | { type: 'luna:profile-task'; profile: ProfileId; task: string }
+  | { type: 'luna:media-draft'; draft: Extract<IrisResult, { kind: 'media-draft' }>['draft'] }
 
 /** A reopen either put the task back (`list` is where it went) or waits for the user to choose one of `lists`. */
 export type ReopenResult = { status: 'done'; list: string; board: ParsedBoard; focus: FocusItem[] } | { status: 'choose'; lists: string[] }
@@ -347,12 +350,6 @@ export interface OfficeAPI {
   applyProposal(id: string): Promise<void>
   /** Recusa a proposta: ela sai da lista de pendentes. Nenhum arquivo é alterado. */
   rejectProposal(id: string): Promise<void>
-  /** Luna: monta o texto exato que seria enviado (pedido, compromissos da semana, tarefas citadas). Não envia nada. */
-  prepareIris(request: string): Promise<IrisPreview>
-  /** Luna: envia à Luna o texto da prévia (pelo token) e devolve a proposta criada ou a pergunta. Nada é aplicado. */
-  sendIris(token: string): Promise<IrisResult>
-  /** Luna: descarta a prévia sem enviar nada. */
-  cancelIris(token: string): Promise<void>
   /** Lê os trechos e históricos locais do escrita.md no vault selecionado; nunca escreve. */
   readWriting(): Promise<{ snippets: WritingSnippetView[] }>
   /** Salva um Original somente após a confirmação explícita da pessoa. */

@@ -119,7 +119,16 @@ export abstract class GameBase {
 
     // hovered tile outline, Habbo style
     const g = new THREE.BufferGeometry().setFromPoints(
-      [[0, 0], [1, 0], [1, 0], [1, 1], [1, 1], [0, 1], [0, 1], [0, 0]].map(([x, z]) => new THREE.Vector3(x, 0.03, z)),
+      [
+        [0, 0],
+        [1, 0],
+        [1, 0],
+        [1, 1],
+        [1, 1],
+        [0, 1],
+        [0, 1],
+        [0, 0],
+      ].map(([x, z]) => new THREE.Vector3(x, 0.03, z)),
     )
     this.hover = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.85 }))
     this.hover.visible = false
@@ -163,8 +172,8 @@ export abstract class GameBase {
       const anchor = new THREE.Object3D()
       anchor.position.set(item.x, item.y, item.z)
       this.office.group.add(anchor)
-      const tag = this.overlays.add(new Tag(anchor, item.label, false, () => hooks.onHomeAction(item.action)))
-      tag.el.title = `Abrir ${item.label}`
+      const tag = this.overlays.add(new Tag(anchor, item.label, false, item.action ? () => hooks.onHomeAction(item.action!) : undefined))
+      if (item.action) tag.el.title = `Abrir ${item.label}`
     }
   }
 

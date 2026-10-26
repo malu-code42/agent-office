@@ -193,12 +193,12 @@ describe('AO-43 validation and context', () => {
       ...base,
       memories: [
         { profile: 'Técnica', summary: 'Prefere números.' },
-        { profile: 'Escrita', summary: '   ' },
+        { profile: 'Agatha', summary: '   ' },
       ],
     })
     expect(withMemory).toContain('Memória dos perfis')
     expect(withMemory).toContain('- Técnica: Prefere números.')
-    expect(withMemory).not.toContain('Escrita:')
+    expect(withMemory).not.toContain('Agatha:')
 
     expect(irisContext(base)).not.toContain('Memória dos perfis')
   })

@@ -8,7 +8,7 @@
 ## Objetivo
 
 Permitir que a usuária guarde trechos de escrita num arquivo próprio do vault, peça revisão ao
-perfil Escrita somente quando quiser e salve uma nova versão após revisar e confirmar. Nenhuma
+perfil Agatha somente quando quiser e salve uma nova versão após revisar e confirmar. Nenhuma
 versão anterior pode ser sobrescrita pela aplicação.
 
 ## Linguagem do domínio
@@ -17,9 +17,9 @@ versão anterior pode ser sobrescrita pela aplicação.
 |---|---|
 | Trecho | Texto identificado no `escrita.md`, com título e histórico próprio. |
 | Versão | Revisão imutável do texto, com ID, número, data e origem. |
-| Original | Primeira versão salva pela usuária; não é alterada pelo perfil Escrita. |
-| Rascunho | Texto retornado pela Escrita, ainda efêmero e não persistido. |
-| Revisar | A usuária escolhe um trecho/versão e envia uma instrução explícita para a Escrita. |
+| Original | Primeira versão salva pela usuária; não é alterada pelo perfil Agatha. |
+| Rascunho | Texto retornado por Agatha, ainda efêmero e não persistido. |
+| Revisar | A usuária escolhe um trecho/versão e envia uma instrução explícita para Agatha. |
 | Aprovar nova versão | Ação que anexa o rascunho ao histórico do trecho sem alterar versões anteriores. |
 
 ## Decisões aprovadas pela usuária
@@ -27,17 +27,17 @@ versão anterior pode ser sobrescrita pela aplicação.
 - O arquivo canônico é `escrita.md`, separado dos demais arquivos do vault.
 - Um texto novo é salvo primeiro como Original, por ação explícita da usuária. Para revisá-lo, a
   usuária volta a selecionar o trecho salvo.
-- Revisar usa um editor dedicado e um rascunho efêmero da Luna/Escrita. Não cria agente/pasta de
+- Revisar usa um editor dedicado e um rascunho efêmero da Luna/Agatha. Não cria agente/pasta de
   projeto nem uma proposta genérica de tarefa/agenda.
 - A usuária vê a prévia exata do texto selecionado e da instrução antes de enviá-los a Claude.
 - A resposta é um rascunho editável. A ação `Salvar nova versão` é a única que o persiste.
 - O original e todas as versões anteriores permanecem imutáveis. A versão nova é anexada ao mesmo
   trecho, com origem `Escrita` e referência à versão base que foi revisada.
 - O limite é 50.000 caracteres por versão e 2.000 caracteres por instrução.
-- O perfil Escrita é usado somente após pedido explícito. A consulta é de uma única chamada sem
+- O perfil Agatha é usado somente após pedido explícito. A consulta é de uma única chamada sem
   ferramentas e sem sessão persistente.
 - O contexto enviado contém somente a versão selecionada, a instrução e as instruções fixas do
-  perfil Escrita. Não inclui tarefas, agenda, outros trechos ou memórias de perfil. Não armazena
+  perfil Agatha. Não inclui tarefas, agenda, outros trechos ou memórias de perfil. Não armazena
   transcrição nem resposta antes da confirmação.
 - O writer usa `writeFileAtomic`, stale-check e backup datado em `backups/escrita/`. Nenhum teste
   acessa o vault real.
@@ -63,8 +63,8 @@ malformado não é regravado parcialmente: a biblioteca apresenta erro e pede re
    explícito `Salvar original`.
 2. **Preparar revisão:** a usuária escolhe trecho/versão e escreve uma instrução (até 2.000
    caracteres). Main lê `escrita.md` e constrói uma prévia local contendo apenas esse texto e a
-   instrução fixa do perfil Escrita.
-3. **Enviar:** após revisar a prévia, a usuária clica `Enviar à Escrita`. Main consome um token
+   instrução fixa do perfil Agatha.
+3. **Enviar:** após revisar a prévia, a usuária clica `Enviar à Agatha`. Main consome um token
    de uso único e chama Claude uma vez com `tools: []` e sem sessão persistente. A resposta precisa
    ser texto dentro do limite; texto inválido não vira rascunho.
 4. **Revisar rascunho:** a usuária compara a versão base com o rascunho, pode editar o rascunho e
@@ -94,7 +94,7 @@ mídias. A conversa geral da Luna não recebe o arquivo `escrita.md` inteiro nem
 
 Um comando `Escrita` na UI existente abre a biblioteca de trechos. Cada trecho mostra título,
 versão atual e histórico. A usuária pode criar Original manualmente ou escolher uma versão e clicar
-`Revisar com Escrita`; a prévia mostra exatamente o que sairá do computador. O resultado mostra
+`Revisar com Agatha`; a prévia mostra exatamente o que sairá do computador. O resultado mostra
 base e rascunho, oferece edição e termina em `Salvar nova versão` ou `Cancelar`. Nenhum layout de
 andar ou área de escrita física é alterado neste ticket.
 

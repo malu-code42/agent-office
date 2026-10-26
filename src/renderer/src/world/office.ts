@@ -36,7 +36,7 @@ export interface GroundFloor extends Office {
   /** Clickable home furniture; absent only on legacy/test floors. */
   interactions?: { action: import('./home-layout').HomeAction; root: THREE.Object3D; highlight: THREE.Mesh }[]
   /** Readable room labels placed over the ground-floor house. */
-  homeTags?: { action: import('./home-layout').HomeAction; label: string; x: number; z: number; y: number }[]
+  homeTags?: { action?: import('./home-layout').HomeAction; label: string; x: number; z: number; y: number }[]
   /** Luna is a persistent, non-agent character in the house. */
   luna?: import('./avatar').Avatar
   roomLabels?: { label: string; x: number; z: number }[]
@@ -152,11 +152,21 @@ export function buildOffice(): GroundFloor {
   grid.blockRect(0, 18, 1, 1)
   place(F.barTable(), 4.5, 15.5)
   grid.block(4, 15)
-  for (const [x, z, c] of [[3.7, 15.5, '#d97757'], [5.3, 15.5, '#2f8f83'], [4.5, 14.7, '#6c5ce7']] as const) place(F.stool(c), x, z)
+  for (const [x, z, c] of [
+    [3.7, 15.5, '#d97757'],
+    [5.3, 15.5, '#2f8f83'],
+    [4.5, 14.7, '#6c5ce7'],
+  ] as const)
+    place(F.stool(c), x, z)
   place(F.roundTable(0.55), 4.5, 20)
   grid.block(4, 19)
   grid.block(4, 20)
-  for (const [x, z, r] of [[3.5, 20, Math.PI / 2], [5.5, 20, -Math.PI / 2], [4.5, 21, Math.PI]] as const) place(F.simpleChair('#f4a259'), x, z, r)
+  for (const [x, z, r] of [
+    [3.5, 20, Math.PI / 2],
+    [5.5, 20, -Math.PI / 2],
+    [4.5, 21, Math.PI],
+  ] as const)
+    place(F.simpleChair('#f4a259'), x, z, r)
   // the skeleton stands here by the boss office (added by the game)
   grid.block(2, 12)
   place(F.plant('tall'), 0.5, 11.5)

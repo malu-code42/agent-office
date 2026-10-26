@@ -50,7 +50,7 @@
 - Adicionar uma união `mediaDraft` tipada em `IrisAnswer`/`IrisResult`, com apenas tipo e título sugeridos. A resposta do modelo não contém caminho, bytes de imagem nem comandos de gravação.
 - Estender o schema Zod e validadores: tipo permitido, título em uma linha e limite de tamanho; resposta ambígua continua sendo pergunta.
 - Propagar o resultado pelo `IrisDesk` e IPC ao renderer sem persistir rascunho em `planning.json`.
-- Após `sendIris`, abrir editor local já preenchido; a usuária corrige campos, escolhe pôster se o item for filme e confirma a inclusão.
+- Após a resposta de Luna no chat normal, abrir editor local já preenchido; a usuária corrige campos, escolhe pôster se o item for filme e confirma a inclusão.
 - Cancelar o editor ou uma resposta/pergunta da Luna não escreve nos arquivos de mídia.
 - Testes cobrem os três tipos, título inválido, tipo inválido, ambiguidade, cancelamento, conteúdo do contexto e ausência de side effect pré-confirmação.
 

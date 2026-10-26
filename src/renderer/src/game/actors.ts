@@ -12,6 +12,7 @@ export abstract class GameActors extends GameBoards {
 
   protected sync(): void {
     for (const a of this.state.agents.values()) {
+      if (a.builtIn) continue
       if (!this.actors.has(a.id)) this.addActor(a, true)
     }
     for (const actor of this.actors.values()) {
@@ -31,7 +32,25 @@ export abstract class GameActors extends GameBoards {
   protected addActor(a: AgentSummary, animate: boolean): void {
     const avatar = new Avatar(a.look, a.id)
     const tag = this.overlays.add(new Tag(avatar.anchor, a.name, false, () => this.hooks.onAgentClick(a.id)))
-    const actor: Actor = { id: a.id, avatar, tag, goal: null, arrived: false, spot: null, hang: null, waveUntil: 0, down: false, shoutUntil: 0, shout: '', shoutKind: 'error', chatUntil: 0, restSince: null, trip: 0, riding: false, seat: seatKey(a) }
+    const actor: Actor = {
+      id: a.id,
+      avatar,
+      tag,
+      goal: null,
+      arrived: false,
+      spot: null,
+      hang: null,
+      waveUntil: 0,
+      down: false,
+      shoutUntil: 0,
+      shout: '',
+      shoutKind: 'error',
+      chatUntil: 0,
+      restSince: null,
+      trip: 0,
+      riding: false,
+      seat: seatKey(a),
+    }
     // agents already idle when the office opens (restored sessions) start in the lounge
     if (!animate && this.resting(a)) actor.restSince = 0
     // project agents and orchestrators arrive on their project's floor
@@ -239,7 +258,8 @@ export abstract class GameActors extends GameBoards {
       const items = this.state.itemsFor(a.id)
       const result = items.results[0]
       av.setProp(items.permissions.length ? 'none' : result ? (result.isError ? 'redPaper' : 'paper') : 'none')
-      if (av.floor === this.player.floor && (av.floor > 0 || this.playerInBossRoom())) av.faceTowards(this.player.position.x, this.player.position.z)
+      if (av.floor === this.player.floor && (av.floor > 0 || this.playerInBossRoom()))
+        av.faceTowards(this.player.position.x, this.player.position.z)
       else av.faceTowards(L.BOSS_SEAT.x, L.BOSS_SEAT.z)
       av.pose = this.time < actor.waveUntil ? 'wave' : actor.id === this.nearId ? 'talk' : 'stand'
     } else if (actor.goal === 'hang' && actor.hang !== null) {

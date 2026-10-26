@@ -61,7 +61,12 @@ export abstract class PanelBase {
     this.feed.addEventListener('scroll', () => {
       this.stickToBottom = this.feed.scrollTop + this.feed.clientHeight >= this.feed.scrollHeight - 30
     })
-    this.input = h('textarea', { class: 'composer-input', rows: 2, placeholder: 'Mande uma nova instrução…', 'aria-label': 'Mensagem para o agente (Enter envia, Esc vai ao cartão aberto)' })
+    this.input = h('textarea', {
+      class: 'composer-input',
+      rows: 2,
+      placeholder: 'Mande uma nova instrução…',
+      'aria-label': 'Mensagem para o agente (Enter envia, Esc vai ao cartão aberto)',
+    })
     this.input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
         e.preventDefault()
@@ -92,7 +97,11 @@ export abstract class PanelBase {
       h(
         'div',
         { class: 'composer-row' },
-        h('button', { class: 'btn btn-icon', title: 'Anexar arquivos (ou arraste, ou cole uma imagem)', onclick: () => this.picker.click() }, icon('clip', 16)),
+        h(
+          'button',
+          { class: 'btn btn-icon', title: 'Anexar arquivos (ou arraste, ou cole uma imagem)', onclick: () => this.picker.click() },
+          icon('clip', 16),
+        ),
         this.input,
         h('button', { class: 'btn btn-primary btn-icon', title: 'Enviar (Enter)', onclick: () => this.send() }, icon('send', 16)),
       ),
@@ -119,15 +128,33 @@ export abstract class PanelBase {
       icon('search', 14),
       this.searchInput,
       this.searchCount,
-      h('button', { class: 'icon-btn', title: 'Anterior (↑)', onclick: () => this.step(-1) }, h('span', { class: 'arrow-up' }, icon('chevron', 15))),
-      h('button', { class: 'icon-btn', title: 'Próxima (↓)', onclick: () => this.step(1) }, h('span', { class: 'arrow-down' }, icon('chevron', 15))),
+      h(
+        'button',
+        { class: 'icon-btn', title: 'Anterior (↑)', onclick: () => this.step(-1) },
+        h('span', { class: 'arrow-up' }, icon('chevron', 15)),
+      ),
+      h(
+        'button',
+        { class: 'icon-btn', title: 'Próxima (↓)', onclick: () => this.step(1) },
+        h('span', { class: 'arrow-down' }, icon('chevron', 15)),
+      ),
       h('button', { class: 'icon-btn', title: 'Fechar busca (Esc)', onclick: () => this.closeSearch() }, icon('x', 15)),
     )
     this.renderTools()
     this.helpersEl = h('div', { class: 'panel-helpers-slot' })
-    this.el = h('div', { class: 'panel card hidden', 'data-tour': 'panel', role: 'region', 'aria-label': 'Painel do agente' }, this.head, this.banner, this.helpersEl, this.tools, this.searchBar, this.feed, this.composer)
+    this.el = h(
+      'div',
+      { class: 'panel card hidden', 'data-tour': 'panel', role: 'region', 'aria-label': 'Painel do agente' },
+      this.head,
+      this.banner,
+      this.helpersEl,
+      this.tools,
+      this.searchBar,
+      this.feed,
+      this.composer,
+    )
     this.el.addEventListener('dragover', (e) => {
-      if (!e.dataTransfer?.types.includes('Files') || this.terminal) return
+      if (!e.dataTransfer?.types.includes('Files') || this.terminal || this.state.agents.get(this.agentId ?? '')?.builtIn) return
       e.preventDefault()
       this.el.classList.add('drop-target')
     })
@@ -136,7 +163,7 @@ export abstract class PanelBase {
     })
     this.el.addEventListener('drop', (e) => {
       this.el.classList.remove('drop-target')
-      if (!e.dataTransfer?.files.length || this.terminal) return
+      if (!e.dataTransfer?.files.length || this.terminal || this.state.agents.get(this.agentId ?? '')?.builtIn) return
       e.preventDefault()
       this.attach([...e.dataTransfer.files])
       this.input.focus()

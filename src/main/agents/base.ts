@@ -19,6 +19,7 @@ import type {
   SubagentInfo,
 } from '@shared/types'
 import { AGENT_NAMES } from '@shared/describe'
+import { lunaAgentSummary } from '@shared/luna'
 import { projectFor } from '@shared/projects'
 import { type Accounts } from '../accounts'
 import type { CostBook } from '../ledger'
@@ -70,6 +71,11 @@ export abstract class AgentBase extends EventEmitter {
       this.agents.set(summary.id, agent)
       if (summary.role === 'orchestrator') this.watchSquad(agent)
     }
+    if (![...this.agents.values()].some((agent) => agent.summary.builtIn === 'luna')) {
+      const summary = lunaAgentSummary()
+      this.agents.set(summary.id, { summary, log: [], started: true })
+      this.persist()
+    }
     this.results = store.results.filter((r) => this.agents.has(r.agentId))
     this.relocate()
   }
@@ -117,7 +123,10 @@ export abstract class AgentBase extends EventEmitter {
     const project = projectFor(this.store.settings.projects, cwd)?.id
     const used = new Set(
       [...this.agents.values()]
-        .filter((a) => a !== except && a.summary.project === project && (a.summary.role === 'orchestrator') === orchestrator)
+        .filter(
+          (a) =>
+            a !== except && !a.summary.builtIn && a.summary.project === project && (a.summary.role === 'orchestrator') === orchestrator,
+        )
         .map((a) => a.summary.desk),
     )
     let desk = 0
@@ -133,7 +142,7 @@ export abstract class AgentBase extends EventEmitter {
     let moved = false
     for (const agent of this.agents.values()) {
       const s = agent.summary
-      if (s.departed) continue
+      if (s.departed || s.builtIn) continue
       if (projectFor(this.store.settings.projects, s.cwd)?.id === s.project) continue
       Object.assign(s, this.seat(s.cwd, s.role === 'orchestrator', agent))
       this.upsert(agent)

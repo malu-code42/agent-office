@@ -27,10 +27,11 @@ A edição livre da aparência dos andares, inspirada em The Sims, fica para uma
 - A sala terá calendário para agenda; o escritório, quadro de objetivos; a casa também terá estante de livros, TV para filmes e console/arcade para jogos.
 - A copa e o lounge atuais podem ser refeitos como cozinha e sala de estar; não é obrigatório manter a planta ou o mobiliário atual.
 - Agentes individuais variam conforme a tarefa. Luna recomenda perfis reutilizáveis e os chama automaticamente em pedidos claros. Há até quatro agentes regulares presentes; um quinto temporário pode ser chamado quando necessário e sai após entregar. Os demais ficam na sala de estar até serem dispensados.
-- Perfis iniciais da casa: **Ajuda técnica**, **Estudo** (somente dúvidas avulsas, fora de um ciclo ativo) e **Escrita** (revisão/edição somente quando solicitada). Novos perfis exigem aprovação.
+- Perfis iniciais da casa: **Ajuda técnica**, **Estudo** (somente dúvidas avulsas, fora de um ciclo ativo) e **Agatha** (revisão/edição de escrita somente quando solicitada). Novos perfis exigem aprovação.
 - Cada perfil começa cada tarefa numa conversa nova, mas conserva memória privada persistente com aprendizados resumidos. Essa memória atualiza automaticamente, pode ser consultada por Luna e pode ser revisada, editada ou apagada pela usuária. Não guarda transcrições brutas, credenciais nem segredos.
 - Skills aprovadas podem ser selecionadas e adaptadas à tarefa. Mudanças permanentes em skills exigem aprovação.
-- A secretária antes chamada Íris passa a se chamar **Luna**. Luna coordena casa, estudos e projetos; resolve pedidos claros de organização e pergunta quando não souber o destino do trabalho.
+- A secretária antes chamada Íris passa a se chamar **Luna**. Luna coordena casa, estudos e projetos; resolve pedidos claros de organização e pergunta quando não souber o destino do trabalho. Luna aparece na barra lateral como qualquer agente: a usuária abre sua conversa no chat normal; não há canto, painel ou chat exclusivo para Luna.
+- Luna usa as notificações e perguntas já disponíveis para agentes para iniciar interações proativas. Respostas e acompanhamentos continuam na conversa normal de Luna.
 - Luna pode consultar o conteúdo dos ambientes e as memórias exclusivas para coordenar. O envio de conteúdo a modelos segue as regras da seção 6.
 
 ### 2.2 Registros pessoais
@@ -40,7 +41,7 @@ A edição livre da aparência dos andares, inspirada em The Sims, fica para uma
 - Objetivos ficam em arquivo próprio no vault, com alvo mensurável, prazo, marcos e vínculos opcionais a tarefas. O progresso é calculado com pesos iguais entre marcos e tarefas vinculadas. Luna não conclui tarefas; ao atingir 100%, pede confirmação para marcar o objetivo como alcançado.
 - Livros, filmes e jogos ficam em arquivos separados do vault, com estados planejado/em andamento/concluído e progresso específico por mídia. Um compromisso da agenda pode se vincular opcionalmente a uma mídia; o progresso só muda com confirmação da usuária.
 - Desenho, violão, leitura e filmes entram na agenda somente quando adicionados manualmente, sempre como compromissos. Não criam tarefas nem recorrências automaticamente. Se vinculados a mídias, o progresso correspondente só muda após confirmação.
-- Trechos de escrita ficam em arquivo próprio no vault. São guardados somente após confirmação; o original é preservado. O perfil Escrita só revisa quando solicitado e gera uma nova versão para aprovação, sem sobrescrever o original.
+- Trechos de escrita ficam em arquivo próprio no vault. São guardados somente após confirmação; o original é preservado. Agatha só revisa quando solicitada e gera uma nova versão para aprovação, sem sobrescrever o original.
 - Novos registros de objetivos, mídias e escrita usam arquivos separados e editáveis no Obsidian. O arquivo da grade de aulas também fica no vault. Definições de rotinas ficam no vault; histórico/execuções continuam no armazenamento local do Office.
 
 ### 2.3 Telegram e tarefas por áudio
@@ -53,7 +54,12 @@ A edição livre da aparência dos andares, inspirada em The Sims, fica para uma
 - Conteúdo não-tarefa é roteado ao fluxo apropriado (agenda, mídias, objetivos ou escrita). Escrita exige confirmação para salvar; conteúdo sem destino definido gera pergunta, sem gravação silenciosa.
 - A cópia local do áudio é apagada após a aprovação/registro do grupo. Mensagens de áudio no Telegram são apagadas após processamento, inclusive áudios de escrita depois de o trecho ser confirmado/salvo. A conversa bruta não fica arquivada localmente; o Office mantém somente estado pendente e registros aceitos.
 - Pedidos claros de organização via Telegram são executados diretamente. Luna pede confirmação antes de excluir ou descartar. Pedidos de permissão dos agentes podem ser aprovados/negados pelo Telegram, mostrando a ação exata e mantendo a política de risco do Office.
-- Às 08:00 no horário local, Luna envia pelo Telegram compromissos/aulas, tarefas datadas e atividades pessoais agendadas. Se o Office estiver fechado, envia ao abrir com os dados do dia atual e indicação de atraso.
+- O planejamento matinal ocorre no horário local configurado pela usuária. Luna reúne compromissos/aulas, tarefas datadas e rotinas previstas e pergunta quais são as prioridades do dia. Esse planejamento incorpora o resumo diário antes previsto às 08:00; não há duas mensagens separadas.
+- O fechamento do dia ocorre no horário local configurado pela usuária. Luna resume o que foi feito e as pendências, e pergunta sobre próximos passos; não altera registros sem instrução explícita.
+- Rotinas pessoais seguem horários e frequências definidos pela usuária em suas definições de rotina. No horário, Luna pergunta se a rotina foi feita, adiada ou não feita; registra somente a resposta recebida. Sem resposta, tenta novamente uma vez após 30 minutos. Persistindo sem resposta, não insiste e mantém a rotina pendente para o fechamento do dia.
+- Planejamento, rotinas e fechamento usam o fluxo comum de notificações/perguntas dos agentes. Com o Office aberto, Luna inicia a conversa no chat normal; perguntas usam o mecanismo de perguntas dos agentes.
+- Se o Office estiver fechado no horário de um ou mais desses processos, ao abrir Luna apresenta um resumo consolidado do que venceu e envia o mesmo resumo pelo Telegram, sem reproduzir notificações vencidas em sequência. A usuária pode responder pelo Telegram ou continuar no chat normal de Luna.
+- Telegram continua sem relay/serviço hospedado: o Office precisa estar aberto para processar atualizações e respostas recebidas. Mensagens enviadas ao reabrir não implicam processamento remoto enquanto o aplicativo estiver fechado.
 
 ### 2.4 Modelo, privacidade e contas Claude
 

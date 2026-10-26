@@ -22,7 +22,9 @@ import { openFocusPopup } from './ui/focus-popup'
 import { openTimerPopup } from './ui/timer-popup'
 import { openProposalReview } from './ui/proposals'
 import { openReviewOffer, openReviewWizard } from './ui/review'
-import { openIris } from './ui/iris'
+import { profileById } from '@shared/profiles'
+import { startLunaProfileTask } from './ui/luna-actions'
+import { openMediaDraft } from './ui/modals/media-draft'
 import { openReports } from './ui/reports'
 import { copyReport, exportConversation } from './ui/export'
 import { showDataNotice } from './ui/data'
@@ -220,7 +222,6 @@ async function boot(): Promise<void> {
       else if (action === 'media') void openMediaLibrary(ui, toast)
       else if (action === 'writing') openWritingLibrary(ui, toast)
       else if (action === 'personal-routines') void openPersonalRoutinesPanel(ui, toast)
-      else if (action === 'luna') openIris(ui, toast)
       else if (action === 'radio') void radio.toggle()
     },
     // Something of the project does not fit on its floor: the user has to know.
@@ -252,16 +253,17 @@ async function boot(): Promise<void> {
     {
       openAgent: (id) => {
         showAgent(id)
-        game.focusAgent(id)
+        if (!state.agents.get(id)?.builtIn) game.focusAgent(id)
       },
-      focusAgent: (id) => game.focusAgent(id),
+      focusAgent: (id) => {
+        if (!state.agents.get(id)?.builtIn) game.focusAgent(id)
+      },
       openItem: (agentId, itemId) => openItem(agentId, itemId),
       settings: (section) =>
         openSettings(ui, state, toast, { section, tour: replayTour, openTasks: (tasks) => void openTasksBoard(ui, state, toast, tasks) }),
       goHome: () => game.goHome(),
       zoom: (d) => game.zoom(d),
       newAgent: () => void newAgent(),
-      luna: () => openIris(ui, toast),
       goFloor: (n) => game.goFloor(n),
       newFloor: () => void newFloor(),
       accounts: () => openAccounts(ui, state, toast),
@@ -453,13 +455,32 @@ async function boot(): Promise<void> {
     if (e.type === 'data:notice') return notice(e.notice)
     if (e.type === 'telegram:message') return toast(`Telegram · ${e.text.slice(0, 180)}`, 'info')
     if (e.type === 'telegram:expired') return toast('Uma mensagem do Telegram expirou. Reenvie-a ao bot.', 'err')
+    if (e.type === 'luna:profile-task') {
+      void startLunaProfileTask(e.profile, e.task)
+        .then((agent) => {
+          if (!agent) {
+            toast('A tarefa não começou porque nenhuma pasta foi escolhida.', 'info')
+            return
+          }
+          toast(`${agent.name} começou com ${profileById(e.profile)?.name ?? 'o perfil escolhido'}.`, 'ok')
+          showAgent(agent.id).then(() => panel.focusInput())
+          game.focusAgent(agent.id)
+        })
+        .catch((error) => toast(cleanError(error), 'err'))
+      return
+    }
+    if (e.type === 'luna:media-draft') {
+      openMediaDraft(ui, e.draft, toast)
+      return
+    }
     if (e.type === 'agent:chat') return game.chat(e.fromId, e.toId, e.text)
     if (e.type === 'member:ended') return game.memberEnded(e.taskId, e.status, e.summary)
     // Clique na notificação do sistema: o cartão abre na hora, sem esperar a caminhada.
     if (e.type === 'notice:open') {
       dismissed.delete(e.itemId)
       if (dialog.itemId !== e.itemId) openItem(e.agentId, e.itemId)
-      return game.focusAgent(e.agentId)
+      if (!state.agents.get(e.agentId)?.builtIn) game.focusAgent(e.agentId)
+      return
     }
     // Every 3 s: redraw only the info card (it also ticks the reset countdowns), not the whole HUD.
     if (e.type === 'system') {
@@ -478,7 +499,7 @@ async function boot(): Promise<void> {
     }
     if (e.type === 'permission:new') {
       const a = state.agents.get(e.request.agentId)
-      if (a) toast(`${a.name} está indo até a sua sala.`, 'info')
+      if (a) toast(a.builtIn ? `${a.name} tem uma pergunta para você.` : `${a.name} está indo até a sua sala.`, 'info')
       // Interrupts the screen reader: the agent is stopped until the player decides.
       if (a) {
         const r = e.request

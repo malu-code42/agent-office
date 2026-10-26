@@ -153,7 +153,7 @@ describe('contexto da Luna', () => {
     expect(context).toContain('Perfis aprovados disponíveis')
     expect(context).toContain('- tecnica | Ajuda técnica | resolver um problema técnico pontual')
     expect(context).toContain('- estudo-avulso | Estudo avulso | estudar por conta própria')
-    expect(context).toContain('- escrita | Escrita | produzir e revisar textos')
+    expect(context).toContain('- escrita | Agatha | produzir e revisar textos')
   })
 
   it('pedido vazio ou longo demais é recusado antes de qualquer leitura', () => {

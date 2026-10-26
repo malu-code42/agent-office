@@ -11,7 +11,7 @@ export function registerRoutinesIpc(ctx: IpcContext): void {
   ipcMain.handle('office:saveRoutine', async (_e, raw: unknown) => {
     const draft = cleanRoutineDraft(
       { ...(raw && typeof raw === 'object' ? raw : {}), confirmPermissionOverride: true },
-      { settings: store.settings, agents: manager.list() },
+      { settings: store.settings, agents: manager.list().filter((agent) => !agent.builtIn) },
     )
     const agent = draft.who.kind === 'agent' ? manager.agent(draft.who.agentId) : undefined
     const floor = draft.floor ? store.settings.projects.find((p) => p.id === draft.floor) : undefined

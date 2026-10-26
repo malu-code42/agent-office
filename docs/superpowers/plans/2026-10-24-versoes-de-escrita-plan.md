@@ -34,7 +34,7 @@
 - Backup datado em `<vault>/backups/escrita/`, nunca sobrescrito; escrever via `writeFileAtomic`. Backup ou stale-check falho não altera `escrita.md`.
 - TDD em `test/writing-write.test.ts`: criação original, nova versão, snapshot concorrente, backup datado, colisão de backup, falha antes/depois do backup, original e versões anteriores intactos, nenhum arquivo extra nos outros domínios.
 
-### 3. Assistente efêmero Escrita
+### 3. Assistente efêmero Agatha
 
 - Criar `src/main/writing-assistant.ts` separado do `IrisDesk` geral. Entrada: snippet/versão selecionada e instrução; saída: prévia exata, pergunta/erro seguro ou rascunho em memória.
 - Só `send` depois do token de prévia; cancelamento apaga token. Revalidar stale snapshot depois da resposta e antes de oferecer Save.
@@ -54,7 +54,7 @@
 
 - Adicionar comando `Escrita` na superfície já existente (sem alterar o mundo 3D), com lista de trechos e versões.
 - Modal para criar Original manualmente com Save explícito.
-- Revisão de versão existente: selecionar versão → escrever instrução → mostrar texto+instrução exatos → Enviar à Escrita → mostrar base e rascunho editável → Salvar nova versão ou Cancelar.
+- Revisão de versão existente: selecionar versão → escrever instrução → mostrar texto+instrução exatos → Enviar à Agatha → mostrar base e rascunho editável → Salvar nova versão ou Cancelar.
 - Cancelar antes/durante/depois da chamada não salva nada. Se houver conflito, oferecer recarregar/revisar novamente; nunca mesclar silenciosamente.
 - Seguir `h()`, `modal()`, `field()`, `confirmDialog()`, `keepFocus`, teclado/foco e tokens CSS existentes. Testar copy, long content, empty states e erro na interface.
 
@@ -69,7 +69,7 @@
 ## Critérios de conclusão
 
 - `escrita.md` é legível/editável, preserva texto livre e linhas desconhecidas, e mantém histórico append-only.
-- O perfil Escrita só é chamado após pedido explícito e prévia enviada pela usuária; a resposta é um draft efêmero.
+- O perfil Agatha só é chamado após pedido explícito e prévia enviada pela usuária; a resposta é um draft efêmero.
 - Nenhuma versão é gravada por gerar/responder; somente Save new version confirma e anexa.
 - Conflito do Obsidian, cancelamento, erro do Claude, JSON inválido e falha de backup preservam original/versões anteriores.
 - Nenhum conteúdo de escrita sai em logs, tasks, agenda, planning ou contexto adicional.

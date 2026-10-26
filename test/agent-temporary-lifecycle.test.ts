@@ -55,7 +55,7 @@ describe('ciclo do agente temporário (AO-42)', () => {
     manager.ackResult('pending-result')
 
     expect(manager.pendingResults()).toEqual([])
-    expect(manager.list().map((agent) => agent.id)).toEqual(['regular-0', 'regular-1', 'regular-2', 'regular-3'])
+    expect(manager.list().map((agent) => agent.id)).toEqual(['regular-0', 'regular-1', 'regular-2', 'regular-3', 'agent-office:luna'])
     expect(manager.agent('temporary')).toMatchObject({ departed: true, temporary: true, status: 'stopped' })
     expect(manager.getLog('temporary')).toEqual(history)
     expect(agentCapDecision(manager.list()).result).toBe('temporary')
@@ -67,7 +67,7 @@ describe('ciclo do agente temporário (AO-42)', () => {
     store.flush()
     const reopened = new Store()
     const restored = new AgentManager(reopened)
-    expect(restored.list().map((agent) => agent.id)).toEqual(['regular-0', 'regular-1', 'regular-2', 'regular-3'])
+    expect(restored.list().map((agent) => agent.id)).toEqual(['regular-0', 'regular-1', 'regular-2', 'regular-3', 'agent-office:luna'])
     expect(restored.getLog('temporary')).toEqual(history)
     expect(restored.agent('temporary')).toMatchObject({ departed: true, status: 'stopped' })
     restored.shutdown()

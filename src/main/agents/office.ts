@@ -28,6 +28,21 @@ import { profileById, profileTaskInstructions } from '@shared/profiles'
 export abstract class AgentOffice extends AgentBase {
   /** AO-42: reserve synchronously so concurrent worktree creation cannot take the same seat. */
   private capReservations = new AgentCapReservations()
+  private builtInMessageHandler?: (id: string, text: string) => void | Promise<void>
+
+  setBuiltInMessageHandler(handler: (id: string, text: string) => void | Promise<void>): void {
+    this.builtInMessageHandler = handler
+  }
+
+  appendBuiltInLog(id: string, kind: LogEntry['kind'], text: string): void {
+    const agent = this.agents.get(id)
+    if (agent?.summary.builtIn) this.addLog(agent, kind, text)
+  }
+
+  setBuiltInStatus(id: string, status: AgentStatus, activity: string): void {
+    const agent = this.agents.get(id)
+    if (agent?.summary.builtIn) this.setStatus(agent, status, activity)
+  }
 
   // ---------- office agents (Claude Agent SDK) ----------
 
@@ -354,6 +369,27 @@ export abstract class AgentOffice extends AgentBase {
   sendMessage(id: string, text: string, display?: string, attachments: AttachmentInput[] = []): void {
     const agent = this.agents.get(id)
     if (!agent || agent.summary.source !== 'office' || agent.summary.departed || agent.demo) return
+    if (agent.summary.builtIn === 'luna') {
+      if (attachments.length) throw new Error('A Luna ainda não recebe anexos pelo chat.')
+      this.addLog(agent, 'user', display ?? text)
+      this.dropResults(id)
+      if (this.simulate) {
+        this.addLog(agent, 'assistant', 'A conversa com Luna está em modo de demonstração; nenhum pedido será enviado ou executado.')
+        this.setStatus(agent, 'idle', 'Pronta para ajudar')
+        return
+      }
+      if (!this.pendingRequests().some((request) => request.agentId === id)) this.setStatus(agent, 'working', 'Lendo seu pedido')
+      if (!this.builtInMessageHandler) {
+        this.addLog(agent, 'error', 'A conversa com Luna não está disponível agora. Tente novamente.')
+        this.setStatus(agent, 'idle', 'Pronta para ajudar')
+        return
+      }
+      void Promise.resolve(this.builtInMessageHandler(id, text)).catch(() => {
+        this.addLog(agent, 'error', 'A Luna não conseguiu concluir esse pedido. Tente novamente.')
+        if (!this.pendingRequests().some((request) => request.agentId === id)) this.setStatus(agent, 'idle', 'Pronta para ajudar')
+      })
+      return
+    }
     if (agent.summary.engine === 'opencode') throw new Error('Este é um registro histórico OpenCode, disponível somente para consulta.')
     if (agent.summary.quotaPaused)
       throw new Error(
@@ -377,6 +413,7 @@ export abstract class AgentOffice extends AgentBase {
   compact(id: string): void {
     const agent = this.agents.get(id)
     if (!agent || agent.summary.source !== 'office' || !agent.started || this.busy(agent)) return
+    if (agent.summary.builtIn) throw new Error('O histórico de Luna não pode ser compactado por este controle.')
     if (agent.summary.engine === 'opencode') throw new Error('Registros históricos OpenCode são somente para consulta.')
     if (agent.summary.quotaPaused)
       throw new Error('Uma tarefa pausada ou encerrada pela cota não pode ser compactada. Comece uma conversa nova para continuar.')
@@ -392,6 +429,7 @@ export abstract class AgentOffice extends AgentBase {
   clearContext(id: string): void {
     const agent = this.agents.get(id)
     if (!agent || agent.summary.source !== 'office') return
+    if (agent.summary.builtIn) throw new Error('O histórico de Luna não pode ser limpo por este controle.')
     if (agent.summary.engine === 'opencode')
       throw new Error('Registros históricos OpenCode não podem ser retomados. Crie um novo agente Claude se quiser recomeçar.')
     if (agent.summary.quotaPaused && this.results.some((result) => result.agentId === id && result.limit))
@@ -437,6 +475,7 @@ export abstract class AgentOffice extends AgentBase {
   async interrupt(id: string): Promise<void> {
     const agent = this.agents.get(id)
     if (!agent) return
+    if (agent.summary.builtIn) return
     if (agent.summary.engine === 'opencode') return
     this.cancelAgentRequests(id)
     if (!agent.query) return
@@ -447,6 +486,7 @@ export abstract class AgentOffice extends AgentBase {
   fire(id: string): void {
     const agent = this.agents.get(id)
     if (!agent) return
+    if (agent.summary.builtIn) throw new Error('Luna faz parte do Agent Office e não pode ser dispensada.')
     if (agent.summary.engine === 'opencode') throw new Error('Registros históricos OpenCode são preservados para consulta.')
     if (agent.summary.temporary && this.results.some((result) => result.agentId === id))
       throw new Error('Receba ou encerre a tarefa e leia o resultado antes de dispensar o agente temporário.')

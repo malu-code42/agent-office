@@ -10,6 +10,10 @@ import { PanelHead } from './head'
 export abstract class PanelComposer extends PanelHead {
   protected attach(list: File[]): void {
     if (this.terminal) return
+    if (this.agentId && this.state.agents.get(this.agentId)?.builtIn) {
+      this.actions.toast('A Luna ainda não recebe anexos pelo chat.', 'err')
+      return
+    }
     for (const file of list) {
       if (this.files.length >= ATTACH_LIMITS.count) {
         this.actions.toast(
