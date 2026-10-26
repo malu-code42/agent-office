@@ -32,8 +32,6 @@ export interface HudActions {
   resume(): void
   /** "Novo agente": talk, give a task or bring up a squad. */
   newAgent(): void
-  /** Ask Luna to organize or start a clear task with one of the built-in profiles. */
-  luna(): void
   board(ticketId?: string): void
   /** Take the elevator to a floor (0 = térreo). */
   goFloor(n: number): void
@@ -254,11 +252,6 @@ export class Hud {
         icon('plus'),
         'Novo agente',
       ),
-      h(
-        'button',
-        { class: 'dock-btn', title: 'Pedir à Luna para organizar ou iniciar uma tarefa', onclick: () => actions.luna() },
-        icon('message', 16),
-      ),
       this.focusBtn,
       this.timerBtn,
       this.inboxBtn,
@@ -422,6 +415,7 @@ export class Hud {
     let count = 0
     let waiting = false
     for (const a of this.state.agents.values()) {
+      if (a.builtIn) continue
       const items = this.state.itemsFor(a.id)
       const pending = items.permissions.length + items.results.length > 0 || a.status === 'waiting'
       // A project agent with something for you takes the elevator to wherever you are.
@@ -547,6 +541,7 @@ export class Hud {
           { class: 'roster-name' },
           h('span', { class: `dot dot-${a.status}` }),
           h('span', { class: 'name' }, a.name),
+          a.builtIn === 'luna' ? h('span', { class: 'chip' }, 'Secretária') : null,
           a.source === 'terminal' ? h('span', { class: 'chip chip-term' }, 'terminal') : null,
           helpersChip(a, true),
           this.floorChip(a),
@@ -568,18 +563,20 @@ export class Hud {
         pending
           ? h('span', { class: 'badge' }, String(pending))
           : h('span', { class: 'roster-cost' }, a.costUnknown ? 's/ preço' : formatCost(a.costUsd)),
-        h(
-          'button',
-          {
-            class: 'icon-btn',
-            title: 'Ver no mapa',
-            onclick: (e: Event) => {
-              e.stopPropagation()
-              this.actions.focusAgent(a.id)
-            },
-          },
-          icon('eye', 15),
-        ),
+        a.builtIn
+          ? null
+          : h(
+              'button',
+              {
+                class: 'icon-btn',
+                title: 'Ver no mapa',
+                onclick: (e: Event) => {
+                  e.stopPropagation()
+                  this.actions.focusAgent(a.id)
+                },
+              },
+              icon('eye', 15),
+            ),
       ),
     )
     row.addEventListener('keydown', (e) => {

@@ -14,7 +14,8 @@ import type { RoutineCandidate } from '../routine-personal'
 import type { FocusItem } from '../planning'
 import type { MediaCreateInput, MediaItemOf, MediaKind, MediaPosterResult, MediaUpdateInput } from '../media'
 import type { BarTimerView } from '../barTimer'
-import type { IrisPreview, IrisResult } from '../iris'
+import type { IrisResult } from '../iris'
+import type { ProfileId } from '../profiles'
 import type { Proposal } from '../proposals'
 import type { ReviewChoices, ReviewPostpone, ReviewView } from '../review'
 import type { Goal, GoalDraft } from '../goals'
@@ -22,6 +23,30 @@ import type { NewTaskDraft, ParsedBoard, Task, TaskDiscard, TaskMove, TaskRef, T
 import type { PersonalRoutineCreateInput, PersonalRoutineOverview } from '../routine-personal'
 import type { DelegateTarget, Ticket, TicketDraft, TicketPatch, TicketStatus } from './tickets'
 import type { WritingVersion } from '../writing'
+import type { DecodedStudyBank, StudyQuestion } from '../study-questions'
+import type { StudyCycleState } from '../study-cycle'
+import type { StudyLibrarySearch } from '../study-library'
+import type { StudyCardDraft, StudyCardSummary, StudyCardsRead, StudyNotesRead } from '../study-cards'
+import type { TelegramAudioErrorNotice, TelegramExpiredNotice, TelegramMessageNotice, TelegramStatus } from '../telegram'
+
+export interface StudyQuestionCandidates {
+  token: string
+  status: 'found' | 'insufficient' | 'noResults' | 'error' | 'incomplete'
+  localScanComplete: boolean
+  local: StudyQuestion[]
+  sourceCandidates: StudyQuestion[]
+  web: StudyQuestion[]
+  generated: StudyQuestion[]
+  canGenerate: boolean
+  warning?: string
+}
+export interface StudyQuestionGeneration {
+  token: string
+  status: 'found' | 'noResults' | 'error'
+  generated: StudyQuestion[]
+  canGenerate: boolean
+  warning?: string
+}
 
 export interface WritingSnippetView {
   id: string
@@ -194,6 +219,12 @@ export type OfficeEvent =
   | { type: 'focus:count'; count: number }
   /** The Timer of the bar changed (AO-64): the whole session as it reads, or null for a stopped Timer. */
   | { type: 'barTimer'; timer: BarTimerView | null }
+  | ({ type: 'telegram:message' } & TelegramMessageNotice)
+  | ({ type: 'telegram:expired' } & TelegramExpiredNotice)
+  | ({ type: 'telegram:audio-error' } & TelegramAudioErrorNotice)
+  | { type: 'luna:profile-task'; profile: ProfileId; task: string }
+  | { type: 'luna:media-draft'; draft: Extract<IrisResult, { kind: 'media-draft' }>['draft'] }
+  | { type: 'luna:transcript'; text: string }
 
 /** A reopen either put the task back (`list` is where it went) or waits for the user to choose one of `lists`. */
 export type ReopenResult = { status: 'done'; list: string; board: ParsedBoard; focus: FocusItem[] } | { status: 'choose'; lists: string[] }
@@ -229,6 +260,64 @@ export interface OfficeAPI {
   readMediaPoster(id: string): Promise<MediaPosterResult>
   /** Lê e interpreta listas de tarefas no vault indicado, sem escrever no arquivo. */
   readTasks(): Promise<ParsedBoard>
+  /** Lê o banco de questões canônico do vault configurado; não inicia ciclo de estudo. */
+  readStudyQuestions(): Promise<DecodedStudyBank>
+  /** Busca no banco primeiro; resultados online/IA são apenas candidatas até seleção explícita. */
+  searchStudyQuestions(topic: string, limit?: number): Promise<StudyQuestionCandidates>
+  /** Gera candidatas IA somente após a pessoa solicitar, com token de uma busca concluída. */
+  generateStudyQuestions(token: string): Promise<StudyQuestionGeneration>
+  /** Salva somente candidatas escolhidas pela pessoa, se o banco não mudou desde a busca. */
+  saveStudyQuestions(token: string, selection: StudyQuestion[], reviewConfirmed: boolean): Promise<void>
+  /** Lê/resume o ciclo local de diagnóstico, sem alterar vault, tarefas ou agentes. */
+  readStudyCycle(): Promise<StudyCycleState>
+  /** Inicia outro tópico preservando ciclos anteriores; IDs devem pertencer ao banco local atual. */
+  startStudyCycle(topic: string, questionIds: string[]): Promise<StudyCycleState>
+  /** Salva resposta, incerteza e eventual trecho local que a pessoa escolheu como evidência. */
+  answerStudyCycle(questionId: string, response: string, uncertain: boolean, providedExcerpt?: string): Promise<StudyCycleState>
+  /** Registra a causa e o próximo passo de um erro ou dúvida já avaliado. */
+  reviewStudyGap(questionId: string, cause: string, nextStep: string): Promise<StudyCycleState>
+  /** Solicita explicitamente uma avaliação isolada de uma questão pelo Tutor. */
+  evaluateStudyAnswer(questionId: string): Promise<StudyCycleState>
+  /** Pede a Bonnie para aplicar o gate objetivo do diagnóstico. */
+  advanceStudyCycle(): Promise<StudyCycleState>
+  /** Desativa a seleção do ciclo, mantendo tópico e evidências no histórico local. */
+  resetStudyCycle(): Promise<StudyCycleState>
+  /** Busca trechos apenas nos arquivos locais de estudo; nenhum conteúdo é enviado a modelos. */
+  searchStudyLibrary(query: string): Promise<StudyLibrarySearch>
+  /** Vincula ao ciclo uma fonte pertencente a uma busca local anterior. */
+  attachStudySource(questionId: string, token: string, hitId: string): Promise<StudyCycleState>
+  /** Salva uma nota autoral no Obsidian e a vincula à lacuna e à fonte consultada. */
+  saveStudyCycleNote(questionId: string, token: string, hitId: string, text: string): Promise<StudyCycleState>
+  /** Registra a resposta da estudante em uma questão da rodada de prática atual. */
+  answerStudyPractice(questionId: string, response: string): Promise<StudyCycleState>
+  /** Solicita ao Tutor uma verificação explícita da resposta de prática. */
+  evaluateStudyPractice(questionId: string): Promise<StudyCycleState>
+  /** Planeja questões novas de prática, ligando cada uma a uma lacuna identificada. */
+  startStudyPractice(questions: { id: string; gapQuestionIds: string[] }[]): Promise<StudyCycleState>
+  /** Planeja ao menos dez questões novas de reteste com gabaritos conferidos. */
+  startStudyRetest(questionIds: string[]): Promise<StudyCycleState>
+  /** Salva somente a resposta, sem mostrar gabarito nem avaliação durante o reteste. */
+  answerStudyRetest(questionId: string, response: string): Promise<StudyCycleState>
+  /** Confere o reteste completo somente após todas as respostas serem salvas. */
+  verifyStudyRetest(): Promise<StudyCycleState>
+  /** Conclui o ciclo somente com aprovação explícita após o gate de 80%. */
+  completeStudyRetest(): Promise<StudyCycleState>
+  /** Lê as notas de estudo editáveis e seus hashes de versão, sem enviar conteúdo a modelos. */
+  readStudyNotes(): Promise<StudyNotesRead>
+  /** Gera um rascunho somente das notas escolhidas; o main guarda os snapshots sob um token curto. */
+  generateStudyCardDraft(noteIds: string[]): Promise<{ token: string; draft: StudyCardDraft } | null>
+  /** Salva o rascunho aprovado pela estudante como cartão Markdown no Obsidian. */
+  saveStudyCardDraft(token: string, draft: Omit<StudyCardDraft, 'sourceSnapshots'>): Promise<StudyCardSummary | null>
+  /** Lista cartões e compara as origens com as versões atuais das notas. */
+  listStudyCards(): Promise<StudyCardsRead>
+  /** Marca manualmente se a cópia física do cartão foi escrita. */
+  setStudyCardPhysicalWritten(id: string, written: boolean): Promise<StudyCardSummary>
+  /** Estado sanitisado da conta Telegram vinculada; nunca inclui o bot token. */
+  telegramStatus(): Promise<TelegramStatus>
+  /** Abre o seletor nativo para importar arquivo JSON de token/user ID e vincular o bot. */
+  linkTelegram(): Promise<TelegramStatus | null>
+  /** Pede confirmação no processo principal, para o polling e remove a credencial criptografada. */
+  unlinkTelegram(): Promise<boolean>
   /** Lê objetivos.md e tarefas.md; os objetivos continuam editáveis no Obsidian. */
   readGoals(): Promise<{ goals: Goal[]; tasks: Task[] }>
   /** Cria um objetivo em objetivos.md, sem alterar tarefas.md. */
@@ -263,12 +352,6 @@ export interface OfficeAPI {
   applyProposal(id: string): Promise<void>
   /** Recusa a proposta: ela sai da lista de pendentes. Nenhum arquivo é alterado. */
   rejectProposal(id: string): Promise<void>
-  /** Luna: monta o texto exato que seria enviado (pedido, compromissos da semana, tarefas citadas). Não envia nada. */
-  prepareIris(request: string): Promise<IrisPreview>
-  /** Luna: envia à Luna o texto da prévia (pelo token) e devolve a proposta criada ou a pergunta. Nada é aplicado. */
-  sendIris(token: string): Promise<IrisResult>
-  /** Luna: descarta a prévia sem enviar nada. */
-  cancelIris(token: string): Promise<void>
   /** Lê os trechos e históricos locais do escrita.md no vault selecionado; nunca escreve. */
   readWriting(): Promise<{ snippets: WritingSnippetView[] }>
   /** Salva um Original somente após a confirmação explícita da pessoa. */

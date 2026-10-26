@@ -46,7 +46,7 @@ export function tourSteps(platform: string): TourStep[] {
     {
       id: 'desk',
       title: 'Mesa da casa',
-      text: 'Use Novo agente na barra para chamar alguém. Clique na Luna, à mesa, para abrir o perfil dela.',
+      text: 'Use Novo agente na barra para chamar alguém. Selecione Luna na lista de agentes para conversar com ela no chat normal.',
       targets: [{ world: 'desk' }, { hud: 'new-agent' }],
       place: 'right',
     },
@@ -251,9 +251,15 @@ export function placeBalloon(
   }
   const fits = (s: Side) => {
     const p = at[s]
-    return s === 'top' || s === 'bottom' ? p.y >= margin && p.y + size.h <= view.h - margin : p.x >= margin && p.x + size.w <= view.w - margin
+    return s === 'top' || s === 'bottom'
+      ? p.y >= margin && p.y + size.h <= view.h - margin
+      : p.x >= margin && p.x + size.w <= view.w - margin
   }
-  const order: Side[] = [prefer, OPPOSITE[prefer], ...(['bottom', 'top', 'right', 'left'] as Side[]).filter((s) => s !== prefer && s !== OPPOSITE[prefer])]
+  const order: Side[] = [
+    prefer,
+    OPPOSITE[prefer],
+    ...(['bottom', 'top', 'right', 'left'] as Side[]).filter((s) => s !== prefer && s !== OPPOSITE[prefer]),
+  ]
   const side = order.find(fits)
   return side ? { x: clampX(at[side].x), y: clampY(at[side].y), side } : middle
 }

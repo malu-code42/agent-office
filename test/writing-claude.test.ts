@@ -38,7 +38,7 @@ describe('claudeWritingInterpreter', () => {
     const args = queryMock.mock.calls[0]![0]
     expect(args.prompt).toBe('Contexto sintético.')
     expect(args.options).toMatchObject({ tools: [], persistSession: false, maxTurns: 1, pathToClaudeCodeExecutable: 'claude-test' })
-    expect(args.options.systemPrompt).toContain('Work as Escrita')
+    expect(args.options.systemPrompt).toContain('Work as Agatha')
     expect(args.options.systemPrompt).toContain('plain text')
     expect(args.options.env).toMatchObject({ TEST_ACCOUNT: 'main', AGENT_OFFICE_MANAGED: '1' })
     expect(close).toHaveBeenCalledOnce()

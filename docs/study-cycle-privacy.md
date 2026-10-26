@@ -1,0 +1,15 @@
+# Privacidade do Tutor no ciclo de estudos (AO-49)
+
+O diagnóstico, as respostas, as avaliações, as lacunas, o progresso da prática e uma cópia das notas ficam em `study-cycle.json` em `userData`. O arquivo entra nos backups locais e na exportação/importação do Agent Office. Esse estado não é gravado em `planning.json`, tickets ou logs de agentes. Notas de estudo também são documentos distintos salvos em `notas-estudo.md` somente por ação explícita; não são cartões.
+
+O Tutor não recebe dados ao abrir ou iniciar um ciclo. No diagnóstico, somente o clique explícito em **Verificar com Tutor** envia uma questão por vez: enunciado selecionado, resposta da estudante e evidência da questão. Para questão com gabarito marcado como conferido, a evidência é esse gabarito; para qualquer outro estado, somente o trecho que a estudante colou no campo de apoio. Sem evidência, a questão continua **Em verificação** e nenhuma chamada é feita.
+
+No reteste, as respostas ficam locais até a estudante salvar todas e acionar **Conferir reteste sem ajuda**. Só então o Tutor verifica cada resposta contra o gabarito conferido, sem devolver dicas antes do fim. A conclusão ainda exige ao menos dez questões novas, 80% e uma confirmação nativa do processo principal.
+
+Cora pesquisa os arquivos `.md` e `.txt` da pasta `study sources` no vault local e mostra trechos com caminho, título e linha. Essa pesquisa nunca chama Claude. Se limites de segurança impedirem percorrer todas as fontes, a busca informa que ficou incompleta e não mostra resultados parciais. A nota salva contém o texto escrito pela estudante e a referência escolhida; nenhuma fonte é editada. O app cria backup e revalida `notas-estudo.md` antes da gravação atômica, mas uma edição externa no intervalo mínimo entre a checagem final e o rename ainda é possível porque o Obsidian não participa do lock do app.
+
+Para cartões, somente as notas marcadas pela estudante são enviadas ao Claude depois de uma confirmação nativa que exibe os títulos, conta e modelo. O rascunho não é salvo automaticamente: é preciso revisá-lo e aprovar o salvamento. Cada cartão em `cartoes-estudo/` preserva snapshots/hash das notas selecionadas; se a nota original mudar, a biblioteca mostra **Origem alterada** sem reescrever o cartão. Marcar a cópia física é outra ação manual e não altera o ciclo.
+
+Antes de usar conteúdo real, a pessoa deve conferir que a conta Claude selecionada e seu ambiente de execução podem receber esse conteúdo. O app fixa, para cada chamada, a primeira conta em Ajustes → Contas padrão (ou a conta Principal quando a lista estiver vazia), o modelo configurado (ou `claude-haiku-5-5`) e o esforço configurado (ou `medium`). Não alterna conta/modelo em caso de indisponibilidade ou cota. A chamada é de um turno, sem ferramentas e sem sessão persistida. Falhas preservam a resposta local para uma tentativa posterior.
+
+Esta integração não comprova que a política de retenção ou o contrato da conta selecionada sejam adequados para dados sensíveis. Não envie conteúdo confidencial sem verificar as condições da conta e obter as autorizações necessárias.

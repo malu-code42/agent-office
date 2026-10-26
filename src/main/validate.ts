@@ -29,6 +29,7 @@ import { STATUSES } from '@shared/tickets'
 import { EFFORT_LEVELS, ROUTINE_LIMITS } from '@shared/types'
 import type { VideoSettings } from '@shared/video'
 import type { PersonalRoutineCreateInput } from '@shared/routine-personal'
+import { isSafeStudyUrl, type StudyQuestion } from '@shared/study-questions'
 import type {
   Account,
   AgentBrain,
@@ -187,6 +188,121 @@ export const pickMediaPosterArgsSchema = z.tuple([])
 export const subagentLogArgsSchema = z.tuple([idSchema, idSchema])
 export const pathSchema = z.string().min(1).max(MAX_PATH)
 export const vaultPathSchema = pathSchema.refine(isAbsolute, 'O caminho do vault precisa ser absoluto.')
+const studyQuestionSchema: z.ZodType<StudyQuestion> = z
+  .object({
+    id: z.string().max(80),
+    topic: z.string().max(200),
+    tags: z.array(z.string().max(80)).max(20),
+    question: z.string().max(20_000),
+    answer: z.string().max(20_000).optional(),
+    rationale: z.string().max(20_000).optional(),
+    answerStatus: z.enum(['verified', 'unverified', 'missing']),
+    originKind: z.enum(['enem', 'concurso', 'livro', 'web', 'ia']),
+    sourceTitle: z.string().max(300),
+    sourceVisibility: z.enum(['public', 'private', 'local', 'unknown']),
+    sourceUrl: z.string().max(8192).refine(isSafeStudyUrl).optional(),
+    sourceReference: z.string().max(1000).optional(),
+    attribution: z.string().max(1000),
+    license: z.string().max(300),
+    sourceOnly: z.literal(true).optional(),
+    verifiedByUser: z.literal(true).optional(),
+    verifiedAt: z.string().datetime().optional(),
+  })
+  .strict()
+export const studyQuestionSearchArgsSchema = z.tuple([z.string().trim().min(1).max(200), z.number().int().min(1).max(50).optional()])
+export const studyQuestionSaveArgsSchema = z.tuple([z.string().uuid(), z.array(studyQuestionSchema).min(1).max(100), z.boolean()])
+export const studyQuestionGenerateArgsSchema = z.tuple([z.string().uuid()])
+const studyBankQuestionIdSchema = z.string().regex(/^q-[a-z0-9-]{8,72}$/i)
+export const startStudyCycleArgsSchema = z.tuple([
+  z.string().trim().min(1).max(200),
+  z
+    .array(studyBankQuestionIdSchema)
+    .min(1)
+    .max(100)
+    .refine((ids) => new Set(ids).size === ids.length),
+])
+export const answerStudyCycleArgsSchema = z.tuple([
+  studyBankQuestionIdSchema,
+  z.string().trim().min(1).max(20_000),
+  z.boolean(),
+  z.string().max(20_000).optional(),
+])
+export const evaluateStudyAnswerArgsSchema = z.tuple([studyBankQuestionIdSchema])
+export const advanceStudyCycleArgsSchema = z.tuple([])
+export const resetStudyCycleArgsSchema = z.tuple([])
+export const reviewStudyGapArgsSchema = z.tuple([
+  z.string().regex(/^q-[a-z0-9-]{8,72}$/i),
+  z.string().trim().min(1).max(2000),
+  z.string().trim().min(1).max(2000),
+])
+export const searchStudyLibraryArgsSchema = z.tuple([z.string().trim().min(1).max(200)])
+export const studyLibrarySourceArgsSchema = z.tuple([
+  z.string().regex(/^q-[a-z0-9-]{8,72}$/i),
+  z.string().uuid(),
+  z.string().regex(/^[a-f0-9]{20}$/),
+])
+export const studyCycleNoteArgsSchema = z.tuple([
+  z.string().regex(/^q-[a-z0-9-]{8,72}$/i),
+  z.string().uuid(),
+  z.string().regex(/^[a-f0-9]{20}$/),
+  z.string().trim().min(1).max(10_000),
+])
+export const startStudyPracticeArgsSchema = z.tuple([
+  z
+    .array(
+      z
+        .object({
+          id: z.string().regex(/^q-[a-z0-9-]{8,72}$/i),
+          gapQuestionIds: z
+            .array(z.string().regex(/^q-[a-z0-9-]{8,72}$/i))
+            .min(1)
+            .max(100),
+        })
+        .strict(),
+    )
+    .min(1)
+    .max(100),
+])
+export const answerStudyPracticeArgsSchema = z.tuple([z.string().regex(/^q-[a-z0-9-]{8,72}$/i), z.string().trim().min(1).max(20_000)])
+export const startStudyRetestArgsSchema = z.tuple([
+  z
+    .array(z.string().regex(/^q-[a-z0-9-]{8,72}$/i))
+    .min(10)
+    .max(100)
+    .refine((ids) => new Set(ids).size === ids.length),
+])
+export const answerStudyRetestArgsSchema = z.tuple([z.string().regex(/^q-[a-z0-9-]{8,72}$/i), z.string().trim().min(1).max(20_000)])
+export const verifyStudyRetestArgsSchema = z.tuple([])
+export const completeStudyRetestArgsSchema = z.tuple([])
+const studyNoteIdSchema = z.string().regex(/^sn-[a-z0-9-]{8,150}$/i)
+export const generateStudyCardDraftArgsSchema = z.tuple([
+  z
+    .array(studyNoteIdSchema)
+    .min(1)
+    .max(20)
+    .refine((ids) => new Set(ids).size === ids.length),
+])
+export const saveStudyCardDraftArgsSchema = z.tuple([
+  z.string().uuid(),
+  z
+    .object({
+      title: z.string().trim().min(1).max(200),
+      sections: z
+        .object({
+          information: z.string().max(20_000),
+          examplePractice: z.string().max(20_000),
+          connections: z.string().max(20_000),
+          sources: z.string().max(20_000),
+          connectionsPending: z.boolean(),
+          sourcesPending: z.boolean(),
+        })
+        .strict(),
+    })
+    .strict(),
+])
+export const setStudyCardPhysicalArgsSchema = z.tuple([z.string().regex(/^c-[a-z0-9-]{8,80}$/i), z.boolean()])
+export const telegramNoArgsSchema = z.tuple([])
+export const listStudyCardsArgsSchema = z.tuple([])
 /** A task from the "Nova tarefa" form; the rules for each field are in shared/tasks.ts (taskDraftProblem). */
 export const newTaskSchema: z.ZodType<NewTaskDraft> = z.object({
   title: z.string().max(300),
@@ -287,6 +403,10 @@ export const proposalSchema: z.ZodType<Proposal> = z.object({
   source: z.string().trim().min(1).max(80),
   createdAt: z.number().finite(),
   operations: z.array(proposalOperationSchema).min(1).max(50),
+  captureId: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional(),
   failure: z.object({ index: z.number().int().min(0), message: z.string().max(2000) }).optional(),
 })
 

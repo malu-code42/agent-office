@@ -55,6 +55,8 @@ export interface Proposal {
   source: string
   createdAt: number
   operations: ProposalOperation[]
+  /** Optional capture id used to reconcile a retried, already-generated proposal. */
+  captureId?: string
   failure?: ProposalFailure | undefined
 }
 

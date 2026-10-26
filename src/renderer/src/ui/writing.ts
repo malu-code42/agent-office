@@ -119,7 +119,7 @@ export function openWritingLibrary(root: HTMLElement, toast: Toast): void {
           footer.replaceChildren(
             h('button', { class: 'btn', type: 'button', onclick: () => showOriginal() }, 'Criar Original'),
             h('div', { class: 'grow' }),
-            h('button', { class: 'btn btn-primary', type: 'button', onclick: () => showInstruction() }, 'Revisar com Escrita'),
+            h('button', { class: 'btn btn-primary', type: 'button', onclick: () => showInstruction() }, 'Revisar com Agatha'),
             closeButton,
           )
         } else {
@@ -136,7 +136,7 @@ export function openWritingLibrary(root: HTMLElement, toast: Toast): void {
         const body = h('textarea', { rows: '12', maxlength: '50000', 'aria-describedby': 'writing-body-hint' })
         const status = h('p', { class: 'field-hint', role: 'status', 'aria-live': 'polite' })
         content.append(
-          h('p', { class: 'hint' }, 'O Original só será salvo quando você confirmar. Ele não será enviado à Escrita.'),
+          h('p', { class: 'hint' }, 'O Original só será salvo quando você confirmar. Ele não será enviado à Agatha.'),
           field('Título', title, h('span', { id: 'writing-title-hint' }, '1 a 200 caracteres, em uma linha.')),
           field('Texto original', body, h('span', { id: 'writing-body-hint' }, 'Até 50.000 caracteres.')),
           status,
@@ -165,7 +165,7 @@ export function openWritingLibrary(root: HTMLElement, toast: Toast): void {
             { class: 'hint' },
             `Versão selecionada: ${selectedSnippet!.title} · v${version.number}. A revisão envia somente esta versão e sua instrução.`,
           ),
-          field('Instrução para Escrita', instruction, h('span', { id: 'writing-instruction-hint' }, 'De 1 a 2.000 caracteres.')),
+          field('Instrução para Agatha', instruction, h('span', { id: 'writing-instruction-hint' }, 'De 1 a 2.000 caracteres.')),
         )
         footer.replaceChildren(
           h('button', { class: 'btn', type: 'button', onclick: () => backToList() }, 'Voltar'),
@@ -179,17 +179,17 @@ export function openWritingLibrary(root: HTMLElement, toast: Toast): void {
       if (screen === 'preview') {
         content.append(
           h('p', { class: 'hint' }, 'Confira abaixo o texto exato que será enviado. Nada foi enviado ainda.'),
-          h('pre', { class: 'writing-preview', tabindex: '0', 'aria-label': 'Prévia exata enviada à Escrita' }, previewText),
+          h('pre', { class: 'writing-preview', tabindex: '0', 'aria-label': 'Prévia exata enviada à Agatha' }, previewText),
         )
         footer.replaceChildren(
           h('button', { class: 'btn', type: 'button', onclick: () => void cancelPreview() }, 'Cancelar'),
           h('div', { class: 'grow' }),
-          h('button', { class: 'btn btn-primary', type: 'button', onclick: () => void send() }, 'Enviar à Escrita'),
+          h('button', { class: 'btn btn-primary', type: 'button', onclick: () => void send() }, 'Enviar à Agatha'),
         )
         return
       }
       if (screen === 'sending') {
-        content.append(h('p', { class: 'hint', role: 'status' }, 'A Escrita está preparando um rascunho…'))
+        content.append(h('p', { class: 'hint', role: 'status' }, 'Agatha está preparando um rascunho…'))
         footer.replaceChildren(h('button', { class: 'btn', type: 'button', onclick: () => close() }, 'Cancelar'))
         return
       }
@@ -198,7 +198,7 @@ export function openWritingLibrary(root: HTMLElement, toast: Toast): void {
           class: 'writing-editor',
           rows: '12',
           maxlength: '50000',
-          'aria-label': 'Rascunho editável da Escrita',
+          'aria-label': 'Rascunho editável da Agatha',
         })
         draft.value = draftText
         draft.addEventListener('input', () => {

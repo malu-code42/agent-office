@@ -67,7 +67,7 @@ describe('planta da casa', () => {
   })
 
   it('define atalhos só para integrações existentes, sem encaminhar para o agendador', () => {
-    expect(HOME_INTERACTIONS.map(({ id }) => id)).toEqual(['agenda', 'personal-routines', 'goals', 'luna', 'radio', 'media', 'writing'])
+    expect(HOME_INTERACTIONS.map(({ id }) => id)).toEqual(['agenda', 'personal-routines', 'goals', 'radio', 'media', 'writing'])
     expect(HOME_INTERACTIONS.some(({ id }) => id === ('agent-scheduler' as never))).toBe(false)
   })
 })

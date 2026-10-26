@@ -30,7 +30,7 @@ export const PROFILES: UserProfile[] = [
   },
   {
     id: 'escrita',
-    name: 'Escrita',
+    name: 'Agatha',
     scope: 'produzir e revisar textos',
   },
 ]
@@ -53,7 +53,7 @@ export function profileTaskInstructions(id: ProfileId): string {
     case 'estudo-avulso':
       return 'Work as Estudo avulso: answer or teach this standalone question only, outside any active study cycle. Do not advance or replace a Bonnie-led cycle.'
     case 'escrita':
-      return 'Work as Escrita only because the user requested writing help. Review or edit the requested text and propose a new version; never overwrite the original.'
+      return 'Work as Agatha only because the user requested writing help. Review or edit the requested text and propose a new version; never overwrite the original.'
     default:
       throw new Error('Perfil desconhecido.')
   }

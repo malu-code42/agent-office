@@ -49,6 +49,7 @@ import { registerProfileMemoryIpc } from './ipc/profile-memory'
 import { registerMediaIpc } from './ipc/media'
 import { registerRoutinesIpc } from './ipc/routines'
 import { registerTasksIpc } from './ipc/tasks'
+import { registerTelegramIpc } from './ipc/telegram'
 import { registerWritingIpc } from './ipc/writing'
 import { createWritingAssistant } from './writing-assistant'
 import { claudeWritingInterpreter } from './writing-claude'
@@ -610,6 +611,7 @@ app.whenReady().then(async () => {
   registerSquadsIpc(ipc)
   registerRoutinesIpc(ipc)
   registerTasksIpc(ipc)
+  registerTelegramIpc(ipc)
   registerWritingIpc(ipc)
   registerGoalsIpc(ipc)
   registerBarTimerIpc(ipc)

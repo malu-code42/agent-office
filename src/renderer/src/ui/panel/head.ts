@@ -36,11 +36,21 @@ export abstract class PanelHead extends PanelSearch {
     this.terminal = terminal
     this.composer.classList.toggle('disabled', terminal)
     this.input.disabled = terminal
-    this.input.placeholder = terminal
-      ? 'Sessão do terminal: responda por lá. Permissões chegam aqui.'
-      : a.status === 'working' || a.status === 'starting'
-        ? 'Mande uma instrução (entra na fila do agente)…'
-        : 'Mande uma nova tarefa…'
+    this.input.placeholder =
+      a.builtIn === 'luna'
+        ? 'Converse com a Luna…'
+        : terminal
+          ? 'Sessão do terminal: responda por lá. Permissões chegam aqui.'
+          : a.status === 'working' || a.status === 'starting'
+            ? 'Mande uma instrução (entra na fila do agente)…'
+            : 'Mande uma nova tarefa…'
+    const attachButton = this.composer.querySelector<HTMLButtonElement>('.composer-row > .btn-icon')
+    if (attachButton) {
+      attachButton.hidden = a.builtIn !== undefined && a.builtIn !== 'luna'
+      attachButton.title = a.builtIn === 'luna' ? 'Anexar áudio para transcrição local' : 'Anexar arquivos'
+    }
+    this.picker.disabled = a.builtIn !== undefined && a.builtIn !== 'luna'
+    this.picker.accept = a.builtIn === 'luna' ? 'audio/*,.wav,.mp3,.m4a,.mp4,.ogg,.oga,.opus,.webm,.flac,.aac,.wma' : ''
   }
 
   /** The agent's badge: photo ringed by memory use, name, and an LED with what it is doing. Opens for details. */
@@ -62,7 +72,12 @@ export abstract class PanelHead extends PanelSearch {
           h('span', { class: 'ab-led-text' }, withLabel ? `${STATUS_LABEL[a.status]} · ${a.activity}` : a.activity),
         ),
         permissionId
-          ? h('button', { class: 'btn btn-small btn-warn', onclick: () => this.actions.openItem(a.id, permissionId) }, icon('reply', 13), 'Responder')
+          ? h(
+              'button',
+              { class: 'btn btn-small btn-warn', onclick: () => this.actions.openItem(a.id, permissionId) },
+              icon('reply', 13),
+              'Responder',
+            )
           : null,
       )
     const name = h('span', { class: 'ab-name' }, a.name)
@@ -88,10 +103,23 @@ export abstract class PanelHead extends PanelSearch {
               open ? null : accountChip(this.state, a),
               helpersChip(a, !open),
             ),
-            open ? h('div', { class: 'ab-role' }, a.role === 'orchestrator' ? 'Orquestrador' : 'Agente', accountChip(this.state, a)) : led(false),
+            open
+              ? h(
+                  'div',
+                  { class: 'ab-role' },
+                  a.builtIn ? 'Secretária' : a.role === 'orchestrator' ? 'Orquestrador' : 'Agente',
+                  accountChip(this.state, a),
+                )
+              : led(false),
           ),
-          office && busy ? h('button', { class: 'icon-btn', title: 'Interromper', onclick: () => window.office.interrupt(a.id) }, icon('stop', 15)) : null,
-          h('button', { class: 'icon-btn ab-toggle', title: open ? 'Menos detalhes' : 'Mais detalhes', onclick: () => this.toggleBadge() }, icon('chevron', 16)),
+          office && busy && !a.builtIn
+            ? h('button', { class: 'icon-btn', title: 'Interromper', onclick: () => window.office.interrupt(a.id) }, icon('stop', 15))
+            : null,
+          h(
+            'button',
+            { class: 'icon-btn ab-toggle', title: open ? 'Menos detalhes' : 'Mais detalhes', onclick: () => this.toggleBadge() },
+            icon('chevron', 16),
+          ),
           h('button', { class: 'icon-btn', title: 'Fechar (Esc)', onclick: () => this.close() }, icon('x', 16)),
         ),
         open ? this.badgeDetails(a, led(true), busy) : null,
@@ -176,6 +204,13 @@ export abstract class PanelHead extends PanelSearch {
   /** The open half of the badge: status, stamps, memory blocks and the rarer actions. */
   protected badgeDetails(a: AgentSummary, led: HTMLElement, busy: boolean): HTMLElement {
     const office = a.source === 'office'
+    if (a.builtIn === 'luna')
+      return h(
+        'div',
+        { class: 'ab-more' },
+        led,
+        h('p', { class: 'field-hint' }, 'Coordenadora local. Confira e aprove o contexto antes de qualquer envio ao Claude.'),
+      )
     const effort = a.effort ? (EFFORTS.find((e) => e.value === a.effort)?.label.toLowerCase() ?? a.effort) : null
     return h(
       'div',
@@ -184,12 +219,42 @@ export abstract class PanelHead extends PanelSearch {
       h(
         'div',
         { class: 'ab-stamps' },
-        h('button', { class: 'ab-stamp', title: `${a.cwd}\n${osText(this.state.platform).revealTitle}`, onclick: () => window.office.revealPath(a.cwd) }, icon('folder', 12), shortPath(a.cwd)),
-        a.worktree ? h('button', { class: 'ab-stamp', title: `Cópia isolada (worktree)\n${a.worktree.root}\n${osText(this.state.platform).revealTitle}`, onclick: () => window.office.revealPath(a.worktree!.root) }, icon('branch', 12), a.worktree.branch) : null,
+        h(
+          'button',
+          {
+            class: 'ab-stamp',
+            title: `${a.cwd}\n${osText(this.state.platform).revealTitle}`,
+            onclick: () => window.office.revealPath(a.cwd),
+          },
+          icon('folder', 12),
+          shortPath(a.cwd),
+        ),
+        a.worktree
+          ? h(
+              'button',
+              {
+                class: 'ab-stamp',
+                title: `Cópia isolada (worktree)\n${a.worktree.root}\n${osText(this.state.platform).revealTitle}`,
+                onclick: () => window.office.revealPath(a.worktree!.root),
+              },
+              icon('branch', 12),
+              a.worktree.branch,
+            )
+          : null,
         a.model ? h('span', { class: 'ab-stamp', title: a.model }, icon('cpu', 12), modelLabel(a.model)) : null,
-        a.opencodeUsage ? h('span', { class: 'ab-stamp', title: 'Tokens reportados pelo OpenCode' }, `${(a.opencodeUsage.inputTokens + a.opencodeUsage.outputTokens).toLocaleString()} tokens`) : null,
+        a.opencodeUsage
+          ? h(
+              'span',
+              { class: 'ab-stamp', title: 'Tokens reportados pelo OpenCode' },
+              `${(a.opencodeUsage.inputTokens + a.opencodeUsage.outputTokens).toLocaleString()} tokens`,
+            )
+          : null,
         effort ? h('span', { class: 'ab-stamp', title: 'Esforço' }, icon('gauge', 12), effort) : null,
-        a.costUnknown ? h('span', { class: 'ab-stamp', title: 'O provedor não informou preço confiável' }, icon('coin', 12), 's/ preço') : a.costUsd ? h('span', { class: 'ab-stamp', title: 'Gasto nesta sessão' }, icon('coin', 12), formatCost(a.costUsd)) : null,
+        a.costUnknown
+          ? h('span', { class: 'ab-stamp', title: 'O provedor não informou preço confiável' }, icon('coin', 12), 's/ preço')
+          : a.costUsd
+            ? h('span', { class: 'ab-stamp', title: 'Gasto nesta sessão' }, icon('coin', 12), formatCost(a.costUsd))
+            : null,
       ),
       office && a.context ? this.memoryBlocks(a, busy) : null,
       h(
@@ -197,7 +262,16 @@ export abstract class PanelHead extends PanelSearch {
         { class: 'ab-foot' },
         h('button', { class: 'btn btn-small', onclick: () => this.actions.goTo(a.id) }, icon('walk', 14), 'Ir até'),
         office
-          ? h('button', { class: 'btn btn-small', title: 'Guarda nome, aparência, modelo, permissões e a primeira tarefa para contratar de novo', onclick: () => void saveAgentAsTemplate(this.root, this.state, a, this.actions.toast) }, icon('copy', 14), 'Salvar como modelo')
+          ? h(
+              'button',
+              {
+                class: 'btn btn-small',
+                title: 'Guarda nome, aparência, modelo, permissões e a primeira tarefa para contratar de novo',
+                onclick: () => void saveAgentAsTemplate(this.root, this.state, a, this.actions.toast),
+              },
+              icon('copy', 14),
+              'Salvar como modelo',
+            )
           : null,
         office
           ? h('button', { class: 'ab-fire', onclick: () => this.fire(a) }, 'Dispensar agente')
@@ -225,18 +299,30 @@ export abstract class PanelHead extends PanelSearch {
         { class: 'ab-mem-row' },
         h('span', { class: 'ab-mem-label' }, 'Memória'),
         h('div', { class: 'ab-blocks' }, ...Array.from({ length: 10 }, (_, i) => h('i', { class: i < lit ? 'on' : '' }))),
-        h('span', { class: 'ctx-num', title: `${c.used.toLocaleString('pt-BR')} de ${c.max.toLocaleString('pt-BR')} tokens` }, `${c.percent}%`),
-        h('button', {
-          class: 'btn btn-small',
-          title: 'Resume a conversa até aqui (/compact). O agente continua sabendo o essencial.',
-          disabled: busy,
-          onclick: () => window.office.compact(a.id),
-        }, 'Compactar'),
-        h('button', {
-          class: 'btn btn-small',
-          title: 'Começa uma conversa nova com o mesmo agente (/clear).',
-          onclick: () => this.clear(a),
-        }, 'Limpar'),
+        h(
+          'span',
+          { class: 'ctx-num', title: `${c.used.toLocaleString('pt-BR')} de ${c.max.toLocaleString('pt-BR')} tokens` },
+          `${c.percent}%`,
+        ),
+        h(
+          'button',
+          {
+            class: 'btn btn-small',
+            title: 'Resume a conversa até aqui (/compact). O agente continua sabendo o essencial.',
+            disabled: busy,
+            onclick: () => window.office.compact(a.id),
+          },
+          'Compactar',
+        ),
+        h(
+          'button',
+          {
+            class: 'btn btn-small',
+            title: 'Começa uma conversa nova com o mesmo agente (/clear).',
+            onclick: () => this.clear(a),
+          },
+          'Limpar',
+        ),
       ),
       hint ? h('div', { class: 'ctx-hint' }, hint) : null,
     )
@@ -249,7 +335,12 @@ export abstract class PanelHead extends PanelSearch {
   }
 
   protected async clear(a: AgentSummary): Promise<void> {
-    if (!confirm(`Limpar a memória de ${a.name}? Ele continua no escritório, mas esquece esta conversa. O histórico fica salvo na Central de resume.`)) return
+    if (
+      !confirm(
+        `Limpar a memória de ${a.name}? Ele continua no escritório, mas esquece esta conversa. O histórico fica salvo na Central de resume.`,
+      )
+    )
+      return
     await window.office.clearContext(a.id)
   }
 

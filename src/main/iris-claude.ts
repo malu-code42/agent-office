@@ -52,7 +52,7 @@ export const IRIS_INSTRUCTIONS = [
   '  When no profile fits, the request is ambiguous, or work continues inside an already open conversation, use null.',
   '- Estudo avulso is only for a standalone question outside an active study cycle. If the user mentions a cycle,',
   '  Bonnie, or a current study stage, ask a question and do not choose this profile.',
-  '- Escrita is only for a clearly requested writing or editing task. Never infer permission to rewrite text.',
+  '- Agatha is only for a clearly requested writing or editing task. Never infer permission to rewrite text.',
 ].join('\n')
 
 /**

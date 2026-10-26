@@ -36,6 +36,27 @@ import {
   squadRenameSchema,
   ticketDraftSchema,
   ticketPatchSchema,
+  studyQuestionGenerateArgsSchema,
+  studyQuestionSaveArgsSchema,
+  studyQuestionSearchArgsSchema,
+  startStudyCycleArgsSchema,
+  answerStudyCycleArgsSchema,
+  evaluateStudyAnswerArgsSchema,
+  advanceStudyCycleArgsSchema,
+  resetStudyCycleArgsSchema,
+  searchStudyLibraryArgsSchema,
+  studyLibrarySourceArgsSchema,
+  studyCycleNoteArgsSchema,
+  startStudyPracticeArgsSchema,
+  answerStudyPracticeArgsSchema,
+  startStudyRetestArgsSchema,
+  answerStudyRetestArgsSchema,
+  verifyStudyRetestArgsSchema,
+  completeStudyRetestArgsSchema,
+  generateStudyCardDraftArgsSchema,
+  saveStudyCardDraftArgsSchema,
+  listStudyCardsArgsSchema,
+  setStudyCardPhysicalArgsSchema,
 } from '../src/main/validate'
 
 const dir = mkdtempSync(join(tmpdir(), 'ao-validate-'))
@@ -67,6 +88,35 @@ const settings = (): Settings => ({
   agentBudgetUsd: 0,
   templates: [],
   video: { ...DEFAULT_VIDEO },
+})
+
+describe('IPC do banco de questões', () => {
+  const candidate = {
+    id: 'q-ipc00001',
+    topic: 'Probabilidade',
+    tags: [],
+    question: 'Questão sintética?',
+    answerStatus: 'unverified',
+    originKind: 'web',
+    sourceTitle: 'Fonte sintética',
+    sourceVisibility: 'unknown',
+    sourceUrl: 'https://example.org/q',
+    attribution: 'Conferir',
+    license: 'Não verificada',
+  }
+  it('bounds search and generation arguments and rejects unsafe provenance URLs', () => {
+    expect(studyQuestionSearchArgsSchema.safeParse(['Probabilidade', 10]).success).toBe(true)
+    expect(studyQuestionSearchArgsSchema.safeParse(['x'.repeat(201), 10]).success).toBe(false)
+    expect(studyQuestionGenerateArgsSchema.safeParse(['00000000-0000-4000-8000-000000000001']).success).toBe(true)
+    expect(
+      studyQuestionSaveArgsSchema.safeParse([
+        '00000000-0000-4000-8000-000000000001',
+        [{ ...candidate, sourceUrl: 'file:///book.pdf' }],
+        true,
+      ]).success,
+    ).toBe(false)
+    expect(studyQuestionSaveArgsSchema.safeParse(['00000000-0000-4000-8000-000000000001', [candidate], false]).success).toBe(true)
+  })
 })
 
 describe('parse', () => {
@@ -622,5 +672,57 @@ describe('a proposta de um squad', () => {
     expect(squadRenameSchema.safeParse({ id: 'proposta-1', name: 'Equipe da busca' }).success).toBe(true)
     expect(squadRenameSchema.safeParse({ id: 'proposta-1', name: '  ' }).success).toBe(false)
     expect(squadRenameSchema.safeParse({ id: 'proposta-1', name: 'x'.repeat(61) }).success).toBe(false)
+  })
+})
+
+describe('argumentos IPC do ciclo de estudo', () => {
+  it('aceita IDs de questões do banco e recusa caminhos, IDs duplicados ou campos extra', () => {
+    expect(startStudyCycleArgsSchema.safeParse(['Probabilidade', ['q-12345678']]).success).toBe(true)
+    expect(startStudyCycleArgsSchema.safeParse(['Probabilidade', ['q-12345678', 'q-12345678']]).success).toBe(false)
+    expect(startStudyCycleArgsSchema.safeParse(['Probabilidade', ['D:\\private\\file.md']]).success).toBe(false)
+    expect(answerStudyCycleArgsSchema.safeParse(['q-12345678', 'Resposta', false, 'Trecho']).success).toBe(true)
+    expect(evaluateStudyAnswerArgsSchema.safeParse(['q-12345678', 'C:\\vault']).success).toBe(false)
+    expect(advanceStudyCycleArgsSchema.safeParse([]).success).toBe(true)
+    expect(resetStudyCycleArgsSchema.safeParse([]).success).toBe(true)
+    expect(searchStudyLibraryArgsSchema.safeParse(['probabilidade']).success).toBe(true)
+    expect(searchStudyLibraryArgsSchema.safeParse(['C:\\private\\book.md']).success).toBe(true)
+    expect(studyLibrarySourceArgsSchema.safeParse(['q-12345678', '550e8400-e29b-41d4-a716-446655440000', 'a'.repeat(20)]).success).toBe(
+      true,
+    )
+    expect(studyLibrarySourceArgsSchema.safeParse(['q-12345678', 'not-a-token', 'C:\\private\\book.md']).success).toBe(false)
+    expect(studyCycleNoteArgsSchema.safeParse(['q-12345678', '550e8400-e29b-41d4-a716-446655440000', 'a'.repeat(20), 'Nota']).success).toBe(
+      true,
+    )
+    expect(startStudyPracticeArgsSchema.safeParse([[{ id: 'q-practice01', gapQuestionIds: ['q-12345678'] }]]).success).toBe(true)
+    expect(startStudyPracticeArgsSchema.safeParse([[{ id: 'q-practice01', gapQuestionIds: ['C:\\private\\question.md'] }]]).success).toBe(
+      false,
+    )
+    expect(answerStudyPracticeArgsSchema.safeParse(['q-practice01', 'Resposta']).success).toBe(true)
+    expect(
+      startStudyRetestArgsSchema.safeParse([Array.from({ length: 10 }, (_, i) => `q-retest${String(i).padStart(2, '0')}`)]).success,
+    ).toBe(true)
+    expect(startStudyRetestArgsSchema.safeParse([['q-12345678']]).success).toBe(false)
+    expect(answerStudyRetestArgsSchema.safeParse(['q-retest01', 'Resposta sem consulta']).success).toBe(true)
+    expect(verifyStudyRetestArgsSchema.safeParse([]).success).toBe(true)
+    expect(completeStudyRetestArgsSchema.safeParse([]).success).toBe(true)
+    expect(completeStudyRetestArgsSchema.safeParse([true]).success).toBe(false)
+    const draft = {
+      title: 'Eventos independentes',
+      sections: {
+        information: 'Informação',
+        examplePractice: 'Exemplo',
+        connections: '',
+        sources: '',
+        connectionsPending: true,
+        sourcesPending: true,
+      },
+    }
+    expect(generateStudyCardDraftArgsSchema.safeParse([['sn-sc-123-abcdefgh-q-12345678']]).success).toBe(true)
+    expect(generateStudyCardDraftArgsSchema.safeParse([['C:\\private\\note.md']]).success).toBe(false)
+    expect(saveStudyCardDraftArgsSchema.safeParse(['550e8400-e29b-41d4-a716-446655440000', draft]).success).toBe(true)
+    expect(saveStudyCardDraftArgsSchema.safeParse(['C:\\vault', draft]).success).toBe(false)
+    expect(listStudyCardsArgsSchema.safeParse([]).success).toBe(true)
+    expect(setStudyCardPhysicalArgsSchema.safeParse(['c-card00001', true]).success).toBe(true)
+    expect(setStudyCardPhysicalArgsSchema.safeParse(['C:\\vault\\card.md', true]).success).toBe(false)
   })
 })

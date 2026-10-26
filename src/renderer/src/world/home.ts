@@ -20,7 +20,7 @@ const WAINSCOT = '#9a714e'
 const BASEBOARD = '#5f4937'
 
 export interface HomeTag {
-  action: HomeAction
+  action?: HomeAction
   label: string
   x: number
   z: number
@@ -247,7 +247,7 @@ export function buildHome(): HomeFloor {
     skies.push(view)
     return view
   }
-  const tag = (action: HomeAction, label: string, x: number, z: number, y = 2.4) => homeTags.push({ action, label, x, z, y })
+  const tag = (action: HomeAction | undefined, label: string, x: number, z: number, y = 2.4) => homeTags.push({ action, label, x, z, y })
   const clickable = (action: HomeAction, root: THREE.Object3D) => {
     if (!HOME_INTERACTIONS.some((interaction) => interaction.id === action)) return
     animated(root)
@@ -410,8 +410,7 @@ export function buildHome(): HomeFloor {
   luna.pose = 'sit'
   group.add(luna.root)
   const lunaAt: [number, number, number] = [luna.position.x, 1.2, luna.position.z]
-  clickable('luna', luna.root)
-  tag('luna', 'Luna', lunaAt[0], lunaAt[2], 1.7)
+  tag(undefined, 'Luna', lunaAt[0], lunaAt[2], 1.7)
   place(F.paperStack(), tableAt.x - 0.45, tableAt.z + 0.35, 0.4, 0.78)
   place(F.mug('#b95f3f'), tableAt.x + 0.65, tableAt.z + 0.2, 0, 0.78)
   place(F.mug('#788c61'), tableAt.x - 0.65, tableAt.z + 0.2, 0, 0.78)

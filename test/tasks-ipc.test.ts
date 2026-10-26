@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,17 +8,54 @@ import { dayKey } from '../src/main/backups'
 import { PersonalRoutineStore } from '../src/main/personal-routines-store'
 import { personalRoutineTaskFingerprint } from '../src/main/personal-routine-fingerprint'
 import { dayLabel } from '../src/shared/tasks'
+import { encodeStudyQuestion, type StudyQuestion } from '../src/shared/study-questions'
+import { StudyCycleStore } from '../src/main/study-cycle-store'
+import {
+  advanceStudyCycle,
+  answerStudyQuestion,
+  answerStudyRetestQuestion,
+  assessStudyQuestion,
+  assessStudyRetestQuestion,
+  createStudyCycleState,
+  reviewStudyGap,
+  startStudyRetest,
+  type StudyCycleQuestion,
+} from '../src/shared/study-cycle'
+import { hashStudyQuestion } from '../src/main/study-cycle-schema'
 
 const ipc = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
   selectedPath: null as string | null,
   canceled: false,
+  confirmResponse: 1,
+  confirmResponses: [] as number[],
+}))
+const studyProviders = vi.hoisted(() => ({ webSearch: vi.fn(async () => []), generate: vi.fn(async () => []) }))
+const cardInterpreter = vi.hoisted(() => ({
+  generate: vi.fn(async () => ({
+    title: 'Cartão sintético',
+    sections: {
+      information: 'Informação.',
+      examplePractice: 'Exemplo.',
+      connections: '',
+      sources: '',
+      connectionsPending: true,
+      sourcesPending: true,
+    },
+  })),
 }))
 vi.mock('electron', () => ({
   ipcMain: { handle: (channel: string, handler: (...args: unknown[]) => unknown) => ipc.handlers.set(channel, handler) },
   dialog: {
     showOpenDialog: async () => ({ canceled: ipc.canceled, filePaths: ipc.selectedPath ? [ipc.selectedPath] : [] }),
+    showMessageBox: async () => ({ response: ipc.confirmResponses.shift() ?? ipc.confirmResponse }),
   },
+}))
+vi.mock('../src/main/study-questions-claude', () => ({
+  claudeStudyQuestionProviders: () => ({ webSearch: studyProviders.webSearch, generate: studyProviders.generate }),
+}))
+vi.mock('../src/main/study-cards-claude', () => ({
+  claudeStudyCardInterpreter: () => ({ generate: cardInterpreter.generate }),
 }))
 
 const { registerTasksIpc } = await import('../src/main/ipc/tasks')
@@ -39,6 +76,11 @@ beforeEach(() => {
   ipc.handlers.clear()
   ipc.selectedPath = null
   ipc.canceled = false
+  ipc.confirmResponse = 1
+  ipc.confirmResponses = []
+  cardInterpreter.generate.mockClear()
+  studyProviders.webSearch.mockClear()
+  studyProviders.generate.mockClear()
   registerTasksIpc({
     win: () => ({}) as never,
     store: {
@@ -61,6 +103,216 @@ afterEach(() => {
 })
 
 describe('tasks IPC', () => {
+  it('refuses AI generation through IPC when the bounded local source scan is incomplete', async () => {
+    const bankQuestion: StudyQuestion = {
+      id: 'q-bankipc01',
+      topic: 'Probabilidade',
+      tags: [],
+      question: 'Questão canônica de Probabilidade?',
+      answerStatus: 'unverified',
+      originKind: 'enem',
+      sourceTitle: 'Banco local sintético',
+      sourceVisibility: 'local',
+      sourceReference: 'questoes-estudo.md',
+      attribution: 'Fixture',
+      license: 'Banco local',
+    }
+    writeFileSync(join(vault, 'questoes-estudo.md'), `${encodeStudyQuestion(bankQuestion)}\n`)
+    const sources = join(vault, 'study sources')
+    mkdirSync(sources)
+    const row = [
+      'Título: Fonte sintética',
+      'Origem: livro',
+      'Licença: CC BY 4.0',
+      'Atribuição: fixture',
+      'Tópico: Probabilidade',
+      'Questão: Probabilidade sintética?',
+    ].join('\n')
+    for (let i = 0; i < 251; i++) writeFileSync(join(sources, `source-${String(i).padStart(3, '0')}.txt`), row)
+    settings.vaultPath = vault
+
+    const found = (await invoke('office:searchStudyQuestions', 'Probabilidade', 2)) as {
+      token: string
+      localScanComplete: boolean
+      canGenerate: boolean
+      warning?: string
+      sourceCandidates: unknown[]
+      local: StudyQuestion[]
+    }
+    expect(found.localScanComplete).toBe(false)
+    expect(found.canGenerate).toBe(false)
+    expect(found.warning).toMatch(/incompleta/i)
+    expect(found.local).toEqual([bankQuestion])
+    expect(found.sourceCandidates).toEqual([])
+    expect(studyProviders.webSearch).not.toHaveBeenCalled()
+    await expect(invoke('office:generateStudyQuestions', found.token)).rejects.toThrow(/busca local ficou incompleta/i)
+    await expect(invoke('office:saveStudyQuestions', found.token, [bankQuestion], true)).rejects.toThrow(/busca local ficou incompleta/i)
+    expect(studyProviders.generate).not.toHaveBeenCalled()
+  })
+
+  it('Cora searches local fixtures only and saves a source-linked note once', async () => {
+    const item: StudyQuestion = {
+      id: 'q-local0001',
+      topic: 'Probabilidade',
+      tags: ['eventos'],
+      question: 'Qual a probabilidade conjunta?',
+      answer: '1/4',
+      answerStatus: 'verified',
+      originKind: 'enem',
+      sourceTitle: 'Fixture sintética',
+      sourceVisibility: 'local',
+      sourceReference: 'questoes-estudo.md',
+      attribution: 'Fixture',
+      license: 'Uso sintético',
+    }
+    writeFileSync(join(vault, 'questoes-estudo.md'), `${encodeStudyQuestion(item)}\n`)
+    const sources = join(vault, 'study sources')
+    mkdirSync(sources)
+    writeFileSync(join(sources, 'probabilidade.md'), '# Eventos\n\nProbabilidade conjunta usa a multiplicação de eventos independentes.\n')
+    settings.vaultPath = vault
+
+    const selected: StudyCycleQuestion = {
+      id: item.id,
+      sourceHash: hashStudyQuestion(item),
+      source: item,
+      response: '',
+      providedExcerpt: '',
+      uncertain: null,
+      assessment: null,
+    }
+    let cycle = createStudyCycleState('Probabilidade', [selected], 10)
+    cycle = answerStudyQuestion(cycle, item.id, 'Resposta incorreta', false, 11)
+    cycle = assessStudyQuestion(cycle, item.id, { kind: 'incorrect', rationale: 'Fixture.' }, 12)
+    cycle = advanceStudyCycle(cycle, 13)
+    cycle = reviewStudyGap(cycle, item.id, 'Confundi eventos', 'Rever o exemplo local', 14)
+    new StudyCycleStore(data).write(cycle)
+
+    const found = (await invoke('office:searchStudyLibrary', 'probabilidade conjunta')) as {
+      token: string
+      complete: boolean
+      hits: { id: string; sourceRef: string }[]
+    }
+    expect(found.complete).toBe(true)
+    expect(found.hits[0]?.sourceRef).toMatch(/^study sources\//)
+    expect(studyProviders.webSearch).not.toHaveBeenCalled()
+    await invoke('office:saveStudyCycleNote', item.id, found.token, found.hits[0]!.id, 'Anotei a relação entre os eventos.')
+    await invoke('office:saveStudyCycleNote', item.id, found.token, found.hits[0]!.id, 'Anotei a relação entre os eventos.')
+    const noteFile = readFileSync(join(vault, 'notas-estudo.md'), 'utf8')
+    const saved = new StudyCycleStore(data).read().cycles[0]!
+    expect(noteFile.match(/agent-office-study-note:/g)).toHaveLength(1)
+    expect(saved.notes).toHaveLength(1)
+    expect(saved.questions[0]?.review?.sourceRefs).toContain(found.hits[0]?.sourceRef)
+    expect(studyProviders.generate).not.toHaveBeenCalled()
+  })
+
+  it('requires a main-process consent dialog before card notes can be sent to Claude', async () => {
+    const noteId = 'sn-sc-123-abcdefgh-q-12345678-card'
+    writeFileSync(
+      join(vault, 'notas-estudo.md'),
+      `<!-- agent-office-study-note:${noteId} -->\n## Nota sintética\nFonte: study sources/fixture.md#exemplo:1\n\nConteúdo sintético.\n`,
+    )
+    settings.vaultPath = vault
+    Object.assign(settings, {
+      defaultAccounts: [],
+      accounts: [{ id: 'main', name: 'Principal', provider: 'claude', color: '#aabbcc' }],
+    })
+    const listed = (await invoke('office:readStudyNotes')) as { notes: { id: string }[] }
+    expect(listed.notes.map((note) => note.id)).toEqual([noteId])
+    ipc.confirmResponse = 1
+    const canceled = await invoke('office:generateStudyCardDraft', [noteId])
+    expect(canceled).toBeNull()
+    expect(cardInterpreter.generate).not.toHaveBeenCalled()
+    expect(existsSync(join(vault, 'cartoes-estudo'))).toBe(false)
+  })
+
+  it('does not save a digital card when the main-process approval is canceled', async () => {
+    const noteId = 'sn-sc-123-abcdefgh-q-12345678-card2'
+    writeFileSync(
+      join(vault, 'notas-estudo.md'),
+      `<!-- agent-office-study-note:${noteId} -->\n## Nota fixture\nFonte: study sources/fixture.md#exemplo:1\n\nConteúdo sintético.\n`,
+    )
+    settings.vaultPath = vault
+    Object.assign(settings, {
+      defaultAccounts: [],
+      accounts: [{ id: 'main', name: 'Principal', provider: 'claude', color: '#aabbcc' }],
+    })
+    ipc.confirmResponses = [0, 1]
+    const generated = (await invoke('office:generateStudyCardDraft', [noteId])) as {
+      token: string
+      draft: { title: string; sections: unknown }
+    }
+    expect(cardInterpreter.generate).toHaveBeenCalledOnce()
+    const { title, sections } = generated.draft
+    const canceled = await invoke('office:saveStudyCardDraft', generated.token, { title, sections })
+    expect(canceled).toBeNull()
+    expect(existsSync(join(vault, 'cartoes-estudo'))).toBe(false)
+  })
+
+  it('main process asks before completing a retest and still enforces the 80 percent gate', async () => {
+    settings.vaultPath = vault
+    const diagnostic: StudyQuestion = {
+      id: 'q-diagipc01',
+      topic: 'Probabilidade',
+      tags: [],
+      question: 'Questão diagnóstica fixture?',
+      answer: '1/2',
+      answerStatus: 'verified',
+      originKind: 'enem',
+      sourceTitle: 'Fixture',
+      sourceVisibility: 'local',
+      attribution: 'Fixture',
+      license: 'Sintética',
+    }
+    const source = (id: string): StudyQuestion => ({
+      ...diagnostic,
+      id,
+      question: `Questão de reteste ${id}?`,
+    })
+    let state = createStudyCycleState(
+      'Probabilidade',
+      [
+        {
+          id: diagnostic.id,
+          sourceHash: hashStudyQuestion(diagnostic),
+          source: diagnostic,
+          response: '',
+          providedExcerpt: '',
+          uncertain: null,
+          assessment: null,
+        },
+      ],
+      10,
+    )
+    state = answerStudyQuestion(state, diagnostic.id, 'Resposta', false, 11)
+    state = assessStudyQuestion(state, diagnostic.id, { kind: 'correct', rationale: 'Fixture' }, 12)
+    state = advanceStudyCycle(state, 13)
+    const retestQuestions = Array.from({ length: 10 }, (_, index) => source(`q-retestipc${String(index).padStart(2, '0')}`))
+    state = startStudyRetest(
+      state,
+      retestQuestions.map((item) => ({
+        id: item.id,
+        sourceHash: hashStudyQuestion(item),
+        source: item,
+        response: '',
+        providedExcerpt: '',
+        uncertain: false,
+        assessment: null,
+      })),
+      14,
+    )
+    for (const [index, item] of retestQuestions.entries()) {
+      state = answerStudyRetestQuestion(state, item.id, `Resposta ${index}`, 15 + index)
+      state = assessStudyRetestQuestion(state, item.id, { kind: index < 8 ? 'correct' : 'incorrect', rationale: 'Fixture' }, 30 + index)
+    }
+    new StudyCycleStore(data).write(state)
+
+    const canceled = (await invoke('office:completeStudyRetest')) as { cycles: { stage: string }[] }
+    expect(canceled.cycles[0]?.stage).toBe('retest')
+    ipc.confirmResponse = 0
+    const completed = (await invoke('office:completeStudyRetest')) as { cycles: { stage: string }[] }
+    expect(completed.cycles[0]?.stage).toBe('completed')
+  })
+
   it('reading the personal-routine overview does not create occurrence state', async () => {
     writeFileSync(join(vault, 'tarefas.md'), '## Casa\n', 'utf8')
     writeFileSync(join(vault, 'rotinas-pessoais.md'), 'Rotina diária | cadência: diária', 'utf8')

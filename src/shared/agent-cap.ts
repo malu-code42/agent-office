@@ -17,7 +17,14 @@ type AgentCapResult = 'regular' | 'temporary' | 'refuse'
 
 /** Who counts against the cap: an office agent working a task, not a terminal session, not an orchestrator, not a temporary one. */
 export function countsAsRegular(s: AgentSummary): boolean {
-  return s.source === 'office' && s.role !== 'orchestrator' && s.status !== 'stopped' && s.temporary !== true && s.departed !== true
+  return (
+    s.source === 'office' &&
+    !s.builtIn &&
+    s.role !== 'orchestrator' &&
+    s.status !== 'stopped' &&
+    s.temporary !== true &&
+    s.departed !== true
+  )
 }
 
 /** Whether a temporary agent of the office already exists (even stopped, it holds the seat no. 5). */

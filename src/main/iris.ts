@@ -62,6 +62,7 @@ interface Pending {
   token: string
   vault: string
   context: string
+  captureId?: string
 }
 
 const messageOf = (err: unknown): string => (err instanceof Error ? err.message : String(err)).replace(/\.$/, '')
@@ -94,10 +95,11 @@ export class IrisDesk {
    * Builds the context from tarefas.md and agenda.md and keeps it under a token. Nothing is sent: the caller
    * shows the returned text, and only send() with that token sends it.
    */
-  prepare(vault: string, request: string): IrisPreview {
+  prepare(vault: string, request: string, captureId?: string): IrisPreview {
     const text = request.trim()
     if (!text) throw new Error(EMPTY)
     if ([...text].length > IRIS_REQUEST_MAX) throw new Error(TOO_LONG)
+    if (captureId !== undefined && !/^[a-f0-9]{64}$/.test(captureId)) throw new Error('O identificador desta captura de áudio é inválido.')
     const board = readTasks(vault)
     this.deps.tasks.remember(vault, board)
     const agendaText = this.deps.agenda.read(vault)
@@ -110,7 +112,7 @@ export class IrisDesk {
       memories: this.deps.memories?.(),
     })
     const token = this.newId()
-    this.pending = { token, vault, context }
+    this.pending = { token, vault, context, ...(captureId ? { captureId } : {}) }
     return { token, context }
   }
 
@@ -122,6 +124,10 @@ export class IrisDesk {
     const p = this.pending
     if (!p || p.token !== token) throw new Error(NO_PENDING)
     this.pending = undefined
+    if (p.captureId) {
+      const previous = this.deps.planning.pendingProposals().find((proposal) => proposal.captureId === p.captureId)
+      if (previous) return { kind: 'proposal', proposal: previous, profile: null }
+    }
     const answer = await this.ask(p.context)
     if (answer.question) return { kind: 'question', text: answer.question }
     if (answer.mediaDraft) return { kind: 'media-draft', draft: answer.mediaDraft }
@@ -144,6 +150,7 @@ export class IrisDesk {
       source: IRIS_SOURCE,
       createdAt: this.now().getTime(),
       operations: answer.operations,
+      ...(p.captureId ? { captureId: p.captureId } : {}),
     })
     return { kind: 'proposal', proposal, profile: answer.profile ?? null }
   }

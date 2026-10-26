@@ -14,6 +14,16 @@ import { createTaskWriter, type TaskWriter } from '../tasks-write'
 import { createCompletionUndo } from '../tasks-undo'
 import { PersonalRoutineStore } from '../personal-routines-store'
 import { personalRoutineTaskFingerprintFromLine, personalRoutineTaskFingerprintFromTask } from '../personal-routine-fingerprint'
+import { StudyQuestionService } from '../study-questions'
+import { claudeStudyQuestionProviders } from '../study-questions-claude'
+import { StudyCycleService } from '../study-cycle'
+import { StudyCycleStore } from '../study-cycle-store'
+import { claudeStudyTutor } from '../study-cycle-claude'
+import { StudyLibrary, StudyNotesWriter } from '../study-library'
+import { StudyCardsService } from '../study-cards'
+import { claudeStudyCardInterpreter } from '../study-cards-claude'
+import { MAIN_ACCOUNT } from '@shared/accounts'
+import { activeStudyCycle, retestScore } from '@shared/study-cycle'
 import {
   completeTaskSchema,
   discardTaskSchema,
@@ -27,6 +37,28 @@ import {
   taskIdSchema,
   taskLineSchema,
   vaultPathSchema,
+  studyQuestionSearchArgsSchema,
+  studyQuestionSaveArgsSchema,
+  studyQuestionGenerateArgsSchema,
+  startStudyCycleArgsSchema,
+  answerStudyCycleArgsSchema,
+  evaluateStudyAnswerArgsSchema,
+  advanceStudyCycleArgsSchema,
+  resetStudyCycleArgsSchema,
+  searchStudyLibraryArgsSchema,
+  studyLibrarySourceArgsSchema,
+  studyCycleNoteArgsSchema,
+  startStudyPracticeArgsSchema,
+  answerStudyPracticeArgsSchema,
+  reviewStudyGapArgsSchema,
+  startStudyRetestArgsSchema,
+  answerStudyRetestArgsSchema,
+  verifyStudyRetestArgsSchema,
+  completeStudyRetestArgsSchema,
+  generateStudyCardDraftArgsSchema,
+  saveStudyCardDraftArgsSchema,
+  listStudyCardsArgsSchema,
+  setStudyCardPhysicalArgsSchema,
 } from '../validate'
 import type { IpcContext } from './context'
 
@@ -36,11 +68,62 @@ export function registerTasksIpc(ctx: IpcContext): void {
   const agenda = createAgendaWriter()
   const undo = createCompletionUndo()
   const personalRoutines = new PersonalRoutineStore(ctx.store.dataDirectory)
+  const studyServices = new Map<string, StudyQuestionService>()
+  const studyLibraries = new Map<string, StudyLibrary>()
+  const studyCards = new Map<string, StudyCardsService>()
+  const studyCycleStore = new StudyCycleStore(ctx.store.dataDirectory)
   const read = (vaultPath: unknown) => readTasksAt(writer, vaultPath)
   const requireVault = (): string => {
     const vaultPath = ctx.store.settings.vaultPath
     if (!vaultPath) throw new Error('Configure a pasta do vault em Ajustes → Tarefas do Obsidian.')
     return checkedVault(vaultPath)
+  }
+  const studyService = (): StudyQuestionService => {
+    const vault = requireVault()
+    let service = studyServices.get(vault)
+    if (!service) {
+      service = new StudyQuestionService(vault, claudeStudyQuestionProviders())
+      studyServices.set(vault, service)
+    }
+    return service
+  }
+  const studyCycleService = (): StudyCycleService => {
+    const vault = requireVault()
+    const evaluateTutor = (input: Parameters<ReturnType<typeof claudeStudyTutor>>[0]) => {
+      const settings = ctx.store.settings
+      const accountId = settings.defaultAccounts[0] ?? MAIN_ACCOUNT
+      const account = settings.accounts.find((candidate) => candidate.id === accountId)
+      if (!account) throw new Error('A conta definida para o Tutor não existe mais. Confira as contas nas configurações.')
+      // Resolve route only at the explicit Tutor action; local read/start/answer remain usable offline.
+      return claudeStudyTutor(settings, account)(input)
+    }
+    return new StudyCycleService(studyCycleStore, studyService(), evaluateTutor, Date.now, new StudyNotesWriter(vault))
+  }
+  const studyLibrary = (): StudyLibrary => {
+    const vault = requireVault()
+    let library = studyLibraries.get(vault)
+    if (!library) {
+      library = new StudyLibrary(vault)
+      studyLibraries.set(vault, library)
+    }
+    return library
+  }
+  const studyCardsService = (): StudyCardsService => {
+    const vault = requireVault()
+    let service = studyCards.get(vault)
+    if (!service) {
+      service = new StudyCardsService(vault, {
+        generate(notes) {
+          const settings = ctx.store.settings
+          const accountId = settings.defaultAccounts[0] ?? MAIN_ACCOUNT
+          const account = settings.accounts.find((candidate) => candidate.id === accountId)
+          if (!account) throw new Error('A conta Claude definida não existe mais. Confira as contas nas configurações.')
+          return claudeStudyCardInterpreter(settings, account).generate(notes)
+        },
+      })
+      studyCards.set(vault, service)
+    }
+    return service
   }
   // Reads the file without remembering it: the board's line numbers come from its own read.
   const focusView = (lists: TaskList[]) => focusItems(lists, ctx.planning.focus(), ctx.planning.todaySteps(dayKey()))
@@ -66,6 +149,159 @@ export function registerTasksIpc(ctx: IpcContext): void {
 
   registerReviewIpc(ctx, { tasks: writer, agenda, vault: requireVault }, personalRoutines)
   registerIrisIpc(ctx, { tasks: writer, agenda, vault: requireVault })
+
+  ipcMain.handle('office:readStudyQuestions', async () => studyService().read())
+  ipcMain.handle('office:searchStudyQuestions', async (_e, ...args: unknown[]) => {
+    const [topic, limit] = parse(studyQuestionSearchArgsSchema, args, 'Busca de questões inválida.')
+    return studyService().search(topic, limit)
+  })
+  ipcMain.handle('office:generateStudyQuestions', async (_e, ...args: unknown[]) => {
+    const [token] = parse(studyQuestionGenerateArgsSchema, args, 'Geração de questões inválida.')
+    return studyService().generate(token)
+  })
+  ipcMain.handle('office:saveStudyQuestions', async (_e, ...args: unknown[]) => {
+    const [token, selection, reviewConfirmed] = parse(studyQuestionSaveArgsSchema, args, 'Seleção de questões inválida.')
+    studyService().save(token, selection, reviewConfirmed)
+  })
+  ipcMain.handle('office:readStudyCycle', () => studyCycleStore.read())
+  ipcMain.handle('office:startStudyCycle', (_e, ...args: unknown[]) => {
+    const [topic, questionIds] = parse(startStudyCycleArgsSchema, args, 'Início do ciclo inválido.')
+    return studyCycleService().start(topic, questionIds)
+  })
+  ipcMain.handle('office:answerStudyCycle', (_e, ...args: unknown[]) => {
+    const [questionId, response, uncertain, providedExcerpt] = parse(answerStudyCycleArgsSchema, args, 'Resposta do diagnóstico inválida.')
+    return studyCycleService().answer(questionId, response, uncertain, providedExcerpt)
+  })
+  ipcMain.handle('office:evaluateStudyAnswer', async (_e, ...args: unknown[]) => {
+    const [questionId] = parse(evaluateStudyAnswerArgsSchema, args, 'Verificação do Tutor inválida.')
+    return studyCycleService().evaluateAnswer(questionId)
+  })
+  ipcMain.handle('office:advanceStudyCycle', (_e, ...args: unknown[]) => {
+    parse(advanceStudyCycleArgsSchema, args, 'Avanço do ciclo inválido.')
+    return studyCycleService().advance()
+  })
+  ipcMain.handle('office:resetStudyCycle', (_e, ...args: unknown[]) => {
+    parse(resetStudyCycleArgsSchema, args, 'Encerramento do ciclo inválido.')
+    return studyCycleService().reset()
+  })
+  ipcMain.handle('office:reviewStudyGap', (_e, ...args: unknown[]) => {
+    const [questionId, cause, nextStep] = parse(reviewStudyGapArgsSchema, args, 'Revisão da lacuna inválida.')
+    return studyCycleService().reviewGap(questionId, cause, nextStep)
+  })
+  ipcMain.handle('office:searchStudyLibrary', (_e, ...args: unknown[]) => {
+    const [query] = parse(searchStudyLibraryArgsSchema, args, 'Busca local da Cora inválida.')
+    return studyLibrary().search(query)
+  })
+  ipcMain.handle('office:attachStudySource', (_e, ...args: unknown[]) => {
+    const [questionId, token, hitId] = parse(studyLibrarySourceArgsSchema, args, 'Vínculo de fonte inválido.')
+    const hit = studyLibrary().source(token, hitId)
+    return studyCycleService().attachSource(questionId, hit.sourceRef)
+  })
+  ipcMain.handle('office:saveStudyCycleNote', (_e, ...args: unknown[]) => {
+    const [questionId, token, hitId, text] = parse(studyCycleNoteArgsSchema, args, 'Nota de estudo inválida.')
+    const hit = studyLibrary().source(token, hitId)
+    const current = studyCycleService()
+    current.attachSource(questionId, hit.sourceRef)
+    return current.saveNote(questionId, hit.sourceRef, text)
+  })
+  ipcMain.handle('office:startStudyPractice', (_e, ...args: unknown[]) => {
+    const [questions] = parse(startStudyPracticeArgsSchema, args, 'Plano de prática inválido.')
+    return studyCycleService().startPractice(questions)
+  })
+  ipcMain.handle('office:answerStudyPractice', (_e, ...args: unknown[]) => {
+    const [questionId, response] = parse(answerStudyPracticeArgsSchema, args, 'Resposta de prática inválida.')
+    return studyCycleService().answerPractice(questionId, response)
+  })
+  ipcMain.handle('office:evaluateStudyPractice', async (_e, ...args: unknown[]) => {
+    const [questionId] = parse(evaluateStudyAnswerArgsSchema, args, 'Verificação da prática inválida.')
+    return studyCycleService().evaluatePracticeAnswer(questionId)
+  })
+  ipcMain.handle('office:startStudyRetest', (_e, ...args: unknown[]) => {
+    const [questionIds] = parse(startStudyRetestArgsSchema, args, 'Plano de reteste inválido.')
+    return studyCycleService().startRetest(questionIds)
+  })
+  ipcMain.handle('office:answerStudyRetest', (_e, ...args: unknown[]) => {
+    const [questionId, response] = parse(answerStudyRetestArgsSchema, args, 'Resposta de reteste inválida.')
+    return studyCycleService().answerRetest(questionId, response)
+  })
+  ipcMain.handle('office:verifyStudyRetest', async (_e, ...args: unknown[]) => {
+    parse(verifyStudyRetestArgsSchema, args, 'Conferência de reteste inválida.')
+    return studyCycleService().verifyRetest()
+  })
+  ipcMain.handle('office:completeStudyRetest', async (_e, ...args: unknown[]) => {
+    parse(completeStudyRetestArgsSchema, args, 'Confirmação do reteste inválida.')
+    const cycle = activeStudyCycle(studyCycleStore.read())
+    const score = cycle?.retests.at(-1) ? retestScore(cycle.retests.at(-1)!) : null
+    if (cycle?.stage !== 'retest' || score === null || score < 80)
+      throw new Error('O ciclo só pode ser concluído após um reteste verificado com pelo menos 80%.')
+    const options = {
+      type: 'question' as const,
+      buttons: ['Concluir ciclo', 'Continuar estudando'],
+      defaultId: 1,
+      cancelId: 1,
+      message: 'Concluir ciclo de estudo?',
+      detail: `Você atingiu ${score}% no reteste. Confirma que quer concluir este ciclo?`,
+    }
+    const win = ctx.win()
+    const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options)
+    if (response !== 0) return studyCycleStore.read()
+    const latest = activeStudyCycle(studyCycleStore.read())
+    const latestScore = latest?.retests.at(-1) ? retestScore(latest.retests.at(-1)!) : null
+    if (latest?.id !== cycle.id || latestScore === null || latestScore < 80)
+      throw new Error('O ciclo mudou durante a confirmação. Confira o reteste novamente.')
+    return studyCycleService().completeRetest()
+  })
+  ipcMain.handle('office:readStudyNotes', () => studyCardsService().readNotes())
+  ipcMain.handle('office:generateStudyCardDraft', async (_e, ...args: unknown[]) => {
+    const [noteIds] = parse(generateStudyCardDraftArgsSchema, args, 'Seleção de notas para cartão inválida.')
+    const cards = studyCardsService()
+    const available = cards.readNotes().notes
+    const selected = noteIds.map((id) => {
+      const note = available.find((candidate) => candidate.id === id)
+      if (!note) throw new Error('Uma nota selecionada mudou ou não existe mais. Recarregue a biblioteca.')
+      return note
+    })
+    const settings = ctx.store.settings
+    const accountId = settings.defaultAccounts[0] ?? MAIN_ACCOUNT
+    const account = settings.accounts.find((candidate) => candidate.id === accountId)
+    if (!account) throw new Error('A conta Claude definida não existe mais. Confira as contas nas configurações.')
+    const options = {
+      type: 'question' as const,
+      buttons: ['Enviar notas selecionadas', 'Cancelar'],
+      defaultId: 1,
+      cancelId: 1,
+      message: 'Enviar estas notas selecionadas ao Claude para preparar um rascunho?',
+      detail: `Serão enviados ${selected.length} snapshot(s): ${selected.map((note) => `${note.title} (${note.sourceRef})`).join('; ')}. Conta: ${account.name}. Modelo: ${settings.defaultModel || 'claude-haiku-5-5'}, esforço ${settings.defaultEffort || 'medium'}. Confirme que o ambiente dessa conta pode receber esse conteúdo. Nenhum cartão será salvo sem sua revisão posterior.`,
+    }
+    const win = ctx.win()
+    const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options)
+    if (response !== 0) return null
+    return cards.generateDraft(noteIds)
+  })
+  ipcMain.handle('office:saveStudyCardDraft', async (_e, ...args: unknown[]) => {
+    const [token, draft] = parse(saveStudyCardDraftArgsSchema, args, 'Rascunho de cartão inválido.')
+    const service = studyCardsService()
+    const sources = service.draftSources(token)
+    const options = {
+      type: 'question' as const,
+      buttons: ['Salvar cartão digital', 'Continuar revisando'],
+      defaultId: 1,
+      cancelId: 1,
+      message: `Salvar o cartão “${draft.title}” no Obsidian?`,
+      detail: `O cartão preservará ${sources.length} snapshot(s) de nota: ${sources.map((source) => source.title).join('; ')}. Essa aprovação não marca a cópia física como escrita e não altera o ciclo de estudo.`,
+    }
+    const win = ctx.win()
+    const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options)
+    return response === 0 ? service.saveDraft(token, draft) : null
+  })
+  ipcMain.handle('office:listStudyCards', (_e, ...args: unknown[]) => {
+    parse(listStudyCardsArgsSchema, args, 'Lista de cartões inválida.')
+    return studyCardsService().listCards()
+  })
+  ipcMain.handle('office:setStudyCardPhysicalWritten', (_e, ...args: unknown[]) => {
+    const [id, written] = parse(setStudyCardPhysicalArgsSchema, args, 'Estado da cópia física inválido.')
+    return studyCardsService().setPhysicalWritten(id, written)
+  })
 
   ipcMain.handle('office:readTasks', async () => {
     const vaultPath = ctx.store.settings.vaultPath

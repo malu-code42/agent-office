@@ -5,12 +5,22 @@ import { cleanError, modal } from '../modals'
 import { entryCategory, entryView } from './entries'
 import { toBase64 } from './helpers'
 import { PanelHead } from './head'
+import { AUDIO_MAX_BYTES, isAudioFile } from '@shared/audio'
 
 /** The message box: attachments, sending, and new log entries in the feed. */
 export abstract class PanelComposer extends PanelHead {
   protected attach(list: File[]): void {
     if (this.terminal) return
+    const luna = this.agentId && this.state.agents.get(this.agentId)?.builtIn === 'luna'
     for (const file of list) {
+      if (luna && !isAudioFile(file.name, file.type)) {
+        this.actions.toast('Anexe um arquivo de áudio para enviar à Luna.', 'err')
+        continue
+      }
+      if (luna && file.size > AUDIO_MAX_BYTES) {
+        this.actions.toast('O áudio precisa ter até 20 MB.', 'err')
+        continue
+      }
       if (this.files.length >= ATTACH_LIMITS.count) {
         this.actions.toast(
           `Dá para mandar até ${ATTACH_LIMITS.count} anexos por vez. Envie estes e anexe o resto na próxima mensagem.`,
@@ -96,17 +106,19 @@ export abstract class PanelComposer extends PanelHead {
   protected async send(): Promise<void> {
     const text = this.input.value.trim()
     if ((!text && !this.files.length) || !this.agentId || this.sending) return
+    const agentId = this.agentId
+    const lunaAudio = this.state.agents.get(agentId)?.builtIn === 'luna'
     const files = this.files
     this.sending = true
     try {
       const attachments: AttachmentInput[] = await Promise.all(
-        files.map(async (f) =>
-          f.path
+        files.map(async (f) => {
+          return f.path && !lunaAudio
             ? { name: f.name, mime: f.file.type, path: f.path }
-            : { name: f.name, mime: f.file.type, dataBase64: await toBase64(f.file) },
-        ),
+            : { name: f.name, mime: f.file.type, dataBase64: await toBase64(f.file) }
+        }),
       )
-      await window.office.send(this.agentId, text, attachments)
+      await window.office.send(agentId, text, attachments)
       // Cleared only once it went, so a rejected file can be removed and the rest sent again.
       if (this.input.value.trim() === text) this.input.value = ''
       this.files = this.files.filter((f) => !files.includes(f))

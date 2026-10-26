@@ -89,6 +89,19 @@ describe('createWritingWriter', () => {
     expect(backupFiles(root)).toEqual(['escrita-2026-10-24-101112.md'])
   })
 
+  it('retoma idempotentemente um Original de áudio com identificador estável', () => {
+    const root = vault()
+    const subject = writer()
+    const id = `w${'a'.repeat(32)}`
+    subject.read(root)
+    expect(subject.createOriginal(root, { id, title: 'Ideia de áudio', body: 'Texto capturado.' })).toBe(id)
+    const saved = readFileSync(join(root, 'escrita.md'), 'utf8')
+    expect(subject.createOriginal(root, { id, title: 'Ideia de áudio', body: 'Texto capturado.' })).toBe(id)
+    expect(readFileSync(join(root, 'escrita.md'), 'utf8')).toBe(saved)
+    expect(() => subject.createOriginal(root, { id, title: 'Outro', body: 'Não sobrescrever.' })).toThrow(/já pertence a outro Original/)
+    expect(readFileSync(join(root, 'escrita.md'), 'utf8')).toBe(saved)
+  })
+
   it('anexa versão à base existente sem alterar Original, versões e conteúdo desconhecido', () => {
     const root = vault()
     const subject = writer()

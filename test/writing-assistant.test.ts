@@ -41,7 +41,7 @@ afterEach(() => {
 })
 
 describe('WritingAssistant', () => {
-  it('prepara contexto apenas com texto selecionado, instrução e perfil Escrita', () => {
+  it('prepara contexto apenas com texto selecionado, instrução e perfil Agatha', () => {
     const root = vault()
     const { subject, id, selected } = seeded(root)
     const { assistant } = makeAssistant(subject)
@@ -52,7 +52,7 @@ describe('WritingAssistant', () => {
     expect(prepared.context).not.toContain(selected.versionId)
     expect(prepared.preview).toContain('Corpo selecionado.')
     expect(prepared.preview).toContain('Revise a clareza.')
-    expect(prepared.preview).toContain('Work as Escrita')
+    expect(prepared.preview).toContain('Work as Agatha')
     expect(prepared.preview).not.toContain('Outro texto secreto')
     expect(prepared.preview).not.toContain('Não incluir outro trecho.')
     expect(prepared.preview).not.toMatch(/tasks\.md|agenda\.md|memories|planning\.json/i)

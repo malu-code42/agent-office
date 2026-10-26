@@ -43,7 +43,7 @@ Coordenadora fixa da casa que organiza a vida pessoal, agenda e rotinas e encami
 _Avoid_: Diretora de projeto, Bonnie, execução automática
 
 **Perfil de trabalho**:
-Configuração reutilizável de Claude para uma tarefa (Ajuda técnica, Estudo avulso ou Escrita); cada tarefa abre conversa nova e pode manter memória resumida local editável pela usuária.
+Configuração reutilizável de Claude para uma tarefa (Ajuda técnica, Estudo avulso ou Agatha); cada tarefa abre conversa nova e pode manter memória resumida local editável pela usuária.
 _Avoid_: Conversa reutilizada entre tarefas, memória bruta da conversa
 
 **Casa**:

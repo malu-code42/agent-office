@@ -21,6 +21,7 @@ import type { WritingAssistant } from '../writing-assistant'
 import type { WritingWriter } from '../writing-write'
 import type { MediaPosters } from '../media-posters'
 import type { MediaWriter } from '../media-write'
+import type { TelegramAudioDisposition, TelegramAudioPayload } from '../telegram'
 import { idSchema, parse } from '../validate'
 
 /** What the IPC handlers (ipc/*.ts) share; built once in index.ts when the app is ready. */
@@ -63,6 +64,8 @@ export interface IpcContext {
   retrySquadPublication(code: string): Promise<void>
   startActiveSquadTicket(code: string): Promise<void>
   onBattery(): boolean
+  /** Audio is handed to Luna after Telegram authorization; the callback is registered with the task IPC. */
+  onTelegramAudio?: (audio: TelegramAudioPayload) => TelegramAudioDisposition | void | Promise<TelegramAudioDisposition | void>
 }
 
 // Every argument from the renderer passes through validate.ts first.

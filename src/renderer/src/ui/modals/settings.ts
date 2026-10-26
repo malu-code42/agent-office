@@ -21,6 +21,7 @@ import { updateSettingsBox } from '../updates'
 import { cleanError, field, modal } from './common'
 import { brainFields, meterField, MODES } from './brain'
 import { brandFields } from './brand'
+import { telegramSettingsSection } from '../telegram-settings'
 import { openProfileMemories } from './profile-memory'
 
 // Configurações: player, defaults, floors, accounts, data, video and the terminal bridge.
@@ -454,6 +455,7 @@ export function openSettings(
           h('button', { class: 'btn', type: 'button', onclick: () => openAccounts(root, state, toast) }, 'Gerenciar contas'),
         ),
       ),
+      telegramSettingsSection(toast),
       // AO-43: the memory of the profiles — Luna reads it, tasks never receive it.
       h(
         'div',

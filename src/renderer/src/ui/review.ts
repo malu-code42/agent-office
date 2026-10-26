@@ -26,6 +26,9 @@ import { announce } from './a11y'
 import { cleanError, modal } from './modals/common'
 import { closeReviewAfterSave, createReviewDraftSaver } from './review-draft'
 import { openTaskMenu, type TaskMenuOption } from './tasks-move'
+import { openStudyQuestions } from './study-questions'
+import { openStudyCycle } from './study-cycle'
+import { openStudyCards } from './study-cards'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
 
@@ -984,7 +987,17 @@ export async function openReviewWizard(root: HTMLElement, toast: Toast): Promise
         ]
       return [...view.focus.map(focusRow), ...(sec ? [sec] : [])]
     }
-    if (name === 'estudos') return [h('p', {}, 'Estudos e andares ficam para as próximas entregas.')]
+    if (name === 'estudos')
+      return [
+        h(
+          'p',
+          {},
+          'Ciclo de diagnóstico da Bonnie usa apenas questões que já estão no banco local. Buscar questões continua separado e nunca inicia o ciclo.',
+        ),
+        button('Diagnóstico com Bonnie', () => void openStudyCycle(root, toast), 'btn btn-primary'),
+        button('Buscar questões', () => openStudyQuestions(root, toast), 'btn btn-primary'),
+        button('Notas e cartões', () => void openStudyCards(root, toast), 'btn'),
+      ]
     if (current.problems.length) {
       return [h('ul', { class: 'review-problems', role: 'alert' }, ...current.problems.map((t) => h('li', {}, t)))]
     }

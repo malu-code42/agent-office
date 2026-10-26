@@ -43,6 +43,8 @@ export interface Look {
 export interface AgentSummary {
   id: string
   name: string
+  /** Built-in coordinator shown in the normal roster but not seated as a 3D worker. */
+  builtIn?: 'luna'
   source: AgentSource
   /** Missing on persisted pre-OpenCode agents: those migrate to Claude. */
   engine?: AgentEngine

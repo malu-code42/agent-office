@@ -24,7 +24,8 @@ describe('perfis de fábrica', () => {
   it('o id informado pelo modelo existe na lista: nenhum perfil é inventado na busca', () => {
     expect(profileById('tecnica')?.name).toBe('Ajuda técnica')
     expect(profileById('estudo-avulso')).toBeDefined()
-    expect(profileById('escrita')).toBeDefined()
+    expect(profileById('escrita')?.name).toBe('Agatha')
+    expect(profileById('escrita')?.scope).toContain('textos')
     expect(profileById('inexistente')).toBeUndefined()
     expect(profileById('')).toBeUndefined()
   })
