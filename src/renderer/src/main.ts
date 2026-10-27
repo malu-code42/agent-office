@@ -483,6 +483,10 @@ async function boot(): Promise<void> {
       showAgent(LUNA_AGENT_ID).then(() => panel.showLocalTranscript(e.text))
       return
     }
+    if (e.type === 'luna:open-chat') {
+      void showAgent(LUNA_AGENT_ID).then(() => panel.focusInput())
+      return
+    }
     if (e.type === 'agent:chat') return game.chat(e.fromId, e.toId, e.text)
     if (e.type === 'member:ended') return game.memberEnded(e.taskId, e.status, e.summary)
     // Clique na notificação do sistema: o cartão abre na hora, sem esperar a caminhada.

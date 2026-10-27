@@ -14,19 +14,53 @@ export interface PersonalRoutineOccurrence {
   retiredTaskIds?: string[]
   status: 'pending' | 'completed'
   completedAt?: string
+  reminderAttempts?: number
+  reminderAskedAt?: number
+  response?: 'completed' | 'deferred' | 'not-completed'
+  responseAt?: number
 }
 
 interface PersonalRoutineData {
   distributions: Record<string, number[]>
   occurrences: Record<string, PersonalRoutineOccurrence>
+  dailyTimes?: { morning: string; evening: string }
+  processedDays?: string[]
+  workflowDay?: string
+  dailyPriorities?: Record<string, string[]>
 }
 
 const empty = (): PersonalRoutineData => ({ distributions: {}, occurrences: {} })
 const dayPattern = /^\d{4}-\d{2}-\d{2}$/
+const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 
 export function isPersonalRoutineData(v: unknown): v is PersonalRoutineData {
   if (!isObj(v) || !isObj(v.distributions) || !isObj(v.occurrences)) return false
+  if (
+    v.dailyTimes !== undefined &&
+    (!isObj(v.dailyTimes) ||
+      typeof v.dailyTimes.morning !== 'string' ||
+      !timePattern.test(v.dailyTimes.morning) ||
+      typeof v.dailyTimes.evening !== 'string' ||
+      !timePattern.test(v.dailyTimes.evening))
+  )
+    return false
+  if (
+    v.processedDays !== undefined &&
+    (!Array.isArray(v.processedDays) || !v.processedDays.every((key) => /^(morning|evening):\d{4}-\d{2}-\d{2}$/.test(String(key))))
+  )
+    return false
+  if (v.workflowDay !== undefined && !dayPattern.test(String(v.workflowDay))) return false
+  if (
+    v.dailyPriorities !== undefined &&
+    (!v.dailyPriorities ||
+      typeof v.dailyPriorities !== 'object' ||
+      Array.isArray(v.dailyPriorities) ||
+      Object.entries(v.dailyPriorities as Record<string, unknown>).some(
+        ([day, values]) => !dayPattern.test(day) || !Array.isArray(values) || !values.every((value) => typeof value === 'string'),
+      ))
+  )
+    return false
   if (
     !Object.values(v.distributions).every(
       (days) => Array.isArray(days) && days.every((d) => Number.isInteger(d) && (d as number) >= 0 && (d as number) <= 6),
@@ -48,7 +82,13 @@ export function isPersonalRoutineData(v: unknown): v is PersonalRoutineData {
         (!Array.isArray(value.retiredTaskIds) ||
           !value.retiredTaskIds.every((id) => typeof id === 'string' && /^t[a-z0-9]{6}$/i.test(id)))) ||
       (value.status !== 'pending' && value.status !== 'completed') ||
-      (value.completedAt !== undefined && !dayPattern.test(String(value.completedAt)))
+      (value.completedAt !== undefined && !dayPattern.test(String(value.completedAt))) ||
+      (value.reminderAttempts !== undefined &&
+        (!Number.isInteger(value.reminderAttempts) || Number(value.reminderAttempts) < 0 || Number(value.reminderAttempts) > 2)) ||
+      (value.reminderAskedAt !== undefined && (!Number.isFinite(value.reminderAskedAt) || Number(value.reminderAskedAt) < 0)) ||
+      (value.response !== undefined && !['completed', 'deferred', 'not-completed'].includes(String(value.response))) ||
+      (value.responseAt !== undefined && (!Number.isFinite(value.responseAt) || Number(value.responseAt) < 0)) ||
+      (value.response === undefined) !== (value.responseAt === undefined)
     )
       return false
 
@@ -78,6 +118,52 @@ export class PersonalRoutineStore {
     const loaded = loadJson<PersonalRoutineData>(this.file, { valid: isPersonalRoutineData })
     reportLoad(this.file, loaded)
     this.data = loaded.status === 'ok' || loaded.status === 'restored' ? loaded.data : empty()
+  }
+
+  /** Configurable local times; legacy files keep the original 08:00 planning default. */
+  dailyTimes(): { morning: string; evening: string } {
+    return { morning: this.data.dailyTimes?.morning ?? '08:00', evening: this.data.dailyTimes?.evening ?? '20:00' }
+  }
+
+  setDailyTimes(times: { morning: string; evening: string }): void {
+    if (!timePattern.test(times.morning) || !timePattern.test(times.evening)) throw new Error('Escolha horários válidos no formato HH:MM.')
+    this.data.dailyTimes = { ...times }
+    this.save()
+  }
+
+  dayProcessHandled(key: string): boolean {
+    return (this.data.processedDays ?? []).includes(key)
+  }
+
+  markDayProcessHandled(key: string): boolean {
+    if (!/^(morning|evening):\d{4}-\d{2}-\d{2}$/.test(key)) throw new Error('Processo diário inválido.')
+    if (this.dayProcessHandled(key)) return false
+    this.data.processedDays = [...(this.data.processedDays ?? []), key]
+    this.save()
+    return true
+  }
+
+  workflowDay(): string | undefined {
+    return this.data.workflowDay
+  }
+
+  markWorkflowDay(day: string): void {
+    if (!dayPattern.test(day)) throw new Error('Data local do workflow inválida.')
+    if (this.data.workflowDay === day) return
+    this.data.workflowDay = day
+    this.save()
+  }
+
+  saveDailyPriorities(day: string, priorities: string[]): void {
+    if (!dayPattern.test(day) || priorities.some((priority) => typeof priority !== 'string'))
+      throw new Error('Prioridades diárias inválidas.')
+    this.data.dailyPriorities ??= {}
+    this.data.dailyPriorities[day] = [...new Set(priorities)]
+    this.save()
+  }
+
+  dailyPriorities(day: string): string[] {
+    return [...(this.data.dailyPriorities?.[day] ?? [])]
   }
 
   distribution(key: string): number[] | undefined {
@@ -113,6 +199,43 @@ export class PersonalRoutineStore {
     this.data.occurrences[id] = occurrence
     this.save()
     return { ...occurrence }
+  }
+
+  /** Marks a reminder before displaying it, making duplicate timer wakes/restarts idempotent. */
+  markReminderAsked(id: string, now: number): boolean {
+    const row = this.data.occurrences[id]
+    if (!row || row.status === 'completed' || row.response) return false
+    const attempts = row.reminderAttempts ?? 0
+    if (attempts === 0) {
+      row.reminderAttempts = 1
+      row.reminderAskedAt = now
+    } else if (attempts === 1 && row.reminderAskedAt !== undefined && now >= row.reminderAskedAt + 30 * 60_000) {
+      row.reminderAttempts = 2
+      row.reminderAskedAt = now
+    } else return false
+    this.save()
+    return true
+  }
+
+  reminderAttempts(id: string): number {
+    return this.data.occurrences[id]?.reminderAttempts ?? 0
+  }
+
+  /** Only an explicit answer changes the local occurrence; deferral/non-completion stay pending. */
+  answerReminder(id: string, response: 'completed' | 'deferred' | 'not-completed', at: number): boolean {
+    const row = this.data.occurrences[id]
+    if (!row || row.status === 'completed' || row.response) return false
+    row.response = response
+    row.responseAt = at
+    if (response === 'completed') {
+      row.status = 'completed'
+      row.completedAt = row.day
+    } else {
+      row.status = 'pending'
+      delete row.completedAt
+    }
+    this.save()
+    return true
   }
 
   /** Reserve the occurrence's task id before writing tarefas.md; retries after a crash reuse it. */

@@ -225,6 +225,7 @@ export type OfficeEvent =
   | { type: 'luna:profile-task'; profile: ProfileId; task: string }
   | { type: 'luna:media-draft'; draft: Extract<IrisResult, { kind: 'media-draft' }>['draft'] }
   | { type: 'luna:transcript'; text: string }
+  | { type: 'luna:open-chat' }
 
 /** A reopen either put the task back (`list` is where it went) or waits for the user to choose one of `lists`. */
 export type ReopenResult = { status: 'done'; list: string; board: ParsedBoard; focus: FocusItem[] } | { status: 'choose'; lists: string[] }
@@ -380,6 +381,9 @@ export interface OfficeAPI {
   routineCandidates(): Promise<RoutineCandidate[]>
   /** Projeta agenda e pendências pessoais da semana local; não altera o estado das ocorrências. */
   personalRoutineOverview(): Promise<PersonalRoutineOverview>
+  /** Horários locais do planejamento matinal e da revisão noturna (AO-84). */
+  dailyWorkflowTimes(): Promise<{ morning: string; evening: string }>
+  setDailyWorkflowTimes(times: { morning: string; evening: string }): Promise<void>
   /** Confirma a distribuição semanal escolhida e materializa as ocorrências selecionadas. */
   confirmPersonalRoutineDistribution(routineId: string, days: number[]): Promise<PersonalRoutineOverview>
   /** Reserva e cria tarefa idempotente para uma ocorrência selecionada; renderer não envia caminho nem ID. */
