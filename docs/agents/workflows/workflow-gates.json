@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "task_id": "agent-office-ticket-84",
+  "route": "multi-delivery",
+  "gates": {
+    "problem": {
+      "status": "verified",
+      "evidence": [
+        {
+          "path": "docs/agents/workflows/snapshots/ticket-84.json",
+          "sha256": "7a295ad57174289df877ecfe3be02c30fb3b4f7d3087229bc9e56f85aed8a036"
+        }
+      ]
+    },
+    "implementation_authorization": {
+      "status": "verified",
+      "evidence": [
+        {
+          "path": "docs/agents/workflows/approval-receipts.md",
+          "sha256": "2b297650a3aaae1b091e15312d66e8469bbc1ae41ac2c0b5593c7b7b1f0e4919"
+        }
+      ],
+      "approval": {
+        "source": {
+          "path": "docs/agents/workflows/approval-receipts.md",
+          "sha256": "2b297650a3aaae1b091e15312d66e8469bbc1ae41ac2c0b5593c7b7b1f0e4919"
+        },
+        "quote": "pode implementar",
+        "artifact_sha256": "2b297650a3aaae1b091e15312d66e8469bbc1ae41ac2c0b5593c7b7b1f0e4919"
+      }
+    },
+    "spec": {
+      "status": "verified",
+      "evidence": [
+        {
+          "path": "docs/specs/centro-de-controle-da-vida-design.md",
+          "sha256": "2ded9de123cdb7424dedea9a53333a027038790a2565964beb6f90768d186560"
+        }
+      ],
+      "approval": {
+        "source": {
+          "path": "docs/agents/workflows/approval-receipts.md",
+          "sha256": "2b297650a3aaae1b091e15312d66e8469bbc1ae41ac2c0b5593c7b7b1f0e4919"
+        },
+        "quote": "Confirmar (Recommended)",
+        "artifact_sha256": "2ded9de123cdb7424dedea9a53333a027038790a2565964beb6f90768d186560"
+      }
+    },
+    "tickets": {
+      "status": "verified",
+      "evidence": [
+        {
+          "path": "docs/agents/workflows/snapshots/ticket-84.json",
+          "sha256": "7a295ad57174289df877ecfe3be02c30fb3b4f7d3087229bc9e56f85aed8a036"
+        }
+      ],
+      "approval": {
+        "source": {
+          "path": "docs/agents/workflows/approval-receipts.md",
+          "sha256": "2b297650a3aaae1b091e15312d66e8469bbc1ae41ac2c0b5593c7b7b1f0e4919"
+        },
+        "quote": "Aprovar (Recommended)",
+        "artifact_sha256": "7a295ad57174289df877ecfe3be02c30fb3b4f7d3087229bc9e56f85aed8a036"
+      },
+      "source_spec_sha256": "2ded9de123cdb7424dedea9a53333a027038790a2565964beb6f90768d186560"
+    }
+  },
+  "selected_ticket": {
+    "id": "#84",
+    "evidence": {
+      "path": "docs/agents/workflows/snapshots/ticket-84.json",
+      "sha256": "7a295ad57174289df877ecfe3be02c30fb3b4f7d3087229bc9e56f85aed8a036"
+    },
+    "source_spec_sha256": "2ded9de123cdb7424dedea9a53333a027038790a2565964beb6f90768d186560",
+    "blocked_by": []
+  }
+}

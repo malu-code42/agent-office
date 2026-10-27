@@ -1,6 +1,7 @@
 import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { dialog, ipcMain } from 'electron'
+import { z } from 'zod'
 import { buildAgendaView } from '@shared/agenda'
 import { focusItems, focusKey } from '@shared/planning'
 import { ARCHIVE_LIST, parseTasksFile, type TaskList, type TaskRef } from '@shared/tasks'
@@ -13,6 +14,9 @@ import { registerReviewIpc } from './review'
 import { createTaskWriter, type TaskWriter } from '../tasks-write'
 import { createCompletionUndo } from '../tasks-undo'
 import { PersonalRoutineStore } from '../personal-routines-store'
+import { DailyWorkflow } from '../daily-workflow'
+import { readPersonalRoutines } from '../routines-personal'
+import { LUNA_AGENT_ID } from '@shared/luna'
 import { personalRoutineTaskFingerprintFromLine, personalRoutineTaskFingerprintFromTask } from '../personal-routine-fingerprint'
 import { StudyQuestionService } from '../study-questions'
 import { claudeStudyQuestionProviders } from '../study-questions-claude'
@@ -62,12 +66,142 @@ import {
 } from '../validate'
 import type { IpcContext } from './context'
 
+const dailyWorkflowTimesSchema = z.object({
+  morning: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
+  evening: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
+}).strict()
+
 export function registerTasksIpc(ctx: IpcContext): void {
   const writer = createTaskWriter()
   // Shared with the proposals below: one read of tarefas.md is what the next confirmation checks against.
   const agenda = createAgendaWriter()
   const undo = createCompletionUndo()
   const personalRoutines = new PersonalRoutineStore(ctx.store.dataDirectory)
+  const dailyWorkflow = new DailyWorkflow({
+    store: personalRoutines,
+    now: () => new Date(),
+    routineText: () => {
+      const vaultPath = ctx.store.settings.vaultPath
+      return vaultPath ? (readPersonalRoutines(checkedVault(vaultPath)) ?? '') : ''
+    },
+    morning: (day) => {
+      const [year, month, date] = day.split('-').map(Number)
+      const now = new Date(year!, month! - 1, date!, 12)
+      const vaultPath = ctx.store.settings.vaultPath
+      if (!vaultPath) return 'Planejamento matinal: configure o vault para incluir agenda, aulas e tarefas com data.'
+      const path = checkedVault(vaultPath)
+      const boardText = readOptionalFile(path, 'tarefas.md') ?? ''
+      const agenda = buildAgendaView(readOptionalFile(path, 'agenda.md'), boardText, now, readOptionalFile(path, 'aulas.md'))
+      const entries = agenda.today.entries.map((entry) =>
+        'time' in entry ? `${entry.time} · ${'title' in entry ? entry.title : (entry.text ?? 'Tarefa vinculada')}` : entry.text,
+      )
+      const dateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+      const dateLabels = new Set([
+        dateKey,
+        `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`,
+        `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}`,
+      ])
+      const datedTasks = parseTasksFile(boardText).lists.flatMap((list) =>
+        list.tasks
+          .filter((task) => task.status === 'open' && dateLabels.has(task.date ?? task.dueDate ?? ''))
+          .map((task) => `• ${task.text}`),
+      )
+      return [
+        'Planejamento de hoje',
+        entries.length ? `Agenda e aulas:\n${entries.map((entry) => `• ${entry}`).join('\n')}` : 'Agenda e aulas: nada marcado para hoje.',
+        datedTasks.length ? `Tarefas com data:\n${datedTasks.join('\n')}` : 'Tarefas com data: nenhuma para hoje.',
+      ].join('\n\n')
+    },
+    evening: (day) => {
+      const vaultPath = ctx.store.settings.vaultPath
+      if (!vaultPath) return 'Revisão do dia: configure o vault para consultar tarefas e agenda.'
+      const boardText = readOptionalFile(checkedVault(vaultPath), 'tarefas.md') ?? ''
+      const parsed = parseTasksFile(boardText)
+      const dateLabels = new Set([
+        day,
+        `${day.slice(8, 10)}.${day.slice(5, 7)}.${day.slice(0, 4)}`,
+        `${day.slice(8, 10)}.${day.slice(5, 7)}`,
+      ])
+      const todaysTasks = parsed.lists.flatMap((list) => list.tasks.filter((task) => dateLabels.has(task.date ?? task.dueDate ?? '')))
+      const completed = todaysTasks.filter((task) => task.status === 'completed').map((task) => `• ${task.text}`)
+      const open = todaysTasks.filter((task) => task.status === 'open').map((task) => `• ${task.text}`)
+      return [
+        'Revisão do dia',
+        completed.length ? `Concluídas:\n${completed.join('\n')}` : 'Concluídas: nenhuma registrada.',
+        open.length ? `Ainda abertas:\n${open.slice(0, 8).join('\n')}` : 'Ainda abertas: nenhuma.',
+      ].join('\n\n')
+    },
+    chat: (text) => {
+      const question = 'Li seu planejamento/revisão local. Você pode continuar no chat normal da Luna quando quiser.'
+      ctx.manager.requestDecision(
+        LUNA_AGENT_ID,
+        {
+          kind: 'question',
+          toolName: 'Luna',
+          title: 'Seu resumo diário',
+          detail: text,
+          input: {},
+          canAlwaysAllow: false,
+          questions: [
+            {
+              header: 'Resumo',
+              question,
+              multiSelect: false,
+              options: [
+                { label: 'Abrir o chat da Luna', description: 'Continuar o planejamento no chat normal.' },
+                { label: 'Agora não', description: 'Fechar sem outra ação.' },
+              ],
+            },
+          ],
+        },
+        (decision) => {
+          if (decision.behavior === 'allow' && Object.values(decision.answers ?? {}).includes('Abrir o chat da Luna')) {
+            ctx.manager.appendBuiltInLog(LUNA_AGENT_ID, 'assistant', text)
+            ctx.broadcast({ type: 'luna:open-chat' })
+          }
+        },
+      )
+    },
+    ask: (items, answer) => {
+      const questions = items.map((item) => ({
+        header: item.id.startsWith('priorities:') ? 'Prioridades' : 'Rotina pessoal',
+        question: item.question,
+        multiSelect: item.multiSelect ?? false,
+        options: item.options,
+      }))
+      return ctx.manager.requestDecision(
+        LUNA_AGENT_ID,
+        {
+          kind: 'question',
+          toolName: 'Luna',
+          title: 'Planejamento e rotinas de hoje',
+          detail: '',
+          input: {},
+          canAlwaysAllow: false,
+          questions,
+        },
+        (decision) => {
+          if (decision.behavior === 'allow') answer(decision.answers ?? {})
+        },
+      )
+    },
+    cancelRequest: (requestId) => ctx.manager.cancelRequest(requestId, 'O lembrete foi atualizado; responda à pergunta mais recente.'),
+  })
+  if (ctx.manager) {
+    const dailyTimer = setInterval(() => {
+      try {
+        dailyWorkflow.check()
+      } catch (err) {
+        console.error('Workflow diário da Luna:', err)
+      }
+    }, 60_000)
+    dailyTimer.unref()
+    try {
+      dailyWorkflow.check()
+    } catch (err) {
+      console.error('Catch-up diário da Luna:', err)
+    }
+  }
   const studyServices = new Map<string, StudyQuestionService>()
   const studyLibraries = new Map<string, StudyLibrary>()
   const studyCards = new Map<string, StudyCardsService>()
@@ -148,6 +282,13 @@ export function registerTasksIpc(ctx: IpcContext): void {
   }
 
   registerReviewIpc(ctx, { tasks: writer, agenda, vault: requireVault }, personalRoutines)
+  ipcMain.handle('office:dailyWorkflowTimes', () => personalRoutines.dailyTimes())
+  ipcMain.handle('office:setDailyWorkflowTimes', (_event, raw: unknown) => {
+    const value = dailyWorkflowTimesSchema.safeParse(raw)
+    if (!value.success) throw new Error('Horários inválidos.')
+    personalRoutines.setDailyTimes(value.data)
+    dailyWorkflow.check()
+  })
   registerIrisIpc(ctx, { tasks: writer, agenda, vault: requireVault })
 
   ipcMain.handle('office:readStudyQuestions', async () => studyService().read())

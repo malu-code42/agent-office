@@ -16,6 +16,8 @@ type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
 type RoutineAPI = Pick<
   OfficeAPI,
   | 'personalRoutineOverview'
+  | 'dailyWorkflowTimes'
+  | 'setDailyWorkflowTimes'
   | 'confirmPersonalRoutineDistribution'
   | 'readTasks'
   | 'createPersonalRoutineTask'
@@ -45,8 +47,9 @@ export async function openPersonalRoutinesPanel(root: HTMLElement, toast: Toast)
   closeButton.focus()
 
   let overview: PersonalRoutineOverview
+  let dailyTimes: { morning: string; evening: string }
   try {
-    overview = await loadPersonalRoutineOverview(api)
+    ;[overview, dailyTimes] = await Promise.all([loadPersonalRoutineOverview(api), api.dailyWorkflowTimes()])
   } catch (err) {
     content.replaceChildren(h('div', { class: 'dialog-note', role: 'alert' }, cleanError(err)))
     return
@@ -378,7 +381,31 @@ export async function openPersonalRoutinesPanel(root: HTMLElement, toast: Toast)
       }
       return card
     })
+    const morningTime = h('input', { type: 'time', value: dailyTimes.morning, 'aria-label': 'Horário do planejamento matinal' })
+    const eveningTime = h('input', { type: 'time', value: dailyTimes.evening, 'aria-label': 'Horário da revisão do fim do dia' })
+    const saveTimes = h(
+      'button',
+      {
+        class: 'btn btn-small',
+        type: 'button',
+        onclick: async () => {
+          try {
+            await api.setDailyWorkflowTimes({ morning: morningTime.value, evening: eveningTime.value })
+            dailyTimes = { morning: morningTime.value, evening: eveningTime.value }
+            toast('Horários diários salvos.', 'ok')
+          } catch (err) {
+            toast(cleanError(err), 'err')
+          }
+        },
+      },
+      'Salvar horários',
+    )
     const sections: HTMLElement[] = [
+      h('h2', {}, 'Planejamento com Luna'),
+      h('p', { class: 'review-hint' }, 'Os avisos usam o horário local deste computador e as perguntas comuns da Luna.'),
+      h('label', { class: 'field-label' }, 'Planejamento matinal ', morningTime),
+      h('label', { class: 'field-label' }, 'Revisão do fim do dia ', eveningTime),
+      saveTimes,
       h(
         'p',
         { class: 'review-hint' },
