@@ -11,7 +11,7 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
 }))
 
 const { TicketBoard } = await import('../src/main/tickets')
-const { ALL_FLOORS, GROUND, cardAgent, defaultFloor, floorTabs, ticketsOnFloor } = await import('../src/renderer/src/ui/board/model')
+const { ALL_FLOORS, GROUND, cardAgent, defaultFloor, elevatorFloorLabel, floorTabs, ticketsOnFloor } = await import('../src/renderer/src/ui/board/model')
 
 const me: Actor = { kind: 'player', name: 'Você' }
 const AGENT_OFFICE = 'D:\\Documents\\agent-office'
@@ -51,10 +51,10 @@ describe('andar ao abrir', () => {
 })
 
 describe('abas de andar', () => {
-  it('são todos os andares, o Térreo e um por projeto, nessa ordem', () => {
+  it('são todos os andares, a Casa e um por projeto, nessa ordem', () => {
     expect(floorTabs(projects)).toEqual([
       { value: '', label: 'Todos os andares' },
-      { value: GROUND, label: 'Térreo' },
+      { value: GROUND, label: 'Casa' },
       { value: 'agent-office', label: 'Agent Office' },
       { value: 'loja', label: 'Loja' },
     ])
@@ -68,6 +68,14 @@ describe('abas de andar', () => {
     expect(shown(GROUND)).toEqual(['AO-3'])
     expect(shown('agent-office')).toEqual(['AO-1'])
     expect(shown('loja')).toEqual(['AO-2'])
+  })
+})
+
+describe('rótulo dos botões do elevador', () => {
+  it('o térreo é a Casa: mostra C, e os andares de cima mostram o número', () => {
+    expect(elevatorFloorLabel(0)).toBe('C')
+    expect(elevatorFloorLabel(1)).toBe('1')
+    expect(elevatorFloorLabel(12)).toBe('12')
   })
 })
 

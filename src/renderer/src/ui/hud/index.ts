@@ -6,6 +6,7 @@ import type { State } from '../../state'
 import { DEFAULT_BRAND } from '../../world/brand'
 import { arrowList, asDialog, keepFocus, rove } from '../a11y'
 import { accountChip } from '../accounts'
+import { elevatorFloorLabel } from '../board/model'
 import { formatCost, h, icon, timeAgo } from '../dom'
 import { isFocusPopupOpen, onFocusPopup } from '../focus-state'
 import { isTimerPopupOpen, onTimerPopup } from '../timer-state'
@@ -33,7 +34,7 @@ export interface HudActions {
   /** "Novo agente": talk, give a task or bring up a squad. */
   newAgent(): void
   board(ticketId?: string): void
-  /** Take the elevator to a floor (0 = térreo). */
+  /** Take the elevator to a floor (0 = Casa). */
   goFloor(n: number): void
   /** Add a floor for a project folder. */
   newFloor(): void
@@ -120,7 +121,7 @@ export class Hud {
   /** Visual tick of the running clock; one interval while it runs, none otherwise. */
   private tmTick: number | null = null
   private floorsEl: HTMLDivElement
-  private floorNames: string[] = ['Térreo']
+  private floorNames: string[] = ['Casa']
   private floor = 0
   /** Roster row that Tab lands on (roving tabindex); kept across redraws. */
   private rosterActive: string | null = null
@@ -452,7 +453,7 @@ export class Hud {
             title: n === this.floor ? `Você está no ${name}` : `Ir para ${name} pelo elevador`,
             onclick: () => this.actions.goFloor(n),
           },
-          h('span', { class: 'floor-num' }, n === 0 ? 'T' : String(n)),
+          h('span', { class: 'floor-num' }, elevatorFloorLabel(n)),
           h('span', { class: 'floor-name' }, name),
           badge,
         )

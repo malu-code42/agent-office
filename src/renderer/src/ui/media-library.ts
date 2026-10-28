@@ -20,9 +20,9 @@ const KINDS: MediaKind[] = ['livro', 'filme', 'jogo']
 const LABEL: Record<MediaKind, string> = { livro: 'Livros', filme: 'Filmes', jogo: 'Jogos' }
 const STATES: MediaStatus[] = ['planejado', 'em andamento', 'concluído']
 
-/** Media library UI; all persistence and poster path resolution stay in main. */
-export async function openMediaLibrary(root: HTMLElement, toast: Toast): Promise<void> {
-  let active: MediaKind = 'livro'
+/** Media library UI; all persistence and poster path resolution stay in main. The house opens it on the clicked tab. */
+export async function openMediaLibrary(root: HTMLElement, toast: Toast, initial: MediaKind = 'livro'): Promise<void> {
+  let active: MediaKind = initial
   let done = false
   const content = h('div', { class: 'media-library-content', 'aria-live': 'polite' })
   const tabs = h('div', { class: 'media-tabs', role: 'tablist', 'aria-label': 'Categorias de mídia' })

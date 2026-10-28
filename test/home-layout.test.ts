@@ -13,7 +13,7 @@ function houseGrid(): Grid {
     }
   }
   grid.blockRect(4, 5, 2, 2)
-  grid.block(16, 8)
+  grid.block(10, 8)
   return grid
 }
 
@@ -67,7 +67,7 @@ describe('planta da casa', () => {
   })
 
   it('define atalhos só para integrações existentes, sem encaminhar para o agendador', () => {
-    expect(HOME_INTERACTIONS.map(({ id }) => id)).toEqual(['agenda', 'personal-routines', 'goals', 'radio', 'media', 'writing'])
+    expect(HOME_INTERACTIONS.map(({ id }) => id)).toEqual(['agenda', 'personal-routines', 'goals', 'radio', 'books', 'films', 'games', 'writing'])
     expect(HOME_INTERACTIONS.some(({ id }) => id === ('agent-scheduler' as never))).toBe(false)
   })
 })

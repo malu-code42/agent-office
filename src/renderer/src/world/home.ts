@@ -4,6 +4,7 @@ import { Avatar } from './avatar'
 import * as F from './furniture'
 import { box } from './kit'
 import { animated, mergeStatic } from './merge'
+import { WALL_H } from './layout'
 import { buildShell, type GroundFloor } from './office'
 import { HOME_INTERACTIONS, HOME_PARTITIONS, HOME_ROOMS, type HomeAction } from './home-layout'
 import { Grid } from './pathfinding'
@@ -157,6 +158,87 @@ function typewriter(): THREE.Group {
   box(g, 0.48, 0.16, 0.12, '#b7c0bd', 0, 0.17, -0.12)
   box(g, 0.5, 0.02, 0.24, '#ddd7c9', 0, 0.19, -0.4)
   for (let i = 0; i < 5; i++) box(g, 0.045, 0.025, 0.035, '#e9ddc4', -0.2 + i * 0.1, 0.2, 0.12, false)
+  return g
+}
+
+/** A console stand under a TV: solid body on two legs, a back strip, one console box and a green LED. */
+function tvConsole(w: number): THREE.Group {
+  const g = new THREE.Group()
+  box(g, w, 0.42, 0.5, WOOD, 0, 0.06, 0)
+  for (const x of [-w / 2 + 0.08, w / 2 - 0.08]) box(g, 0.08, 0.06, 0.4, DARK_WOOD, x, 0, 0)
+  box(g, w - 0.2, 0.02, 0.01, DARK_WOOD, 0, 0.27, 0.255, false)
+  box(g, 0.34, 0.08, 0.24, '#2d3436', -w / 4, 0.48, 0)
+  box(g, 0.05, 0.02, 0.02, '#55efc4', -w / 4 + 0.1, 0.53, 0.12, false)
+  return g
+}
+
+/** A low open-front wooden shelf: book spines visible in the bay, boxes and jars can rest on the top cap. */
+function lowShelf(w: number): THREE.Group {
+  const g = new THREE.Group()
+  // Open-front frame (bottom-center origins): bottom board, two side boards, back panel, overhanging dark top cap.
+  box(g, w, 0.05, 0.42, WOOD, 0, 0, 0)
+  for (const x of [-w / 2 + 0.03, w / 2 - 0.03]) box(g, 0.06, 0.6, 0.42, WOOD, x, 0.05, 0)
+  box(g, w - 0.12, 0.6, 0.05, WOOD, 0, 0.05, -0.185)
+  box(g, w + 0.06, 0.05, 0.46, DARK_WOOD, 0, 0.65, 0)
+  for (let i = 0; i < Math.floor(w * 5); i++)
+    box(g, 0.06, 0.26, 0.28, ['#b95f3f', '#2f7f86', '#d0a34f', '#3d4a6b', '#c96a8a', '#788c61'][i % 6], -w / 2 + 0.12 + i * 0.13, 0.05, 0, false)
+  return g
+}
+
+/** A small art cart: two shelves with paint jars, brushes in a cup and a sketchbook. */
+function artCart(): THREE.Group {
+  const g = new THREE.Group()
+  for (const [x, z] of [[-0.25, -0.18], [0.25, -0.18], [-0.25, 0.18], [0.25, 0.18]] as const) box(g, 0.04, 0.7, 0.04, DARK_WOOD, x, 0, z)
+  box(g, 0.6, 0.04, 0.44, WOOD, 0, 0.3, 0)
+  box(g, 0.6, 0.04, 0.44, WOOD, 0, 0.7, 0)
+  for (const [x, c] of [[-0.2, '#b95f3f'], [-0.08, '#2f7f86'], [0.04, '#d0a34f'], [0.16, '#788c61']] as const)
+    box(g, 0.09, 0.11, 0.09, c, x, 0.74, -0.08, false)
+  box(g, 0.1, 0.12, 0.1, '#f6efe3', 0.14, 0.74, 0.12, false)
+  for (const x of [0.11, 0.14, 0.17]) box(g, 0.015, 0.14, 0.015, DARK_WOOD, x, 0.86, 0.12, false)
+  box(g, 0.34, 0.04, 0.26, '#3d4a6b', -0.06, 0.34, 0, false)
+  return g
+}
+
+/** A music stand with a sheet on it, next to the guitar. */
+function musicStand(): THREE.Group {
+  const g = new THREE.Group()
+  box(g, 0.36, 0.03, 0.36, '#2d3142', 0, 0, 0)
+  box(g, 0.04, 1.05, 0.04, '#2d3142', 0, 0.03, 0)
+  const desk = new THREE.Group()
+  desk.position.set(0, 1.05, 0.02)
+  desk.rotation.x = -0.35
+  box(desk, 0.5, 0.34, 0.03, '#2d3142', 0, 0, 0)
+  box(desk, 0.4, 0.28, 0.01, '#fdfbf4', 0, 0.03, 0.02, false)
+  for (const y of [0.08, 0.14, 0.2, 0.26]) box(desk, 0.34, 0.008, 0.01, '#3b3a40', 0, y, 0.026, false)
+  g.add(desk)
+  return g
+}
+
+/** An A-frame easel: three leaning legs under a clamp, a ledge and a leaning canvas with a painting. */
+function easelModel(): THREE.Group {
+  const g = new THREE.Group()
+  const leg = (x: number, z: number, tilt: number) => {
+    const l = new THREE.Group()
+    box(l, 0.05, 1.78, 0.05, WOOD, 0, 0, 0)
+    l.position.set(x, 0, z)
+    l.rotation.x = tilt
+    g.add(l)
+  }
+  leg(-0.36, 0.14, -0.12)
+  leg(0.36, 0.14, -0.12)
+  leg(0, -0.42, 0.2)
+  box(g, 0.98, 0.05, 0.18, DARK_WOOD, 0, 0.78, 0.1) // ledge
+  // the canvas rests on the ledge, leaning with the front legs; a painting (sky, hills, sun) on its face
+  const cv = new THREE.Group()
+  cv.position.set(0, 0.83, 0.08)
+  cv.rotation.x = -0.12
+  box(cv, 0.9, 0.72, 0.04, '#fdfbf4', 0, 0, 0)
+  box(cv, 0.8, 0.34, 0.01, '#9fd3e6', 0, 0.32, 0.025, false)
+  box(cv, 0.8, 0.26, 0.01, '#788c61', 0, 0.06, 0.025, false)
+  box(cv, 0.42, 0.12, 0.01, '#6f9a4a', 0.16, 0.26, 0.026, false)
+  box(cv, 0.12, 0.12, 0.01, '#d0a34f', -0.24, 0.5, 0.026, false)
+  g.add(cv)
+  box(g, 0.14, 0.08, 0.08, DARK_WOOD, 0, 1.6, -0.08) // top clamp
   return g
 }
 
@@ -360,12 +442,11 @@ export function buildHome(): HomeFloor {
   place(elevator.group, 13.5, 0.04)
   elevator.buttons[1].visible = false
   place(F.plant('tall', '#bd9070'), 11.9, 0.6)
-  place(F.plant('tall', '#bd9070'), 15.1, 0.6)
+  place(F.plant('tall', '#bd9070'), 14.85, 0.6)
   rug(2.6, 1.8, 13.5, 2, '#ead8b7', '#8a5b3c', '#b95f3f')
   rug(1.8, 5.6, 13.5, 6.4, '#8f3f2a', '#5e2a1c', '#d0a34f')
   place(coatRack(), 10.6, 1)
   place(shoeBench(), 16.4, 2.2, -Math.PI / 2)
-  place(F.art('plant', 0.9, 1), 16.3, 0.04, 0, 1.75)
   grid.block(10, 1)
   grid.block(16, 2)
 
@@ -480,10 +561,10 @@ export function buildHome(): HomeFloor {
     [13.05, 10],
   ] as const) {
     const shelf = place(F.bookshelf(2, 1.9, seed), 0.35, z, Math.PI / 2)
-    clickable('media', shelf)
+    clickable('books', shelf)
     grid.blockRect(0, Math.floor(z), 1, 2)
   }
-  tag('media', 'Mídias', 0.45, 12, 2.5)
+  tag('books', 'Livros', 0.45, 12, 2.5)
   place(F.armchair('#347c7b'), 1.95, 12, Math.PI / 2)
   place(F.floorLamp(), 1.3, 10.5)
   place(F.lowTable(0.3), 3.2, 12.9)
@@ -523,8 +604,8 @@ export function buildHome(): HomeFloor {
   place(tvStand, 8.45, 18.5, Math.PI / 2)
   const filmTv = F.monitorTv()
   place(filmTv.group, 8.55, 18.5, Math.PI / 2, 0.48)
-  clickable('media', filmTv.group)
-  tag('media', 'Mídias', 8.7, 18.5, 2.3)
+  clickable('films', filmTv.group)
+  tag('films', 'Filmes', 8.7, 18.5, 2.3)
   place(F.coffeeTable(2, 0.7), 10.9, 18.5, Math.PI / 2)
   place(F.sofa(3, '#b95f3f'), 13.1, 18.5, -Math.PI / 2)
   place(F.armchair('#788c61'), 10.9, 16.3)
@@ -551,7 +632,7 @@ export function buildHome(): HomeFloor {
   place(F.beanBag('#9fc7c3'), 18.9, 19.2, -Math.PI / 2)
   place(F.beanBag('#347c7b'), 16, 19.6, Math.PI / 2)
   place(F.plant('flower'), 11, 23.55)
-  place(F.bookshelf(2, 1.3, 12), 11.6, 23.55)
+  place(F.bookshelf(2, 1.3, 12), 11.6, 23.55, Math.PI)
   place(F.floorLamp(), 14.2, 23.4)
   place(F.armchair('#ad7590'), 20.6, 22.4, Math.PI)
   place(sideTable('#eee0c4'), 21.8, 22.6)
@@ -571,12 +652,24 @@ export function buildHome(): HomeFloor {
     const screen = new LoopScreen(24, 20, arcadePainter, seed)
     loops.push(screen)
     const machine = place(F.arcade(screen.texture), x, 10.5)
-    clickable('media', machine)
+    clickable('games', machine)
     grid.block(Math.floor(x), 10)
   }
   const gamesScreen = F.monitorTv()
   place(gamesScreen.group, 29, 10.55, 0, 0.48)
-  clickable('media', gamesScreen.group)
+  clickable('games', gamesScreen.group)
+  tag(undefined, 'Jogos', 26.6, 10.6)
+  place(tvConsole(1.8), 29, 10.45)
+  rug(5, 3, 29, 12.9, '#eee0c4', '#347c7b', '#d0a34f')
+  place(F.sofa(2, '#788c61'), 30, 14.8, Math.PI)
+  place(F.beanBag('#347c7b'), 26.6, 13.2, Math.PI / 2)
+  place(lowShelf(1.4), 27, 10.35)
+  for (let i = 0; i < 6; i++)
+    box(group, 0.1, 0.26, 0.18, ['#b95f3f', '#347c7b', '#d0a34f', '#788c61', '#3d4a6b', '#c96a8a'][i], 26.55 + i * 0.18, 0.7, 10.35, false)
+  place(F.floorLamp(), 24, 15.2)
+  place(F.plant('fern', '#b8643f'), 31.4, 15.3)
+  grid.blockRect(28, 10, 2, 1)
+  grid.blockRect(26, 10, 2, 1)
   place(F.beanBag('#b95f3f'), 28.2, 13.2, Math.PI)
   place(F.beanBag('#d0a34f'), 29.8, 13.2, Math.PI)
   place(F.lowTable(0.35), 29, 12.2)
@@ -585,13 +678,23 @@ export function buildHome(): HomeFloor {
   // Creative nook: writing is connected; drawing and guitar remain decoration.
   rug(3.4, 2.6, 27.4, 19.2, '#eee0c4', '#347c7b', '#b95f3f')
   place(F.bookshelf(2, 1.6, 12), 25, 16.45)
-  const easel = new THREE.Group()
-  box(easel, 0.65, 0.9, 0.06, '#e7d9bd', 0, 1.15, 0.04)
-  box(easel, 0.06, 1.45, 0.06, WOOD, 0, 0.1, -0.1)
-  box(easel, 0.06, 1.1, 0.06, DARK_WOOD, -0.28, 0, 0.12)
-  box(easel, 0.06, 1.1, 0.06, DARK_WOOD, 0.28, 0, 0.12)
+  const easel = easelModel()
   place(easel, 27.4, 18.6)
   place(F.stool('#d0a34f'), 27.4, 19.7)
+  place(artCart(), 26, 19.2, Math.PI / 2)
+  for (const [i, c] of ['#e7d9bd', '#9fd3e6', '#f2d37a'].entries()) box(group, 0.6 - i * 0.08, 0.7 - i * 0.1, 0.05, c, 26.2, 0, 17 + i * 0.08)
+  place(lowShelf(1.6), 23.4, 18.2, Math.PI / 2)
+  for (const [i, c] of ['#b95f3f', '#347c7b', '#d0a34f', '#788c61'].entries()) box(group, 0.16, 0.18, 0.16, c, 23.4, 0.7, 17.6 + i * 0.36, false)
+  place(musicStand(), 30.2, 17.7, Math.PI)
+  place(sideTable('#d0a34f'), 31, 20.9)
+  place(F.simpleChair('#c9a879'), 29.6, 21.6)
+  place(F.beanBag('#b95f3f'), 28.9, 20, -Math.PI / 2)
+  place(F.floorLamp(), 24, 23.2)
+  place(F.plant('tall', '#b8643f'), 31.5, 23.4)
+  place(F.plant('flower', '#b8643f'), 23.6, 23.4)
+  grid.blockRect(23, 17, 1, 2)
+  grid.block(26, 19)
+  grid.block(30, 17)
   const guitar = new THREE.Group()
   const body = new THREE.Mesh(
     new THREE.CylinderGeometry(0.24, 0.3, 0.1, 8),
@@ -615,12 +718,11 @@ export function buildHome(): HomeFloor {
   // Separate agent scheduler access: its old totem remains on the entry edge, not the personal Rotinas board.
   const loopsScreens: LoopScreen[] = loops
   const money = costBoard('Casa', 1.05)
-  place(money.group, 9.88, 4.1, -Math.PI / 2, 1.1)
+  place(money.group, 15.8, 0.06, 0, WALL_H / 2 - (1.05 * 72) / 160 / 2)
   const alarm = beacon()
   place(alarm.group, 9.9, 6.1, -Math.PI / 2, 1.4)
-  grid.block(9, 4)
   grid.block(9, 6)
-  grid.block(16, 8)
+  grid.block(10, 8)
   mergeStatic(group)
   let doorOpen = 0
   let doorTimer = 0

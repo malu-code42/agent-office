@@ -40,7 +40,7 @@ export const HOME_PARTITIONS: Partition[] = [
   { axis: 'z', at: 16, from: 23, to: 32, doors: [27, 28] },
 ]
 
-export type HomeAction = 'agenda' | 'goals' | 'media' | 'writing' | 'personal-routines' | 'radio'
+export type HomeAction = 'agenda' | 'goals' | 'books' | 'films' | 'games' | 'writing' | 'personal-routines' | 'radio'
 
 export interface HomeInteraction {
   id: HomeAction
@@ -54,7 +54,9 @@ export const HOME_INTERACTIONS: HomeInteraction[] = [
   { id: 'personal-routines', at: [0.08, 1.35, 6.975], approach: [1, 7] },
   { id: 'goals', at: [0.08, 1.35, 4.725], approach: [1, 5] },
   { id: 'radio', at: [7.6, 1.05, 0.35], approach: [7, 1] },
-  { id: 'media', at: [8.7, 1.2, 18.5], approach: [9, 18] },
+  { id: 'books', at: [0.45, 1.2, 12], approach: [1, 12] },
+  { id: 'films', at: [8.7, 1.2, 18.5], approach: [9, 18] },
+  { id: 'games', at: [29, 1.2, 10.55], approach: [29, 11] },
   { id: 'writing', at: [29.6, 1.25, 22.6], approach: [29, 21] },
 ]
 

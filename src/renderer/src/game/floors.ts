@@ -216,7 +216,7 @@ export abstract class GameFloors extends GameBase {
   }
 
   get floors(): string[] {
-    return ['Térreo', ...this.uppers.map((u) => u.project.name)]
+    return ['Casa', ...this.uppers.map((u) => u.project.name)]
   }
 
   get currentFloor(): number {
