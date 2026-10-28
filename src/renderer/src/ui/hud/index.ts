@@ -1,5 +1,6 @@
 import { proposalRow } from '@shared/proposals'
 import { MAX_PROJECT_FLOORS } from '@shared/projects'
+import { reviewMayShow, todayKey } from '@shared/review'
 import type { AgentStatus, AgentSummary } from '@shared/types'
 import { barClockText, barRemaining } from '@shared/barTimer'
 import type { State } from '../../state'
@@ -542,6 +543,9 @@ export class Hud {
           h('span', { class: `dot dot-${a.status}` }),
           h('span', { class: 'name' }, a.name),
           a.builtIn === 'luna' ? h('span', { class: 'chip' }, 'Secretária') : null,
+          a.builtIn === 'luna' && this.state.reviewDue
+            ? h('span', { class: 'dot dot-waiting', 'aria-hidden': 'true' })
+            : null,
           a.source === 'terminal' ? h('span', { class: 'chip chip-term' }, 'terminal') : null,
           helpersChip(a, true),
           this.floorChip(a),
@@ -700,8 +704,10 @@ export class Hud {
         rows.push(row)
       }
     }
-    // The review of today, while its draft is not confirmed: it comes back from here (AO-12).
-    if (this.state.reviewDraft) {
+    // The review of today is due: the caixa de entrada offers to open it with the Luna (AO-12 / rodada 5 §9.1).
+    // While a draft is not confirmed it can be resumed; nothing is applied before confirmation. The draft is
+    // only shown again after the postponed/dismissed date has arrived.
+    if (reviewMayShow(this.state.reviewDue, this.state.reviewDraft, this.state.reviewNextDay, todayKey())) {
       rows.push(
         h(
           'button',
@@ -710,8 +716,13 @@ export class Hud {
           h(
             'div',
             { class: 'inbox-main' },
-            h('div', { class: 'inbox-name' }, 'Continuar revisão do dia', h('span', { class: 'chip chip-wait' }, 'rascunho')),
-            h('div', { class: 'inbox-text' }, 'Retomar com as tarefas e escolhas salvas.'),
+            h(
+              'div',
+              { class: 'inbox-name' },
+              'Continuar revisão do dia',
+              this.state.reviewDraft ? h('span', { class: 'chip chip-wait' }, 'rascunho') : null,
+            ),
+            h('div', { class: 'inbox-text' }, 'A Luna quer revisar o seu dia com você. Nada muda antes de você confirmar.'),
           ),
         ),
       )

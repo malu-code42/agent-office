@@ -50,10 +50,17 @@ export function registerReviewIpc(
     const today = dayKey()
     if (!offerDue(ctx.planning, today)) return false
     markOffered(ctx.planning, today)
+    ctx.broadcast({ type: 'review:due', due: true })
+    ctx.broadcast({ type: 'review:nextDay', nextDay: ctx.planning.reviewNextDay() })
     return true
   })
 
-  ipcMain.handle('office:openReview', async () => openReview(files.vault(), deps()))
+  ipcMain.handle('office:openReview', async () => {
+    const today = dayKey()
+    const nextDay = ctx.planning.reviewNextDay()
+    if (nextDay && today < nextDay) throw new Error('A revisão só pode ser reaberta após a data de retorno.')
+    return openReview(files.vault(), deps())
+  })
 
   // AO-47: definitions remain read-only in the vault; distribution/occurrence state stays in userData.
   ipcMain.handle('office:routineCandidates', async () => personalRoutineCandidates(files.vault(), dayKey()))
@@ -202,16 +209,28 @@ export function registerReviewIpc(
 
   ipcMain.handle('office:postponeReview', async (_e, option: unknown) => {
     const o = parse(reviewPostponeSchema, option, 'Opção de adiamento invǭlida.')
-    return { next: postponeReview(ctx.planning, dayKey(), o) }
+    try {
+      return { next: postponeReview(ctx.planning, dayKey(), o) }
+    } finally {
+      ctx.broadcast({ type: 'review:due', due: false })
+      ctx.broadcast({ type: 'review:nextDay', nextDay: ctx.planning.reviewNextDay() })
+    }
   })
 
   // The choices come from the page, so they are checked here; the proposal is then planned and applied in the main process.
+  // A draft deferred by "Adiar"/"Dispensar" may not be confirmed before its return date, with or without a saved draft.
   ipcMain.handle('office:confirmReview', async (_e, choices: unknown) => {
     const c = parse(reviewChoicesSchema, choices, 'Escolhas da revisão invǭlidas.')
+    const today = dayKey()
+    const nextDay = ctx.planning.reviewNextDay()
+    if (nextDay && today < nextDay) {
+      throw new Error('A revisão só pode ser confirmada após a data de retorno.')
+    }
     try {
       return confirmReview(files.vault(), c, deps())
     } finally {
       ctx.broadcast({ type: 'proposals', proposals: ctx.planning.pendingProposals() })
+      ctx.broadcast({ type: 'review:due', due: false })
       draftChanged()
     }
   })

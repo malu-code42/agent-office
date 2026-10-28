@@ -80,6 +80,7 @@ const api: OfficeAPI = {
   resumePersonalRoutineOccurrence: (occurrenceId) => ipcRenderer.invoke('office:resumePersonalRoutineOccurrence', occurrenceId),
   openPersonalRoutines: () => ipcRenderer.invoke('office:openPersonalRoutines'),
   readAgenda: () => ipcRenderer.invoke('office:readAgenda'),
+  readAgendaForDate: (date: string) => ipcRenderer.invoke('office:readAgendaForDate', date),
   focusTask: (line) => ipcRenderer.invoke('office:focusTask', line),
   unfocusTask: (id) => ipcRenderer.invoke('office:unfocusTask', id),
   saveStep: (id, text) => ipcRenderer.invoke('office:saveStep', id, text),

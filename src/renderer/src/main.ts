@@ -21,7 +21,10 @@ import { openTasksBoard } from './ui/tasks-board'
 import { openFocusPopup } from './ui/focus-popup'
 import { openTimerPopup } from './ui/timer-popup'
 import { openProposalReview } from './ui/proposals'
-import { openReviewOffer, openReviewWizard } from './ui/review'
+import type { ReviewView } from '@shared/review'
+import { reviewMayShow, todayKey } from '@shared/review'
+import type { StudyCycleState } from '@shared/study-cycle'
+import { reviewChat } from './ui/review-chat'
 import { profileById } from '@shared/profiles'
 import { LUNA_AGENT_ID } from '@shared/luna'
 import { startLunaProfileTask } from './ui/luna-actions'
@@ -225,6 +228,7 @@ async function boot(): Promise<void> {
       else if (action === 'personal-routines') void openPersonalRoutinesPanel(ui, toast)
       else if (action === 'radio') void radio.toggle()
     },
+    onLunaReview: () => void openLunaReview(),
     // Something of the project does not fit on its floor: the user has to know.
     // The members with no place in the scene are named, so nobody thinks they are gone.
     onIncompatible: (_project, issues) =>
@@ -243,9 +247,39 @@ async function boot(): Promise<void> {
    * Opens the conversation of an agent. Opening it takes the red marks of its failed
    * helpers off the scene; the error card stays in the conversation.
    */
-  const showAgent = (id: string, helper?: string | null): Promise<void> => {
+  const showAgent = async (id: string, helper?: string | null): Promise<void> => {
     game.clearFailureMarks(id)
-    return panel.open(id, helper ?? null)
+    await panel.open(id, helper ?? null)
+    if (id === LUNA_AGENT_ID && reviewMayShow(state.reviewDue, state.reviewDraft, state.reviewNextDay, todayKey())) await seedLunaReview()
+  }
+
+  /** Semeia os cartões da revisão no feed da Luna (não aplica nada antes da confirmação). */
+  async function seedLunaReview(): Promise<void> {
+    let view: ReviewView
+    let studyCycle: StudyCycleState | null
+    try {
+      ;[view, studyCycle] = await Promise.all([window.office.openReview(), window.office.readStudyCycle().catch(() => null)])
+    } catch (err) {
+      toast(cleanError(err), 'err')
+      return
+    }
+    panel.seedReview([
+      reviewChat(view, {
+        toast,
+        onConfirmed: () => void panel.seedReview([]),
+        onPostponed: () => void panel.seedReview([]),
+        onClose: () => void panel.seedReview([]),
+        studyCycle,
+      }),
+    ])
+  }
+
+  /** Abre a conversa normal da Luna e, quando há uma revisão pendente, semeia seus cartões no feed dela.
+   *  Respeita a data de retorno do adiamento/dispensar: não reabre nem confirma antes dela. */
+  async function openLunaReview(): Promise<void> {
+    if (!reviewMayShow(state.reviewDue, state.reviewDraft, state.reviewNextDay, todayKey())) return
+    await panel.open(LUNA_AGENT_ID)
+    await seedLunaReview()
   }
 
   const hud = new Hud(
@@ -270,7 +304,7 @@ async function boot(): Promise<void> {
       accounts: () => openAccounts(ui, state, toast),
       reports: () => openReports(ui, state, { project: game.currentProject, toast }),
       openProposal: (id) => void openProposalReview(ui, toast, id),
-      review: () => void openReviewWizard(ui, toast),
+      review: () => void openLunaReview(),
       focus: () => void openFocusPopup(ui, state, toast),
       timer: () => void openTimerPopup(ui, state, toast),
       board: (ticketId) => {
@@ -598,15 +632,23 @@ async function boot(): Promise<void> {
     setTimeout(tryTour, 1500)
   }
 
-  // The review offer (AO-12): once per local day, after the tour and with no card open. The main process
-  // marks the day when it answers, so a reopen the same day never asks again.
+  // A revisão do dia não abre mais sozinha (AO-12 / rodada 5 §9.1). Na primeira entrada do dia, quando a
+  // revisão está devida, a Luna sinaliza com um aviso com a ação "Abrir conversa"; nada é aberto
+  // automaticamente. Clicar no aviso (ou retomar o rascunho na caixa de entrada) abre a revisão, que
+  // segue na conversa da Luna e só aplica depois de "Confirmar N alterações".
   if (!headless) {
     const tryReview = () => {
       if (tour.showing || tourBlocked()) return setTimeout(tryReview, 1000)
       void window.office
         .reviewGate()
         .then((due) => {
-          if (due) openReviewOffer(ui, toast)
+          state.reviewDue = due
+          if (reviewMayShow(due, state.reviewDraft, state.reviewNextDay, todayKey()))
+            toast(
+              'A Luna quer revisar o seu dia com você.',
+              'info',
+              { label: 'Abrir conversa', run: () => void openLunaReview() },
+            )
         })
         .catch((err) => toast(cleanError(err), 'err'))
     }

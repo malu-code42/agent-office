@@ -144,6 +144,8 @@ export interface GameHooks {
   onRoutines(): void
   /** Player clicked an interactive object in the ground-floor house. */
   onHomeAction(action: HomeAction): void
+  /** Player clicked Luna's tag/bubble in the house: open her conversation and the review of the day. */
+  onLunaReview(): void
   /** The floor has more squads than rooms (or a composition that does not fit): the user has to know. */
   onIncompatible?(
     project: ProjectFloor,

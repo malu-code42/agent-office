@@ -140,4 +140,26 @@ describe('agenda IPC', () => {
   it('refuses to read with no vault configured, with a message in pt-BR', async () => {
     await expect(invoke('office:readAgenda')).rejects.toThrow('Configure a pasta do vault em Ajustes → Tarefas do Obsidian.')
   })
+
+  it('readAgendaForDate lê a semana que contém a data pedida, navegando entre semanas', async () => {
+    writeFileSync(join(vault, 'agenda.md'), '## 2026-10-28\n- 09:00 Reunião na próxima semana\n')
+    settings.vaultPath = vault
+
+    const view = (await invoke('office:readAgendaForDate', '2026-10-28')) as View
+
+    expect(view.today.date).toBe('2026-10-28')
+    expect(view.today.entries).toEqual([{ kind: 'commitment', time: '09:00', title: 'Reunião na próxima semana' }])
+    expect(view.week[0]!.date).toBe('2026-10-26')
+    expect(view.week[6]!.date).toBe('2026-11-01')
+  })
+
+  it('readAgendaForDate recusa datas impossíveis (ex. 2026-02-31)', async () => {
+    settings.vaultPath = vault
+
+    await expect(invoke('office:readAgendaForDate', '2026-02-31')).rejects.toThrow('Dia inválido.')
+    await expect(invoke('office:readAgendaForDate', '2026-02-29')).rejects.toThrow('Dia inválido.') // 2026 não é bissexto
+    // datas válidas não são recusadas
+    await expect(invoke('office:readAgendaForDate', '2024-02-29')).resolves.toBeDefined() // 2024 é bissexto
+    await expect(invoke('office:readAgendaForDate', '2026-10-17')).resolves.toBeDefined()
+  })
 })

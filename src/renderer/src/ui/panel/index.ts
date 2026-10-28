@@ -55,4 +55,11 @@ export class AgentPanel extends PanelComposer {
   focusInput(): void {
     this.input.focus()
   }
+
+  /** Replaces any review-of-the-day cards in the feed with `cards` (Luna's chat-based review). */
+  seedReview(cards: HTMLElement[]): void {
+    this.feed.querySelectorAll('.review-chat').forEach((el) => el.remove())
+    this.feed.append(...cards)
+    this.feed.scrollTop = this.feed.scrollHeight
+  }
 }
