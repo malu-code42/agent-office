@@ -90,6 +90,16 @@ export abstract class AgentBase extends EventEmitter {
     return [...this.agents.values()].map((a) => a.summary).filter((a) => !a.departed)
   }
 
+  /** AO-94: change only the durable house presence, never stopping the session. */
+  setHomeResident(id: string, resident: boolean): void {
+    const agent = this.agents.get(id)
+    if (!agent || agent.summary.source !== 'office' || agent.summary.builtIn || agent.summary.departed)
+      throw new Error('Este agente não pode ficar na Casa.')
+    if (resident) agent.summary.homeResident = true
+    else delete agent.summary.homeResident
+    this.upsert(agent)
+  }
+
   pendingRequests(): PermissionRequest[] {
     return [...this.pending.values()].map((p) => p.request)
   }

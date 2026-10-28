@@ -147,6 +147,7 @@ export abstract class AgentOffice extends AgentBase {
     defaults: AgentBrain & { permissionMode: OfficePermissionMode },
     wantWorktree?: boolean,
     engine: 'claude' = 'claude',
+    homeResident = false,
   ): Promise<AgentSummary> {
     const seat = this.capReservations.reserve(this.list())
     try {
@@ -154,6 +155,13 @@ export abstract class AgentOffice extends AgentBase {
       const name = this.freeName(basename(cwd) || 'Agente')
       const { worktree, note } = await this.isolate(cwd, name, sessionId, wantWorktree)
       const summary = this.idleAgent(sessionId, cwd, [], false, 'Esperando a primeira instrução', defaults, worktree, name, engine)
+      if (homeResident) {
+        const created = this.agents.get(summary.id)
+        if (created) {
+          created.summary.homeResident = true
+          this.upsert(created)
+        }
+      }
       if (seat.temporary) {
         summary.temporary = true
         const created = this.agents.get(summary.id)

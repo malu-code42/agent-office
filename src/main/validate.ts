@@ -187,6 +187,8 @@ export const mediaPosterReadArgsSchema = z.tuple([z.string().regex(/^m[a-z0-9]{8
 export const pickMediaPosterArgsSchema = z.tuple([])
 /** getSubagentLog(agentId, subId) */
 export const subagentLogArgsSchema = z.tuple([idSchema, idSchema])
+export const setHomeResidentArgsSchema = z.tuple([idSchema, z.boolean()])
+export const homeResidentSchema = z.boolean().optional()
 export const pathSchema = z.string().min(1).max(MAX_PATH)
 export const vaultPathSchema = pathSchema.refine(isAbsolute, 'O caminho do vault precisa ser absoluto.')
 const studyQuestionSchema: z.ZodType<StudyQuestion> = z

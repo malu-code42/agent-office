@@ -117,6 +117,7 @@ export type NewAgentChoice =
       permissionMode: OfficePermissionMode
       brain: AgentBrain
       worktree?: boolean
+      homeResident: boolean
       confirmPermissionOverride?: boolean
     }
   | { kind: 'hire' }
@@ -178,6 +179,12 @@ export function openNewAgent(
     }
     mode.addEventListener('change', syncHint)
     syncHint()
+    const homeResident = h('input', { type: 'checkbox', 'aria-label': 'Permanecer na Casa' }) as HTMLInputElement
+    const homeResidentField = field(
+      'Presença na Casa',
+      h('div', { class: 'check' }, homeResident, 'Permanecer na Casa'),
+      'O agente circula pelas áreas públicas até você mandar que vá embora. A tarefa e a sessão seguem normalmente.',
+    )
 
     let done = false
     const finish = (v: NewAgentChoice | null) => {
@@ -239,6 +246,7 @@ export function openNewAgent(
       nameField.classList.toggle('hidden', !hire)
       taskField.classList.toggle('hidden', !hire)
       profileField.classList.toggle('hidden', !hire)
+      homeResidentField.classList.toggle('hidden', next !== 'summon')
       // a template brings its own brain and freedom
       modeField.classList.toggle('hidden', byTemplate)
       templates.el.classList.toggle('hidden', !byTemplate)
@@ -255,7 +263,12 @@ export function openNewAgent(
     }
 
     const summon = async () => {
-      if (!(await folder.ensure())) return
+      if (go.hasAttribute('disabled')) return
+      go.setAttribute('disabled', '')
+      if (!(await folder.ensure())) {
+        go.removeAttribute('disabled')
+        return
+      }
       const modeOrder: OfficePermissionMode[] = ['plan', 'default', 'acceptEdits', 'auto', 'bypassPermissions']
       const confirmPermissionOverride = modeOrder.indexOf(mode.value as OfficePermissionMode) > modeOrder.indexOf(inheritedMode)
       if (!project) localStorage.setItem(LAST_CWD, folder.cwd())
@@ -267,6 +280,7 @@ export function openNewAgent(
         permissionMode: mode.value as OfficePermissionMode,
         brain: { ...brain.value(), accounts: account.value() },
         worktree: isolated.value(),
+        homeResident: homeResident.checked,
         confirmPermissionOverride,
       })
     }
@@ -324,6 +338,7 @@ export function openNewAgent(
         effortField,
         ...(account.el ? [account.el] : []),
         modeField,
+        homeResidentField,
         tabHint,
       ],
       [h('button', { class: 'btn', onclick: () => finish(null) }, 'Cancelar'), go],

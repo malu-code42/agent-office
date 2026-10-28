@@ -3,7 +3,9 @@ import { Avatar, type Uniform } from '../world/avatar'
 import { DEFAULT_BRAND } from '../world/brand'
 import * as L from '../world/layout'
 import { Tag } from '../world/overlays'
+import { HOME_SPAWN_POINT, HOME_SPAWN_TILE } from '../world/home-layout'
 import { GameBoards } from './boards'
+import { homeRoamTarget } from './home-roaming'
 import { LOUNGE_AFTER_MS, screenMode, seatKey, spawnPoint, spawnTile, SQUAD_SPEED, type Actor, type Goal } from './types'
 
 /** The agents: arriving, choosing where to be (desk, boss, lounge), posing and leaving. */
@@ -47,6 +49,7 @@ export abstract class GameActors extends GameBoards {
       shoutKind: 'error',
       chatUntil: 0,
       restSince: null,
+      homeNextAt: 0,
       trip: 0,
       riding: false,
       seat: seatKey(a),
@@ -104,6 +107,7 @@ export abstract class GameActors extends GameBoards {
   }
 
   protected desired(actor: Actor, a: AgentSummary): Goal {
+    if (a.homeResident) return 'home'
     if (a.role === 'orchestrator') {
       // The squad room is home: no lounge between cycles.
       const items = this.state.itemsFor(a.id)
@@ -151,11 +155,53 @@ export abstract class GameActors extends GameBoards {
       actor.avatar.setProp('none')
       if (goal === 'desk') this.goDesk(actor, a, instant)
       else if (goal === 'boss') this.goBoss(actor, instant)
+      else if (goal === 'home') this.goHomeResident(actor, instant)
       else this.goHang(actor, instant)
     } else if (actor.arrived) {
       this.pose(actor, a)
     }
     this.bubble(actor, a)
+  }
+
+  /** A resident's location is independent of their task floor and status. */
+  protected goHomeResident(actor: Actor, instant: boolean): void {
+    const arrive = () => {
+      actor.avatar.placeAt(HOME_SPAWN_POINT.x, HOME_SPAWN_POINT.z)
+      this.wanderHome(actor)
+    }
+    this.travel(actor, 0, instant || this.reducedEffects, () => {
+      if (instant) arrive()
+      else this.route(actor.avatar, HOME_SPAWN_TILE, HOME_SPAWN_POINT, arrive)
+    })
+  }
+
+  protected wanderHome(actor: Actor): void {
+    if (actor.goal !== 'home' || actor.avatar.floor !== 0) return
+    const from: [number, number] = [Math.floor(actor.avatar.position.x), Math.floor(actor.avatar.position.z)]
+    const occupied = [...this.actors.values()]
+      .filter((other) => other.id !== actor.id && other.goal !== 'leave' && other.avatar.floor === 0)
+      .map((other) => [Math.floor(other.avatar.position.x), Math.floor(other.avatar.position.z)] as [number, number])
+    const target = homeRoamTarget(this.office.grid, from, occupied)
+    if (!target) {
+      actor.arrived = true
+      actor.homeNextAt = this.time + 3
+      return
+    }
+    if (this.reducedEffects) {
+      actor.avatar.placeAt(target[0] + 0.5, target[1] + 0.5)
+      actor.arrived = true
+      actor.homeNextAt = Number.POSITIVE_INFINITY
+      return
+    }
+    actor.arrived = false
+    actor.avatar.setProp('none')
+    this.route(actor.avatar, target, null, () => {
+      if (actor.goal !== 'home') return
+      actor.arrived = true
+      actor.homeNextAt = this.time + 4 + Math.random() * 4
+      const a = this.state.agents.get(actor.id)
+      if (a) this.pose(actor, a)
+    })
   }
 
   /** The uniform of the agent's company: its project floor, when that floor asks for one. */
@@ -262,6 +308,9 @@ export abstract class GameActors extends GameBoards {
         av.faceTowards(this.player.position.x, this.player.position.z)
       else av.faceTowards(L.BOSS_SEAT.x, L.BOSS_SEAT.z)
       av.pose = this.time < actor.waveUntil ? 'wave' : actor.id === this.nearId ? 'talk' : 'stand'
+    } else if (actor.goal === 'home') {
+      av.setProp('none')
+      av.pose = 'stand'
     } else if (actor.goal === 'hang' && actor.hang !== null) {
       const spot = L.LOUNGE_SEATS[actor.hang]
       av.faceTowards(spot.look[0], spot.look[1])
