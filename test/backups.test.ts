@@ -224,6 +224,7 @@ describe('restore', () => {
       'timer.json',
       'squad-proposals.json',
       'squad-queues.json',
+      'project-workflows.json',
       'profile-memory.json',
       'personal-routines.json',
       'study-cycle.json',

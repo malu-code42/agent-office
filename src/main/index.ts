@@ -25,6 +25,8 @@ import { MacJobs } from './mac-jobs'
 import { RoutineScheduler, RoutineStore } from './routines'
 import { BarTimerStore } from './bar-timer-store'
 import { ProfileMemoryStore } from './profile-memory'
+import { ProjectWorkflowStore } from './project-workflows'
+import { claudeProjectWorkflowGenerator } from './project-workflow-claude'
 import { createMediaPosters } from './media-posters'
 import { createMediaWriter } from './media-write'
 import { Store } from './store'
@@ -232,6 +234,7 @@ app.whenReady().then(async () => {
   const routineStore = new RoutineStore(app.getPath('userData'))
   // The memory of the profiles (AO-43): one short summary written by the person, per profile.
   const profileMemory = new ProfileMemoryStore(app.getPath('userData'))
+  const projectWorkflows = new ProjectWorkflowStore(app.getPath('userData'))
   const mediaPosters = createMediaPosters()
   const mediaWriter = createMediaWriter()
   // A fatal error saves what is in memory before asking what to do.
@@ -297,6 +300,7 @@ app.whenReady().then(async () => {
     projects: () => store.settings.projects,
     settings: () => store.settings,
     player,
+    workflows: projectWorkflows,
   })
   creation.on('proposals', (proposals) => broadcast({ type: 'squadProposals', proposals }))
   creation.on('queues', (queues) => broadcast({ type: 'squadQueues', queues }))
@@ -576,6 +580,8 @@ app.whenReady().then(async () => {
     planning,
     barTimer,
     profileMemory,
+    projectWorkflows,
+    projectWorkflowGenerator: claudeProjectWorkflowGenerator(store.settings),
     writing,
     writingAssistant,
     mediaPosters,

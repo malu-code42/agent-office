@@ -79,8 +79,9 @@ A edição livre da aparência dos andares, inspirada em The Sims, fica para uma
   4. **Reteste:** pelo menos dez questões novas, gabaritos conferidos, sem ajuda e com pelo menos 80%. A usuária confirma a conclusão do ciclo.
 - Se o diagnóstico não apontar erros nem dúvidas, Bonnie pula Erros e dúvidas e Prática e fontes (incluindo a exigência de nota) e libera o Reteste; ela não inventa uma lacuna para forçar prática.
 - Notas são registradas durante a etapa Prática e fontes; não existe etapa de notas posterior. As notas não são cartões e não comprovam aprendizagem sozinhas.
-- Tutor apoia diagnóstico/erros; curador, fontes/prática; verificador, reteste. Bonnie coordena e controla os gates.
-- **Cora** continua bibliotecária fixa e pode ler a biblioteca inteira. A aprovação de envio a modelos para o ambiente de estudos continua pendente.
+- Tutor avalia respostas no diagnóstico; Curador avalia respostas de prática; Verificador confere respostas do reteste. Bonnie coordena e controla os gates. Busca/consulta de fontes permanece local e selecionada pela usuária; os perfis não iniciam leitura ampla nem chamadas automáticas.
+- **Cora** continua bibliotecária fixa e pode ler a biblioteca inteira. A autorização de envio a Claude para o ciclo foi reconciliada em 2026-10-28 com #75 e confirmação explícita da usuária, limitada ao mínimo de material selecionado para a etapa (tópico, pergunta e trecho/fonte pertinente). Isso não autoriza contexto integral do vault/biblioteca, busca/leitura ampla não selecionada ou envio silencioso.
+- Perfis locais de tutor, curador e verificador podem ser ligados às chamadas explícitas da etapa correspondente do ciclo Bonnie, respeitando a autorização limitada acima. Não executar chamadas em estado aguardando/pausado nem transmitir conteúdo fora do recorte selecionado. Os perfis não concedem acesso nem alteram gates.
 - O perfil Estudo atende dúvidas avulsas fora do ciclo. Dúvidas/etapas de um ciclo ativo passam por Bonnie.
 - Cartões Zettelkasten são um fluxo separado do ciclo, alimentado pelas notas. A equipe mantém coordenador, assistente de elaboração e verificador de fontes/conexões. O cartão digital fica no Obsidian; cada cartão digital produzido deve ser escrito à mão na sala de estudo e marcado manualmente como escrito. Isso não bloqueia reteste/ciclo.
 
@@ -90,6 +91,8 @@ A edição livre da aparência dos andares, inspirada em The Sims, fica para uma
 - Depois de implementação, testes e revisão, o agente vai apresentar o resultado nessa sala. O Office avisa; a usuária abre a apresentação ao clicar. O agente fica aguardando resposta ou outra tarefa.
 - **Emi** permanece diretora. Ela usa o kit de skills de planejamento do Matt Pocock — `grill-with-docs → to-spec → to-tickets` — para construir projetos, specs e tickets junto com a usuária. Squads são propostos a partir dos artefatos aprovados; a usuária aprova a composição antes do início.
 - Equipes são sob medida por projeto/ticket. Emi pode redistribuir subtarefas, mas não alterar objetivo ou critérios aprovados sem autorização.
+- A composição de squads usa um catálogo local de perfis de competência, sem depender do Paperclip em execução nem ler seu export durante a criação. Cada especialidade refina o foco/instruções de um membro e não substitui implementador/revisor. A proposta exibe papel, especialidade, modelo e conta para aprovação; só depois da aprovação os arquivos independentes do squad são materializados. Perfis não concedem ferramentas, acesso, permissões, conta ou modelo. Squads existentes não são reescritos.
+- A geração automática de composição só pode ser reativada por um fluxo Claude-only validado e com a aprovação ambiental necessária; até lá, a pessoa compõe/revisa manualmente com o catálogo local. Não reintroduzir julgador ou execução OpenCode.
 - Coordenador de squad entra somente quando necessário; planeja e acompanha, sem implementar nem aprovar o próprio trabalho. Código sempre recebe revisor independente, que aponta problemas e não corrige o objeto revisado. Implementador trabalha no escopo aprovado.
 - Rotinas de projeto continuam no contexto do respectivo andar, com permissões do projeto, perfil fixo por rotina e resultado apresentado no fluxo desse andar.
 
@@ -137,3 +140,7 @@ A primeira prévia visual é somente da casa. A sala de reunião será prototipa
 - Depois da aprovação escrita, produzir um plano de implementação detalhado e validar cada fase em worktree própria; nenhuma mudança de produção, release, push ou merge é autorizada por este documento.
 - A autorização de Claude para dados da casa depende da configuração de privacidade desativada e da verificação da rota. Envio de dados de estudo e projeto requer aprovação específica por ambiente.
 - O canal de envio diário já foi decidido como Telegram às 08:00; formatos e limites concretos de áudio, nomes finais dos arquivos Markdown e política de exceção de rotinas ficam para a especificação técnica/implementação, respeitando as decisões acima.
+
+## 9. Perfis locais de competência (2026-10-27)
+
+O design detalhado e os critérios de verificação estão em `docs/superpowers/specs/2026-10-27-perfis-locais-squads-e-estudo-design.md`. A entrega é dividida em: (1) catálogo local e seleção/materialização para squads de desenvolvimento; (2) perfis do ciclo de estudo, autorizados no escopo limitado reconciliado com #75 e confirmado pela usuária em 2026-10-28. Nunca enviar biblioteca/vault integral, conteúdo não selecionado ou dados além do mínimo pertinente à etapa.

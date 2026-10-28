@@ -187,7 +187,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
       h(
         'p',
         { class: 'field-hint' },
-        'As respostas ficam neste computador. Somente ao clicar “Verificar com Tutor”, esta questão, sua resposta e o gabarito conferido ou trecho escolhido são enviados ao Claude. A avaliação não salva nem altera o banco.',
+        'As respostas ficam neste computador. Somente ao clicar “Verificar”, esta questão, sua resposta e o gabarito conferido ou trecho escolhido são enviados ao Claude. A avaliação não salva nem altera o banco.',
       ),
       ...cycle.questions.map((item) => questionForm(cycle, item)),
     ]
@@ -599,7 +599,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
         disabled: busy || !item.response || dirty || undefined,
         onclick: () => void save(() => window.office.evaluateStudyPractice(item.id)),
       },
-      'Verificar com Tutor',
+      'Verificar com Curador',
     )
     return h(
       'article',
@@ -733,7 +733,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
       h(
         'p',
         { class: 'field-hint' },
-        'Responda sem abrir fontes, ver gabaritos ou receber dicas. A conferência do Tutor acontece somente depois que todas as respostas forem salvas.',
+        'Responda sem abrir fontes, ver gabaritos ou receber dicas. O Verificador confere somente depois que todas as respostas forem salvas.',
       ),
       ...attempt.questions.map((question) => retestQuestionForm(question, score !== null)),
       ...(result ? [result] : []),
@@ -757,7 +757,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
             disabled: busy || !allAnswered || undefined,
             onclick: () => void save(() => window.office.verifyStudyRetest(), 'Conferência do reteste concluída.'),
           },
-          'Conferir reteste sem ajuda',
+          'Conferir reteste com Verificador',
         ),
       )
       if (allAnswered && pending) body.push(...retestPickerBody(cycle))
@@ -914,8 +914,8 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
 
 function assessmentLabel(kind: 'correct' | 'incorrect' | 'uncertain' | 'pending'): string {
   return {
-    correct: 'Tutor encontrou evidência suficiente de acerto',
-    incorrect: 'Tutor encontrou evidência de erro',
+    correct: 'Evidência suficiente de acerto',
+    incorrect: 'Evidência de erro',
     uncertain: 'Dúvida marcada · revisão necessária',
     pending: 'Em verificação',
   }[kind]

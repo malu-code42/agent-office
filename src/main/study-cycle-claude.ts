@@ -5,8 +5,10 @@ import type { Account, Settings } from '@shared/types'
 import { accountEnv, mainAccount } from './accounts'
 import { claudeNotFoundMessage } from './claude-messages'
 import { findClaude } from './claude-path'
+import { studyAgentProfilePrompt, type StudyAgentProfileId } from './study-agent-profiles'
 
 export type StudyTutorEvaluator = (input: {
+  profile: StudyAgentProfileId
   question: string
   studentAnswer: string
   providedEvidence: string
@@ -16,7 +18,7 @@ export type StudyTutorEvaluator = (input: {
 export function claudeStudyTutor(settings: Settings, account: Account = mainAccount()): StudyTutorEvaluator {
   const model = settings.defaultModel || 'claude-haiku-5-5'
   const effort = settings.defaultEffort || 'medium'
-  return async ({ question, studentAnswer, providedEvidence }) => {
+  return async ({ profile, question, studentAnswer, providedEvidence }) => {
     const executable = findClaude()
     if (!executable) throw new Error(claudeNotFoundMessage(process.platform))
     const payload = JSON.stringify({ question, studentAnswer, providedEvidence })
@@ -35,8 +37,7 @@ export function claudeStudyTutor(settings: Settings, account: Account = mainAcco
         pathToClaudeCodeExecutable: executable,
         model,
         effort,
-        systemPrompt:
-          'You are Tutor for a Bonnie-led study diagnosis. Evaluate only the one provided item; do not suggest advancing the cycle.',
+        systemPrompt: studyAgentProfilePrompt(profile),
         tools: [],
         maxTurns: 1,
         permissionMode: 'default',

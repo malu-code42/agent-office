@@ -16,9 +16,11 @@ import type { SystemMonitor } from '../system'
 import type { TicketBoard } from '../tickets'
 import type { BarTimerStore } from '../bar-timer-store'
 import type { ProfileMemoryStore } from '../profile-memory'
+import type { ProjectWorkflowStore } from '../project-workflows'
 import type { UsageMonitor } from '../usage'
 import type { WritingAssistant } from '../writing-assistant'
 import type { WritingWriter } from '../writing-write'
+import type { WorkflowGenerator } from '../project-workflow-claude'
 import type { MediaPosters } from '../media-posters'
 import type { MediaWriter } from '../media-write'
 import type { TelegramAudioDisposition, TelegramAudioPayload } from '../telegram'
@@ -37,6 +39,8 @@ export interface IpcContext {
   barTimer: BarTimerStore
   /** The memory of the profiles (AO-43), one short summary per profile in profile-memory.json. */
   profileMemory: ProfileMemoryStore
+  projectWorkflows: ProjectWorkflowStore
+  projectWorkflowGenerator: WorkflowGenerator
   writing: WritingWriter
   writingAssistant: WritingAssistant
   mediaPosters: MediaPosters

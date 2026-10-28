@@ -1,4 +1,5 @@
 // ---------- squad creation proposals (ticket 04) ----------
+import type { CompetencyProfileId, CompetencyProfileSnapshot } from './competency-profiles'
 // A proposal is a composition the player asked for and has not approved yet. It lives in
 // the app's own data, never in the project folder: a proposal is not a squad, and nothing
 // it says exists on disk until "Aprovar e criar squad" is pressed.
@@ -62,6 +63,10 @@ export interface SquadProposalMember {
   account: string
   /** One line: what this member does. */
   focus: string
+  /** Optional local specialization selected in the proposal; never grants capabilities. */
+  competencyProfileId?: CompetencyProfileId
+  /** Trusted local snapshot persisted with the proposal and materialized with the squad. */
+  competencyProfile?: CompetencyProfileSnapshot
 }
 
 /** The proposed composition: a name and the members, in the order their desks are made. */

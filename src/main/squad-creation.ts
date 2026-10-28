@@ -29,6 +29,10 @@ import { cleanStaleReservations, removeSquad, squadCodeFor, squadFilePlan, write
 import type { TicketBoard } from './tickets'
 import type { Settings } from '@shared/types'
 import { log } from './log'
+import type { ProjectWorkflowStore } from './project-workflows'
+import type { RedistributionChange } from '@shared/types/project-orchestration'
+import { assertClaudeOnly, assertIndependentReviewer } from './project-orchestration'
+import { snapshotCompetencyProfile } from '@shared/competency-profiles'
 
 /** The generator of a composition. The Office asks the approved model; tests give their own. */
 export type CompositionGenerator = (req: CompositionRequest, signal: AbortSignal) => Promise<SquadProposalMember[]>
@@ -48,6 +52,8 @@ export interface SquadCreationDeps {
   player: () => Actor
   /** Generates the composition of a squad. */
   generate?: CompositionGenerator
+  /** Approved artifacts for the project floor, when orchestration is enabled. */
+  workflows?: ProjectWorkflowStore
   /** The clock, for the tests. */
   now?: () => number
 }
@@ -125,7 +131,12 @@ export class SquadCreation extends EventEmitter {
         }
         // The queue is persisted before assigning tickets. This state plus the proposal
         // is the recovery journal; repeating either write is idempotent.
-        const activeId = savedQueue?.active ?? firstUnblockedTicketId(picked.map((t) => t.id), this.deps.board.ticketsForBlockers())
+        const activeId =
+          savedQueue?.active ??
+          firstUnblockedTicketId(
+            picked.map((t) => t.id),
+            this.deps.board.ticketsForBlockers(),
+          )
         const expectedQueue = {
           code: proposal.code,
           cwd: proposal.cwd,
@@ -161,7 +172,11 @@ export class SquadCreation extends EventEmitter {
       const actor = { kind: 'agent' as const, name: `Squad ${queue.code}`, id: `squad:${queue.code}` }
       if (queue.active) {
         const active = this.deps.board.get(queue.active)
-        if (active && !isTicketBlocked(active, this.deps.board.ticketsForBlockers()) && (active.status === 'backlog' || active.status === 'todo')) {
+        if (
+          active &&
+          !isTicketBlocked(active, this.deps.board.ticketsForBlockers()) &&
+          (active.status === 'backlog' || active.status === 'todo')
+        ) {
           this.deps.board.move(active.id, 'doing', undefined, actor)
           repairedBoard = true
         }
@@ -307,7 +322,8 @@ export class SquadCreation extends EventEmitter {
     }
     if (!existing && this.deps.queues.get(code)?.active) {
       const following = this.deps.board.get(this.deps.queues.get(code)!.active!)
-      if (following && (following.status === 'backlog' || following.status === 'todo')) this.deps.board.move(following.id, 'doing', undefined, actor)
+      if (following && (following.status === 'backlog' || following.status === 'todo'))
+        this.deps.board.move(following.id, 'doing', undefined, actor)
     }
     this.deps.board.flush()
     this.changed()
@@ -355,11 +371,66 @@ export class SquadCreation extends EventEmitter {
     return pendingTickets(this.deps.board.list(), this.deps.projects(), project.id)
   }
 
+  /** Applies a user-approved reassignment of approved, non-active project tickets. */
+  redistribute(projectId: string, changes: RedistributionChange[]): void {
+    const project = this.deps.projects().find((item) => item.id === projectId)
+    if (!project || !this.deps.workflows) throw new Error('O andar ou o fluxo aprovado não existe mais.')
+    const workflow = this.deps.workflows.get(projectId)
+    if (!workflow.ticketsApprovedAt) throw new Error('Aprove os tickets antes de redistribuir trabalho.')
+    const queues = this.deps.queues.all().map((queue) => structuredClone(queue))
+    const seen = new Set<string>()
+    const plan: Array<{ change: RedistributionChange; ticket: Ticket }> = []
+    for (const change of changes) {
+      if (!workflow.ticketIds.includes(change.ticketId) || seen.has(change.ticketId))
+        throw new Error('A redistribuição só pode envolver tickets aprovados, uma vez cada.')
+      seen.add(change.ticketId)
+      const ticket = this.deps.board.get(change.ticketId)
+      if (!ticket || ticket.closedAt || (ticket.status !== 'backlog' && ticket.status !== 'todo'))
+        throw new Error('Tickets ativos ou encerrados não podem ser redistribuídos.')
+      const actualFrom = ticket.assignee?.id?.startsWith('squad:') ? ticket.assignee.id.slice('squad:'.length) : null
+      if (actualFrom !== change.fromSquad) throw new Error(`A atribuição de ${ticket.key} mudou; gere uma nova proposta.`)
+      if (change.toSquad) {
+        const destination = queues.find((queue) => queue.code === change.toSquad && queue.cwd === project.cwd)
+        if (
+          !this.deps
+            .projects()
+            .some((floor) => floor.id === projectId && inspectSquads(floor.cwd).some((squad) => squad.code === change.toSquad))
+        )
+          throw new Error(`O squad de destino ${change.toSquad} não pertence a este andar.`)
+        if (!destination) queues.push({ code: change.toSquad, cwd: project.cwd, active: null, queue: [], updatedAt: this.now() })
+      }
+      const source = actualFrom ? queues.find((queue) => queue.code === actualFrom) : undefined
+      if (source?.active === ticket.id) throw new Error('O ticket ativo de um squad não pode ser movido.')
+      if (source && !source.queue.includes(ticket.id)) throw new Error(`A fila do squad ${actualFrom} não contém ${ticket.key}.`)
+      plan.push({ change, ticket })
+    }
+    for (const { change, ticket } of plan) {
+      for (const queue of queues) queue.queue = queue.queue.filter((id) => id !== ticket.id)
+      if (change.toSquad) queues.find((queue) => queue.code === change.toSquad)!.queue.push(ticket.id)
+    }
+    // All changes were validated before the first durable write.
+    for (const queue of queues) this.deps.queues.set({ ...queue, updatedAt: this.now() })
+    for (const { change, ticket } of plan) {
+      const actor = change.toSquad ? { kind: 'agent' as const, name: `Squad ${change.toSquad}`, id: `squad:${change.toSquad}` } : undefined
+      this.deps.board.assign(ticket.id, actor, this.deps.player())
+      this.deps.workflows.setAssignment(projectId, ticket.id, change.toSquad)
+    }
+    this.deps.board.flush()
+    if (plan.length) this.changed()
+  }
+
   /**
    * The proposal of a room: it asks the model for a composition and keeps it until the
    * player approves. Nothing is written in the project folder.
    */
-  async propose(input: { id: string; projectId: string; room: number; brief: string; ticketIds: string[] }): Promise<SquadProposal> {
+  async propose(input: {
+    id: string
+    projectId: string
+    room: number
+    brief: string
+    ticketIds: string[]
+    members?: SquadProposalMember[]
+  }): Promise<SquadProposal> {
     const project = this.deps.projects().find((p) => p.id === input.projectId)
     if (!project) throw new Error('Esse andar não existe mais.')
     if (input.room < 0 || input.room >= SQUAD_ROOM_COUNT) throw new Error('Essa sala não existe neste andar.')
@@ -370,6 +441,11 @@ export class SquadCreation extends EventEmitter {
     const brief = input.brief.trim()
     if (!brief) throw new Error('Escreva o brief da equipe.')
     const now = this.now()
+    const ticketIds = this.orderTicketIds(project, input.ticketIds)
+    if (this.deps.workflows) {
+      if (ticketIds.length === 0) throw new Error('Selecione ao menos um ticket aprovado para propor um squad.')
+      this.deps.workflows.assertApprovedTickets(project.id, ticketIds)
+    }
     const proposal: SquadProposal = {
       id: input.id,
       projectId: project.id,
@@ -378,7 +454,7 @@ export class SquadCreation extends EventEmitter {
       createdAt: now,
       updatedAt: now,
       brief,
-      ticketIds: this.orderTicketIds(project, input.ticketIds),
+      ticketIds,
       adjustments: [],
       name: this.suggestedName(input.room),
       composition: null,
@@ -388,7 +464,13 @@ export class SquadCreation extends EventEmitter {
     const controller = new AbortController()
     this.running.set(proposal.id, controller)
     try {
-      const members = await this.generate(proposal, controller.signal)
+      const generated = input.members ?? (await this.generate(proposal, controller.signal))
+      const members = generated.map((member) => {
+        const { competencyProfile: _untrustedProfile, ...safeMember } = member
+        if (!safeMember.competencyProfileId) return safeMember
+        return { ...safeMember, competencyProfile: snapshotCompetencyProfile(safeMember.competencyProfileId) }
+      })
+      this.checkComposition({ name: proposal.name, members })
       if (controller.signal.aborted || this.discarded.has(proposal.id) || this.deps.proposals.get(proposal.id) !== proposal)
         throw new Error('A proposta foi descartada.')
       proposal.composition = { name: proposal.name, members }
@@ -530,6 +612,7 @@ export class SquadCreation extends EventEmitter {
     if (!finalName) throw new Error('Dê um nome ao squad.')
     const project = this.deps.projects().find((p) => p.id === proposal.projectId)
     if (!project) throw new Error('Esse andar não existe mais.')
+    this.deps.workflows?.assertApprovedTickets(project.id, proposal.ticketIds)
     if (proposal.status === 'created' && proposal.cwd !== project.cwd)
       throw new Error('O journal de criação aponta para outro caminho; a recuperação foi preservada.')
     let composition = proposal.composition
@@ -604,7 +687,10 @@ export class SquadCreation extends EventEmitter {
     const actor = { kind: 'agent' as const, name: finalName, id: `squad:${code}` }
     try {
       this.assertApprovalCurrent(proposal, composition, 'created')
-      const activeId = firstUnblockedTicketId(picked.map((t) => t.id), this.deps.board.ticketsForBlockers())
+      const activeId = firstUnblockedTicketId(
+        picked.map((t) => t.id),
+        this.deps.board.ticketsForBlockers(),
+      )
       const queue = {
         code,
         cwd: project.cwd,
@@ -623,7 +709,10 @@ export class SquadCreation extends EventEmitter {
       )
         throw new Error('A fila existente não pertence a esta aprovação; dados preservados.')
       this.deps.queues.set(queue)
-      for (const t of picked) this.deps.board.assign(t.id, actor, this.deps.player())
+      for (const t of picked) {
+        this.deps.board.assign(t.id, actor, this.deps.player())
+        this.deps.workflows?.setAssignment(project.id, t.id, code)
+      }
       const active = picked.find((ticket) => ticket.id === activeId)
       if (active) this.deps.board.move(active.id, 'doing', undefined, this.deps.player())
       this.deps.board.flush()
@@ -654,6 +743,18 @@ export class SquadCreation extends EventEmitter {
       throw new Error(`A sala comporta de ${SQUAD_MIN_MEMBERS} a ${SQUAD_MAX_MEMBERS} membros.`)
     if (members.filter((m) => m.role === 'implementer').length !== 1) throw new Error('A composição precisa de um implementador.')
     if (members.filter((m) => m.role === 'reviewer').length !== 1) throw new Error('A composição precisa de um revisor independente.')
+    assertIndependentReviewer(members)
+    if (new Set(members.map((member) => member.id)).size !== members.length) throw new Error('Cada integrante precisa de um ID próprio.')
+    const accountNames = new Set(this.deps.settings().accounts.map((account) => account.name))
+    for (const member of members) {
+      assertClaudeOnly(member.engine)
+      if (member.account && !accountNames.has(member.account))
+        throw new Error(`A conta ${member.account} não pertence às contas configuradas.`)
+      if (!!member.competencyProfileId !== !!member.competencyProfile)
+        throw new Error('A especialidade da proposta não corresponde a um perfil local validado.')
+      if (member.competencyProfileId && member.competencyProfile?.id !== member.competencyProfileId)
+        throw new Error('O snapshot de especialidade não corresponde ao perfil local selecionado.')
+    }
   }
 
   /** The name the room suggests: "Squad da Sala N". */
@@ -669,7 +770,9 @@ export class SquadCreation extends EventEmitter {
   /** Model-backed composition is paused until its Claude-only workflow lands. */
   private async generate(proposal: SquadProposal, signal: AbortSignal): Promise<SquadProposalMember[]> {
     if (this.deps.generate) return this.deps.generate(this.request(proposal), signal)
-    throw new Error('A composição automática de squads está pausada durante a aposentadoria do OpenCode; monte ou revise a equipe manualmente.')
+    throw new Error(
+      'A composição automática de squads está pausada durante a aposentadoria do OpenCode; monte ou revise a equipe manualmente.',
+    )
   }
 
   /** What the generator needs to know. */

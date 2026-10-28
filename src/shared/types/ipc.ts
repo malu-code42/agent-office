@@ -6,7 +6,7 @@ import type { AgentResult, AttachmentInput, LogEntry, PermissionDecision, Permis
 import type { Ledger, LedgerQuery, LedgerToday } from './ledger'
 import type { BridgeStatus, Settings, UpdateInstallResult, UpdateStatus } from './settings'
 import type { SquadInfo } from './squads'
-import type { SquadProposal, SquadQueue } from './squad-proposals'
+import type { SquadProposal, SquadProposalMember, SquadQueue } from './squad-proposals'
 import type { MacJob, Routine, RoutineDraft } from './routines'
 import type { ClaudeStats } from './stats'
 import type { AgendaView } from '../agenda'
@@ -21,6 +21,7 @@ import type { ReviewChoices, ReviewPostpone, ReviewView } from '../review'
 import type { Goal, GoalDraft } from '../goals'
 import type { NewTaskDraft, ParsedBoard, Task, TaskDiscard, TaskMove, TaskRef, TaskReopen, TaskReschedule } from '../tasks'
 import type { PersonalRoutineCreateInput, PersonalRoutineOverview } from '../routine-personal'
+import type { ProjectWorkflow } from './project-orchestration'
 import type { DelegateTarget, Ticket, TicketDraft, TicketPatch, TicketStatus } from './tickets'
 import type { WritingVersion } from '../writing'
 import type { DecodedStudyBank, StudyQuestion } from '../study-questions'
@@ -532,7 +533,18 @@ export interface OfficeAPI {
     confirmPermissionOverride?: boolean,
   ): Promise<AgentSummary>
   /** Proposes a squad for an empty room: the model plans the team, nothing is written yet. */
-  proposeSquad(input: { id: string; projectId: string; room: number; brief: string; ticketIds: string[] }): Promise<SquadProposal>
+  proposeSquad(input: { id: string; projectId: string; room: number; brief: string; ticketIds: string[]; members?: SquadProposalMember[] }): Promise<SquadProposal>
+  /** Reads the local, user-authored orchestration state for one project floor. */
+  getProjectWorkflow(projectId: string): Promise<ProjectWorkflow>
+  saveProjectWorkflowGrill(projectId: string, goal: string, grill: string): Promise<ProjectWorkflow>
+  approveProjectWorkflowGrill(projectId: string): Promise<ProjectWorkflow>
+  saveProjectWorkflowSpec(projectId: string, spec: string, criteria: string[]): Promise<ProjectWorkflow>
+  approveProjectWorkflowSpec(projectId: string): Promise<ProjectWorkflow>
+  saveProjectWorkflowTickets(projectId: string, ticketIds: string[]): Promise<ProjectWorkflow>
+  approveProjectWorkflowTickets(projectId: string): Promise<ProjectWorkflow>
+  /** Asks Emi for one draft stage; the result is saved but never approved automatically. */
+  generateProjectWorkflowDraft(projectId: string, kind: 'grill' | 'spec' | 'tickets' | 'redistribution'): Promise<ProjectWorkflow>
+  approveProjectWorkflowRedistribution(projectId: string): Promise<ProjectWorkflow>
   /** Asks for a new proposal with the player's changes; the brief and the tickets stay. */
   adjustSquadProposal(id: string, adjustment: string, name?: string): Promise<SquadProposal>
   /** Saves the name the player edited in the proposal: it survives the adjustments and the closing of the window. */

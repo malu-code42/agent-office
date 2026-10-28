@@ -138,7 +138,7 @@
 
 1. Fazer prévia da sala de reuniões no Claude Design quando esta fase começar; aprovar antes de mudar a UI 3D. A sala é distinta da sala de agentes individuais e aparece em cada andar, diante da diretoria.
 2. Após implementação, testes e revisão, agente vai à sala de reuniões; o Office avisa, a usuária clica para abrir apresentação; agente aguarda resposta/nova tarefa. Resultado não é aceito/mergeado automaticamente.
-3. Emi usa o fluxo de skills Matt Pocock `grill-with-docs → to-spec → to-tickets`, construindo artefatos com a usuária e respeitando gates já aprovados. Squads sob medida são aprovados antes de iniciar; Emi pode redistribuir subtarefas sem mudar escopo/critério aprovado.
+3. Emi usa o fluxo de skills Matt Pocock `grill-with-docs → to-spec → to-tickets`, construindo artefatos com a usuária e respeitando gates já aprovados. Squads sob medida são aprovados antes de iniciar; Emi pode redistribuir subtarefas sem mudar escopo/critério aprovado. A proposta usa perfis locais de competência, materializados como snapshot independente apenas após aprovação. A geração Claude fica pausada enquanto a autorização ambiental de envio de contexto de projetos não estiver registrada.
 4. Coordenador do squad entra só quando necessário; planeja/acompanhamento, não implementa nem aprova. Implementador executa o escopo e corrige achados; reviewer independente é obrigatório para código, avalia e aponta, sem corrigir.
 5. Rotinas de projeto ficam na pasta/contexto do andar e usam perfil fixo; mantêm permissões, quota e apresentação de resultado do projeto.
 
@@ -173,3 +173,10 @@
 - Confirmar a configuração de privacy improvement na(s) conta(s) Claude antes de enviar conteúdo de cada ambiente; a retenção consumer normal continua limitada à política do provedor (desativar treino não é zero-retention).
 - Definir esquema/nomes finais dos arquivos `objetivos`, `mídias`, `escrita`, `aulas` e `rotinas` durante o primeiro codec, preservando o caráter editável do Obsidian.
 - Revisar com o usuário os arquivos/tickets locais superados por este plano; documentos OpenCode permanecem como história e não são apagados.
+
+## Atualização de 2026-10-27 — perfis locais
+
+- Referência: `docs/superpowers/specs/2026-10-27-perfis-locais-squads-e-estudo-design.md`.
+- Squads de desenvolvimento: implementar catálogo local e seleção manual de especialidade sobre papéis executáveis existentes; preservar exatamente um implementador e um revisor independente, aprovação humana, validação de modelo/conta e materialização atômica. Sem dependência do Paperclip e sem chamadas externas na composição manual.
+- Estudo: autorização reconciliada em 2026-10-28 com #75 e confirmação explícita da usuária. Tutor avalia diagnóstico, Curador avalia prática e Verificador confere reteste, apenas nas chamadas explícitas já existentes e com o mínimo de material selecionado (tópico, pergunta e trecho/fonte pertinente); nunca enviar biblioteca/vault integral, conteúdo não selecionado ou dados além do recorte autorizado. Busca/consulta de fontes segue local. Preservar gates e pausa/aguardo.
+- Squads/dados existentes não sofrem migração ou regravação automática. Este incremento permanece sem commit, push ou merge.

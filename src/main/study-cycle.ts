@@ -172,6 +172,7 @@ export class StudyCycleService {
       const evidence = tutorEvidence(question)
       if (!evidence) throw new Error('Há questão sem gabarito conferido; ela não pode contar no reteste.')
       const result = await this.evaluate({
+        profile: 'verificador',
         question: question.source.question,
         studentAnswer: question.response,
         providedEvidence: evidence,
@@ -213,7 +214,12 @@ export class StudyCycleService {
     if (!cycle || !round || !question?.response) throw new Error('Salve uma resposta antes de pedir a verificação do Tutor.')
     const evidence = tutorEvidence(question)
     if (!evidence) throw new Error('A questão não tem gabarito conferido; ela não pode contar na prática.')
-    const result = await this.evaluate({ question: question.source.question, studentAnswer: question.response, providedEvidence: evidence })
+    const result = await this.evaluate({
+      profile: 'curador',
+      question: question.source.question,
+      studentAnswer: question.response,
+      providedEvidence: evidence,
+    })
     const latest = this.store.read()
     const latestCycle = activeStudyCycle(latest)
     const latestRound = latestCycle?.practiceRounds.at(-1)
@@ -249,7 +255,12 @@ export class StudyCycleService {
       return next
     }
     // Content leaves the device only on this explicit per-question action. Never log this payload.
-    const result = await this.evaluate({ question: question.source.question, studentAnswer: question.response, providedEvidence: evidence })
+    const result = await this.evaluate({
+      profile: 'tutor',
+      question: question.source.question,
+      studentAnswer: question.response,
+      providedEvidence: evidence,
+    })
     const latest = this.store.read()
     const latestCycle = activeStudyCycle(latest)
     const latestQuestion = latestCycle?.questions.find((item) => item.id === questionId)
