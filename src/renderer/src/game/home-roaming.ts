@@ -4,6 +4,11 @@ import type { Grid } from '../world/pathfinding'
 const PRIVATE_ROOM = 'bedroom'
 const ELEVATOR_CLEARANCE = 2
 
+/** Rejects stale elevator/arrival callbacks after house presence was ended. */
+export function canContinueHomeArrival(goal: string | null, resident: boolean): boolean {
+  return goal === 'home' && resident
+}
+
 /** Selects a reachable, unoccupied public-house tile; null means there is no safe move yet. */
 export function homeRoamTarget(
   grid: Grid,

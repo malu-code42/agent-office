@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { HOME_ROOMS, HOME_SPAWN_TILE } from '../src/renderer/src/world/home-layout'
 import { Grid } from '../src/renderer/src/world/pathfinding'
-import { homeRoamTarget } from '../src/renderer/src/game/home-roaming'
+import { canContinueHomeArrival, homeRoamTarget } from '../src/renderer/src/game/home-roaming'
 
 describe('AO-94 home roaming', () => {
+  it('rejects a stale arrival callback after the user ends house presence', () => {
+    expect(canContinueHomeArrival('home', true)).toBe(true)
+    expect(canContinueHomeArrival('home', false)).toBe(false)
+    expect(canContinueHomeArrival('desk', true)).toBe(false)
+  })
+
   it('chooses only reachable public tiles and avoids residents and the elevator', () => {
     const grid = new Grid(32, 24)
     const from: [number, number] = [13, 3]

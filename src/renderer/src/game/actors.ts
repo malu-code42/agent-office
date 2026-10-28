@@ -5,7 +5,7 @@ import * as L from '../world/layout'
 import { Tag } from '../world/overlays'
 import { HOME_SPAWN_POINT, HOME_SPAWN_TILE } from '../world/home-layout'
 import { GameBoards } from './boards'
-import { homeRoamTarget } from './home-roaming'
+import { canContinueHomeArrival, homeRoamTarget } from './home-roaming'
 import { LOUNGE_AFTER_MS, screenMode, seatKey, spawnPoint, spawnTile, SQUAD_SPEED, type Actor, type Goal } from './types'
 
 /** The agents: arriving, choosing where to be (desk, boss, lounge), posing and leaving. */
@@ -166,10 +166,20 @@ export abstract class GameActors extends GameBoards {
   /** A resident's location is independent of their task floor and status. */
   protected goHomeResident(actor: Actor, instant: boolean): void {
     const arrive = () => {
+      if (!canContinueHomeArrival(actor.goal, this.state.agents.get(actor.id)?.homeResident === true)) {
+        actor.goal = null
+        this.reconcile(actor)
+        return
+      }
       actor.avatar.placeAt(HOME_SPAWN_POINT.x, HOME_SPAWN_POINT.z)
       this.wanderHome(actor)
     }
     this.travel(actor, 0, instant || this.reducedEffects, () => {
+      if (!canContinueHomeArrival(actor.goal, this.state.agents.get(actor.id)?.homeResident === true)) {
+        actor.goal = null
+        this.reconcile(actor)
+        return
+      }
       if (instant) arrive()
       else this.route(actor.avatar, HOME_SPAWN_TILE, HOME_SPAWN_POINT, arrive)
     })
