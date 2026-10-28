@@ -56,6 +56,41 @@ describe('writeSquad', () => {
     expect(squad!.members.find((m) => m.role === 'reviewer')?.id).toBe('caio')
   })
 
+  it('orienta o revisor a avaliar de forma independente e somente reportar achados', () => {
+    writeSquad(cwd, plan())
+    const reviewer = readFileSync(join(cwd, 'squads', 'sala-1', 'agents', 'caio.agent.md'), 'utf8')
+    expect(reviewer).toContain('revisor independente')
+    expect(reviewer).toContain('Sua revisão é somente leitura')
+    expect(reviewer).toContain('não edite, crie, remova ou grave arquivos')
+    expect(reviewer).toContain('deixe qualquer correção para o implementador')
+    expect(reviewer).toContain('reporte os achados')
+  })
+
+  it('materializa o snapshot local de especialidade nas instruções independentes do membro', () => {
+    const specialized = composition()
+    specialized.members[0]!.competencyProfileId = 'backend-engineer'
+    specialized.members[0]!.competencyProfile = {
+      id: 'backend-engineer',
+      label: 'Engenharia de backend',
+      identity: 'Especialista em serviços e dados de backend.',
+      scope: 'Implementação de APIs e persistência para o escopo aprovado.',
+      responsibilities: ['Definir contratos e validar entradas.'],
+      boundaries: ['Não ampliar o objetivo aprovado.'],
+      delivery: ['Entregar alteração e evidência de testes.'],
+      qualityCriteria: ['Cobrir erros e regressões com testes.'],
+    }
+    const p = squadFilePlan(specialized, 'Squad da Sala 1', 'Refazer a busca da loja')
+    p.code = 'sala-2'
+    const path = writeSquad(cwd, p)
+    const agent = readFileSync(join(path, 'agents', 'maya.agent.md'), 'utf8')
+
+    expect(agent).toContain('Perfil local: Engenharia de backend')
+    expect(agent).toContain('Especialista em serviços e dados de backend.')
+    expect(agent).toContain('Não ampliar o objetivo aprovado.')
+    expect(agent).toContain('Entregar alteração e evidência de testes.')
+    expect(agent).toContain('Cobrir erros e regressões com testes.')
+  })
+
   it('nunca sobrescreve uma definição que já existe', () => {
     writeSquad(cwd, plan())
     const before = readFileSync(join(cwd, 'squads', 'sala-1', 'squad.yaml'), 'utf8')
@@ -112,10 +147,13 @@ describe('writeSquad', () => {
     const target = join(root, p.code)
     mkdirSync(target, { recursive: true })
     writeFileSync(join(target, 'notes.txt'), 'owned by someone else')
-    writeFileSync(join(root, `.reservation-${p.code}`), JSON.stringify({
-      proposalId: p.proposalId,
-      attempt: '01234567-89ab-4cde-8fab-0123456789ab',
-    }))
+    writeFileSync(
+      join(root, `.reservation-${p.code}`),
+      JSON.stringify({
+        proposalId: p.proposalId,
+        attempt: '01234567-89ab-4cde-8fab-0123456789ab',
+      }),
+    )
 
     expect(() => writeSquad(cwd, p)).toThrow(/contém dados/)
     expect(readFileSync(join(target, 'notes.txt'), 'utf8')).toBe('owned by someone else')

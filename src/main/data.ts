@@ -31,6 +31,7 @@ const WHAT: Record<DataFile, string> = {
   'timer.json': 'o Timer da barra',
   'squad-proposals.json': 'propostas de squad',
   'squad-queues.json': 'filas dos squads',
+  'project-workflows.json': 'os projetos e aprovações',
   'profile-memory.json': 'a memória dos perfis',
   'personal-routines.json': 'o estado das rotinas pessoais',
   'study-cycle.json': 'o ciclo de estudos',

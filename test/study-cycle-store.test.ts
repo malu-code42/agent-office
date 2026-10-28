@@ -6,6 +6,7 @@ import type { StudyQuestion } from '../src/shared/study-questions'
 import { StudyCycleService } from '../src/main/study-cycle'
 import { StudyCycleStore } from '../src/main/study-cycle-store'
 import { parseTutorResult, tutorEvidence } from '../src/main/study-cycle-claude'
+import { studyAgentProfilePrompt } from '../src/main/study-agent-profiles'
 import { hashStudyQuestion, isStudyCycleState } from '../src/main/study-cycle-schema'
 import { retestScore } from '../src/shared/study-cycle'
 import {
@@ -34,6 +35,18 @@ const question = (overrides: Partial<StudyQuestion> = {}): StudyQuestion => ({
 })
 
 describe('persistência do ciclo de estudo', () => {
+  it('mantém perfis locais separados e sem autoridade sobre fontes ou gates', () => {
+    const tutor = studyAgentProfilePrompt('tutor')
+    const curator = studyAgentProfilePrompt('curador')
+    const verifier = studyAgentProfilePrompt('verificador')
+
+    expect(tutor).toContain('resposta diagnóstica')
+    expect(curator).toContain('resposta de prática')
+    expect(curator).toContain('Não busque, leia ou invente fontes')
+    expect(verifier).toContain('gabarito conferido')
+    for (const prompt of [tutor, curator, verifier]) expect(prompt).toContain('Bonnie controla os gates')
+  })
+
   it('aceita somente decisão JSON conhecida e evidência de gabarito conferido ou trecho escolhido', () => {
     expect(parseTutorResult('{"kind":"correct","rationale":"O gabarito sustenta."}')).toEqual({
       kind: 'correct',
@@ -67,6 +80,7 @@ describe('persistência do ciclo de estudo', () => {
         async (input) => {
           called++
           expect(input).toEqual({
+            profile: 'tutor',
             question: bankQuestion.question,
             studentAnswer: 'Minha resposta',
             providedEvidence: 'Gabarito conferido: 1/2',
@@ -181,8 +195,10 @@ describe('persistência do ciclo de estudo', () => {
       )
       const bank = { read: () => ({ questions: [diagnostic, ...retestQuestions] }) }
       let calls = 0
+      const profiles: string[] = []
       const service = new StudyCycleService(new StudyCycleStore(dir), bank, async (input) => {
         calls++
+        profiles.push(input.profile)
         expect(input.providedEvidence).toBe('Gabarito conferido: 1/2')
         return { kind: calls === 1 || calls <= 9 ? 'correct' : 'incorrect', rationale: 'Conferência independente.' }
       })
@@ -202,6 +218,7 @@ describe('persistência do ciclo de estudo', () => {
       expect(attempt?.questions).toHaveLength(10)
       expect(retestScore(attempt!)).toBe(80)
       expect(calls).toBe(11)
+      expect(profiles).toEqual(['tutor', ...Array(10).fill('verificador')])
       expect(service.read()).toEqual(checked)
       expect(service.read().cycles[0]?.stage).toBe('retest')
       expect(service.completeRetest().cycles[0]?.stage).toBe('completed')
@@ -246,13 +263,16 @@ describe('persistência do ciclo de estudo', () => {
           savedAt: input.savedAt ?? 123,
         }),
       }
+      const profiles: string[] = []
       const service = new StudyCycleService(
         new StudyCycleStore(dir),
         bank,
-        async (input) =>
-          input.question === diagnostic.question
+        async (input) => {
+          profiles.push(input.profile)
+          return input.question === diagnostic.question
             ? { kind: 'incorrect', rationale: 'A evidência mostra a lacuna.' }
-            : { kind: 'correct', rationale: 'O gabarito confere.' },
+            : { kind: 'correct', rationale: 'O gabarito confere.' }
+        },
         () => 123,
         noteWriter,
       )
@@ -267,6 +287,7 @@ describe('persistência do ciclo de estudo', () => {
       service.startPractice([{ id: practice.id, gapQuestionIds: [diagnostic.id] }])
       service.answerPractice(practice.id, 'Resposta correta')
       await service.evaluatePracticeAnswer(practice.id)
+      expect(profiles).toEqual(['tutor', 'curador'])
 
       const resumed = new StudyCycleService(new StudyCycleStore(dir), bank, async () => {
         throw new Error('não deve verificar novamente na retomada')

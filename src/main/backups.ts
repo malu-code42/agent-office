@@ -27,6 +27,7 @@ export const DATA_FILES = [
   'timer.json',
   'squad-proposals.json',
   'squad-queues.json',
+  'project-workflows.json', // AO-58
   'profile-memory.json', // AO-43
   'personal-routines.json', // AO-47
   'study-cycle.json', // AO-49
@@ -129,6 +130,29 @@ export const DATA_SHAPES: Record<DataFile, (v: unknown) => boolean> = {
   'squad-proposals.json': (v) => isObj(v) && (v.proposals === undefined || Array.isArray(v.proposals)),
   // The queue of each squad: the ticket it works on and the ones waiting.
   'squad-queues.json': (v) => isObj(v) && isMap(v.queues),
+  // AO-58: user-authored project artifacts and their approval gates.
+  'project-workflows.json': (v) =>
+    isObj(v) &&
+    Array.isArray(v.workflows) &&
+    v.workflows.every((workflow) => {
+      if (!isObj(workflow)) return false
+      return (
+        typeof workflow.projectId === 'string' &&
+        typeof workflow.goal === 'string' &&
+        typeof workflow.grill === 'string' &&
+        (workflow.grillApprovedAt === null || typeof workflow.grillApprovedAt === 'number') &&
+        typeof workflow.spec === 'string' &&
+        Array.isArray(workflow.criteria) &&
+        workflow.criteria.every((item) => typeof item === 'string') &&
+        (workflow.specApprovedAt === null || typeof workflow.specApprovedAt === 'number') &&
+        Array.isArray(workflow.ticketIds) &&
+        workflow.ticketIds.every((item) => typeof item === 'string') &&
+        (workflow.ticketsApprovedAt === null || typeof workflow.ticketsApprovedAt === 'number') &&
+        isMap(workflow.assignments) &&
+        Object.values(workflow.assignments ?? {}).every((item) => item === null || typeof item === 'string') &&
+        typeof workflow.updatedAt === 'number'
+      )
+    }),
   // AO-43: one short summary per profile, written by the user — never raw prompts.
   'profile-memory.json': isProfileMemoryData,
   'personal-routines.json': isPersonalRoutineData,

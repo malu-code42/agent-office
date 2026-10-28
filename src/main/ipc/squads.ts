@@ -1,6 +1,8 @@
 import { ipcMain } from 'electron'
 import { randomUUID } from 'node:crypto'
-import { join } from 'node:path'
+import { realpathSync } from 'node:fs'
+import { isAbsolute, relative, sep, join } from 'node:path'
+import { z } from 'zod'
 import { projectFor } from '@shared/projects'
 import { ticketBrief } from '@shared/tickets'
 import { copySquadRuntime, findSquad, inspectSquads, isDir, squadInfo, validateSquad } from '../squads'
@@ -17,8 +19,13 @@ import {
   squadProposalRequestSchema,
   squadRenameSchema,
   parse,
+  projectWorkflowGrillArgsSchema,
+  projectWorkflowProjectIdSchema,
+  projectWorkflowSpecArgsSchema,
+  projectWorkflowTicketsArgsSchema,
 } from '../validate'
 import { confirmPermissionOverride, type IpcContext } from './context'
+import { readProjectDocuments } from '../project-workflow-documents'
 
 /** Squads of a project floor. */
 export function registerSquadsIpc(ctx: IpcContext): void {
@@ -103,6 +110,128 @@ export function registerSquadsIpc(ctx: IpcContext): void {
         ctx.creation.setStartupError(squad.code, active.id, err instanceof Error ? err.message : String(err))
       throw err
     }
+  })
+
+  const workflowProject = (raw: unknown) => {
+    const projectId = parse(projectWorkflowProjectIdSchema, raw, 'Andar de projeto inválido.')
+    const project = store.settings.projects.find((item) => item.id === projectId)
+    if (!project) throw new Error('Esse andar de projeto não existe mais.')
+    return project
+  }
+  ipcMain.handle('office:getProjectWorkflow', (_e, raw: unknown) => ctx.projectWorkflows.get(workflowProject(raw).id))
+  ipcMain.handle('office:saveProjectWorkflowGrill', (_e, ...raw: unknown[]) => {
+    const [projectId, goal, grill] = parse(projectWorkflowGrillArgsSchema, raw, 'Rascunho do grill inválido.')
+    const project = workflowProject(projectId)
+    return ctx.projectWorkflows.saveGrill(project.id, goal, grill)
+  })
+  ipcMain.handle('office:approveProjectWorkflowGrill', (_e, raw: unknown) => {
+    const project = workflowProject(raw)
+    return ctx.projectWorkflows.approveGrill(project.id)
+  })
+  ipcMain.handle('office:saveProjectWorkflowSpec', (_e, ...raw: unknown[]) => {
+    const [projectId, spec, criteria] = parse(projectWorkflowSpecArgsSchema, raw, 'Rascunho da especificação inválido.')
+    const project = workflowProject(projectId)
+    return ctx.projectWorkflows.saveSpec(project.id, spec, criteria)
+  })
+  ipcMain.handle('office:approveProjectWorkflowSpec', (_e, raw: unknown) => {
+    const project = workflowProject(raw)
+    return ctx.projectWorkflows.approveSpec(project.id)
+  })
+  ipcMain.handle('office:saveProjectWorkflowTickets', (_e, ...raw: unknown[]) => {
+    const [projectId, ticketIds] = parse(projectWorkflowTicketsArgsSchema, raw, 'Seleção de tickets inválida.')
+    const project = workflowProject(projectId)
+    for (const id of ticketIds) {
+      const ticket = ctx.board.get(id)
+      if (!ticket || projectFor(store.settings.projects, ticket.cwd)?.id !== project.id || ticket.closedAt)
+        throw new Error('Todos os tickets precisam estar abertos e pertencer a este andar.')
+    }
+    return ctx.projectWorkflows.saveTickets(project.id, ticketIds)
+  })
+  ipcMain.handle('office:approveProjectWorkflowTickets', (_e, raw: unknown) => {
+    const project = workflowProject(raw)
+    const workflow = ctx.projectWorkflows.get(project.id)
+    if (!workflow.ticketsApprovedAt && workflow.ticketIds.length === 0 && workflow.ticketDrafts?.length) {
+      const vaultPath = store.settings.vaultPath
+      if (vaultPath) {
+        try {
+          const root = realpathSync(project.cwd)
+          const vault = realpathSync(vaultPath)
+          const rel = relative(vault, root)
+          if (rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel)))
+            throw new Error('O fluxo da Emi não pode criar tickets dentro do vault real.')
+        } catch (error) {
+          if (error instanceof Error && error.message.includes('vault real')) throw error
+        }
+      }
+      const ids = workflow.ticketDrafts.map((draft) => ctx.board.create({
+        title: draft.title,
+        description: draft.description,
+        acceptance: draft.acceptance.map((text) => ({ text, done: false })),
+        cwd: project.cwd,
+      }, ctx.player()).id)
+      ctx.projectWorkflows.saveTickets(project.id, ids)
+    }
+    return ctx.projectWorkflows.approveTickets(project.id)
+  })
+
+  ipcMain.handle('office:generateProjectWorkflowDraft', async (_e, projectIdRaw: unknown, kindRaw: unknown) => {
+    const project = workflowProject(projectIdRaw)
+    const kind = z.enum(['grill', 'spec', 'tickets', 'redistribution']).parse(kindRaw)
+    const workflow = ctx.projectWorkflows.get(project.id)
+    if (kind === 'grill' && !workflow.goal.trim()) throw new Error('Informe o objetivo antes de pedir o grill à Emi.')
+    if (kind === 'spec' && !workflow.grillApprovedAt) throw new Error('Aprove o grill antes de gerar a especificação.')
+    if ((kind === 'tickets' || kind === 'redistribution') && !workflow.specApprovedAt)
+      throw new Error('Aprove a especificação antes de continuar.')
+    const docs = (() => {
+      if (store.settings.vaultPath) {
+        try {
+          const root = realpathSync(project.cwd)
+          const vault = realpathSync(store.settings.vaultPath)
+          const rel = relative(vault, root)
+          if (rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel)))
+            throw new Error('A Emi não lê documentos do vault real. Configure um projeto separado fora do vault.')
+        } catch (error) {
+          if (error instanceof Error && error.message.includes('vault real')) throw error
+        }
+      }
+      return readProjectDocuments(project.cwd, store.settings.vaultPath ? [store.settings.vaultPath] : [])
+    })()
+    const result = await ctx.projectWorkflowGenerator.generate({
+      kind,
+      workflow,
+      documents: docs.documents,
+      squads: kind === 'redistribution' ? ctx.rereadSquads().filter((squad) => squad.cwd === project.cwd).map((squad) => squad.code) : undefined,
+      tickets: kind === 'redistribution' ? workflow.ticketIds.flatMap((id) => {
+        const ticket = ctx.board.get(id)
+        return ticket && !ticket.closedAt ? [{ id, title: ticket.title, description: ticket.description }] : []
+      }) : undefined,
+    })
+    if (kind === 'grill') {
+      const parsed = z.object({ grill: z.string().trim().min(1).max(20_000) }).parse(result)
+      return ctx.projectWorkflows.saveGrill(project.id, workflow.goal, parsed.grill)
+    }
+    if (kind === 'spec') {
+      const parsed = z.object({ spec: z.string().trim().min(1).max(20_000), criteria: z.array(z.string().trim().min(1).max(500)).min(1).max(15) }).parse(result)
+      return ctx.projectWorkflows.saveSpec(project.id, parsed.spec, parsed.criteria)
+    }
+    if (kind === 'tickets') {
+      const parsed = z.object({ tickets: z.array(z.object({ title: z.string().trim().min(1).max(200), description: z.string().max(4000), acceptance: z.array(z.string().max(500)).max(20) }).strict()).min(1).max(30) }).strict().parse(result)
+      return ctx.projectWorkflows.saveTicketDrafts(project.id, parsed.tickets)
+    }
+    const parsed = z.object({ changes: z.array(z.object({
+      ticketId: z.string().min(1).max(100),
+      fromSquad: z.string().max(64).nullable(),
+      toSquad: z.string().max(64).nullable(),
+    }).strict()).max(30) }).strict().parse(result)
+    return ctx.projectWorkflows.saveRedistributionProposal(project.id, parsed.changes)
+  })
+  ipcMain.handle('office:approveProjectWorkflowRedistribution', (_e, raw: unknown) => {
+    const project = workflowProject(raw)
+    const workflow = ctx.projectWorkflows.get(project.id)
+    const proposal = workflow.redistributionProposal
+    if (!proposal || proposal.approvedAt) throw new Error('Não há proposta pendente para aprovar.')
+    ctx.creation.redistribute(project.id, proposal.changes)
+    return ctx.projectWorkflows.approveRedistribution(project.id)
   })
 
   // ---------- a squad proposed for an empty room (ticket 04) ----------

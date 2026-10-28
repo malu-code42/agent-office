@@ -9,7 +9,8 @@ import { STEP_MAX } from '@shared/planning'
 import { isIsoDay, REFUSED_KINDS, REFUSED_MESSAGE, type Proposal, type ProposalOperation } from '@shared/proposals'
 import { PROFILE_IDS } from '@shared/profiles'
 import { floorNameFor, MAX_PROJECT_FLOORS, projectFor } from '@shared/projects'
-import { SQUAD_NAME_MAX, SQUAD_ROOM_COUNT } from '@shared/types'
+import { SQUAD_MODELS, SQUAD_NAME_MAX, SQUAD_ROOM_COUNT, SQUAD_ROLES } from '@shared/types'
+import { competencyProfileIds } from '@shared/competency-profiles'
 import { REVIEW_STEPS, type FocusChoice, type ReviewChoices, type ReviewDraft, type ReviewPostpone } from '@shared/review'
 import { GOAL_ID_RE, GOAL_TASK_ID_RE } from '@shared/goals'
 import { scheduleError } from '@shared/schedule'
@@ -571,6 +572,24 @@ export const squadProposalRequestSchema = z.object({
   room: squadRoomSchema,
   brief: z.string().trim().min(1).max(4_000),
   ticketIds: z.array(idSchema).max(50).default([]),
+  members: z
+    .array(
+      z
+        .object({
+          id: z.string().regex(/^[a-z][a-z0-9_-]{0,39}$/),
+          name: z.string().trim().min(1).max(80),
+          role: z.enum(SQUAD_ROLES),
+          engine: z.literal('claude'),
+          model: z.enum(SQUAD_MODELS),
+          account: z.string().max(120),
+          focus: z.string().trim().min(1).max(1000),
+          competencyProfileId: z.enum(competencyProfileIds).optional(),
+        })
+        .strict(),
+    )
+    .min(2)
+    .max(6)
+    .optional(),
 })
 /** The id of a proposal. The page never sends a path: only the proposal it means. */
 export const squadProposalIdSchema = z.object({ id: idSchema })
@@ -585,6 +604,19 @@ export const squadAdjustmentSchema = z.object({
 export const squadRenameSchema = z.object({ id: idSchema, name: z.string().trim().min(1).max(SQUAD_NAME_MAX) })
 /** The approval: the proposal and the name of the squad (it may have been edited). */
 export const squadApprovalSchema = z.object({ id: idSchema, name: z.string().trim().min(1).max(SQUAD_NAME_MAX) })
+/** Project orchestration accepts only bounded text and identifier arrays from the renderer. */
+export const projectWorkflowProjectIdSchema = z.string().trim().min(1).max(40)
+export const projectWorkflowGrillArgsSchema = z.tuple([
+  projectWorkflowProjectIdSchema,
+  z.string().trim().min(1).max(1000),
+  z.string().trim().min(1).max(20_000),
+])
+export const projectWorkflowSpecArgsSchema = z.tuple([
+  projectWorkflowProjectIdSchema,
+  z.string().trim().min(1).max(20_000),
+  z.array(z.string().trim().min(1).max(1000)).min(1).max(50),
+])
+export const projectWorkflowTicketsArgsSchema = z.tuple([projectWorkflowProjectIdSchema, z.array(idSchema).min(1).max(50)])
 
 /** Files sent with a message. buildMessage checks the bytes and the limits with friendly messages. */
 export const attachmentsSchema: z.ZodType<AttachmentInput[]> = z

@@ -1,8 +1,8 @@
 import {
   memberEngineLine,
   proposalCloseAction,
-  SQUAD_MODEL_LABELS,
   SQUAD_ROLE_LABELS,
+  SQUAD_MODELS,
   ticketAttribution,
   type ProjectFloor,
   type ProposalStep,
@@ -13,10 +13,13 @@ import {
 } from '@shared/types'
 import { pendingTickets } from '@shared/squad-tickets'
 import { isTicketBlocked, unresolvedBlockerIds } from '@shared/ticket-blockers'
+import { competencyProfiles } from '@shared/competency-profiles'
 import type { State } from '../../state'
 import type { SquadRoom } from '../../world/layout'
 import { h } from '../dom'
 import { cleanError, modal } from './common'
+import { openProjectWorkflow } from './project-workflow'
+import type { ProjectWorkflow } from '@shared/types/project-orchestration'
 
 // "Criar squad": one window with two steps. The brief (and the tickets it may take)
 // and then the composition the model proposed, read only until the player approves it.
@@ -47,21 +50,47 @@ export interface CreateSquadOptions {
  * its amber outline), and the explicit "Cancelar" throws it away.
  */
 export function openCreateSquad(root: HTMLElement, state: State, opts: CreateSquadOptions): void {
+  openProjectWorkflow(root, state, opts.project, (approved) => openCreateSquadReady(root, state, opts, approved))
+}
+
+function openCreateSquadReady(root: HTMLElement, state: State, opts: CreateSquadOptions, workflow: ProjectWorkflow): void {
   const { project, room, toast } = opts
   const reopened = opts.proposal?.composition ? opts.proposal : undefined
   let step: ProposalStep = reopened ? 'proposal' : 'brief'
   let proposal: SquadProposal | undefined = reopened
   const id = reopened?.id ?? newId()
   let brief = reopened?.brief ?? ''
-  const picked = new Set<string>(reopened?.ticketIds ?? [])
+  const picked = new Set<string>(reopened?.ticketIds ?? workflow.ticketIds)
   let name = reopened?.name ?? `Squad da Sala ${room.index + 1}`
+  const manualMembers: SquadProposalMember[] = reopened?.composition?.members.map((member) => ({ ...member })) ?? [
+    {
+      id: 'implementer',
+      name: 'Implementador',
+      role: 'implementer',
+      engine: 'claude',
+      model: '',
+      account: '',
+      focus: 'Implementa os tickets aprovados.',
+    },
+    {
+      id: 'reviewer',
+      name: 'Revisor',
+      role: 'reviewer',
+      engine: 'claude',
+      model: '',
+      account: '',
+      focus: 'Revisa o código de forma independente e reporta achados.',
+    },
+  ]
   let adjusting = false
   let adjustment = ''
   let error = ''
   let closed = false
   let focus: HTMLElement | null = null
 
-  const tickets = pendingTickets([...state.tickets.values()], state.settings.projects, project.id)
+  const tickets = pendingTickets([...state.tickets.values()], state.settings.projects, project.id).filter((ticket) =>
+    workflow.ticketIds.includes(ticket.id),
+  )
   const roomName = `Sala ${room.index + 1}`
 
   const el = modal('Criar squad', [], [], () => close(false))
@@ -81,13 +110,17 @@ export function openCreateSquad(root: HTMLElement, state: State, opts: CreateSqu
       { class: 'panelbox' },
       h('div', { class: 'sec-title' }, 'Seu brief'),
       h('div', { class: 'cs-echo' }, brief || '(sem texto)'),
-        chosen.length
+      chosen.length
         ? h(
             'div',
             { class: 'cs-chips' },
             ...chosen.map((t) => {
               const blockers = unresolvedBlockerIds(t, [...state.tickets.values()])
-              return h('span', { class: `sbadge ${blockers.length ? 'sb-error' : 'sb-mute'}` }, `${t.key} · ${t.title}${blockers.length ? ` · Bloqueado por ${blockers.map((id) => state.tickets.get(id)?.key ?? id).join(', ')}` : ''}`)
+              return h(
+                'span',
+                { class: `sbadge ${blockers.length ? 'sb-error' : 'sb-mute'}` },
+                `${t.key} · ${t.title}${blockers.length ? ` · Bloqueado por ${blockers.map((id) => state.tickets.get(id)?.key ?? id).join(', ')}` : ''}`,
+              )
             }),
           )
         : h('span', { class: 'hint' }, 'Nenhum ticket escolhido.'),
@@ -95,7 +128,7 @@ export function openCreateSquad(root: HTMLElement, state: State, opts: CreateSqu
   }
 
   /** A card of a member: the name, the role and what it runs with. */
-  const memberCard = (title: string, role: string, engine: string): HTMLElement =>
+  const memberCard = (title: string, role: string, engine: string, specialty?: string, scope?: string): HTMLElement =>
     h(
       'div',
       { class: 'member' },
@@ -104,6 +137,7 @@ export function openCreateSquad(root: HTMLElement, state: State, opts: CreateSqu
         {},
         h('div', { class: 'member-name' }, title),
         h('div', { class: 'member-role' }, role),
+        specialty ? h('div', { class: 'member-role' }, `Especialidade: ${specialty}${scope ? ` · ${scope}` : ''}`) : null,
         h('div', { class: 'eng', title: 'Motor, modelo e conta deste integrante' }, engine),
       ),
     )
@@ -152,6 +186,7 @@ export function openCreateSquad(root: HTMLElement, state: State, opts: CreateSqu
         room: room.index,
         brief: brief.trim(),
         ticketIds: pickedTickets().map((t) => t.id),
+        members: manualMembers,
       })
       if (closed) return
       step = 'proposal'
@@ -235,11 +270,92 @@ export function openCreateSquad(root: HTMLElement, state: State, opts: CreateSqu
       const go = h('button', { class: 'btn btn-primary', type: 'button' }, 'Propor composição') as HTMLButtonElement
       const sync = () => {
         brief = area.value
-        go.disabled = !brief.trim()
+        go.disabled = !brief.trim() || manualMembers.some((member) => !member.competencyProfileId)
       }
       area.addEventListener('input', sync)
       go.addEventListener('click', () => void propose())
       sync()
+      const memberFields = manualMembers.map((member, index) => {
+        const memberName = h('input', { class: 'input', maxlength: '80', value: member.name }) as HTMLInputElement
+        const focusArea = h('textarea', { class: 'input', rows: 2, maxlength: '1000' }) as HTMLTextAreaElement
+        focusArea.value = member.focus
+        const specialty = h(
+          'select',
+          { class: 'input' },
+          h('option', { value: '' }, 'Escolha uma especialidade local'),
+          ...competencyProfiles.map((profile) => h('option', { value: profile.id }, profile.label)),
+        ) as HTMLSelectElement
+        specialty.value = member.competencyProfileId ?? ''
+        const getSelectedProfile = () => competencyProfiles.find((profile) => profile.id === specialty.value)
+        const selectedProfile = getSelectedProfile()
+        const specialtyHint = h(
+          'div',
+          { class: 'hint' },
+          selectedProfile
+            ? `${selectedProfile.identity} ${selectedProfile.scope}`
+            : 'A especialidade refina o papel; não concede ferramentas, acesso, modelo nem conta.',
+        )
+        const model = h(
+          'select',
+          { class: 'input' },
+          ...SQUAD_MODELS.map((value) => h('option', { value }, value || 'Padrão Claude Code')),
+        ) as HTMLSelectElement
+        model.value = member.model
+        const account = h(
+          'select',
+          { class: 'input' },
+          h('option', { value: '' }, 'Conta do projeto'),
+          ...state.settings.accounts.map((item) => h('option', { value: item.name }, item.name)),
+        ) as HTMLSelectElement
+        account.value = member.account
+        memberName.addEventListener('input', () => {
+          member.name = memberName.value
+        })
+        focusArea.addEventListener('input', () => {
+          member.focus = focusArea.value
+        })
+        specialty.addEventListener('change', () => {
+          member.competencyProfileId = specialty.value
+            ? (specialty.value as NonNullable<SquadProposalMember['competencyProfileId']>)
+            : undefined
+          const profile = getSelectedProfile()
+          specialtyHint.textContent = profile
+            ? `${profile.identity} ${profile.scope}`
+            : 'A especialidade refina o papel; não concede ferramentas, acesso, modelo nem conta.'
+          sync()
+        })
+        model.addEventListener('change', () => {
+          member.model = model.value
+        })
+        account.addEventListener('change', () => {
+          member.account = account.value
+        })
+        return h(
+          'div',
+          { class: 'panelbox' },
+          h('div', { class: 'sec-title' }, member.role === 'implementer' ? 'Implementador' : 'Revisor independente'),
+          h('label', { class: 'field-label' }, 'Nome'),
+          memberName,
+          h('label', { class: 'field-label' }, 'Especialidade local'),
+          specialty,
+          specialtyHint,
+          h('label', { class: 'field-label' }, 'Responsabilidade'),
+          focusArea,
+          h(
+            'div',
+            { class: 'form-row' },
+            h('label', { class: 'grow' }, 'Modelo Claude', model),
+            h('label', { class: 'grow' }, 'Conta fixa', account),
+          ),
+          index === 1
+            ? h(
+                'div',
+                { class: 'hint' },
+                'O revisor é uma pessoa diferente do implementador; ele reporta achados e não altera o código revisado.',
+              )
+            : null,
+        )
+      })
       const list = h('div', { class: 'cs-tickets' })
       for (const t of tickets) {
         const box = h('input', { type: 'checkbox' }) as HTMLInputElement
@@ -248,21 +364,27 @@ export function openCreateSquad(root: HTMLElement, state: State, opts: CreateSqu
           if (box.checked) picked.add(t.id)
           else picked.delete(t.id)
         })
-         const blockers = unresolvedBlockerIds(t, [...state.tickets.values()])
-         list.append(
-           h(
-             'label',
-             { class: 'rev-check' },
-             box,
-             h(
-               'span',
-               {},
-               h('b', {}, `${t.key} · `),
-               t.title,
-               blockers.length ? h('span', { class: 'cs-ticket-blocked' }, `Bloqueado por ${blockers.map((id) => state.tickets.get(id)?.key ?? id).join(', ')}`) : null,
-             ),
-           ),
-         )
+        const blockers = unresolvedBlockerIds(t, [...state.tickets.values()])
+        list.append(
+          h(
+            'label',
+            { class: 'rev-check' },
+            box,
+            h(
+              'span',
+              {},
+              h('b', {}, `${t.key} · `),
+              t.title,
+              blockers.length
+                ? h(
+                    'span',
+                    { class: 'cs-ticket-blocked' },
+                    `Bloqueado por ${blockers.map((id) => state.tickets.get(id)?.key ?? id).join(', ')}`,
+                  )
+                : null,
+            ),
+          ),
+        )
       }
       parts.push(
         h(
@@ -279,11 +401,22 @@ export function openCreateSquad(root: HTMLElement, state: State, opts: CreateSqu
         h(
           'div',
           { class: 'panelbox' },
+          h('div', { class: 'sec-title' }, 'Equipe Claude sob medida'),
+          h(
+            'div',
+            { class: 'hint' },
+            'Escolha um perfil local para cada papel. O perfil refina as instruções, mas não concede ferramentas, acesso ou permissões. Não há geração automática nem troca silenciosa de conta/modelo.',
+          ),
+          ...memberFields,
+        ),
+        h(
+          'div',
+          { class: 'panelbox' },
           h('div', { class: 'sec-title' }, 'Tickets (opcional)'),
           h(
             'div',
             { class: 'hint' },
-             'Tickets bloqueados continuam selecionáveis e na fila. O squad ativa o próximo ticket sem bloqueios; se todos estiverem bloqueados, aguarda o PR dos bloqueadores.',
+            'Tickets bloqueados continuam selecionáveis e na fila. O squad ativa o próximo ticket sem bloqueios; se todos estiverem bloqueados, aguarda o PR dos bloqueadores.',
           ),
           list.children.length ? list : h('span', { class: 'hint' }, 'Nenhum ticket pendente neste andar.'),
         ),
@@ -303,7 +436,7 @@ export function openCreateSquad(root: HTMLElement, state: State, opts: CreateSqu
             'div',
             { class: 'cs-loading' },
             h('span', { class: 'cs-spin', 'aria-hidden': 'true' }),
-            h('b', {}, proposal ? 'Ajustando a composição…' : 'Gerando a composição proposta…'),
+            h('b', {}, 'Validando equipe e tickets aprovados…'),
           ),
           h('div', { class: 'hint' }, 'Você pode cancelar a qualquer momento: nada é criado enquanto a proposta não for aprovada.'),
         ),
@@ -318,8 +451,8 @@ export function openCreateSquad(root: HTMLElement, state: State, opts: CreateSqu
         h(
           'div',
           { class: 'panelbox red' },
-          h('div', { class: 'sec-title' }, 'Não foi possível gerar a proposta'),
-          h('div', {}, error || 'A IA não respondeu a tempo.'),
+          h('div', { class: 'sec-title' }, 'Não foi possível preparar a proposta'),
+          h('div', {}, error || 'Revise os dados e tente novamente.'),
           h('div', { class: 'hint' }, 'Seu brief e os tickets escolhidos foram preservados.'),
         ),
         echo(),
@@ -349,19 +482,14 @@ export function openCreateSquad(root: HTMLElement, state: State, opts: CreateSqu
       })
       approveButton.addEventListener('click', () => void approve())
       syncName()
-       const allTickets = [...state.tickets.values()]
-       const firstReady = chosen.find((ticket) => !isTicketBlocked(ticket, allTickets))
-       const waiting = chosen.filter((ticket) => ticket.id !== firstReady?.id)
-       const attribution = !chosen.length
-         ? ticketAttribution(chosen)
-         : firstReady
-           ? `${firstReady.key} fica ativo; ${waiting.length ? `${waiting.map((ticket) => ticket.key).join(', ')} ficam na fila e os bloqueados serão pulados até haver PR confirmado.` : 'sem outros tickets na fila.'}`
-           : `Todos os tickets escolhidos estão bloqueados (${chosen.map((ticket) => ticket.key).join(', ')}). O squad aguarda e não inicia nenhum até haver PR confirmado.`
-      const coordinator = memberCard(
-        'Coordenador',
-        'Orquestrador · mesa fixa da sala',
-        `Claude Code · ${SQUAD_MODEL_LABELS[state.settings.defaultModel] ?? state.settings.defaultModel ?? 'padrão do Claude Code'} · conta do projeto`,
-      )
+      const allTickets = [...state.tickets.values()]
+      const firstReady = chosen.find((ticket) => !isTicketBlocked(ticket, allTickets))
+      const waiting = chosen.filter((ticket) => ticket.id !== firstReady?.id)
+      const attribution = !chosen.length
+        ? ticketAttribution(chosen)
+        : firstReady
+          ? `${firstReady.key} fica ativo; ${waiting.length ? `${waiting.map((ticket) => ticket.key).join(', ')} ficam na fila e os bloqueados serão pulados até haver PR confirmado.` : 'sem outros tickets na fila.'}`
+          : `Todos os tickets escolhidos estão bloqueados (${chosen.map((ticket) => ticket.key).join(', ')}). O squad aguarda e não inicia nenhum até haver PR confirmado.`
       // The field of the adjustment and its button are built together: the button wakes
       // up with the text of the field.
       const adjArea = h('textarea', {
@@ -396,13 +524,14 @@ export function openCreateSquad(root: HTMLElement, state: State, opts: CreateSqu
           h(
             'div',
             { class: 'hint' },
-            `Orquestrador na mesa fixa da sala e ${members.length} ${members.length > 1 ? 'membros' : 'membro'}: uma mesa para cada um, na ordem abaixo.`,
+            `${members.length} ${members.length > 1 ? 'membros' : 'membro'}: uma mesa para cada integrante, na ordem abaixo. Coordenador é opcional.`,
           ),
           h(
             'div',
             { class: 'cs-members' },
-            coordinator,
-            ...members.map((m) => memberCard(m.name, SQUAD_ROLE_LABELS[m.role], memberEngineLine(m))),
+            ...members.map((m) =>
+              memberCard(m.name, SQUAD_ROLE_LABELS[m.role], memberEngineLine(m), m.competencyProfile?.label, m.competencyProfile?.scope),
+            ),
           ),
         ),
         echo(),
@@ -431,18 +560,6 @@ export function openCreateSquad(root: HTMLElement, state: State, opts: CreateSqu
         buttons = [
           h('span', { class: 'hint grow' }, 'A sala mostra só o contorno âmbar até você aprovar.'),
           h('button', { class: 'btn', type: 'button', onclick: () => close(true) }, 'Cancelar'),
-          h(
-            'button',
-            {
-              class: 'btn',
-              type: 'button',
-              onclick: () => {
-                adjusting = true
-                paint()
-              },
-            },
-            'Pedir ajustes',
-          ),
           approveButton,
         ]
       }

@@ -1,4 +1,20 @@
-import { constants, copyFileSync, existsSync, linkSync, lstatSync, mkdirSync, openSync, closeSync, readFileSync, readdirSync, rmSync, rmdirSync, unlinkSync, writeSync, fsyncSync } from 'node:fs'
+import {
+  constants,
+  copyFileSync,
+  existsSync,
+  linkSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  closeSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  rmdirSync,
+  unlinkSync,
+  writeSync,
+  fsyncSync,
+} from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { stringify } from 'yaml'
@@ -117,6 +133,28 @@ export function agentMarkdown(plan: SquadFilePlan, member: SquadProposalMember):
   const body = [
     `Você é ${member.name}, ${SQUAD_ROLE_LABELS[member.role].toLowerCase()} do squad ${plan.name}.`,
     member.focus ? `Sua parte aqui: ${member.focus}` : '',
+    ...(member.competencyProfile
+      ? [
+          `Perfil local: ${member.competencyProfile.label}`,
+          member.competencyProfile.identity,
+          `Escopo: ${member.competencyProfile.scope}`,
+          'Responsabilidades:',
+          ...member.competencyProfile.responsibilities.map((item) => `- ${item}`),
+          'Limites:',
+          ...member.competencyProfile.boundaries.map((item) => `- ${item}`),
+          'Formato da entrega:',
+          ...member.competencyProfile.delivery.map((item) => `- ${item}`),
+          'Critérios de qualidade:',
+          ...member.competencyProfile.qualityCriteria.map((item) => `- ${item}`),
+        ]
+      : []),
+    ...(member.role === 'reviewer'
+      ? [
+          'Você faz uma revisão independente do código concluído pelo implementador.',
+          'Sua revisão é somente leitura: não edite, crie, remova ou grave arquivos, não execute correções e não faça commits.',
+          'Apenas reporte os achados com evidência, severidade e localização; deixe qualquer correção para o implementador.',
+        ]
+      : []),
     '',
     'Você trabalha só no seu passo do pipeline e entrega o resultado no formato que ele pede.',
     'Não chame outros subagentes: o orquestrador é quem distribui o trabalho.',
@@ -234,11 +272,14 @@ function recoverOrReserveSibling(sibling: string, target: string, proposalId: st
     } catch (err) {
       throw new Error('A reserva irmã existe, mas não pode ser verificada; dados preservados.', { cause: err })
     }
-    if (!proposalId || prior.proposalId !== proposalId)
-      throw new Error('A pasta está reservada por outra transação; dados preservados.')
+    if (!proposalId || prior.proposalId !== proposalId) throw new Error('A pasta está reservada por outra transação; dados preservados.')
     if (existsSync(target)) {
       let entries: string[]
-      try { entries = readdirSync(target) } catch { throw new Error('A reserva do squad não pôde ser inspecionada; dados preservados.') }
+      try {
+        entries = readdirSync(target)
+      } catch {
+        throw new Error('A reserva do squad não pôde ser inspecionada; dados preservados.')
+      }
       if (entries.length !== 0) throw new Error('A pasta reservada contém dados; recuperação interrompida sem alterações.')
       rmdirSync(target)
     }
@@ -262,7 +303,9 @@ function removeSiblingReservation(sibling: string, proposalId: string | undefine
   try {
     const current = SiblingReservation.parse(JSON.parse(readFileSync(sibling, 'utf8')))
     if (current.proposalId === proposalId && current.attempt === attempt) unlinkSync(sibling)
-  } catch { /* leave an unverifiable reservation for safe manual recovery */ }
+  } catch {
+    /* leave an unverifiable reservation for safe manual recovery */
+  }
 }
 
 /**

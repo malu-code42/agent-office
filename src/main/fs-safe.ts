@@ -209,6 +209,7 @@ const LABELS: Record<string, string> = {
   'planning.json': 'tarefas em foco',
   'squad-proposals.json': 'propostas de squad',
   'squad-queues.json': 'filas dos squads',
+  'project-workflows.json': 'fluxos de projeto e aprovações',
   'profile-memory.json': 'memória dos perfis', // AO-43
   'study-cycle.json': 'ciclo de estudos', // AO-49
   'audio-dictionary.json': 'dicionário local de áudio', // AO-54

@@ -9,6 +9,7 @@ import {
   SQUAD_ROLES,
   type SquadProposal,
 } from '@shared/types'
+import { competencyProfileIds } from '@shared/competency-profiles'
 import { backupCopies, shapeOf } from './backups'
 import { loadJson, quarantineParts, reportLoad, writeJsonAtomic } from './fs-safe'
 import { log } from './log'
@@ -26,15 +27,36 @@ interface Data {
  * (null, a field of the wrong type, a role that does not exist) is dropped: it can
  * never reach the renderer, and it never brings the office down at startup.
  */
-const memberSchema = z.object({
-  id: z.string().regex(/^[\w-]{1,64}$/),
-  name: z.string().trim().min(1).max(40),
-  role: z.enum(SQUAD_ROLES),
-  engine: z.literal('claude'),
-  model: z.enum(SQUAD_MODELS),
-  account: z.string().max(64),
-  focus: z.string().max(240),
-})
+const memberSchema = z
+  .object({
+    id: z.string().regex(/^[\w-]{1,64}$/),
+    name: z.string().trim().min(1).max(40),
+    role: z.enum(SQUAD_ROLES),
+    engine: z.literal('claude'),
+    model: z.enum(SQUAD_MODELS),
+    account: z.string().max(64),
+    focus: z.string().max(240),
+    competencyProfileId: z.enum(competencyProfileIds).optional(),
+    competencyProfile: z
+      .object({
+        id: z.enum(competencyProfileIds),
+        label: z.string().min(1).max(100),
+        identity: z.string().min(1).max(500),
+        scope: z.string().min(1).max(1000),
+        responsibilities: z.array(z.string().min(1).max(500)).min(1).max(20),
+        boundaries: z.array(z.string().min(1).max(500)).min(1).max(20),
+        delivery: z.array(z.string().min(1).max(500)).min(1).max(20),
+        qualityCriteria: z.array(z.string().min(1).max(500)).min(1).max(20),
+      })
+      .strict()
+      .optional(),
+  })
+  .superRefine((member, ctx) => {
+    if (!!member.competencyProfileId !== !!member.competencyProfile)
+      ctx.addIssue({ code: 'custom', path: ['competencyProfile'], message: 'profile id and snapshot must appear together' })
+    if (member.competencyProfileId && member.competencyProfile?.id !== member.competencyProfileId)
+      ctx.addIssue({ code: 'custom', path: ['competencyProfile', 'id'], message: 'snapshot id mismatch' })
+  })
 
 const compositionSchema = z.object({
   name: z.string().trim().min(1).max(SQUAD_NAME_MAX),

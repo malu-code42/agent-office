@@ -657,6 +657,35 @@ describe('a proposta de um squad', () => {
     expect(squadProposalRequestSchema.safeParse({ id: '../fora', projectId: 'p1', room: 0, brief: 'x' }).success).toBe(false)
     expect(squadProposalRequestSchema.safeParse({ id: 'a b', projectId: 'p1', room: 0, brief: 'x' }).success).toBe(false)
   })
+  it('aceita composição manual Claude-only e recusa outro motor', () => {
+    const base = {
+      id: 'proposta-1',
+      projectId: 'p1',
+      room: 0,
+      brief: 'Busca',
+      ticketIds: ['t1'],
+      members: [
+        { id: 'builder', name: 'Implementador', role: 'implementer', engine: 'claude', model: 'opus', account: '', focus: 'Implementa.' },
+        { id: 'reviewer', name: 'Revisor', role: 'reviewer', engine: 'claude', model: '', account: '', focus: 'Revisa e reporta.' },
+      ],
+    }
+    expect(squadProposalRequestSchema.safeParse(base).success).toBe(true)
+    expect(
+      squadProposalRequestSchema.safeParse({
+        ...base,
+        members: base.members.map((member, index) => ({ ...member, competencyProfileId: index ? 'qa-engineer' : 'backend-engineer' })),
+      }).success,
+    ).toBe(true)
+    expect(
+      squadProposalRequestSchema.safeParse({
+        ...base,
+        members: base.members.map((member, index) => ({ ...member, competencyProfileId: index ? 'qa-engineer' : 'admin' })),
+      }).success,
+    ).toBe(false)
+    expect(
+      squadProposalRequestSchema.safeParse({ ...base, members: base.members.map((member) => ({ ...member, engine: 'opencode' })) }).success,
+    ).toBe(false)
+  })
   it('o ajuste e a aprovação são validados', () => {
     expect(squadAdjustmentSchema.safeParse({ id: 'proposta-1', adjustment: 'mais um testador' }).success).toBe(true)
     expect(squadAdjustmentSchema.safeParse({ id: 'proposta-1', adjustment: '  ' }).success).toBe(false)
