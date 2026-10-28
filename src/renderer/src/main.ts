@@ -1,5 +1,6 @@
 import './styles/index.css'
 import { Game } from './game'
+import { latestProjectResult } from './game/result-destination'
 import { bindPerfKeys, perf } from './perf'
 import { State } from './state'
 import { Board } from './ui/board'
@@ -236,6 +237,11 @@ async function boot(): Promise<void> {
       // reopened where it was left, not started over.
       const waiting = state.squadProposals.find((p) => p.projectId === project.id && p.room === room.index && holdsRoom(p))
       openCreateSquad(ui, state, { project, room, proposal: waiting, toast })
+    },
+    onMeetingRoomClick: (project) => {
+      const pending = latestProjectResult(project.id, state.agents.values(), state.results.values())
+      if (pending) openItem(pending.agent.id, pending.result.id)
+      else toast('Não há resultado aguardando nesta sala.', 'info')
     },
   })
 

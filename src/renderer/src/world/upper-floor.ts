@@ -135,8 +135,8 @@ export function buildUpperFloor(plan: ProjectPlan, brand: Brand): UpperFloor {
   // the desk against the south wall, with the director's chair behind it, facing the door
   place(directorRig(3), dcx, 22.4, Math.PI)
   block(14, 22, 3, 2)
-  place(F.simpleChair('#6c5ce7'), 14.6, 20.6)
-  place(F.simpleChair('#6c5ce7'), 16.4, 20.6)
+  place(F.meetingTable(3.6, 1.5), 15.5, 19.1)
+  block(14, 18, 4, 2)
   place(F.bookshelf(2, 1.9, 5), 12.8, 16.3)
   block(12, 16, 2, 1)
   place(F.clock(), 18.2, 16.04, 0, 2.25)

@@ -201,6 +201,8 @@ export const SQUAD_ROOM_RECTS: Rect[] = [
 export const AGENT_ROOM_RECT: Rect = [21, 0, 32, 24]
 /** The director's room, at the back of the hall. */
 export const DIRECTOR_RECT: Rect = [11, 16, 20, 24]
+/** Meeting table in front of the director's desk. */
+export const MEETING_TABLE_AT = { x: 15.5, z: 19.1 }
 /** The elevator of a project floor: in the hall, in the middle of the back wall. */
 export const UPPER_ELEVATOR = { x: 15.5, z: 0 }
 export const UPPER_SPAWN_TILE: [number, number] = [15, 1]
