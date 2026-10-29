@@ -298,8 +298,17 @@ export function elevator(): { group: THREE.Group; doors: [THREE.Mesh, THREE.Mesh
   box(g, 0.5, 0.16, 0.04, '#2d3142', 0, 2.36, 0.02, false)
   const light = box(g, 0.08, 0.08, 0.02, new THREE.MeshBasicMaterial({ color: '#55efc4' }), 0, 2.4, 0.05, false)
   box(g, 0.12, 0.22, 0.04, '#2d3142', 1.0, 1.0, 0.04, false)
-  // call buttons: T on top, then one per floor above it
-  const buttons = [box(g, 0.05, 0.05, 0.02, '#fdcb6e', 1.0, 1.12, 0.07, false), box(g, 0.05, 0.05, 0.02, '#55efc4', 1.0, 1.04, 0.07, false)].map(animated)
+  // call buttons: the ground button on top reads 'C' (Casa), painted on its face; then one per floor above it
+  const [glyph, glyphCtx] = canvas(12, 12)
+  glyphCtx.fillStyle = '#fdcb6e'
+  glyphCtx.fillRect(0, 0, 12, 12)
+  glyphCtx.fillStyle = '#2d3142'
+  glyphCtx.fillRect(2, 2, 8, 3) // chunky pixel 'C': top bar
+  glyphCtx.fillRect(2, 2, 3, 8) // left column
+  glyphCtx.fillRect(2, 7, 8, 3) // bottom bar
+  const side = mat('#fdcb6e')
+  const groundFace = [side, side, side, side, new THREE.MeshBasicMaterial({ map: pixelTexture(glyph) }), side]
+  const buttons = [box(g, 0.05, 0.05, 0.02, groundFace, 1.0, 1.12, 0.07, false), box(g, 0.05, 0.05, 0.02, '#55efc4', 1.0, 1.04, 0.07, false)].map(animated)
   return { group: g, doors: [left, right], light, buttons }
 }
 

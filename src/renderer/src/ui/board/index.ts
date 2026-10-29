@@ -17,7 +17,7 @@ export class Board extends BoardClosing {
   /** On "Todos os andares": which floor a card belongs to. */
   protected floorTag(t: Ticket): HTMLElement {
     const p = projectFor(this.state.settings.projects, t.cwd)
-    return h('span', { class: 'tfloor', style: p?.brandColor ? `--floor:${p.brandColor}` : '', title: p ? `Andar ${p.name}` : 'Térreo' }, p?.name ?? 'Térreo')
+    return h('span', { class: 'tfloor', style: p?.brandColor ? `--floor:${p.brandColor}` : '', title: p ? `Andar ${p.name}` : 'Casa' }, p?.name ?? 'Casa')
   }
 
   create(status: TicketStatus = 'todo'): void {

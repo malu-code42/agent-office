@@ -220,7 +220,9 @@ async function boot(): Promise<void> {
     onHomeAction: (action) => {
       if (action === 'agenda') openAgenda(ui)
       else if (action === 'goals') openGoals(ui, toast)
-      else if (action === 'media') void openMediaLibrary(ui, toast)
+      else if (action === 'books') void openMediaLibrary(ui, toast, 'livro')
+      else if (action === 'films') void openMediaLibrary(ui, toast, 'filme')
+      else if (action === 'games') void openMediaLibrary(ui, toast, 'jogo')
       else if (action === 'writing') openWritingLibrary(ui, toast)
       else if (action === 'personal-routines') void openPersonalRoutinesPanel(ui, toast)
       else if (action === 'radio') void radio.toggle()

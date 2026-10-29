@@ -150,7 +150,7 @@ export abstract class GameBase {
 
     // the routines totem outside the boss office: next routine, countdown and a status LED
     const tt = totem()
-    tt.group.position.set(TOTEM_TILE[0] + 0.6, 0, TOTEM_TILE[1] + 0.5)
+    tt.group.position.set(TOTEM_TILE[0] + 0.8, 0, TOTEM_TILE[1] + 0.5)
     tt.group.rotation.y = FACE_CAMERA
     this.office.group.add(tt.group)
     const totemTag = this.overlays.add(new Tag(tt.anchor, 'Rotinas de agentes', false, () => hooks.onRoutines()))

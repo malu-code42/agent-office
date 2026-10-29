@@ -153,10 +153,10 @@ export interface GameHooks {
   onRoomClick?(project: ProjectFloor, room: L.SquadRoom): void
 }
 
-/** Entry-hall tile reserved for the existing agent-routine scheduler totem. */
-export const TOTEM_TILE: [number, number] = [16, 8]
-/** Floor spot by the boss office where the skeleton stands. */
-export const SKULL_HOME = { x: 2.5, y: 0, z: 12.3 }
+/** Entry-hall tile reserved for the existing agent-routine scheduler totem, west of the hall runner. */
+export const TOTEM_TILE: [number, number] = [10, 8]
+/** Office spot beside the Claude FM TV where the skeleton stands. */
+export const SKULL_HOME = { x: 5.85, y: 0, z: 0.9 }
 /** Seconds the camera gets to reach a dismissed agent before the skull drops. */
 export const STRIKE_AFTER_S = 0.6
 /** An idle agent waits at its desk this long before wandering off to the lounge. */
