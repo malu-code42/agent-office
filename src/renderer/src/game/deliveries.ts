@@ -3,19 +3,48 @@ import * as L from '../world/layout'
 import type { BubbleKind } from '../world/overlays'
 import { GameLounge } from './lounge'
 import { tileOf, type Actor } from './types'
+import { meetingWaitSpot } from './result-destination'
 
 /** Deliveries: agents with a permission request or a result visit the player and talk when close. */
 export abstract class GameDeliveries extends GameLounge {
-  /** Visits: project agents take the elevator to wherever the player is; the ground floor's go to the boss office. */
+  /** Permission requests retain their existing follow-the-player behavior; non-project results wait at the House table. */
   protected goBoss(actor: Actor, instant: boolean): void {
-    const a = this.state.agents.get(actor.id)
-    const floor = a && this.homeFloor(a) > 0 ? this.player.floor : 0
+    const agent = this.state.agents.get(actor.id)
+    const floor = agent && this.homeFloor(agent) > 0 ? this.player.floor : 0
     this.travel(actor, floor, instant, () => {
       const spot = this.pickVisitSpot(actor)
       actor.spot = spot
       const done = () => {
         actor.arrived = true
         actor.waveUntil = this.time + 1.6
+        const now = this.state.agents.get(actor.id)
+        if (now) this.pose(actor, now)
+      }
+      if (instant) {
+        actor.avatar.placeAt(spot[0] + 0.5, spot[1] + 0.5)
+        done()
+      } else this.route(actor.avatar, spot, null, done)
+    })
+  }
+
+  /** Project results wait at the meeting table and never auto-open by proximity. */
+  protected goMeeting(actor: Actor, instant: boolean): void {
+    const agent = this.state.agents.get(actor.id)
+    if (!agent) return
+    const floor = this.homeFloor(agent)
+    this.travel(actor, floor, instant, () => {
+      const spot = meetingWaitSpot(
+        (x, z) => this.floorOf(floor).grid.walkable(x, z),
+        [...this.actors.values()]
+          .filter((other) => other !== actor && other.avatar.floor === floor)
+          .flatMap((other) => (other.spot ? [other.spot] : [])),
+        L.DIRECTOR_RECT,
+        L.MEETING_TABLE_AT,
+      )
+      if (!spot) return
+      actor.spot = spot
+      const done = () => {
+        actor.arrived = true
         const now = this.state.agents.get(actor.id)
         if (now) this.pose(actor, now)
       }
@@ -103,9 +132,8 @@ export abstract class GameDeliveries extends GameLounge {
     for (const actor of this.actors.values()) {
       if (actor.goal !== 'boss' || !actor.arrived || actor.avatar.isWalking || actor.down || actor.riding) continue
       if (actor.avatar.floor !== this.player.floor) {
-        // Project agents follow the player to the other floor; agents of the ground floor wait in the boss office.
-        const a = this.state.agents.get(actor.id)
-        if (a && this.homeFloor(a) > 0 && !this.player.isWalking) {
+        const agent = this.state.agents.get(actor.id)
+        if (agent && this.homeFloor(agent) > 0 && !this.player.isWalking) {
           actor.arrived = false
           actor.trip++
           this.goBoss(actor, false)

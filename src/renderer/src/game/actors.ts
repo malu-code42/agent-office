@@ -7,6 +7,7 @@ import { HOME_SPAWN_POINT, HOME_SPAWN_TILE } from '../world/home-layout'
 import { GameBoards } from './boards'
 import { canContinueHomeArrival, homeRoamTarget } from './home-roaming'
 import { LOUNGE_AFTER_MS, screenMode, seatKey, spawnPoint, spawnTile, SQUAD_SPEED, type Actor, type Goal } from './types'
+import { resultDestination } from './result-destination'
 
 /** The agents: arriving, choosing where to be (desk, boss, lounge), posing and leaving. */
 export abstract class GameActors extends GameBoards {
@@ -108,10 +109,12 @@ export abstract class GameActors extends GameBoards {
 
   protected desired(actor: Actor, a: AgentSummary): Goal {
     if (a.homeResident) return 'home'
+    const items = this.state.itemsFor(a.id)
+    if (items.permissions.length || a.status === 'waiting') return 'boss'
+    if (items.results.length) return resultDestination(a, !!this.upperOf(this.homeFloor(a))) === 'meeting' ? 'meeting' : 'boss'
     if (a.role === 'orchestrator') {
       // The squad room is home: no lounge between cycles.
-      const items = this.state.itemsFor(a.id)
-      return items.permissions.length || items.results.length || a.status === 'waiting' ? 'boss' : 'desk'
+      return 'desk'
     }
     if (this.resting(a)) {
       actor.restSince ??= Date.now()
@@ -119,8 +122,6 @@ export abstract class GameActors extends GameBoards {
       return this.homeFloor(a) === 0 && Date.now() - actor.restSince >= LOUNGE_AFTER_MS ? 'hang' : 'desk'
     }
     actor.restSince = null
-    const items = this.state.itemsFor(a.id)
-    if (items.permissions.length || items.results.length || a.status === 'waiting') return 'boss'
     return 'desk'
   }
 
@@ -155,6 +156,7 @@ export abstract class GameActors extends GameBoards {
       actor.avatar.setProp('none')
       if (goal === 'desk') this.goDesk(actor, a, instant)
       else if (goal === 'boss') this.goBoss(actor, instant)
+      else if (goal === 'meeting') this.goMeeting(actor, instant)
       else if (goal === 'home') this.goHomeResident(actor, instant)
       else this.goHang(actor, instant)
     } else if (actor.arrived) {
@@ -310,12 +312,12 @@ export abstract class GameActors extends GameBoards {
       av.face(desk.face ?? Math.PI)
       av.pose = a.status === 'working' ? 'type' : 'sit'
       av.seatY = 0
-    } else if (actor.goal === 'boss') {
+    } else if (actor.goal === 'boss' || actor.goal === 'meeting') {
       const items = this.state.itemsFor(a.id)
       const result = items.results[0]
       av.setProp(items.permissions.length ? 'none' : result ? (result.isError ? 'redPaper' : 'paper') : 'none')
-      if (av.floor === this.player.floor && (av.floor > 0 || this.playerInBossRoom()))
-        av.faceTowards(this.player.position.x, this.player.position.z)
+      if (actor.goal === 'meeting') av.faceTowards(L.MEETING_TABLE_AT.x, L.MEETING_TABLE_AT.z)
+      else if (av.floor === this.player.floor && this.playerInBossRoom()) av.faceTowards(this.player.position.x, this.player.position.z)
       else av.faceTowards(L.BOSS_SEAT.x, L.BOSS_SEAT.z)
       av.pose = this.time < actor.waveUntil ? 'wave' : actor.id === this.nearId ? 'talk' : 'stand'
     } else if (actor.goal === 'home') {

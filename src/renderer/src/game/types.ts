@@ -8,7 +8,7 @@ import type { ScreenMode } from '../world/screens'
 import type { HelperReturn } from './helper-return'
 import type { HomeAction } from '../world/home-layout'
 
-export type Goal = 'desk' | 'boss' | 'hang' | 'home' | 'leave' | 'chat'
+export type Goal = 'desk' | 'boss' | 'meeting' | 'hang' | 'home' | 'leave' | 'chat'
 
 export interface Actor {
   id: string
@@ -16,7 +16,7 @@ export interface Actor {
   tag: Tag
   goal: Goal | null
   arrived: boolean
-  /** Reserved standing tile in the boss office. */
+  /** Reserved standing tile by a waiting area (House table or project meeting room). */
   spot: [number, number] | null
   /** Reserved lounge spot index. */
   hang: number | null
@@ -152,6 +152,8 @@ export interface GameHooks {
   onIncompatible?(project: ProjectFloor, issues: { code: string; name: string; reason: string; unplaced?: string[] }[]): void
   /** The player clicked a squad room: an empty room proposes a squad, a room with one opens its squad. */
   onRoomClick?(project: ProjectFloor, room: L.SquadRoom): void
+  /** The player clicked the meeting-room label on a project floor. */
+  onMeetingRoomClick?(project: ProjectFloor): void
 }
 
 /** Entry-hall tile reserved for the existing agent-routine scheduler totem, west of the hall runner. */

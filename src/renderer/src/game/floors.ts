@@ -89,6 +89,7 @@ export abstract class GameFloors extends GameBase {
       scene.reducedMotion = this.reducedEffects
       this.engine.scene.add(scene.group)
       this.overlays.label('Diretoria', 12.8, 20, n)
+      this.overlays.label('Sala de reunião', L.MEETING_TABLE_AT.x, L.MEETING_TABLE_AT.z, n, () => this.hooks.onMeetingRoomClick?.(project))
       this.overlays.label('Descanso e lazer', 15.5, 7.6, n)
       this.overlays.label('Agentes individuais', (L.AGENT_ROOM_RECT[0] + L.AGENT_ROOM_RECT[2]) / 2, 22.9, n)
       for (const r of plan.rooms)

@@ -309,6 +309,7 @@ export abstract class GameBase {
   protected abstract uniformFor(a: AgentSummary): Uniform | null
   protected abstract dress(avatar: Avatar, a: AgentSummary): void
   protected abstract goBoss(actor: Actor, instant: boolean): void
+  protected abstract goMeeting(actor: Actor, instant: boolean): void
   protected abstract goHang(actor: Actor, instant: boolean): void
   protected abstract bubble(actor: Actor, a: AgentSummary): void
   protected abstract memberGone(m: Member): void
