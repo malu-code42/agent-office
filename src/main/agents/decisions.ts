@@ -192,7 +192,7 @@ export abstract class AgentDecisions extends AgentSubagents {
     this.changesSettled.delete(resultId)
     this.send({ type: 'result:acked', resultId, agentId: r.agentId })
     const agent = this.agents.get(r.agentId)
-    const temporaryDelivered = agent?.summary.temporary === true
+    const temporaryDelivered = agent?.summary.temporary === true && agent.summary.homeResident !== true
     if (agent && (agent.summary.status === 'done' || agent.summary.status === 'error')) {
       if (agent.summary.source === 'terminal' && !agent.query && agent.summary.activity === 'Sessão encerrada') {
         this.removeTerminal(agent.summary.id)

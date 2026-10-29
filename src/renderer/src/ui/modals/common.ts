@@ -5,13 +5,21 @@ import { h, icon } from '../dom'
 
 export const LAST_CWD = 'agent-office:last-cwd'
 
-/** Every window of the app. It is a labelled dialog that holds the focus and gives it back on close (see ../a11y.ts). */
-export function modal(title: string, body: HTMLElement[], footer: HTMLElement[], onClose: () => void): HTMLDivElement {
+/** Every window of the app. It is a labelled dialog that holds the focus and gives it back on close (see ../a11y.ts).
+ *  `wide` alarga a janela (Agenda e Rotinas pessoais). `head` insere conteúdo entre o título e o fechar
+ *  (por exemplo, a troca de visualização da Agenda).
+ */
+export function modal(title: string, body: HTMLElement[], footer: HTMLElement[], onClose: () => void, wide = false, head?: HTMLElement): HTMLDivElement {
   const heading = h('div', { class: 'modal-title' }, title)
+  const headChildren: HTMLElement[] = [heading]
+  if (head) {
+    headChildren.push(head, h('span', { class: 'grow' }))
+  }
+  headChildren.push(h('button', { class: 'icon-btn', title: 'Fechar (Esc)', 'aria-label': 'Fechar', onclick: onClose }, icon('x', 18)))
   const box = h(
     'div',
-    { class: 'modal card' },
-    h('div', { class: 'modal-head' }, heading, h('button', { class: 'icon-btn', title: 'Fechar (Esc)', 'aria-label': 'Fechar', onclick: onClose }, icon('x', 18))),
+    { class: `modal card${wide ? ' modal-wide' : ''}` },
+    h('div', { class: 'modal-head' }, ...headChildren),
     h('div', { class: 'modal-body' }, ...body),
     h('div', { class: 'modal-foot' }, ...footer),
   )

@@ -104,6 +104,27 @@ export function reviewNextDay(today: string, option: ReviewPostpone): string {
   return addDays(today, option === 'dispensar' ? 1 : option)
 }
 
+/** Pode (re)abrir a revisão hoje?
+ * - Se a oferta está devida (reviewDue), mostra imediatamente (primeira entrada do dia).
+ * - Se há rascunho (reviewDraft), só mostra quando a data de retorno já chegou (reviewNextDay nulo ou vencida).
+ * Impede reabrir antes da data escolhida em "Adiar"/"Dispensar". */
+export function reviewMayShow(
+  reviewDue: boolean,
+  reviewDraft: boolean,
+  reviewNextDay: string | null,
+  today: string,
+): boolean {
+  if (reviewDue) return true
+  if (!reviewDraft) return false
+  return reviewNextDay == null || today >= reviewNextDay
+}
+
+/** Dia local como AAAA-MM-DD. */
+export function todayKey(d = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
 /** A focused task has gone REVIEW_STALE_DAYS or more without a recorded step (or never had one). */
 export function isStale(lastStepDay: string | undefined, today: string): boolean {
   return lastStepDay === undefined || daysBetween(lastStepDay, today) >= REVIEW_STALE_DAYS

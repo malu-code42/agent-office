@@ -1,11 +1,13 @@
 import { proposalRow } from '@shared/proposals'
 import { MAX_PROJECT_FLOORS } from '@shared/projects'
+import { reviewMayShow, todayKey } from '@shared/review'
 import type { AgentStatus, AgentSummary } from '@shared/types'
 import { barClockText, barRemaining } from '@shared/barTimer'
 import type { State } from '../../state'
 import { DEFAULT_BRAND } from '../../world/brand'
 import { arrowList, asDialog, keepFocus, rove } from '../a11y'
 import { accountChip } from '../accounts'
+import { elevatorFloorLabel } from '../board/model'
 import { formatCost, h, icon, timeAgo } from '../dom'
 import { isFocusPopupOpen, onFocusPopup } from '../focus-state'
 import { isTimerPopupOpen, onTimerPopup } from '../timer-state'
@@ -33,7 +35,7 @@ export interface HudActions {
   /** "Novo agente": talk, give a task or bring up a squad. */
   newAgent(): void
   board(ticketId?: string): void
-  /** Take the elevator to a floor (0 = térreo). */
+  /** Take the elevator to a floor (0 = Casa). */
   goFloor(n: number): void
   /** Add a floor for a project folder. */
   newFloor(): void
@@ -120,7 +122,7 @@ export class Hud {
   /** Visual tick of the running clock; one interval while it runs, none otherwise. */
   private tmTick: number | null = null
   private floorsEl: HTMLDivElement
-  private floorNames: string[] = ['Térreo']
+  private floorNames: string[] = ['Casa']
   private floor = 0
   /** Roster row that Tab lands on (roving tabindex); kept across redraws. */
   private rosterActive: string | null = null
@@ -452,7 +454,7 @@ export class Hud {
             title: n === this.floor ? `Você está no ${name}` : `Ir para ${name} pelo elevador`,
             onclick: () => this.actions.goFloor(n),
           },
-          h('span', { class: 'floor-num' }, n === 0 ? 'T' : String(n)),
+          h('span', { class: 'floor-num' }, elevatorFloorLabel(n)),
           h('span', { class: 'floor-name' }, name),
           badge,
         )
@@ -542,6 +544,9 @@ export class Hud {
           h('span', { class: `dot dot-${a.status}` }),
           h('span', { class: 'name' }, a.name),
           a.builtIn === 'luna' ? h('span', { class: 'chip' }, 'Secretária') : null,
+          a.builtIn === 'luna' && this.state.reviewDue
+            ? h('span', { class: 'dot dot-waiting', 'aria-hidden': 'true' })
+            : null,
           a.source === 'terminal' ? h('span', { class: 'chip chip-term' }, 'terminal') : null,
           helpersChip(a, true),
           this.floorChip(a),
@@ -700,8 +705,10 @@ export class Hud {
         rows.push(row)
       }
     }
-    // The review of today, while its draft is not confirmed: it comes back from here (AO-12).
-    if (this.state.reviewDraft) {
+    // The review of today is due: the caixa de entrada offers to open it with the Luna (AO-12 / rodada 5 §9.1).
+    // While a draft is not confirmed it can be resumed; nothing is applied before confirmation. The draft is
+    // only shown again after the postponed/dismissed date has arrived.
+    if (reviewMayShow(this.state.reviewDue, this.state.reviewDraft, this.state.reviewNextDay, todayKey())) {
       rows.push(
         h(
           'button',
@@ -710,8 +717,13 @@ export class Hud {
           h(
             'div',
             { class: 'inbox-main' },
-            h('div', { class: 'inbox-name' }, 'Continuar revisão do dia', h('span', { class: 'chip chip-wait' }, 'rascunho')),
-            h('div', { class: 'inbox-text' }, 'Retomar com as tarefas e escolhas salvas.'),
+            h(
+              'div',
+              { class: 'inbox-name' },
+              'Continuar revisão do dia',
+              this.state.reviewDraft ? h('span', { class: 'chip chip-wait' }, 'rascunho') : null,
+            ),
+            h('div', { class: 'inbox-text' }, 'A Luna quer revisar o seu dia com você. Nada muda antes de você confirmar.'),
           ),
         ),
       )

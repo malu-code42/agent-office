@@ -91,6 +91,8 @@ export interface AgentSummary {
   temporary?: true
   /** Saiu após a entrega confirmada; permanece arquivado com conversa e evidência, fora da ocupação. */
   departed?: true
+  /** AO-94: invited to stay at the house independently of the task/session lifecycle. */
+  homeResident?: true
   /** Squad code, for orchestrators. */
   squad?: string
   /** Board ticket currently delivered to this office agent (or isolated squad cycle), if any. */

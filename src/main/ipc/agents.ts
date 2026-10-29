@@ -16,6 +16,8 @@ import {
   permissionDecisionSchema,
   permissionModeSchema,
   subagentLogArgsSchema,
+  setHomeResidentArgsSchema,
+  homeResidentSchema,
 } from '../validate'
 import { projectFor } from '@shared/projects'
 import { confirmPermissionOverride, id, type IpcContext } from './context'
@@ -47,8 +49,18 @@ export function registerAgentsIpc(ctx: IpcContext): void {
   })
   ipcMain.handle(
     'office:summon',
-    async (_e, cwd: unknown, mode: unknown, brain: unknown, worktree: unknown, _confirmOverride: unknown, _engine: unknown) => {
+    async (
+      _e,
+      cwd: unknown,
+      mode: unknown,
+      brain: unknown,
+      worktree: unknown,
+      _confirmOverride: unknown,
+      _engine: unknown,
+      homeResident: unknown,
+    ) => {
       if (!pathSchema.safeParse(cwd).success || !isDir(cwd)) throw new Error('Escolha uma pasta de projeto que exista.')
+      const wantsHome = homeResidentSchema.parse(homeResident) ?? false
       const m = permissionModeSchema.safeParse(mode)
       const inherited = projectFor(store.settings.projects, cwd)?.permissionMode ?? store.settings.defaultPermissionMode
       const permissionMode = m.success ? m.data : inherited
@@ -66,9 +78,14 @@ export function registerAgentsIpc(ctx: IpcContext): void {
         { ...defaultBrain(), ...cleanBrain(brain, store.settings.accounts), permissionMode },
         worktreeFlagSchema.parse(worktree),
         'claude',
+        wantsHome,
       )
     },
   )
+  ipcMain.handle('office:setHomeResident', (_e, ...args: unknown[]) => {
+    const [agentId, resident] = parse(setHomeResidentArgsSchema, args, 'Presença inválida.')
+    manager.setHomeResident(agentId, resident)
+  })
   ipcMain.handle('office:isGitRepo', async (_e, cwd: unknown) => {
     const p = pathSchema.safeParse(cwd)
     return p.success && isAbsolute(p.data) && isDir(p.data) && !!(await repoRoot(p.data))

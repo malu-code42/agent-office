@@ -144,7 +144,7 @@ export abstract class GameFloors extends GameBase {
     // Everyone upstairs starts over on the new plans, on their project's floor (or downstairs if it is gone).
     for (const actor of this.actors.values()) {
       const a = this.state.agents.get(actor.id)
-      if (!a || actor.goal === 'leave' || (actor.avatar.floor === 0 && this.homeFloor(a) === 0)) continue
+      if (!a || actor.goal === 'leave' || (actor.avatar.floor === 0 && (a.homeResident || this.homeFloor(a) === 0))) continue
       actor.goal = null
       actor.avatar.floor = this.homeFloor(a)
       this.reconcile(actor, true)
@@ -217,7 +217,7 @@ export abstract class GameFloors extends GameBase {
   }
 
   get floors(): string[] {
-    return ['Térreo', ...this.uppers.map((u) => u.project.name)]
+    return ['Casa', ...this.uppers.map((u) => u.project.name)]
   }
 
   get currentFloor(): number {

@@ -23,7 +23,7 @@ export interface FloorTab {
 export function floorTabs(projects: ProjectFloor[]): FloorTab[] {
   return [
     { value: ALL_FLOORS, label: 'Todos os andares' },
-    { value: GROUND, label: 'Térreo' },
+    { value: GROUND, label: 'Casa' },
     ...projects.map((p) => ({ value: p.id, label: p.name })),
   ]
 }
@@ -31,6 +31,11 @@ export function floorTabs(projects: ProjectFloor[]): FloorTab[] {
 /** The floor a ticket belongs to: the project holding its folder, or the ground floor. */
 export function ticketFloor(t: Ticket, projects: ProjectFloor[]): string {
   return projectFor(projects, t.cwd)?.id ?? GROUND
+}
+
+/** The label on an elevator floor button: 'C' for the ground floor (Casa), the number for the floors above. */
+export function elevatorFloorLabel(n: number): string {
+  return n === 0 ? 'C' : String(n)
 }
 
 export function ticketsOnFloor(tickets: Ticket[], floor: string, projects: ProjectFloor[]): Ticket[] {

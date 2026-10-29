@@ -73,6 +73,8 @@ export abstract class GameBase {
   protected skull: { root: THREE.Group; tag: Tag; eyes: THREE.MeshBasicMaterial }
   /** Existing agent-routine scheduler totem, kept separate from the personal home board. */
   protected totem: { view: Totem; tag: Tag }
+  /** Luna's name tag in the house: shows the review-of-the-day bubble when due. */
+  protected lunaTag: Tag | null = null
   /** Seconds until the totem's text is worked out again (at most once a second). */
   protected totemIn = 0
   /** Agents picked at the skull, waiting for the camera (or the elevator) before the strike. */
@@ -150,7 +152,7 @@ export abstract class GameBase {
 
     // the routines totem outside the boss office: next routine, countdown and a status LED
     const tt = totem()
-    tt.group.position.set(TOTEM_TILE[0] + 0.6, 0, TOTEM_TILE[1] + 0.5)
+    tt.group.position.set(TOTEM_TILE[0] + 0.8, 0, TOTEM_TILE[1] + 0.5)
     tt.group.rotation.y = FACE_CAMERA
     this.office.group.add(tt.group)
     const totemTag = this.overlays.add(new Tag(tt.anchor, 'Rotinas de agentes', false, () => hooks.onRoutines()))
@@ -172,9 +174,19 @@ export abstract class GameBase {
       const anchor = new THREE.Object3D()
       anchor.position.set(item.x, item.y, item.z)
       this.office.group.add(anchor)
-      const tag = this.overlays.add(new Tag(anchor, item.label, false, item.action ? () => hooks.onHomeAction(item.action!) : undefined))
+      const onClick = item.label === 'Luna' ? () => hooks.onLunaReview() : item.action ? () => hooks.onHomeAction(item.action!) : undefined
+      const tag = this.overlays.add(new Tag(anchor, item.label, false, onClick))
       if (item.action) tag.el.title = `Abrir ${item.label}`
+      if (item.label === 'Luna') this.lunaTag = tag
     }
+    this.updateLunaReviewBubble()
+    state.onChange(() => this.updateLunaReviewBubble())
+  }
+
+  private updateLunaReviewBubble(): void {
+    if (!this.lunaTag) return
+    if (this.state.reviewDue) this.lunaTag.setBubble('! Revisão do dia', 'wait')
+    else this.lunaTag.setBubble(null, 'wait')
   }
 
   /** Orchestrators of a floor by squad room. */

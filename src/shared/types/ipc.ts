@@ -130,6 +130,10 @@ export interface OfficeState {
   proposals: Proposal[]
   /** A review of today was started and not confirmed: it shows in the caixa de entrada to resume (AO-12). */
   reviewDraft: boolean
+  /** A revisão de hoje está devida (oferta pendente): bolha, aviso, caixa de entrada e ponto do roster mostram. */
+  reviewDue: boolean
+  /** Primeiro dia em que a oferta/rascunho da revisão pode ser mostrada de novo (AAAA-MM-DD), ou null. */
+  reviewNextDay: string | null
   /** How many tasks are in the focus ("Tarefas em foco"): the dock shows this count. */
   focusCount: number
   /** The Timer of the bar as it reads now, or null when it is stopped; the dock shows it. */
@@ -216,6 +220,10 @@ export type OfficeEvent =
   | { type: 'proposals'; proposals: Proposal[] }
   /** The review of today was saved or cleared: whether a draft to resume exists. */
   | { type: 'review:draft'; draft: boolean }
+  /** Whether the review of today is due (offer pending): shows the bubble, toast, inbox line and roster dot. */
+  | { type: 'review:due'; due: boolean }
+  /** The next local day (AAAA-MM-DD) the review offer/draft may be shown, or undefined when never set. */
+  | { type: 'review:nextDay'; nextDay: string | undefined }
   /** The focus changed size: how many tasks are in it now (the dock counts them). */
   | { type: 'focus:count'; count: number }
   /** The Timer of the bar changed (AO-64): the whole session as it reads, or null for a stopped Timer. */
@@ -395,6 +403,8 @@ export interface OfficeAPI {
   openPersonalRoutines(): Promise<void>
   /** Lê o agenda.md do vault: o dia, a semana (segunda a domingo) e as linhas sem data. Só lê; não escreve em nenhum arquivo. */
   readAgenda(): Promise<AgendaView>
+  /** Lê a agenda da semana que contém `date` (AAAA-MM-DD), para navegação entre semanas. Só lê. */
+  readAgendaForDate(date: string): Promise<AgendaView>
   /** Põe em foco a tarefa da linha dada (ganha um id no tarefas.md se não tiver) e devolve o quadro e o foco. */
   focusTask(line: number): Promise<{ board: ParsedBoard; focus: FocusItem[] }>
   /** Tira do foco a tarefa com esse id. Não escreve no tarefas.md e devolve o foco. */
@@ -437,7 +447,10 @@ export interface OfficeAPI {
     worktree?: boolean,
     confirmPermissionOverride?: boolean,
     engine?: 'claude',
+    homeResident?: boolean,
   ): Promise<AgentSummary>
+  /** Ends only an agent's presence at the house; its session and history remain untouched. */
+  setHomeResident(agentId: string, resident: boolean): Promise<void>
   send(agentId: string, text: string, attachments?: AttachmentInput[]): Promise<void>
   /** Disk path of a picked or dropped file; '' for pasted data. */
   pathForFile(file: File): string
@@ -533,7 +546,14 @@ export interface OfficeAPI {
     confirmPermissionOverride?: boolean,
   ): Promise<AgentSummary>
   /** Proposes a squad for an empty room: the model plans the team, nothing is written yet. */
-  proposeSquad(input: { id: string; projectId: string; room: number; brief: string; ticketIds: string[]; members?: SquadProposalMember[] }): Promise<SquadProposal>
+  proposeSquad(input: {
+    id: string
+    projectId: string
+    room: number
+    brief: string
+    ticketIds: string[]
+    members?: SquadProposalMember[]
+  }): Promise<SquadProposal>
   /** Reads the local, user-authored orchestration state for one project floor. */
   getProjectWorkflow(projectId: string): Promise<ProjectWorkflow>
   saveProjectWorkflowGrill(projectId: string, goal: string, grill: string): Promise<ProjectWorkflow>

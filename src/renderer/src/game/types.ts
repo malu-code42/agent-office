@@ -8,7 +8,7 @@ import type { ScreenMode } from '../world/screens'
 import type { HelperReturn } from './helper-return'
 import type { HomeAction } from '../world/home-layout'
 
-export type Goal = 'desk' | 'boss' | 'meeting' | 'hang' | 'leave' | 'chat'
+export type Goal = 'desk' | 'boss' | 'meeting' | 'hang' | 'home' | 'leave' | 'chat'
 
 export interface Actor {
   id: string
@@ -31,6 +31,8 @@ export interface Actor {
   chatUntil: number
   /** Wall-clock ms since the agent has had nothing to do; null while busy. */
   restSince: number | null
+  /** Next time a house resident may choose another public room. */
+  homeNextAt: number
   /** Bumped on every new goal; an elevator ride that ends under an old goal starts over. */
   trip: number
   /** Inside the elevator between floors: goal changes wait for the doors to open. */
@@ -144,21 +146,20 @@ export interface GameHooks {
   onRoutines(): void
   /** Player clicked an interactive object in the ground-floor house. */
   onHomeAction(action: HomeAction): void
+  /** Player clicked Luna's tag/bubble in the house: open her conversation and the review of the day. */
+  onLunaReview(): void
   /** The floor has more squads than rooms (or a composition that does not fit): the user has to know. */
-  onIncompatible?(
-    project: ProjectFloor,
-    issues: { code: string; name: string; reason: string; unplaced?: string[] }[],
-  ): void
+  onIncompatible?(project: ProjectFloor, issues: { code: string; name: string; reason: string; unplaced?: string[] }[]): void
   /** The player clicked a squad room: an empty room proposes a squad, a room with one opens its squad. */
   onRoomClick?(project: ProjectFloor, room: L.SquadRoom): void
   /** The player clicked the meeting-room label on a project floor. */
   onMeetingRoomClick?(project: ProjectFloor): void
 }
 
-/** Entry-hall tile reserved for the existing agent-routine scheduler totem. */
-export const TOTEM_TILE: [number, number] = [16, 8]
-/** Floor spot by the boss office where the skeleton stands. */
-export const SKULL_HOME = { x: 2.5, y: 0, z: 12.3 }
+/** Entry-hall tile reserved for the existing agent-routine scheduler totem, west of the hall runner. */
+export const TOTEM_TILE: [number, number] = [10, 8]
+/** Office spot beside the Claude FM TV where the skeleton stands. */
+export const SKULL_HOME = { x: 5.85, y: 0, z: 0.9 }
 /** Seconds the camera gets to reach a dismissed agent before the skull drops. */
 export const STRIKE_AFTER_S = 0.6
 /** An idle agent waits at its desk this long before wandering off to the lounge. */
@@ -185,7 +186,14 @@ export const MEMBER_MIN_S = 5
 /** Whatever happens, a member leaves the floor this long after its work ends. */
 export const MEMBER_EXIT_S = 40
 export const OVERFLOW_TILES: [number, number][] = [
-  [29, 9], [30, 9], [29, 10], [30, 10], [28, 9], [28, 10], [31, 9], [31, 10],
+  [29, 9],
+  [30, 9],
+  [29, 10],
+  [30, 10],
+  [28, 9],
+  [28, 10],
+  [31, 9],
+  [31, 10],
 ]
 export const center = ([x, z]: [number, number]) => ({ x: x + 0.5, z: z + 0.5 })
 export const clip = (text: string, n: number) => (text.length > n ? text.slice(0, n - 1) + '…' : text)

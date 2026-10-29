@@ -80,6 +80,7 @@ const api: OfficeAPI = {
   resumePersonalRoutineOccurrence: (occurrenceId) => ipcRenderer.invoke('office:resumePersonalRoutineOccurrence', occurrenceId),
   openPersonalRoutines: () => ipcRenderer.invoke('office:openPersonalRoutines'),
   readAgenda: () => ipcRenderer.invoke('office:readAgenda'),
+  readAgendaForDate: (date: string) => ipcRenderer.invoke('office:readAgendaForDate', date),
   focusTask: (line) => ipcRenderer.invoke('office:focusTask', line),
   unfocusTask: (id) => ipcRenderer.invoke('office:unfocusTask', id),
   saveStep: (id, text) => ipcRenderer.invoke('office:saveStep', id, text),
@@ -97,8 +98,9 @@ const api: OfficeAPI = {
   getLog: (id) => ipcRenderer.invoke('office:getLog', id),
   getSubagentLog: (agentId, subId) => ipcRenderer.invoke('office:getSubagentLog', agentId, subId),
   hire: (req) => ipcRenderer.invoke('office:hire', req),
-  summon: (cwd, mode, brain, worktree, confirmOverride, engine) =>
-    ipcRenderer.invoke('office:summon', cwd, mode, brain, worktree, confirmOverride, engine),
+  summon: (cwd, mode, brain, worktree, confirmOverride, engine, homeResident) =>
+    ipcRenderer.invoke('office:summon', cwd, mode, brain, worktree, confirmOverride, engine, homeResident),
+  setHomeResident: (id, resident) => ipcRenderer.invoke('office:setHomeResident', id, resident),
   isGitRepo: (cwd) => ipcRenderer.invoke('office:isGitRepo', cwd),
   prepareFire: (id) => ipcRenderer.invoke('office:prepareFire', id),
   resultDiff: (id, path) => ipcRenderer.invoke('office:resultDiff', id, path),
