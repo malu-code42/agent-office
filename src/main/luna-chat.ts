@@ -11,7 +11,6 @@ export interface LunaDesk {
 }
 
 export interface LunaChatHost {
-  confirmContext(preview: IrisPreview): Promise<boolean>
   log(kind: LogEntry['kind'], text: string): void
   status(status: AgentStatus, activity: string): void
   startProfileTask(profile: ProfileId, request: string): Promise<void>
@@ -19,7 +18,7 @@ export interface LunaChatHost {
   transcribeAudio(attachment: AttachmentInput, caption: string): Promise<void>
 }
 
-/** Routes the normal Luna chat through the approved local-data preview before any Claude request. */
+/** Routes normal Luna chat through locally prepared context and sends it to Claude without an intermediate approval. */
 export class LunaChat {
   private readonly queue: {
     request: string
@@ -36,10 +35,12 @@ export class LunaChat {
   ) {}
 
   send(request: string, attachments: AttachmentInput[] = []): Promise<void> {
-    const done = new Promise<void>((resolve) => this.queue.push({ request, attachments, resolve: () => resolve() }))
+    const done = new Promise<TelegramAudioDisposition>((resolve) => this.queue.push({ request, attachments, resolve }))
     if (!this.running) this.host.status('working', 'Preparando seu pedido')
     void this.drain()
-    return done
+    return done.then((disposition) => {
+      if (disposition !== 'complete') throw new Error('A Luna não conseguiu concluir esse pedido. Tente novamente.')
+    })
   }
 
   /** Direct subflow used by an approved audio group; bypasses the current chat queue item that invoked it. */
@@ -97,13 +98,6 @@ export class LunaChat {
     let preview: IrisPreview | undefined
     try {
       preview = this.desk.prepare(this.vault(), request, captureId)
-      this.host.status('waiting', 'Aguardando sua aprovação para enviar contexto')
-      if (!(await this.host.confirmContext(preview))) {
-        this.desk.cancel(preview.token)
-        this.host.log('assistant', 'Envio cancelado. Nenhum dado foi enviado.')
-        return false
-      }
-
       this.host.status('working', 'A Luna está pensando…')
       await this.present(await this.desk.send(preview.token), request)
       return true

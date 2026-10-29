@@ -22,10 +22,10 @@ import { openTasksBoard } from './ui/tasks-board'
 import { openFocusPopup } from './ui/focus-popup'
 import { openTimerPopup } from './ui/timer-popup'
 import { openProposalReview } from './ui/proposals'
-import type { ReviewView } from '@shared/review'
 import { reviewMayShow, todayKey } from '@shared/review'
-import type { StudyCycleState } from '@shared/study-cycle'
-import { reviewChat } from './ui/review-chat'
+import { openReviewWizard } from './ui/review'
+import { openLunaSettings } from './ui/luna-settings'
+import { openLunaPlan } from './ui/luna-plan'
 import { profileById } from '@shared/profiles'
 import { LUNA_AGENT_ID } from '@shared/luna'
 import { startLunaProfileTask } from './ui/luna-actions'
@@ -234,9 +234,9 @@ async function boot(): Promise<void> {
     onHomeAction: (action) => {
       if (action === 'agenda') openAgenda(ui)
       else if (action === 'goals') openGoals(ui, toast)
-      else if (action === 'books') void openMediaLibrary(ui, toast, 'livro')
-      else if (action === 'films') void openMediaLibrary(ui, toast, 'filme')
-      else if (action === 'games') void openMediaLibrary(ui, toast, 'jogo')
+      else if (action === 'books') void openMediaLibrary(ui, toast, 'livro', true)
+      else if (action === 'films') void openMediaLibrary(ui, toast, 'filme', true)
+      else if (action === 'games') void openMediaLibrary(ui, toast, 'jogo', true)
       else if (action === 'writing') openWritingLibrary(ui, toast)
       else if (action === 'personal-routines') void openPersonalRoutinesPanel(ui, toast)
       else if (action === 'radio') void radio.toggle()
@@ -268,36 +268,11 @@ async function boot(): Promise<void> {
   const showAgent = async (id: string, helper?: string | null): Promise<void> => {
     game.clearFailureMarks(id)
     await panel.open(id, helper ?? null)
-    if (id === LUNA_AGENT_ID && reviewMayShow(state.reviewDue, state.reviewDraft, state.reviewNextDay, todayKey())) await seedLunaReview()
   }
 
-  /** Semeia os cartões da revisão no feed da Luna (não aplica nada antes da confirmação). */
-  async function seedLunaReview(): Promise<void> {
-    let view: ReviewView
-    let studyCycle: StudyCycleState | null
-    try {
-      ;[view, studyCycle] = await Promise.all([window.office.openReview(), window.office.readStudyCycle().catch(() => null)])
-    } catch (err) {
-      toast(cleanError(err), 'err')
-      return
-    }
-    panel.seedReview([
-      reviewChat(view, {
-        toast,
-        onConfirmed: () => void panel.seedReview([]),
-        onPostponed: () => void panel.seedReview([]),
-        onClose: () => void panel.seedReview([]),
-        studyCycle,
-      }),
-    ])
-  }
-
-  /** Abre a conversa normal da Luna e, quando há uma revisão pendente, semeia seus cartões no feed dela.
-   *  Respeita a data de retorno do adiamento/dispensar: não reabre nem confirma antes dela. */
+  /** Abre a revisão diária explícita sem depender da oferta automática ou de a revisão estar vencida. */
   async function openLunaReview(): Promise<void> {
-    if (!reviewMayShow(state.reviewDue, state.reviewDraft, state.reviewNextDay, todayKey())) return
-    await panel.open(LUNA_AGENT_ID)
-    await seedLunaReview()
+    await openReviewWizard(ui, toast)
   }
 
   const hud = new Hud(
@@ -324,6 +299,7 @@ async function boot(): Promise<void> {
       openProposal: (id) => void openProposalReview(ui, toast, id),
       review: () => void openLunaReview(),
       focus: () => void openFocusPopup(ui, state, toast),
+      tasks: () => void openTasksBoard(ui, state, toast),
       timer: () => void openTimerPopup(ui, state, toast),
       board: (ticketId) => {
         if (ticketId) board.open(ticketId)
@@ -353,6 +329,9 @@ async function boot(): Promise<void> {
     openResult: (id, entry) => dialog.showEntry(id, entry),
     focusCard: () => dialog.focus(),
     chooseAccount: (id, limit) => dialog.chooseAccount(id, limit),
+    openLunaReview: () => void openLunaReview(),
+    openLunaSettings: () => openLunaSettings(ui, state.settings, toast),
+    openLunaPlan: () => void openLunaPlan(ui, state, toast),
   })
 
   const dialog = new Dialog(ui, state, {
@@ -650,10 +629,7 @@ async function boot(): Promise<void> {
     setTimeout(tryTour, 1500)
   }
 
-  // A revisão do dia não abre mais sozinha (AO-12 / rodada 5 §9.1). Na primeira entrada do dia, quando a
-  // revisão está devida, a Luna sinaliza com um aviso com a ação "Abrir conversa"; nada é aberto
-  // automaticamente. Clicar no aviso (ou retomar o rascunho na caixa de entrada) abre a revisão, que
-  // segue na conversa da Luna e só aplica depois de "Confirmar N alterações".
+  // A revisão do dia não abre sozinha: na primeira entrada do dia a Luna sinaliza com uma ação explícita.
   if (!headless) {
     const tryReview = () => {
       if (tour.showing || tourBlocked()) return setTimeout(tryReview, 1000)
@@ -662,11 +638,7 @@ async function boot(): Promise<void> {
         .then((due) => {
           state.reviewDue = due
           if (reviewMayShow(due, state.reviewDraft, state.reviewNextDay, todayKey()))
-            toast(
-              'A Luna quer revisar o seu dia com você.',
-              'info',
-              { label: 'Abrir conversa', run: () => void openLunaReview() },
-            )
+            toast('A Luna quer revisar o seu dia com você.', 'info', { label: 'Revisar agora', run: () => void openLunaReview() })
         })
         .catch((err) => toast(cleanError(err), 'err'))
     }

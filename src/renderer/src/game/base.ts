@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import type { AgentSummary } from '@shared/types'
+import { LUNA_AGENT_ID } from '@shared/luna'
 import type { State } from '../state'
 import { Avatar, type Uniform } from '../world/avatar'
 import { Engine } from '../world/engine'
@@ -75,6 +76,9 @@ export abstract class GameBase {
   protected totem: { view: Totem; tag: Tag }
   /** Luna's name tag in the house: shows the review-of-the-day bubble when due. */
   protected lunaTag: Tag | null = null
+  private lunaLookKey = ''
+  /** Tags anchored to the Casa scene are separate from the three.js floor group. */
+  protected homeSceneTags: Tag[] = []
   /** Seconds until the totem's text is worked out again (at most once a second). */
   protected totemIn = 0
   /** Agents picked at the skull, waiting for the camera (or the elevator) before the strike. */
@@ -176,6 +180,7 @@ export abstract class GameBase {
       this.office.group.add(anchor)
       const onClick = item.label === 'Luna' ? () => hooks.onLunaReview() : item.action ? () => hooks.onHomeAction(item.action!) : undefined
       const tag = this.overlays.add(new Tag(anchor, item.label, false, onClick))
+      this.homeSceneTags.push(tag)
       if (item.action) tag.el.title = `Abrir ${item.label}`
       if (item.label === 'Luna') this.lunaTag = tag
     }
@@ -184,6 +189,14 @@ export abstract class GameBase {
   }
 
   private updateLunaReviewBubble(): void {
+    const luna = this.state.agents.get(LUNA_AGENT_ID)
+    if (luna) {
+      const key = JSON.stringify(luna.look)
+      if (key !== this.lunaLookKey) {
+        this.office.luna.setLook(luna.look)
+        this.lunaLookKey = key
+      }
+    }
     if (!this.lunaTag) return
     if (this.state.reviewDue) this.lunaTag.setBubble('! Revisão do dia', 'wait')
     else this.lunaTag.setBubble(null, 'wait')

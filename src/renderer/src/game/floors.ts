@@ -253,6 +253,7 @@ export abstract class GameFloors extends GameBase {
     const view = this.player.floor
     this.office.group.visible = view === 0
     this.overlays.floor = view
+    for (const tag of this.homeSceneTags) tag.hidden = view !== 0
     for (const a of this.actors.values()) {
       const here = a.avatar.floor === view
       a.avatar.root.visible = here

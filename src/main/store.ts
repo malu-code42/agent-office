@@ -7,7 +7,7 @@ import { floorNameFor } from '@shared/projects'
 import { MAIN_ACCOUNT } from '@shared/accounts'
 import { DEFAULT_VIDEO } from '@shared/video'
 import { mainAccount } from './accounts'
-import { loadTemplates } from './templates'
+import { cleanLook, loadTemplates } from './templates'
 import type { SessionMark } from './ledger'
 import { backupCopies, shapeOf } from './backups'
 import { loadJson, reportLoad, writeJsonAtomic } from './fs-safe'
@@ -37,6 +37,9 @@ const DEFAULT_SETTINGS: Settings = {
   defaultModel: '',
   defaultEngine: 'claude',
   defaultEffort: '',
+  lunaModel: '',
+  lunaEffort: '',
+  lunaLook: lookFromSeed('agent-office:luna'),
   defaultPermissionMode: 'default',
   notifications: true,
   bridgePort: 47821,
@@ -76,6 +79,7 @@ function migrateSettings(raw: Record<string, unknown> | undefined): Settings {
   if (!Array.isArray(settings.defaultAccounts)) settings.defaultAccounts = []
   // Older files have no Vídeo section; a bad value falls back to the default.
   settings.video = cleanVideo(settings.video, DEFAULT_VIDEO)
+  settings.lunaLook = cleanLook(settings.lunaLook) ?? lookFromSeed('agent-office:luna')
   if (!('projects' in rest) && typeof squadFolder === 'string' && squadFolder) {
     const name = typeof squadFloorName === 'string' && squadFloorName.trim() ? squadFloorName.trim() : floorNameFor(squadFolder)
     settings.projects = [{ id: 'p1', name, cwd: squadFolder }]

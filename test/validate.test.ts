@@ -77,6 +77,9 @@ const settings = (): Settings => ({
   defaultModel: '',
   defaultEngine: 'claude',
   defaultEffort: '',
+  lunaModel: '',
+  lunaEffort: '',
+  lunaLook: { skin: '#f6d3b3', hair: '#2b1d16', hairStyle: 1, shirt: '#4a8fe0', pants: '#2f3b5c', shoes: '#1e1e24' },
   defaultPermissionMode: 'default',
   notifications: true,
   bridgePort: 47821,
@@ -562,6 +565,13 @@ describe('cleanSettings', () => {
     expect(out.playerName).toBe('Você')
     expect(out.defaultModel).toBe('')
     expect(out.defaultEffort).toBe('')
+  })
+  it('preferências da Luna são validadas e não modificam os padrões globais', () => {
+    const cur = { ...settings(), defaultModel: 'opus', defaultEffort: 'high' as const }
+    const lunaLook = { ...cur.lunaLook, shirt: '#222222' }
+    const out = cleanSettings({ lunaModel: 'sonnet', lunaEffort: 'low', lunaLook }, cur)
+    expect(out).toMatchObject({ defaultModel: 'opus', defaultEffort: 'high', lunaModel: 'sonnet', lunaEffort: 'low', lunaLook })
+    expect(cleanSettings({ lunaModel: 'invalid model', lunaEffort: 'bogus' }, cur)).toMatchObject({ lunaModel: '', lunaEffort: '' })
   })
   it('contas, contas padrão e andares passam pelos limpadores', () => {
     const out = cleanSettings(

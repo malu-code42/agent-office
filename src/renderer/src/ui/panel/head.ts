@@ -209,7 +209,29 @@ export abstract class PanelHead extends PanelSearch {
         'div',
         { class: 'ab-more' },
         led,
-        h('p', { class: 'field-hint' }, 'Coordenadora local. Confira e aprove o contexto antes de qualquer envio ao Claude.'),
+        h('p', { class: 'field-hint' }, 'Coordenadora local. O contexto é preparado no dispositivo e enviado ao Claude para responder.'),
+        h(
+          'div',
+          { class: 'ab-stamps' },
+          h(
+            'span',
+            { class: 'ab-stamp', title: a.model ?? 'Modelo padrão do Claude' },
+            icon('cpu', 12),
+            a.model ? modelLabel(a.model) : 'modelo padrão',
+          ),
+          h('span', { class: 'ab-stamp', title: 'Esforço' }, icon('gauge', 12), a.effort ?? 'esforço padrão'),
+        ),
+        h(
+          'div',
+          { class: 'ab-foot' },
+          h(
+            'button',
+            { class: 'btn btn-small btn-primary', type: 'button', onclick: () => this.actions.openLunaReview() },
+            'Revisão do dia',
+          ),
+          h('button', { class: 'btn btn-small', type: 'button', onclick: () => this.actions.openLunaPlan() }, 'Planejar amanhã'),
+          h('button', { class: 'btn btn-small', type: 'button', onclick: () => this.actions.openLunaSettings() }, 'Preferências'),
+        ),
       )
     const effort = a.effort ? (EFFORTS.find((e) => e.value === a.effort)?.label.toLowerCase() ?? a.effort) : null
     return h(

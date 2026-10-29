@@ -12,6 +12,7 @@ import type {
   SquadInfo,
   SquadProgress,
   SubagentInfo,
+  Settings,
   WorktreeInfo,
 } from '@shared/types'
 import { lookFromSeed } from '@shared/describe'
@@ -32,6 +33,16 @@ export abstract class AgentOffice extends AgentBase {
 
   setBuiltInMessageHandler(handler: (id: string, text: string, attachments: AttachmentInput[]) => void | Promise<void>): void {
     this.builtInMessageHandler = handler
+  }
+
+  /** Updates only the fixed Luna's personal preferences; office defaults remain untouched. */
+  setLunaPreferences(settings: Pick<Settings, 'lunaLook' | 'lunaModel' | 'lunaEffort'>): void {
+    const agent = this.agents.get('agent-office:luna')
+    if (!agent?.summary.builtIn) return
+    agent.summary.look = settings.lunaLook
+    agent.summary.model = settings.lunaModel || undefined
+    agent.summary.effort = settings.lunaEffort || undefined
+    this.upsert(agent)
   }
 
   appendBuiltInLog(id: string, kind: LogEntry['kind'], text: string): void {
@@ -374,7 +385,7 @@ export abstract class AgentOffice extends AgentBase {
   }
 
   /** Throws, before anything is sent, when an attachment can't go. */
-  sendMessage(id: string, text: string, display?: string, attachments: AttachmentInput[] = []): void {
+  sendMessage(id: string, text: string, display?: string, attachments: AttachmentInput[] = []): void | Promise<void> {
     const agent = this.agents.get(id)
     if (!agent || agent.summary.source !== 'office' || agent.summary.departed || agent.demo) return
     if (agent.summary.builtIn === 'luna') {
@@ -390,13 +401,12 @@ export abstract class AgentOffice extends AgentBase {
       if (!this.builtInMessageHandler) {
         this.addLog(agent, 'error', 'A conversa com Luna não está disponível agora. Tente novamente.')
         this.setStatus(agent, 'idle', 'Pronta para ajudar')
-        return
+        return Promise.reject(new Error('A conversa com Luna não está disponível agora. Tente novamente.'))
       }
-      void Promise.resolve(this.builtInMessageHandler(id, text, attachments)).catch(() => {
-        this.addLog(agent, 'error', 'A Luna não conseguiu concluir esse pedido. Tente novamente.')
+      return Promise.resolve(this.builtInMessageHandler(id, text, attachments)).catch((error: unknown) => {
         if (!this.pendingRequests().some((request) => request.agentId === id)) this.setStatus(agent, 'idle', 'Pronta para ajudar')
+        throw error
       })
-      return
     }
     if (agent.summary.engine === 'opencode') throw new Error('Este é um registro histórico OpenCode, disponível somente para consulta.')
     if (agent.summary.quotaPaused)

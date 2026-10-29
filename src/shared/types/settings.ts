@@ -20,6 +20,10 @@ export interface Settings {
   defaultEngine: 'claude'
   /** '' = the model's default effort. */
   defaultEffort: EffortLevel | ''
+  /** Luna-only preferences; empty model/effort use Claude's default, never office defaults. */
+  lunaModel: string
+  lunaEffort: EffortLevel | ''
+  lunaLook: Look
   defaultPermissionMode: OfficePermissionMode
   notifications: boolean
   bridgePort: number

@@ -41,6 +41,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.brand-tasks {
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+  margin-left: 8px;
+}
+
 .brand-stats {
   margin-top: 2px;
   color: var(--muted);

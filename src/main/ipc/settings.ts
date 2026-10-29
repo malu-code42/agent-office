@@ -104,6 +104,7 @@ export function registerSettingsIpc(ctx: IpcContext): void {
       throw new Error('Configurações não salvas.')
     // Templates change only through saveTemplate/deleteTemplate; a removed floor turns its templates global.
     store.settings = { ...cleaned, templates: loadTemplates(store.settings.templates, cleaned.projects) }
+    manager.setLunaPreferences(store.settings)
     const { projects, ticketAutoCloseDays } = store.settings
     broadcast({ type: 'settings', settings: store.settings })
     if (ticketAutoCloseDays !== days) board.autoClose(ticketAutoCloseDays)
