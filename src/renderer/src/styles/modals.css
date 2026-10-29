@@ -26,6 +26,12 @@
   animation: rise-modal 0.2s ease-out;
 }
 
+/* Agenda e Rotinas pessoais usam uma janela larga para caber a linha do tempo e a grade de cartões. */
+.modal.modal-wide {
+  width: min(1080px, calc(100vw - 32px));
+  max-height: calc(100vh - 60px);
+}
+
 @keyframes rise-modal {
   from {
     transform: translateY(10px);

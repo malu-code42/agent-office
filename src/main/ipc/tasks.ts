@@ -600,6 +600,26 @@ export function registerTasksIpc(ctx: IpcContext): void {
     )
   })
 
+  // Lê a agenda da semana que contém `date` (AAAA-MM-DD), para navegação entre semanas.
+  ipcMain.handle('office:readAgendaForDate', async (_e, raw: unknown) => {
+    const date = parse(
+      z.string().refine((d) => {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false
+        const parsed = new Date(`${d}T00:00:00Z`)
+        return !isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === d
+      }, 'Dia inválido.'),
+      raw,
+      'Dia inválido.',
+    )
+    const path = requireVault()
+    return buildAgendaView(
+      readOptionalFile(path, 'agenda.md'),
+      readOptionalFile(path, 'tarefas.md') ?? '',
+      new Date(`${date}T12:00:00`),
+      readOptionalFile(path, 'aulas.md'),
+    )
+  })
+
   ipcMain.handle('office:focusTask', async (_e, line: unknown) => {
     const input = parse(taskLineSchema, line, 'Tarefa inválida.')
     const path = requireVault()

@@ -4,8 +4,9 @@ import { join } from 'node:path'
 import type { OfficeState } from '@shared/types'
 import { dataNotices } from '../fs-safe'
 import { diagnostics, rendererError } from '../crash'
+import { dayKey } from '../backups'
 import { logDir } from '../log'
-import { hasDraftToday } from '../review'
+import { hasDraftToday, offerDue } from '../review'
 import { cleanLedgerQuery, externalUrlSchema, parse, pathSchema, copyTextSchema, markdownFileName, saveMarkdownArgsSchema } from '../validate'
 import { type IpcContext } from './context'
 
@@ -60,6 +61,8 @@ export function registerAppIpc(ctx: IpcContext): void {
     macJobs: macJobs.list(),
     proposals: ctx.planning.pendingProposals(),
     reviewDraft: hasDraftToday(ctx.planning, new Date()),
+    reviewDue: offerDue(ctx.planning, dayKey()),
+    reviewNextDay: ctx.planning.reviewNextDay() ?? null,
     focusCount: ctx.planning.focus().length,
     barTimer: ctx.barTimer.view() ?? null,
     forceTour: process.env.AGENT_OFFICE_TOUR === '1',

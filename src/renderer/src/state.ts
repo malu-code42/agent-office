@@ -24,6 +24,13 @@ import type { Proposal } from '@shared/proposals'
 import type { BarTimerView } from '@shared/barTimer'
 import { setBarTimerView } from './ui/timer-state'
 
+declare const window: {
+  office: {
+    getLog: (id: string) => Promise<LogEntry[]>
+    getSubagentLog: (agentId: string, subId: string) => Promise<LogEntry[]>
+  }
+}
+
 type Listener = () => void
 
 /** Same cap as the main process keeps per subagent. */
@@ -62,6 +69,10 @@ export class State {
   proposals: Proposal[]
   /** A review of today was started and not confirmed: the caixa de entrada offers to resume it. */
   reviewDraft: boolean
+  /** The review of today is due (offer pending): the bubble, toast, inbox line and roster dot show it. */
+  reviewDue: boolean
+  /** Primeiro dia em que a oferta/rascunho da revisão pode ser mostrada de novo (AAAA-MM-DD), ou null. */
+  reviewNextDay: string | null
   /** How many tasks are in the focus ("Tarefas em foco"): the dock shows this count. */
   focusCount: number
   /** The Timer of the bar as it reads now, or null when it is stopped (the dock shows it). */
@@ -90,6 +101,8 @@ export class State {
     this.macJobs = initial.macJobs ?? []
     this.proposals = initial.proposals ?? []
     this.reviewDraft = initial.reviewDraft ?? false
+    this.reviewDue = initial.reviewDue ?? false
+    this.reviewNextDay = initial.reviewNextDay ?? null
     this.focusCount = initial.focusCount ?? 0
     this.barTimer = initial.barTimer ?? null
   }
@@ -209,6 +222,12 @@ export class State {
       case 'review:draft':
         this.reviewDraft = e.draft
         break
+      case 'review:due':
+        this.reviewDue = e.due
+        break
+      case 'review:nextDay':
+        this.reviewNextDay = e.nextDay ?? null
+        break
       case 'focus:count':
         this.focusCount = e.count
         break
@@ -226,9 +245,9 @@ export class State {
     let log = this.logs.get(agentId)
     if (!log) {
       log = await window.office.getLog(agentId)
-      this.logs.set(agentId, log)
+      this.logs.set(agentId, log as LogEntry[])
     }
-    return log
+    return log as LogEntry[]
   }
 
   /** The log of one subagent; fetched once, then kept up to date by agent:sublog. */
@@ -237,9 +256,9 @@ export class State {
     let log = this.subLogs.get(key)
     if (!log) {
       log = await window.office.getSubagentLog(agentId, subId)
-      this.subLogs.set(key, log)
+      this.subLogs.set(key, log as LogEntry[])
     }
-    return log
+    return log as LogEntry[]
   }
 
   /** Pending items for an agent, permission requests first. */

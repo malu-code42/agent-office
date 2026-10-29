@@ -1,102 +1,171 @@
+/* Objetivos somente leitura (AO-93 / rodada 5): Em andamento / Alcançados, sem vincular tarefa, concluir ou criar. */
+
 .goals-content {
-  display: grid;
-  gap: 16px;
-}
-
-.goal-list {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
+  max-height: 65vh;
+  overflow-y: auto;
 }
 
-.goal-card,
-.goal-create {
-  display: grid;
+.tl-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 20px;
+  color: var(--muted);
+  text-align: center;
+  font-size: 13.5px;
+}
+
+.tl-empty b {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.agenda-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agenda-list {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--card-solid);
-}
-
-.goal-card h3,
-.goal-create h3 {
+  list-style: none;
   margin: 0;
-  font-size: 14px;
+  padding: 0;
 }
 
-.goal-card-head,
-.goal-progress-line,
-.goal-link-row {
+.tl-goal {
+  align-items: flex-start;
+  font-size: 13.5px;
+  gap: 6px;
+  display: flex;
+}
+
+.tl-goal-when {
+  min-width: 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tl-goal-when .agenda-time {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.tl-entry-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tl-row {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.goal-card-head h3,
-.goal-progress-line > :first-child {
+.tl-row > b {
   flex: 1;
 }
 
-.goal-state {
-  color: var(--muted);
-  font-size: 11px;
+.tl-state {
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
-.goal-state-done {
-  color: var(--accent-solid);
+.tl-state-open {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
 }
 
-.goal-target,
-.goal-deadline,
-.goal-progress-line,
-.goal-linked p {
+.tl-state-done {
+  background: rgba(91, 156, 240, 0.18);
+  color: #b9d4ff;
+}
+
+.tl-sub {
   margin: 0;
   color: var(--muted);
   font-size: 12px;
 }
 
-.goal-progress-line {
-  justify-content: space-between;
-  padding: 7px 9px;
-  border-radius: 6px;
-  background: var(--bg);
+.tl-prog {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  margin-top: 4px;
+  width: 100%;
 }
 
-.goal-milestones,
-.goal-linked ul {
-  display: grid;
-  gap: 6px;
-  margin: 0;
+.tl-prog i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.tl-marcos {
+  margin: 4px 0 0;
   padding: 0;
   list-style: none;
-}
-
-.goal-milestone {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  color: var(--text);
-  font-size: 12px;
-}
-
-.goal-milestone input {
-  margin: 2px 0 0;
-}
-
-.goal-linked {
-  display: grid;
+  flex-wrap: wrap;
   gap: 6px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
-  font-size: 12px;
+  font-size: 12.5px;
+  color: var(--muted);
 }
 
-.goal-task-select {
-  min-width: 0;
-  flex: 1;
+.tl-marcos li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px 2px 4px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
 }
 
-.goal-create textarea {
-  min-height: 76px;
-  resize: vertical;
+.tl-marcos li.ok {
+  color: var(--text);
+}
+
+/* uma marca, não uma caixa de marcar: redonda, para não ler como um controle editável */
+.tl-mk {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px solid var(--dim);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: #062417;
+}
+
+.tl-marcos li.ok .tl-mk {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.tl-foot-hint {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* Texto apenas para leitores de tela. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
