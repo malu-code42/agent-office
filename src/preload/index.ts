@@ -97,8 +97,9 @@ const api: OfficeAPI = {
   getLog: (id) => ipcRenderer.invoke('office:getLog', id),
   getSubagentLog: (agentId, subId) => ipcRenderer.invoke('office:getSubagentLog', agentId, subId),
   hire: (req) => ipcRenderer.invoke('office:hire', req),
-  summon: (cwd, mode, brain, worktree, confirmOverride, engine) =>
-    ipcRenderer.invoke('office:summon', cwd, mode, brain, worktree, confirmOverride, engine),
+  summon: (cwd, mode, brain, worktree, confirmOverride, engine, homeResident) =>
+    ipcRenderer.invoke('office:summon', cwd, mode, brain, worktree, confirmOverride, engine, homeResident),
+  setHomeResident: (id, resident) => ipcRenderer.invoke('office:setHomeResident', id, resident),
   isGitRepo: (cwd) => ipcRenderer.invoke('office:isGitRepo', cwd),
   prepareFire: (id) => ipcRenderer.invoke('office:prepareFire', id),
   resultDiff: (id, path) => ipcRenderer.invoke('office:resultDiff', id, path),

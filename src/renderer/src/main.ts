@@ -139,12 +139,22 @@ async function boot(): Promise<void> {
     })
     if (choice?.kind !== 'summon') return
     try {
-      const a = await window.office.summon(choice.cwd, choice.permissionMode, choice.brain, choice.worktree)
+      const a = await window.office.summon(
+        choice.cwd,
+        choice.permissionMode,
+        choice.brain,
+        choice.worktree,
+        undefined,
+        undefined,
+        choice.homeResident,
+      )
       const floor = state.settings.projects.find((p) => p.id === a.project)
       toast(
-        floor && floor !== project
-          ? `${a.name} está subindo para o andar ${floor.name}. Diga o que fazer.`
-          : `${a.name} chegou. Diga o que fazer.`,
+        a.homeResident
+          ? `${a.name} está chegando à Casa. Diga o que fazer.`
+          : floor && floor !== project
+            ? `${a.name} está subindo para o andar ${floor.name}. Diga o que fazer.`
+            : `${a.name} chegou. Diga o que fazer.`,
         'ok',
       )
       showAgent(a.id).then(() => panel.focusInput())

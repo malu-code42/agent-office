@@ -437,7 +437,10 @@ export interface OfficeAPI {
     worktree?: boolean,
     confirmPermissionOverride?: boolean,
     engine?: 'claude',
+    homeResident?: boolean,
   ): Promise<AgentSummary>
+  /** Ends only an agent's presence at the house; its session and history remain untouched. */
+  setHomeResident(agentId: string, resident: boolean): Promise<void>
   send(agentId: string, text: string, attachments?: AttachmentInput[]): Promise<void>
   /** Disk path of a picked or dropped file; '' for pasted data. */
   pathForFile(file: File): string
@@ -533,7 +536,14 @@ export interface OfficeAPI {
     confirmPermissionOverride?: boolean,
   ): Promise<AgentSummary>
   /** Proposes a squad for an empty room: the model plans the team, nothing is written yet. */
-  proposeSquad(input: { id: string; projectId: string; room: number; brief: string; ticketIds: string[]; members?: SquadProposalMember[] }): Promise<SquadProposal>
+  proposeSquad(input: {
+    id: string
+    projectId: string
+    room: number
+    brief: string
+    ticketIds: string[]
+    members?: SquadProposalMember[]
+  }): Promise<SquadProposal>
   /** Reads the local, user-authored orchestration state for one project floor. */
   getProjectWorkflow(projectId: string): Promise<ProjectWorkflow>
   saveProjectWorkflowGrill(projectId: string, goal: string, grill: string): Promise<ProjectWorkflow>

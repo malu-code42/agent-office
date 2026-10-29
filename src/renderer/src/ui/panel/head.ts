@@ -261,6 +261,18 @@ export abstract class PanelHead extends PanelSearch {
         'div',
         { class: 'ab-foot' },
         h('button', { class: 'btn btn-small', onclick: () => this.actions.goTo(a.id) }, icon('walk', 14), 'Ir até'),
+        a.homeResident
+          ? h(
+              'button',
+              {
+                class: 'btn btn-small',
+                title: 'Encerra somente a presença na Casa; a tarefa, sessão e histórico continuam.',
+                onclick: () => void this.releaseHome(a),
+              },
+              icon('walk', 14),
+              'Mandar embora da Casa',
+            )
+          : null,
         office
           ? h(
               'button',
@@ -352,5 +364,15 @@ export abstract class PanelHead extends PanelSearch {
     const note = await window.office.fire(a.id)
     if (note) this.actions.toast(note, 'info')
     this.close()
+  }
+
+  /** Leaves the session untouched: only the optional house-presence flag changes. */
+  protected async releaseHome(a: AgentSummary): Promise<void> {
+    try {
+      await window.office.setHomeResident(a.id, false)
+      this.actions.toast(`${a.name} vai embora da Casa. A tarefa e a sessão continuam.`, 'ok')
+    } catch (err) {
+      this.actions.toast(err instanceof Error ? err.message : String(err), 'err')
+    }
   }
 }
