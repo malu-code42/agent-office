@@ -6,6 +6,7 @@ import type { State } from '../../state'
 import { accountField } from '../accounts'
 import { h, icon } from '../dom'
 import { templatesTab } from '../templates'
+import { stayHomeByDefault } from '../../game/home-seats'
 import { cleanError, field, LAST_CWD, modal } from './common'
 import { brainFields, meterField, MODES } from './brain'
 
@@ -180,10 +181,11 @@ export function openNewAgent(
     mode.addEventListener('change', syncHint)
     syncHint()
     const homeResident = h('input', { type: 'checkbox', 'aria-label': 'Permanecer na Casa' }) as HTMLInputElement
+    homeResident.checked = stayHomeByDefault(project)
     const homeResidentField = field(
       'Presença na Casa',
       h('div', { class: 'check' }, homeResident, 'Permanecer na Casa'),
-      'O agente circula pelas áreas públicas até você mandar que vá embora. A tarefa e a sessão seguem normalmente.',
+      'O agente se senta à mesa da Luna e fica lá até você mandar que vá embora. A tarefa e a sessão seguem normalmente.',
     )
 
     let done = false

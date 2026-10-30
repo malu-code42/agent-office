@@ -6,7 +6,7 @@ import { box } from './kit'
 import { animated, mergeStatic } from './merge'
 import { WALL_H } from './layout'
 import { buildShell, type GroundFloor } from './office'
-import { HOME_INTERACTIONS, HOME_PARTITIONS, HOME_ROOMS, type HomeAction } from './home-layout'
+import { HOME_INTERACTIONS, HOME_PARTITIONS, HOME_ROOMS, HOME_TABLE_AT, HOME_TABLE_SEATS, LUNA_SEAT, type HomeAction } from './home-layout'
 import { Grid } from './pathfinding'
 import { homeBoardTexture, homeFloorTexture, rugTexture, WindowSky } from './textures'
 import { LoopScreen, arcadePainter } from './screens'
@@ -466,19 +466,12 @@ export function buildHome(): HomeFloor {
   }
   place(F.bookshelf(2, 1.9, 7), 1.5, 0.3)
   place(F.clock(), 9.4, 0.04, 0, 2.3)
-  const tableAt = { x: 5, z: 5.6 }
+  const tableAt = HOME_TABLE_AT
   rug(5.6, 5, tableAt.x, tableAt.z, '#eee0c4', '#85916a', '#d0a34f')
   place(roundDiningTable(), tableAt.x, tableAt.z)
   grid.blockRect(4, 5, 2, 2)
-  const radius = 1.85
-  const seats = [157.5, 202.5, 247.5, 292.5, 337.5, 22.5, 67.5, 112.5].map((degrees) => {
-    const angle = (degrees * Math.PI) / 180
-    const x = tableAt.x + Math.sin(angle) * radius
-    const z = tableAt.z + Math.cos(angle) * radius
-    const face = Math.atan2(tableAt.x - x, tableAt.z - z)
-    place(F.simpleChair('#c9a879'), x, z, face)
-    return { x, z, face }
-  })
+  const seats = HOME_TABLE_SEATS
+  for (const { x, z, face } of seats) place(F.simpleChair('#c9a879'), x, z, face)
   for (const index of [0, 1]) {
     const seat = seats[index]
     place(F.laptop(), seat.x + (tableAt.x - seat.x) * 0.4, seat.z + (tableAt.z - seat.z) * 0.4, seat.face + Math.PI, 0.78)
@@ -486,7 +479,7 @@ export function buildHome(): HomeFloor {
   const lunaLook: Look = { skin: '#edc2a1', hair: '#54392d', hairStyle: 1, shirt: '#347c7b', pants: '#3d4a6b', shoes: '#2d3436' }
   const luna = new Avatar(lunaLook, 'luna')
   animated(luna.root)
-  luna.placeAt(seats[1].x, seats[1].z)
+  luna.placeAt(seats[LUNA_SEAT].x, seats[LUNA_SEAT].z)
   luna.faceTowards(tableAt.x, tableAt.z)
   luna.pose = 'sit'
   group.add(luna.root)

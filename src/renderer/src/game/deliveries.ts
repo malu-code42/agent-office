@@ -73,7 +73,8 @@ export abstract class GameDeliveries extends GameLounge {
     } else if (a.status === 'working' || a.status === 'starting') {
       text = a.activity
     } else if (a.status === 'waiting') {
-      text = '! Indo até você'
+      // House residents wait at Luna's table: the user comes to them.
+      text = a.homeResident ? '! Esperando você' : '! Indo até você'
       kind = 'wait'
     }
     actor.tag.setBubble(text, kind)
