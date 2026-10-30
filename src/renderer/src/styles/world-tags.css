@@ -1,6 +1,6 @@
 /* the limit alarm's tag: red, pulsing with the beacon */
 .tag-alarm .tag-pill {
-  background: rgba(190, 24, 40, 0.92);
+  background: #8f1f2a;
   cursor: default;
   animation: alarm-pulse 0.5s ease-in-out infinite alternate;
 }
@@ -16,7 +16,7 @@
 
 /* the spending board's tag */
 .tag-money .tag-pill {
-  background: rgba(30, 24, 8, 0.88);
+  background: var(--warn-bg);
   color: #ffcf7a;
   font-variant-numeric: tabular-nums;
   cursor: default;
@@ -28,7 +28,7 @@
 
 /* what does not fit on the floor (more squads than rooms): the user has to know */
 .tag-issue .tag-pill {
-  background: rgba(60, 14, 20, 0.92);
+  background: var(--err-bg);
   color: var(--red-text);
   font-weight: 600;
   cursor: default;

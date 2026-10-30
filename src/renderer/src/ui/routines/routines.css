@@ -57,7 +57,6 @@
   gap: 8px;
   padding: 4px 6px 4px 0;
   border: 1px solid var(--line);
-  border-radius: 12px;
   background: rgba(255, 255, 255, 0.025);
 }
 
@@ -73,7 +72,6 @@
   gap: 10px;
   padding: 6px 4px 6px 12px;
   border: 0;
-  border-radius: 10px;
   background: none;
   color: inherit;
   font: inherit;
@@ -83,7 +81,7 @@
 
 .rt-item-main:hover,
 .rt-item-main:focus-visible {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--hover);
 }
 
 .rt-item-text {
@@ -133,7 +131,6 @@
   flex: none;
   width: 10px;
   height: 10px;
-  border-radius: 3px;
   background: #6b6a7d;
 }
 
@@ -177,7 +174,6 @@
   gap: 4px;
   padding: 12px;
   border: 1px dashed var(--line-strong);
-  border-radius: 12px;
   background: rgba(217, 119, 87, 0.06);
   color: inherit;
   font: inherit;
@@ -213,7 +209,6 @@
 
 .rt-prompt {
   padding: 10px 12px;
-  border-radius: 10px;
   background: rgba(0, 0, 0, 0.25);
   font-size: 13px;
   white-space: pre-wrap;
@@ -237,7 +232,6 @@
   gap: 4px;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 10px;
 }
 
 .rt-run-head {
@@ -353,7 +347,6 @@
   height: 30px;
   padding: 0 6px;
   border: 1px solid var(--line-strong);
-  border-radius: 8px;
   color: var(--muted);
   font-size: 12px;
 }
@@ -373,7 +366,6 @@
   flex-direction: column;
   gap: 4px;
   padding: 10px 12px;
-  border-radius: 10px;
   background: rgba(0, 0, 0, 0.22);
 }
 
@@ -381,6 +373,7 @@
   color: var(--dim);
   font-size: 11px;
   text-transform: uppercase;
+  font-family: var(--pixel);
   letter-spacing: 0.04em;
 }
 
@@ -426,7 +419,6 @@
 .rt-log {
   margin: 0;
   padding: 10px 12px;
-  border-radius: 10px;
   background: rgba(0, 0, 0, 0.35);
   color: var(--muted);
   font: 11.5px/1.45 var(--mono);

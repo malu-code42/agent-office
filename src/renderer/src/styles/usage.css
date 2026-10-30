@@ -17,9 +17,8 @@
 /* plan limits + system: a strip of chips that opens into a table (HUD style, like the agent badge) */
 .info {
   overflow: hidden;
-  border: 2px solid #2d2f4a;
-  border-radius: 8px;
-  background: rgba(16, 17, 27, 0.94);
+  border: 2px solid var(--outline);
+  background: var(--card);
 }
 
 .info-strip {
@@ -60,7 +59,6 @@
   align-items: center;
   gap: 5px;
   padding: 2px 6px;
-  border-radius: 4px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--text);
   font: 600 11px var(--mono);
@@ -84,7 +82,6 @@
 
 .info-stale {
   padding: 0 5px;
-  border-radius: 3px;
   background: rgba(245, 165, 36, 0.14);
   color: var(--amber-text);
   font: 700 10px/16px var(--mono);
@@ -92,7 +89,7 @@
 
 .info-body {
   padding: 10px 12px 12px;
-  border-top: 2px solid #2d2f4a;
+  border-top: 2px solid var(--outline);
 }
 
 .info-led {
@@ -101,7 +98,6 @@
   gap: 7px;
   padding: 4px 8px;
   border: 1px solid rgba(62, 207, 142, 0.15);
-  border-radius: 4px;
   background: #0b0c13;
   color: var(--green-text);
   font: 600 11px var(--mono);
@@ -150,6 +146,7 @@
   font: 700 11px var(--mono);
   letter-spacing: 0.12em;
   text-transform: uppercase;
+  font-family: var(--pixel);
 }
 
 .info-sp {
@@ -159,7 +156,6 @@
 .info-stale-tag {
   margin-left: 6px;
   padding: 1px 5px;
-  border-radius: 3px;
   background: rgba(245, 165, 36, 0.14);
   color: var(--amber-text);
   font-size: 10px;
@@ -233,6 +229,7 @@
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
+  font-family: var(--pixel);
 }
 
 .info-name-text {
@@ -244,7 +241,6 @@
 .info-agents {
   flex: none;
   padding: 0 4px;
-  border-radius: 3px;
   background: rgba(62, 207, 142, 0.14);
   color: var(--green-text);
   font-size: 10px;
@@ -253,7 +249,6 @@
 
 .info-flag {
   padding: 0 5px;
-  border-radius: 3px;
   background: rgba(245, 165, 36, 0.16);
   color: var(--amber-text);
   font-size: 10px;

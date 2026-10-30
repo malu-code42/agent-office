@@ -62,7 +62,6 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   border: 1px solid var(--line);
-  border-radius: 10px;
   background: rgba(0, 0, 0, 0.2);
   color: var(--text);
   font: 12px/1.55 var(--mono);
@@ -80,7 +79,6 @@
   min-height: 170px;
   resize: vertical;
   border: 1px solid var(--line-strong);
-  border-radius: 10px;
   padding: 10px 12px;
   background: rgba(0, 0, 0, 0.22);
   color: var(--text);

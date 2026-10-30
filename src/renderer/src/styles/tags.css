@@ -21,23 +21,23 @@
   width: max-content;
   max-width: 156px;
   padding: 5px 8px;
-  border-radius: 999px;
-  background: rgba(18, 18, 28, 0.82);
-  color: #fff;
+  border: 2px solid var(--outline);
+  background: var(--card);
+  color: var(--text);
   font-size: 11.5px;
   font-weight: 600;
   white-space: normal;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-sm);
   text-align: center;
   line-height: 1.2;
 }
 
 .tag-pill:hover {
-  background: rgba(40, 32, 80, 0.95);
+  background: var(--hover);
 }
 
 .tag-pill:focus-visible {
-  outline: 2px solid var(--accent-solid);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -71,13 +71,12 @@
   padding: 3px 6px;
   font-size: 9.5px;
   font-weight: 500;
-  background: rgba(40, 32, 80, 0.78);
-  color: #d9d2ff;
+  background: var(--surface-3);
+  color: var(--text);
 }
 
 .helpers {
   padding: 0 5px;
-  border-radius: 999px;
   background: rgba(130, 110, 255, 0.35);
   color: #d9d2ff;
   font-size: 10.5px;
@@ -85,7 +84,6 @@
 
 .tag-account {
   padding: 0 5px;
-  border-radius: 999px;
   background: color-mix(in srgb, var(--acct) 35%, transparent);
   color: color-mix(in srgb, var(--acct) 45%, #fff);
   font-size: 10px;
@@ -103,7 +101,7 @@
 }
 
 .tag-you .tag-pill {
-  background: rgba(18, 18, 28, 0.92);
+  background: var(--sunken);
   cursor: default;
 }
 
@@ -113,21 +111,20 @@
   position: relative;
   max-width: 170px;
   padding: 3px 8px;
-  border-radius: 7px;
-  background: #fff;
-  color: #1d1b26;
+  background: var(--inv-bg);
+  color: var(--inv-text);
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  border: 2px solid #1d1b26;
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
+  border: 2px solid var(--outline);
+  box-shadow: var(--shadow-sm);
   animation: pop 0.25s ease-out;
 }
 
 .bubble-work {
-  background: #ffffff;
+  background: var(--inv-bg);
   font-weight: 500;
 }
 
@@ -171,7 +168,6 @@
   left: 0;
   top: 0;
   padding: 3px 12px;
-  border-radius: 999px;
   background: rgba(255, 255, 255, 0.5);
   color: rgba(40, 36, 70, 0.75);
   font-size: 12px;
@@ -201,7 +197,6 @@
   display: inline-block;
   width: 8px;
   height: 8px;
-  border-radius: 50%;
   background: var(--dim);
   flex: none;
 }

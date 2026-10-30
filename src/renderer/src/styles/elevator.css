@@ -8,7 +8,6 @@
   flex-direction: column;
   gap: 2px;
   padding: 6px;
-  border-radius: 12px;
   min-width: 168px;
 }
 
@@ -17,6 +16,7 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  font-family: var(--pixel);
   color: var(--muted);
   padding: 2px 6px 4px;
 }
@@ -26,7 +26,6 @@
   align-items: center;
   gap: 8px;
   border: 0;
-  border-radius: 8px;
   background: transparent;
   color: var(--muted);
   padding: 6px;
@@ -36,19 +35,18 @@
 }
 
 .floor-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--hover);
   color: var(--text);
 }
 
 .floor-btn.on {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--hover);
   color: var(--text);
 }
 
 .floor-num {
   width: 22px;
   height: 22px;
-  border-radius: 50%;
   border: 1px solid var(--line);
   display: inline-flex;
   align-items: center;

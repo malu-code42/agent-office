@@ -27,6 +27,7 @@
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+  font-family: var(--pixel);
 }
 
 .resume-row {
@@ -34,11 +35,10 @@
   align-items: center;
   gap: 12px;
   padding: 9px 10px;
-  border-radius: 10px;
 }
 
 .resume-row:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--hover);
 }
 
 .resume-main {
@@ -71,7 +71,6 @@
 
 .resume-branch {
   padding: 0 5px;
-  border-radius: 5px;
   background: rgba(255, 255, 255, 0.07);
   font-family: var(--mono);
   font-size: 10.5px;

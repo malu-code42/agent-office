@@ -9,7 +9,6 @@
   align-items: center;
   gap: 4px;
   padding: 6px;
-  border-radius: 18px;
 }
 
 .dock-me {
@@ -18,7 +17,6 @@
   gap: 8px;
   padding: 4px 10px 4px 4px;
   border: 0;
-  border-radius: 12px;
   background: transparent;
   font-weight: 600;
   cursor: default;
@@ -39,14 +37,13 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 38px;
+  height: 44px;
   padding: 0 14px 0 10px;
-  border: 0;
-  border-radius: 12px;
+  border: 2px solid var(--outline);
   background: var(--accent-solid);
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 600;
-  box-shadow: 0 2px 0 #8a3f27;
+  box-shadow: var(--shadow-sm);
   transition: transform 0.1s, background 0.15s;
 }
 
@@ -66,13 +63,12 @@
   width: 38px;
   height: 38px;
   border: 0;
-  border-radius: 12px;
   background: transparent;
   color: var(--muted);
 }
 
 .dock-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--hover);
   color: var(--text);
 }
 
@@ -144,7 +140,6 @@
   right: 7px;
   width: 8px;
   height: 8px;
-  border-radius: 50%;
   background: var(--amber);
   box-shadow: 0 0 0 2px var(--card-solid);
 }
@@ -188,14 +183,12 @@
   gap: 4px;
   padding: 4px;
   border: 1px solid var(--line-strong);
-  border-radius: 10px;
 }
 
 .seg-btn {
   flex: 1;
   height: 32px;
   border: 1px solid transparent;
-  border-radius: 7px;
   background: transparent;
   color: var(--muted);
   font-weight: 600;
@@ -203,14 +196,14 @@
 }
 
 .seg-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--hover);
   color: var(--text);
 }
 
 .seg-btn.on {
-  border-color: var(--accent);
-  background: rgba(217, 119, 87, 0.16);
-  color: var(--text);
+  border-color: var(--outline);
+  background: var(--inv-bg);
+  color: var(--inv-text);
 }
 
 .zoom {
@@ -221,14 +214,12 @@
   flex-direction: column;
   padding: 4px;
   gap: 2px;
-  border-radius: 12px;
 }
 
 .zoom button {
   width: 32px;
   height: 32px;
   border: 0;
-  border-radius: 8px;
   background: transparent;
   color: var(--muted);
   display: flex;
@@ -237,6 +228,6 @@
 }
 
 .zoom button:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--hover);
   color: var(--text);
 }
