@@ -53,6 +53,7 @@ import type {
   TicketStatus,
 } from '@shared/types'
 import { isDir } from './squads'
+import { SKILL_NAME_RE } from './agent-plugins'
 
 // Everything the renderer sends goes through here. The page runs sandboxed, but the
 // main process treats it as untrusted anyway: an XSS in an agent's output must not
@@ -949,6 +950,8 @@ const settingsFields = {
   maxSubagents: numberField.pipe(z.number().int().min(0).max(100)),
   agentBudgetUsd: numberField.pipe(z.number().finite().min(0).max(100_000)).transform((n) => Math.round(n * 100) / 100),
   updateChannel: z.enum(['stable', 'beta']),
+  agentPluginsOff: z.array(z.string().trim().min(1).max(200)).max(100),
+  agentSkills: z.array(z.string().trim().regex(SKILL_NAME_RE)).max(100),
 } satisfies { [K in keyof Settings]?: z.ZodType<unknown> }
 
 /** Configurações → Vídeo, one schema per field: a bad one keeps its current value. */

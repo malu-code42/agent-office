@@ -1,10 +1,12 @@
 import { dialog, ipcMain } from 'electron'
 import { readFile } from 'node:fs/promises'
-import { basename } from 'node:path'
+import { homedir } from 'node:os'
+import { basename, join } from 'node:path'
 import { cleanTemplate, loadTemplates, upsertTemplate } from '../templates'
 import { cleanSettings, modeIsMorePermissive } from '../validate'
 import { confirmPermissionOverride, id, type IpcContext } from './context'
 import { previewClaudePermissions } from '../permissions/import'
+import { installedPlugins } from '../agent-plugins'
 
 /** Configurações: terminal bridge, templates and settings. */
 export function registerSettingsIpc(ctx: IpcContext): void {
@@ -27,6 +29,7 @@ export function registerSettingsIpc(ctx: IpcContext): void {
     const rules = previewClaudePermissions(parsed)
     return { source: basename(selected.filePaths[0]), rules }
   })
+  ipcMain.handle('office:installedAgentPlugins', () => [...installedPlugins(join(homedir(), '.claude')).keys()])
   ipcMain.handle('office:installBridge', async () => {
     const { response } = await dialog.showMessageBox(win()!, {
       type: 'question',
