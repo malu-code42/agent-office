@@ -38,7 +38,7 @@ import { changesSince, commitChanges, createWorktree, excludeSquadRuntime, openP
 import { publishSquadTicket, publishThenStartNext, SquadPublicationGate } from './squad-ticket-lifecycle'
 import { ticketBrief } from '@shared/tickets'
 import { Updater } from './updater'
-import { captureShots, forceCrash, runBench, seedAgents } from './dev-hooks'
+import { captureShots, forceCrash, runBench, seedAgents, quitWithParent } from './dev-hooks'
 import type { IpcContext } from './ipc/context'
 import { registerAccountsIpc } from './ipc/accounts'
 import { registerAgentsIpc } from './ipc/agents'
@@ -681,6 +681,8 @@ app.whenReady().then(async () => {
   dialog.showErrorBox('O Agent Office não conseguiu abrir', err instanceof Error ? err.message : String(err))
   app.exit(1)
 })
+
+quitWithParent()
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
