@@ -504,6 +504,7 @@ export abstract class AgentOffice extends AgentBase {
   fire(id: string): void {
     const agent = this.agents.get(id)
     if (!agent) return
+    if (agent.summary.builtIn === 'emi') throw new Error('A Emi mora neste andar e só sai quando o andar for removido.')
     if (agent.summary.builtIn) throw new Error('Luna faz parte do Agent Office e não pode ser dispensada.')
     if (agent.summary.engine === 'opencode') throw new Error('Registros históricos OpenCode são preservados para consulta.')
     if (agent.summary.temporary && this.results.some((result) => result.agentId === id))

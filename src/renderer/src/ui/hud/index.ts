@@ -148,7 +148,13 @@ export class Hud {
         h('span', { class: 'brand-version', title: `Build de ${__APP_BUILD__}` }, `v${__APP_VERSION__}`),
         h(
           'button',
-          { class: 'btn btn-small brand-tasks', type: 'button', title: 'Abrir quadro Tarefas', 'aria-label': 'Abrir quadro Tarefas', onclick: () => actions.tasks() },
+          {
+            class: 'btn btn-small brand-tasks',
+            type: 'button',
+            title: 'Abrir quadro Tarefas',
+            'aria-label': 'Abrir quadro Tarefas',
+            onclick: () => actions.tasks(),
+          },
           icon('list', 14),
           'Tarefas',
         ),
@@ -333,7 +339,10 @@ export class Hud {
       const items = this.state.itemsFor(a.id)
       return rosterRank(a, items.permissions.length + items.results.length > 0)
     }
-    const agents = [...this.state.agents.values()].sort((a, b) => rank(a) - rank(b) || a.desk - b.desk)
+    // Each floor has its Emi: the roster shows only the one of the floor you are on (or one waiting on you).
+    const agents = [...this.state.agents.values()]
+      .filter((a) => a.builtIn !== 'emi' || this.state.floorOf(a) === this.floor || rank(a) === 0)
+      .sort((a, b) => rank(a) - rank(b) || a.desk - b.desk)
     const working = agents.filter((a) => a.status === 'working' || a.status === 'starting').length
     const waiting = this.state.inboxCount
     this.stats.textContent = agents.length
@@ -372,6 +381,7 @@ export class Hud {
     this.floorNames = names
     this.floor = current
     this.renderFloors()
+    this.render()
   }
 
   /** The alfinete of the focus: how many tasks are in it, and whether the popup is open. */
@@ -552,6 +562,7 @@ export class Hud {
           h('span', { class: `dot dot-${a.status}` }),
           h('span', { class: 'name' }, a.name),
           a.builtIn === 'luna' ? h('span', { class: 'chip' }, 'Secretária') : null,
+          a.builtIn === 'emi' ? h('span', { class: 'chip' }, 'Squads') : null,
           a.builtIn === 'luna' && this.state.reviewDue ? h('span', { class: 'dot dot-waiting', 'aria-hidden': 'true' }) : null,
           a.source === 'terminal' ? h('span', { class: 'chip chip-term' }, 'terminal') : null,
           helpersChip(a, true),

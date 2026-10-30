@@ -9,6 +9,8 @@ import { accountEnv } from '../accounts'
 import { agentPlugins } from '../agent-plugins'
 import { LUNA_PROMPT } from '../luna-prompt'
 import { LUNA_SERVER } from '../luna-tools'
+import { emiPrompt } from '../emi-prompt'
+import { EMI_SERVER } from '../emi-tools'
 import { claudeNotFoundMessage } from '../claude-messages'
 import { findClaude } from '../claude-path'
 import { findSquad, memberAgents, orchestratorPrompt, teamGuard, validateSquad, type SquadDefinition } from '../squads'
@@ -127,6 +129,7 @@ export abstract class AgentSdk extends AgentOffice {
     const s = agent.summary
     const wt = s.worktree
     const luna = s.builtIn === 'luna'
+    const emiFloor = s.builtIn === 'emi' ? this.store.settings.projects.find((p) => p.id === s.project) : undefined
     const before = s.account
     const paused = s.quotaPaused
     let account: ReturnType<NonNullable<typeof this.accounts>['get']>
@@ -204,20 +207,23 @@ export abstract class AgentSdk extends AgentOffice {
           preset: 'claude_code',
           append: luna
             ? LUNA_PROMPT
-            : `Your name in this office is ${s.name}. Your final message for each task is handed to the user in person as a report: ` +
-              'open with the outcome in one or two sentences, then list the key details. Reply in the language the user wrote in. ' +
-              'The office has a kanban board of tickets (keys like AO-12); use the mcp__office__ tools to read, open, comment on and move tickets when asked or when you are working on one.' +
-              (wt
-                ? `\n\nYou work in your own git worktree at ${wt.root} on branch ${wt.branch}, so other agents never touch your files. ` +
-                  `Make every change here; do not edit the main checkout at ${wt.repo}. The user reviews, commits and opens the pull request from the office.`
-                : '') +
-              (squad ? `\n\n${orchestratorPrompt(squad)}` : ''),
+            : emiFloor
+              ? emiPrompt(emiFloor)
+              : `Your name in this office is ${s.name}. Your final message for each task is handed to the user in person as a report: ` +
+                'open with the outcome in one or two sentences, then list the key details. Reply in the language the user wrote in. ' +
+                'The office has a kanban board of tickets (keys like AO-12); use the mcp__office__ tools to read, open, comment on and move tickets when asked or when you are working on one.' +
+                (wt
+                  ? `\n\nYou work in your own git worktree at ${wt.root} on branch ${wt.branch}, so other agents never touch your files. ` +
+                    `Make every change here; do not edit the main checkout at ${wt.repo}. The user reviews, commits and opens the pull request from the office.`
+                  : '') +
+                (squad ? `\n\n${orchestratorPrompt(squad)}` : ''),
         },
         ...(squad ? { agents: memberAgents(squad) } : {}),
         hooks: { PreToolUse: [...(squad ? teamGuard(squad) : []), this.helperCapHook(agent, helperMax)] },
         mcpServers: {
           ...(this.officeTools ? { office: this.officeTools(s) } : {}),
           ...(luna && this.lunaTools ? { [LUNA_SERVER]: this.lunaTools() } : {}),
+          ...(emiFloor && this.emiTools ? { [EMI_SERVER]: this.emiTools(emiFloor.id) } : {}),
         },
         // Lets the terminal bridge ignore hook events coming from office-managed sessions.
         env: {

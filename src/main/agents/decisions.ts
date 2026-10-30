@@ -9,6 +9,7 @@ import { changesSince, displayPath } from '../git'
 import { decide } from '../permissions/policy'
 import { permissionFromTool } from './permissions'
 import { LUNA_CONFIRM_TOOLS, LUNA_SERVER } from '../luna-tools'
+import { EMI_CONFIRM_TOOLS, EMI_SERVER } from '../emi-tools'
 
 const LUNA_READ_TOOLS = new Set(['Read', 'Grep', 'Glob'])
 import { type Agent } from './types'
@@ -56,6 +57,12 @@ export abstract class AgentDecisions extends AgentSubagents {
     // #101: Luna's own tools run on a clear request; only taking something away comes to the card.
     if (luna && tool.startsWith(`mcp__${LUNA_SERVER}__`) && !LUNA_CONFIRM_TOOLS.has(tool))
       return Promise.resolve({ behavior: 'allow', updatedInput: input })
+    const emi = agent.summary.builtIn === 'emi'
+    // Emi reads her floor's plan and squads freely; approving the plan and creating a squad come to the card.
+    if (emi && tool.startsWith(`mcp__${EMI_SERVER}__`) && !EMI_CONFIRM_TOOLS.has(tool))
+      return Promise.resolve({ behavior: 'allow', updatedInput: input })
+    // Built-in confirm tools always reach the card, whatever the mode, and never become an "always allow" rule.
+    const confirm = (luna && LUNA_CONFIRM_TOOLS.has(tool)) || (emi && EMI_CONFIRM_TOOLS.has(tool))
     const squad = agent.squad
     if (squad && (tool === 'Agent' || tool === 'Task')) {
       // Handing a step to a member is the orchestrator's job; anyone else is out (the hook already says so).
@@ -72,7 +79,7 @@ export abstract class AgentDecisions extends AgentSubagents {
       rules: project?.alwaysAllow,
     }
     const check = decide(s.permissionMode, tool, input, scope)
-    if (check.verdict === 'allow') return Promise.resolve({ behavior: 'allow', updatedInput: input })
+    if (check.verdict === 'allow' && !confirm) return Promise.resolve({ behavior: 'allow', updatedInput: input })
     // #101: Luna reads every project floor without asking, as the policy would in each folder; writes still ask.
     if (
       luna &&
@@ -81,7 +88,7 @@ export abstract class AgentDecisions extends AgentSubagents {
     )
       return Promise.resolve({ behavior: 'allow', updatedInput: input })
     // O que pede é o risco classificado (o porquê da política), não a sugestão do CLI.
-    const canAlwaysAllow = !!project && s.permissionMode !== 'plan' && decide('auto', tool, input, scope).verdict === 'allow'
+    const canAlwaysAllow = !confirm && !!project && s.permissionMode !== 'plan' && decide('auto', tool, input, scope).verdict === 'allow'
     const req = permissionFromTool(tool, input, check.why ?? opts.decisionReason, canAlwaysAllow)
     if (opts.agentID) req.subagent = this.subagentLabel(agent, opts.agentID)
     if (squad) req.context = this.squadContext(agent, squad, tool === 'AskUserQuestion')
