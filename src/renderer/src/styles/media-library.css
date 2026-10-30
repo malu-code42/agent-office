@@ -7,11 +7,15 @@
   border-bottom: 1px solid var(--line);
   padding-bottom: 10px;
 }
+.media-tabs[hidden] {
+  display: none;
+}
 .media-list {
   list-style: none;
   padding: 0;
   margin: 12px 0 0;
   display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 10px;
 }
 .media-card {
@@ -19,8 +23,9 @@
   align-items: center;
   gap: 14px;
   padding: 12px;
-  border: 1px solid var(--line);
-  background: var(--panel);
+  border: 2px solid var(--ctl-line);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-sm);
 }
 .media-card-details {
   display: flex;
@@ -31,14 +36,16 @@
   flex-wrap: wrap;
 }
 .media-card-details strong {
-  min-width: 180px;
+  min-width: 140px;
   overflow-wrap: anywhere;
 }
 .media-poster {
   width: 64px;
   height: 88px;
   object-fit: cover;
-  background: var(--surface);
+  background: var(--sunken);
+  border: 2px solid var(--outline);
+  image-rendering: pixelated;
 }
 .media-poster-placeholder {
   display: grid;
@@ -57,7 +64,7 @@
   height: 110px;
   display: grid;
   place-items: center;
-  border: 1px dashed var(--line);
+  border: 2px dashed var(--ctl-line);
   color: var(--muted);
   font-size: 12px;
   text-align: center;
@@ -69,9 +76,41 @@
   object-fit: cover;
 }
 .media-error {
-  color: var(--danger);
+  color: var(--red-text);
+}
+/* States that never look alike (round 7): empty in green, error in red, each with its icon and words. */
+.state-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 2px solid;
+  font-size: 13px;
+}
+.state-note > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.state-note b {
+  color: var(--text);
+}
+.state-ok {
+  background: var(--ok-bg);
+  border-color: var(--green);
+  color: var(--green-text);
+}
+.state-err {
+  background: var(--err-bg);
+  border-color: var(--red);
+  color: var(--red-text);
 }
 @media (max-width: 600px) {
+  .media-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .media-card {
     align-items: flex-start;
     flex-wrap: wrap;

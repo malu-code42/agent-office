@@ -10,7 +10,7 @@ import {
   type MediaStatus,
   type MediaUpdateInput,
 } from '@shared/media'
-import { h } from './dom'
+import { h, icon } from './dom'
 import { keepFocus } from './a11y'
 import { cleanError, confirmDialog, field, modal } from './modals/common'
 import type { Toast } from './tasks-complete'
@@ -38,14 +38,34 @@ export async function openMediaLibrary(root: HTMLElement, toast: Toast, initial:
         content.replaceChildren(
           items.length
             ? h('ul', { class: 'media-list', 'aria-label': LABEL[active] }, ...cards)
-            : h('p', { class: 'hint' }, `Ainda não há ${LABEL[active].toLowerCase()}.`),
+            : h(
+                'div',
+                { class: 'state-note state-ok' },
+                icon('check', 16),
+                h(
+                  'div',
+                  {},
+                  h('b', {}, `Ainda não há ${LABEL[active].toLowerCase()}`),
+                  h('span', {}, `Use “Adicionar ${itemLabel()}” para começar.`),
+                ),
+              ),
         ),
       )
     } catch (err) {
       if (!done)
         content.replaceChildren(
-          h('p', { class: 'media-error', role: 'alert' }, cleanError(err)),
-          h('button', { class: 'btn', type: 'button', onclick: () => void redraw() }, 'Tentar novamente'),
+          h(
+            'div',
+            { class: 'state-note state-err', role: 'alert' },
+            icon('alert', 16),
+            h(
+              'div',
+              {},
+              h('b', {}, 'Não foi possível ler a biblioteca'),
+              h('span', { class: 'media-error' }, cleanError(err)),
+              h('button', { class: 'btn btn-small', type: 'button', onclick: () => void redraw() }, 'Tentar novamente'),
+            ),
+          ),
         )
     }
   }
@@ -77,7 +97,7 @@ export async function openMediaLibrary(root: HTMLElement, toast: Toast, initial:
     el.remove()
   }
   const el = modal(
-    categoryOnly ? LABEL[initial] : 'Biblioteca de mídias',
+    categoryOnly ? LABEL[initial] : 'Mídias',
     [tabs, content],
     [h('button', { class: 'btn', type: 'button', onclick: finish }, 'Fechar'), addButton],
     finish,

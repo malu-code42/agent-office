@@ -277,6 +277,19 @@ export function taskWhen(task: Pick<Task, 'date' | 'dueDate' | 'time'>): string 
   return [task.date ?? task.dueDate, task.time].filter(Boolean).join(' ') || null
 }
 
+/** How near the deadline of a task is: the badges of the boards (late, today, tomorrow, a later date, none). */
+export type DueKind = 'late' | 'today' | 'soon' | 'later' | 'none'
+
+/** The deadline of a task on the local day `now`, with its day as DD/MM ('' when it has none or it is invalid). */
+export function taskDue(task: Pick<Task, 'date' | 'dueDate'>, now: Date): { kind: DueKind; day: string } {
+  const key = dueDateKey(task.date ?? task.dueDate)
+  if (key === null) return { kind: 'none', day: '' }
+  const due = new Date(key)
+  const days = Math.round((key - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / 86_400_000)
+  const day = `${String(due.getDate()).padStart(2, '0')}/${String(due.getMonth() + 1).padStart(2, '0')}`
+  return { kind: days < 0 ? 'late' : days === 0 ? 'today' : days === 1 ? 'soon' : 'later', day }
+}
+
 /** A local day as DD.MM.AAAA, the way the lines of tarefas.md write dates. */
 export const dayLabel = (d: Date): string =>
   `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`

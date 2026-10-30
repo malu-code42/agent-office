@@ -42,8 +42,12 @@
 .tl-goal {
   align-items: flex-start;
   font-size: 13.5px;
-  gap: 6px;
+  gap: 10px;
   display: flex;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 2px solid var(--ctl-line);
+  box-shadow: var(--shadow-sm);
 }
 
 .tl-goal-when {
@@ -83,13 +87,13 @@
 }
 
 .tl-state-open {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text);
+  background: var(--ok-bg);
+  color: var(--green-text);
 }
 
 .tl-state-done {
-  background: rgba(91, 156, 240, 0.18);
-  color: #b9d4ff;
+  background: var(--info-bg);
+  color: var(--blue);
 }
 
 .tl-sub {
@@ -99,8 +103,9 @@
 }
 
 .tl-prog {
-  height: 8px;
-  background: rgba(255, 255, 255, 0.1);
+  height: 10px;
+  background: var(--sunken);
+  border: 2px solid var(--outline);
   overflow: hidden;
   margin-top: 4px;
   width: 100%;
@@ -128,27 +133,28 @@
   align-items: center;
   gap: 5px;
   padding: 2px 8px 2px 4px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--sunken);
 }
 
 .tl-marcos li.ok {
   color: var(--text);
 }
 
-/* uma marca, não uma caixa de marcar: redonda, para não ler como um controle editável */
+/* uma marca, não uma caixa de marcar: um círculo em pixels (octógono), para não ler como um controle editável */
 .tl-mk {
-  width: 15px;
-  height: 15px;
-  border: 1.5px solid var(--dim);
+  width: 14px;
+  height: 14px;
   display: grid;
   place-items: center;
-  font-size: 11px;
-  color: #062417;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--on-accent);
+  background: var(--ctl-line);
+  clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%);
 }
 
 .tl-marcos li.ok .tl-mk {
   background: var(--green);
-  border-color: var(--green);
 }
 
 .tl-foot-hint {

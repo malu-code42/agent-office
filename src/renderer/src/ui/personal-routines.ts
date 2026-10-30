@@ -5,7 +5,6 @@ import './personal-routines.css'
 
 const WEEKDAY_NAMES = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
 const WEEKDAY_CHIPS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'] // seg, ter, qua, qui, sex, sab, dom
-const DAY_NAMES = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo']
 
 const brDate = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`
 const weekdayShortOf = (iso: string) => WEEKDAY_CHIPS[(new Date(`${iso}T12:00:00`).getDay() + 6) % 7]!
@@ -27,7 +26,7 @@ type RoutineLike = { cadence: 'diária' | 'semanal'; days?: string[]; target?: n
 
 function frequencyText(item: RoutineLike): string {
   if (item.cadence === 'diária') return 'Todo dia'
-  if (item.days?.length) return 'Toda ' + item.days.join(' e ')
+  if (item.days?.length) return 'Toda ' + (item.days.length > 1 ? `${item.days.slice(0, -1).join(', ')} e ${item.days.at(-1)}` : item.days[0])
   if (item.target) return `${item.target} vezes por semana`
   return 'Semanal'
 }
@@ -70,8 +69,9 @@ function routineCard(card: RoutineCard): HTMLElement {
         )
       : h(
           'div',
-          { class: 'tl-rt-days', 'aria-label': card.days ? `Dias: ${card.days.map((d) => DAY_NAMES[d]).join(', ')}` : 'Todos os dias' },
-          ...WEEKDAY_CHIPS.map((chip, i) => h('span', { class: (!card.days || card.days.includes(i)) ? 'on' : '', 'aria-hidden': 'true' }, chip)),
+          { class: 'tl-rt-days', 'aria-label': card.days ? `Dias: ${card.days.map((d) => WEEKDAY_NAMES[d]).join(', ') || 'nenhum marcado'}` : 'Todos os dias' },
+          // The chips start on Monday; the days of a row are JS weekdays (Sunday is 0).
+          ...WEEKDAY_CHIPS.map((chip, i) => h('span', { class: !card.days || card.days.includes((i + 1) % 7) ? 'on' : '', 'aria-hidden': 'true' }, chip)),
         ),
     card.problem
       ? h('div', { class: 'tl-rt-problem' }, `Linha ${card.line}: ${card.problem}`)
@@ -90,7 +90,7 @@ function routineCard(card: RoutineCard): HTMLElement {
 export async function openPersonalRoutinesPanel(root: HTMLElement, _toast?: (message: string, kind?: 'ok' | 'err') => void): Promise<void> {
   const content = h('div', { class: 'personal-routines' }, h('p', { class: 'hint' }, 'Lendo as rotinas pessoais.'))
   const close = () => backdrop.remove()
-  const closeButton = h('button', { class: 'btn btn-primary', type: 'button', onclick: close }, 'Fechar')
+  const closeButton = h('button', { class: 'btn', type: 'button', onclick: close }, 'Fechar')
   const footHint = h('span', { class: 'hint grow tl-foot-hint' }, 'Somente leitura. Mudanças nas rotinas são feitas pela Luna, no chat.')
   const backdrop = modal('Rotinas pessoais', [content], [footHint, closeButton], close, true)
   root.append(backdrop)
@@ -110,7 +110,8 @@ export async function openPersonalRoutinesPanel(root: HTMLElement, _toast?: (mes
   const cards: RoutineCard[] = overview.rows.map((row) => ({
     title: row.title,
     freq: frequencyText({ cadence: row.cadence, days: row.days?.map((d) => WEEKDAY_NAMES[d]), target: row.target }),
-    ...(row.target ? { target: [row.completed, row.target!] } : {}),
+    // A weekly target on explicit days shows the days; only "N times a week, any day" shows the dots.
+    ...(row.target && !row.days?.length ? { target: [row.completed, row.target!] } : {}),
     ...(row.days ? { days: row.days } : {}),
     next: nextLabel(row.occurrenceIds, today),
     hour: row.time,
@@ -118,8 +119,9 @@ export async function openPersonalRoutinesPanel(root: HTMLElement, _toast?: (mes
   }))
   for (const candidate of needsInput) {
     cards.push({
-      title: candidate.item?.title ?? `Linha ${candidate.line}`,
+      title: candidate.item?.title ?? candidate.title ?? `Linha ${candidate.line}`,
       freq: candidate.item ? frequencyText(candidate.item) : '—',
+      days: [],
       next: '—',
       st: ['warn', 'Precisa de você'],
       problem: candidate.reason,

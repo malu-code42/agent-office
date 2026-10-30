@@ -4,17 +4,6 @@
   cursor: grab;
 }
 
-.tcol.tcol-over {
-  outline: 2px dashed var(--accent);
-  outline-offset: -2px;
-}
-
-.tcard-move,
-.tcard-reschedule {
-  margin-top: 6px;
-  font-size: 11.5px;
-}
-
 .tmenu {
   position: absolute;
   top: 100%;
@@ -31,11 +20,28 @@
   box-shadow: var(--shadow);
 }
 
+.tmenu-head {
+  padding: 4px 8px 6px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font: 500 12px var(--pixel);
+  letter-spacing: 0.04em;
+}
+
 .tmenu-item {
+  min-height: 32px;
   text-align: left;
-  padding: 6px 8px;
-  color: inherit;
-  font-size: 12.5px;
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tmenu-item:hover {
+  background: var(--hover);
 }
 
 .tmenu-item:focus-visible,

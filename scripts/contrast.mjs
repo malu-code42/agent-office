@@ -183,6 +183,25 @@ const PAIRS = [
   ['Rótulo de campo', '.field-label', 'card'],
   ['Etiqueta no mundo', '.tag-pill', ['.tag-pill', 'card']],
   ['Balão no mundo', '.bubble', ['.bubble', 'card']],
+  ['Quadro: prazo atrasado', '.due-late', ['.due-late', 'card']],
+  ['Quadro: prazo hoje', '.due-today', ['.due-today', 'card']],
+  ['Quadro: prazo amanhã', '.due-soon', ['.due-soon', 'card']],
+  ['Quadro: prazo com data', '.due-later', ['.due-later', 'card']],
+  ['Quadro: sem prazo', '.due-none', 'card'],
+  ['Quadro: estado aberta', '.tk-state', ['.tk-state', 'card']],
+  ['Quadro: estado concluída', '.tk-state-completed', ['.tk-state-completed', 'card']],
+  ['Quadro: estado descartada', '.tk-state-discarded', ['.tk-state-discarded', 'card']],
+  ['Quadro: em foco', '.tk-focus-chip', ['.tk-focus-chip', 'card']],
+  ['Quadro: lista escolhida', '.tk-lbtn', ['.tk-lbtn.on', 'card']],
+  ['Quadro: alerta atrasada', '.tk-lbadge.late', ['.tk-lbadge.late', 'card']],
+  ['Quadro: alerta hoje', '.tk-lbadge.today', ['.tk-lbadge.today', 'card']],
+  ['Quadro: abertas da lista', '.tk-lcount', ['.tk-lcount', 'card']],
+  ['Quadro: posição', '.tk-pos', 'card'],
+  ['Mídias: vazio', '.state-ok', ['.state-ok', 'card']],
+  ['Mídias: erro', '.state-err', ['.state-err', 'card']],
+  ['Dropdown: valor', '.dd-trigger', ['.dd-trigger', 'card']],
+  ['Dropdown: opção escolhida', '.dd-list', ['.dd-opt.sel', 'card']],
+  ['Dropdown: opção desabilitada', '.dd-opt.dis', 'card'],
 ]
 
 /** Theme tokens that are meant to go together, also where no selector pairs them yet (tema noturno). */
@@ -204,6 +223,10 @@ const TOKEN_PAIRS = [
   ['--amber-text', '--warn-bg'],
   ['--red', '--err-bg'],
   ['--red-text', '--err-bg'],
+  ['--blue', '--info-bg'],
+  ['--accent-hi', '--accent-bg'],
+  ['--text', '--accent-bg'],
+  ['--dim', '--sunken'],
 ]
 
 export function measure() {

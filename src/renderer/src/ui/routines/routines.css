@@ -299,7 +299,8 @@
   flex-wrap: wrap;
 }
 
-.rt-row > select.input {
+.rt-row > select.input,
+.rt-row > .dd-trigger {
   width: auto;
 }
 

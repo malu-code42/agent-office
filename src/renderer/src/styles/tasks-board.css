@@ -1,0 +1,316 @@
+/* Quadro Tarefas da rodada 5: estreito, um botão por lista à esquerda e as tarefas da lista escolhida numa coluna. */
+
+.board.tasks-board {
+  left: max(16px, calc(50% - 380px));
+  right: auto;
+  width: min(760px, calc(100vw - 32px));
+}
+
+.tk-board {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px;
+}
+
+.tk-lists,
+.tk-panel {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--sunken);
+  border: 2px solid var(--outline);
+}
+
+.tk-lists {
+  gap: 4px;
+  padding: 8px;
+}
+
+.tk-lists-cap {
+  padding: 2px 6px 6px;
+  color: var(--muted);
+  font: 500 12px var(--pixel);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tk-lbtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 2px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tk-lbtn:hover {
+  background: var(--hover);
+}
+
+.tk-lbtn.on {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+.tk-lbtn.tk-over {
+  border-style: dashed;
+  border-color: var(--accent-hi);
+}
+
+.tk-lbtn:focus-visible,
+.tk-done-head:focus-visible {
+  outline: 2px solid var(--accent-hi);
+  outline-offset: 1px;
+}
+
+.tk-lcount {
+  min-width: 24px;
+  padding: 1px 7px;
+  background: var(--surface-3);
+  color: var(--text);
+  font: 600 12px var(--mono);
+  text-align: center;
+}
+
+.tk-lbadge {
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tk-lbadge.late {
+  background: var(--err-bg);
+  color: var(--red-text);
+}
+
+.tk-lbadge.today {
+  background: var(--warn-bg);
+  color: var(--amber-text);
+}
+
+.tk-panel {
+  gap: 10px;
+  padding: 12px 14px;
+  outline: none;
+}
+
+.tk-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.tk-panel-head h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.tk-sub {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.tk-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+.tk-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tcard.tk-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 11px;
+  border: 2px solid var(--ctl-line);
+  box-shadow: var(--shadow-sm);
+}
+
+.tcard.tk-card.tk-late {
+  box-shadow:
+    inset 4px 0 0 var(--red),
+    var(--shadow-sm);
+}
+
+.tcard.tk-card.tk-sel {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-hi);
+  outline-offset: 1px;
+}
+
+.tk-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.tk-pos {
+  color: var(--muted);
+  font: 600 12px var(--mono);
+}
+
+.tk-state,
+.tk-focus-chip,
+.due {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tk-state {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.tk-state-completed {
+  background: var(--info-bg);
+  color: var(--blue);
+}
+
+.tk-state-discarded {
+  background: var(--sunken);
+  color: var(--muted);
+}
+
+.tk-focus-chip {
+  background: var(--accent-bg);
+  color: var(--accent-hi);
+}
+
+.due-late {
+  background: var(--err-bg);
+  color: var(--red-text);
+}
+
+.due-today {
+  background: var(--warn-bg);
+  color: var(--amber-text);
+}
+
+.due-soon {
+  background: var(--info-bg);
+  color: var(--blue);
+}
+
+.due-later {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.due-none {
+  border: 1px dashed var(--ctl-line);
+  color: var(--muted);
+}
+
+.tk-title {
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.tk-title strong {
+  font-weight: 700;
+}
+
+.tcard.task-completed .tk-title,
+.tcard.task-discarded .tk-title {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* The actions show on the selected card only (clicked or focused). */
+.tk-actions {
+  display: none;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 7px;
+  border-top: 1px solid var(--line);
+}
+
+.tk-sel .tk-actions {
+  display: flex;
+}
+
+.tasks-focus-selecting .tk-actions {
+  display: none;
+}
+
+.tk-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 20px;
+  color: var(--muted);
+  font-size: 13.5px;
+  text-align: center;
+}
+
+.tk-empty b {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.tk-done-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tk-done-head[aria-expanded='true'] svg {
+  transform: rotate(90deg);
+}
+
+/* inline markdown of the task titles: code in mono on a sunken chip, links in blue */
+.md-inline code {
+  padding: 0 4px;
+  background: var(--sunken);
+  border: 1px solid var(--ctl-line);
+  font: 500 0.9em var(--mono);
+}
+
+.md-inline a {
+  color: var(--blue);
+}
+
+@media (max-width: 640px) {
+  .tk-board {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+}

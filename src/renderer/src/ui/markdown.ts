@@ -39,6 +39,21 @@ export function renderMarkdown(md: string): HTMLDivElement {
   return div
 }
 
+/** One line of markdown (a task title of tarefas.md) as a span: bold, italic, code, links and strikethrough, no paragraph. */
+export function renderInlineMarkdown(md: string, className: string): HTMLSpanElement {
+  const span = document.createElement('span')
+  span.className = `md md-inline ${className}`
+  span.innerHTML = DOMPurify.sanitize(marked.parseInline(md, { async: false }) as string, { ADD_ATTR: ['data-href'] })
+  span.addEventListener('click', (e) => {
+    const a = (e.target as HTMLElement).closest('a[data-href]')
+    if (!a) return
+    e.preventDefault()
+    e.stopPropagation()
+    window.office.openExternal(a.getAttribute('data-href') ?? '')
+  })
+  return span
+}
+
 /** Wraps a code block in place with a copy button in its corner; the icon turns into a check for a moment. */
 function copyable(pre: HTMLPreElement): void {
   const wrap = document.createElement('div')

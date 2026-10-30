@@ -23,7 +23,13 @@ export function focusables(root: HTMLElement): HTMLElement[] {
 
 /** A text field has the focus: letters and Enter belong to it. */
 export function isTyping(el: Element | null = document.activeElement): boolean {
-  return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement || (el instanceof HTMLElement && el.isContentEditable)
+  // The app's dropdown (ui/dropdown.ts) is a button with the combobox role: letters there search its options.
+  return (
+    el instanceof HTMLInputElement ||
+    el instanceof HTMLTextAreaElement ||
+    el instanceof HTMLSelectElement ||
+    (el instanceof HTMLElement && (el.isContentEditable || el.getAttribute('role') === 'combobox'))
+  )
 }
 
 let nextId = 0

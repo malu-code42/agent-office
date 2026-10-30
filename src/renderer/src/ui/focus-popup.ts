@@ -4,7 +4,9 @@ import { arrowList, keepFocus, modalA11y, rove } from './a11y'
 import { h, icon } from './dom'
 import { setFocusPopupOpen, requestFocusPopupClose } from './focus-state'
 import { cleanError } from './modals/common'
-import { openTasksBoard, refreshTasksBoard } from './tasks-board'
+import { taskDue } from '@shared/tasks'
+import { renderInlineMarkdown } from './markdown'
+import { dueBadge, openTasksBoard, refreshTasksBoard } from './tasks-board'
 import { offerUndo, type Toast } from './tasks-complete'
 import { runDiscard } from './tasks-discard'
 import { closeTimerPopup } from './timer-state'
@@ -45,19 +47,21 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
     { class: 'tcol-empty empty-box' },
     icon('pin', 30),
     h('b', {}, 'Nenhuma tarefa em foco'),
-    h('span', {}, 'Escolha no quadro Tarefas o que merece atenção agora, ou peça à Luna para ajudar a montar o foco.'),
-    h(
-      'button',
-      {
-        class: 'btn btn-primary',
-        type: 'button',
-        onclick: () => {
-          close()
-          void openTasksBoard(root, state, toast)
-        },
+    h('span', {}, 'Escolha as tarefas do dia no quadro, ou peça à Luna para ajudar a montar o foco.'),
+  )
+  // Round 5: the way to the board is always in the head, with or without tasks.
+  const openBoard = h(
+    'button',
+    {
+      class: 'btn btn-small btn-primary',
+      type: 'button',
+      onclick: () => {
+        close()
+        void openTasksBoard(root, state, toast)
       },
-      'Abrir quadro Tarefas',
-    ),
+    },
+    icon('kanban', 14),
+    'Abrir quadro de tarefas',
   )
   const change = h(
     'button',
@@ -96,22 +100,28 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
         h('div', { class: 'focus-card-origin' }, `Identificador ${item.id}`),
       )
     } else {
+      const due = taskDue({ date: item.date }, new Date())
       el.append(
         h(
-          'label',
-          { class: 'focus-card-done-label' },
+          'div',
+          { class: 'focus-card-row' },
           h('input', {
             class: 'focus-card-done',
             type: 'checkbox',
+            title: 'Concluir',
             'aria-label': `Marcar “${item.text}” como concluída`,
             onchange: (e: Event) => void complete(e.currentTarget as HTMLInputElement, item),
           }),
-          h('span', {}, 'Concluir'),
+          h(
+            'div',
+            { class: 'grow' },
+            renderInlineMarkdown(item.text, 'focus-card-title'),
+            h('div', { class: 'focus-card-origin' }, `Lista: ${item.list}`),
+            item.step ? h('div', { class: 'focus-card-step' }, `Passo de hoje: ${item.step}`) : null,
+          ),
+          dueBadge(due.kind, due.day),
         ),
-        h('div', { class: 'focus-card-title' }, item.text),
-        h('div', { class: 'focus-card-origin' }, `Lista: ${item.list}`),
       )
-      if (item.step) el.append(h('div', { class: 'focus-card-step' }, `Passo de hoje: ${item.step}`))
       actions.append(
         h('button', { class: 'btn btn-small', type: 'button', onclick: () => openStep(actions, item.id, item.step) }, 'Passo de hoje'),
         h('button', { class: 'btn btn-small focus-card-discard', type: 'button', onclick: () => void discard(item) }, 'Descartar'),
@@ -187,7 +197,8 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
     current = next
     const validCount = next.filter((item) => !item.missing).length
     const missingCount = next.length - validCount
-    status.textContent = `${validCount} ${validCount === 1 ? 'tarefa' : 'tarefas'} em foco${missingCount ? ` · ${missingCount} ausente${missingCount === 1 ? '' : 's'}` : ''}`
+    status.textContent = `${validCount}${missingCount ? ` · ${missingCount} ausente${missingCount === 1 ? '' : 's'}` : ''}`
+    status.title = `${validCount} ${validCount === 1 ? 'tarefa' : 'tarefas'} em foco`
     colCount.textContent = String(validCount)
     change.hidden = validCount === 0
     list.hidden = next.length === 0
@@ -225,7 +236,7 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
     try {
       paint(await window.office.unfocusTask(id))
       toast('Tarefa tirada do foco.', 'ok')
-      ;(list.querySelector<HTMLElement>('.focus-card') ?? empty.querySelector<HTMLElement>('button'))?.focus()
+      ;(list.querySelector<HTMLElement>('.focus-card') ?? openBoard)?.focus()
     } catch (err) {
       toast(cleanError(err), 'err')
     }
@@ -252,8 +263,9 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
       'div',
       { class: 'board-head' },
       h('div', { class: 'board-title' }, icon('pin', 18), title, status),
-      change,
       h('span', { class: 'grow' }),
+      change,
+      openBoard,
       closeBtn,
     ),
     h('div', { class: 'board-body' }, h('div', { class: 'board-cols foco-cols' }, col)),
@@ -273,5 +285,5 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
   root.append(backdrop)
   setFocusPopupOpen(true)
   requestFocusPopupClose(close)
-  ;(list.querySelector<HTMLElement>('.focus-card') ?? empty.querySelector<HTMLElement>('button'))?.focus()
+  ;(list.querySelector<HTMLElement>('.focus-card') ?? openBoard)?.focus()
 }

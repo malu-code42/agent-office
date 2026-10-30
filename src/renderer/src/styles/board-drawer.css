@@ -345,7 +345,8 @@
   flex-wrap: wrap;
 }
 
-.tdelegate-row select {
+.tdelegate-row select,
+.tdelegate-row .dd-trigger {
   flex: 1 1 150px;
   width: auto;
 }
