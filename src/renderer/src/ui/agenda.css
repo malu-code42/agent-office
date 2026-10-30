@@ -392,6 +392,31 @@
 }
 
 .tl-tl-ev.conflict,
+/* Legend: one chip per kind, a colour square and its name, so the kinds read apart. */
+.tl-tl-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.tl-tl-legend > span:not(.tl-state) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.tl-tl-legend i {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
 .tl-tl-legend i.tl-ev-conflict {
   outline: 2px solid var(--red);
   outline-offset: -2px;

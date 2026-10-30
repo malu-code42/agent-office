@@ -226,7 +226,7 @@ function legendItems(): HTMLElement[] {
     h('span', {}, h('i', { class: 'tl-ev-tarefa' }), 'Tarefa'),
     h('span', {}, h('i', { class: 'tl-ev-feita' }), 'Rotina feita'),
     h('span', {}, h('i', { class: 'tl-ev-rotina' }), 'Rotina prevista'),
-    h('span', { class: 'tl-state late', style: 'margin-left:10px' }, 'Conflito'),
+    h('span', { class: 'tl-state late' }, 'Conflito'),
   ]
 }
 
