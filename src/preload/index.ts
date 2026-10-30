@@ -133,6 +133,7 @@ const api: OfficeAPI = {
   installBridge: () => ipcRenderer.invoke('office:installBridge'),
   uninstallBridge: () => ipcRenderer.invoke('office:uninstallBridge'),
   saveSettings: (patch) => ipcRenderer.invoke('office:saveSettings', patch),
+  installedAgentPlugins: () => ipcRenderer.invoke('office:installedAgentPlugins'),
   previewClaudePermissions: () => ipcRenderer.invoke('office:previewClaudePermissions'),
   saveTemplate: (t) => ipcRenderer.invoke('office:saveTemplate', t),
   deleteTemplate: (id) => ipcRenderer.invoke('office:deleteTemplate', id),

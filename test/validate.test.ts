@@ -91,6 +91,8 @@ const settings = (): Settings => ({
   agentBudgetUsd: 0,
   templates: [],
   video: { ...DEFAULT_VIDEO },
+  agentPluginsOff: [],
+  agentSkills: [],
 })
 
 describe('IPC do banco de questões', () => {
@@ -533,6 +535,13 @@ describe('cleanSettings', () => {
       maxSubagents: 3,
       agentBudgetUsd: 2.5,
     })
+  })
+  it('plugins e skills dos agentes: aceita nomes simples e recusa caminhos (#106)', () => {
+    const out = cleanSettings({ agentPluginsOff: ['ponytail@ponytail'], agentSkills: ['tdd', 'writing-plans'] }, settings())
+    expect(out).toMatchObject({ agentPluginsOff: ['ponytail@ponytail'], agentSkills: ['tdd', 'writing-plans'] })
+    for (const bad of [['../x'], ['a/b'], ['..'], 'tdd', [3]]) {
+      expect(cleanSettings({ agentSkills: bad }, out).agentSkills, String(bad)).toEqual(['tdd', 'writing-plans'])
+    }
   })
   it('video: aplica os campos válidos e mantém os inválidos', () => {
     const out = cleanSettings({ video: { ...QUALITY_PRESETS.saver, batterySaver: false } }, settings())

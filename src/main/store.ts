@@ -51,6 +51,8 @@ const DEFAULT_SETTINGS: Settings = {
   agentBudgetUsd: 0,
   templates: [],
   video: DEFAULT_VIDEO,
+  agentPluginsOff: [],
+  agentSkills: [],
 }
 
 /** Up to v0.2 one squad folder made a single squad floor; it becomes the first project floor. */

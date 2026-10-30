@@ -47,6 +47,10 @@ export interface Settings {
   video: VideoSettings
   /** Pasta do vault (Obsidian/similar) para o quadro Tarefas. */
   vaultPath?: string
+  /** Installed Claude Code plugins (`plugin@marketplace`) office agents do NOT load; the rest load (#106). */
+  agentPluginsOff: string[]
+  /** Skills of ~/.claude/skills office agents get, by folder name (#106). */
+  agentSkills: string[]
 }
 
 // ---------- auto-update ----------

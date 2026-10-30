@@ -510,6 +510,8 @@ export interface OfficeAPI {
   installBridge(): Promise<BridgeStatus>
   uninstallBridge(): Promise<BridgeStatus>
   saveSettings(patch: Partial<Settings> & { confirmPermissionChanges?: boolean }): Promise<Settings>
+  /** Claude Code plugins installed for the user (`plugin@marketplace`), for Configurações → Plugins dos agentes. */
+  installedAgentPlugins(): Promise<string[]>
   /** Opens a user-chosen Claude settings file read-only; returns a preview, never imports it. */
   previewClaudePermissions(): Promise<{ source: string; rules: Array<Pick<import('./settings').AlwaysAllowRule, 'kind' | 'value'>> } | null>
   /** Creates (unknown id) or replaces a template; returns it as stored. */

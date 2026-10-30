@@ -4,7 +4,9 @@ import { query, type HookCallbackMatcher, type Query, type SDKMessage } from '@a
 import { describeTool, toolDetail } from '@shared/describe'
 import { MAIN_ACCOUNT } from '@shared/accounts'
 import { HELPER_MAX, helperLimit, helperLimitReason } from '@shared/subagents'
+import { homedir } from 'node:os'
 import { accountEnv } from '../accounts'
+import { agentPlugins } from '../agent-plugins'
 import { claudeNotFoundMessage } from '../claude-messages'
 import { findClaude } from '../claude-path'
 import { findSquad, memberAgents, orchestratorPrompt, teamGuard, validateSquad, type SquadDefinition } from '../squads'
@@ -179,6 +181,13 @@ export abstract class AgentSdk extends AgentOffice {
         // Fontes de settings em arquivo ficam fechadas (modo isolado do SDK): regra
         // salva de fora não executa antes do canUseTool — quem decide aqui é o Office.
         settingSources: [],
+        // Plugins (caveman, context-mode…) and the chosen skills come in explicitly instead (#106).
+        plugins: agentPlugins(
+          join(homedir(), '.claude'),
+          join(this.store.dataDirectory, 'agent-skills'),
+          limits.agentPluginsOff ?? [],
+          limits.agentSkills ?? [],
+        ),
         // Subagent text comes too (not only tools), for the helper's own log (AO-46).
         forwardSubagentText: true,
         allowDangerouslySkipPermissions: s.permissionMode === 'bypassPermissions',

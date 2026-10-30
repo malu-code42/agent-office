@@ -81,6 +81,30 @@ export function openSettings(
   mode.value = s.defaultPermissionMode
   const maxSubs = h('input', { class: 'input', type: 'number', min: 0, max: 100, step: 1, value: s.maxSubagents ?? 10 }) as HTMLInputElement
   const budget = h('input', { class: 'input', type: 'number', min: 0, step: 0.5, value: s.agentBudgetUsd ?? 0 }) as HTMLInputElement
+  // #106: plugins installed in Claude Code load in every office agent unless turned off here.
+  const pluginOff = new Set(s.agentPluginsOff ?? [])
+  const pluginList = h('div', { role: 'status' }, 'Procurando plugins instalados…')
+  void window.office
+    .installedAgentPlugins()
+    .then((names) => {
+      pluginList.replaceChildren(
+        ...(names.length
+          ? names.map((name) => {
+              const check = h('input', { type: 'checkbox' }) as HTMLInputElement
+              check.checked = !pluginOff.has(name)
+              check.addEventListener('change', () => (check.checked ? pluginOff.delete(name) : pluginOff.add(name)))
+              return h('label', { class: 'check' }, check, name.split('@')[0])
+            })
+          : ['Nenhum plugin do Claude Code instalado.']),
+      )
+    })
+    .catch(() => pluginList.replaceChildren('Não consegui ler os plugins instalados.'))
+  const skillNames = h('input', {
+    class: 'input',
+    type: 'text',
+    value: (s.agentSkills ?? []).join(', '),
+    placeholder: 'systematic-debugging, test-driven-development',
+  }) as HTMLInputElement
   const updates = updateSettingsBox(root, s.updateChannel)
   const video = videoFields(state)
   const vaultPath = h('input', {
@@ -367,6 +391,11 @@ export function openSettings(
         // An emptied field keeps the current value instead of saving 0 (no limit).
         ...(numberField(maxSubs.value) !== undefined ? { maxSubagents: Math.max(0, Math.round(numberField(maxSubs.value)!)) } : {}),
         ...(numberField(budget.value) !== undefined ? { agentBudgetUsd: Math.max(0, numberField(budget.value)!) } : {}),
+        agentPluginsOff: [...pluginOff],
+        agentSkills: skillNames.value
+          .split(',')
+          .map((n) => n.trim())
+          .filter(Boolean),
         updateChannel: updates.value(),
         video: video.value(),
         projects: floors.map((p) => ({ ...p, name: p.name.trim() || floorNameFor(p.cwd) })),
@@ -438,6 +467,24 @@ export function openSettings(
             'Por agente. A mesa comporta 3; um valor menor aperta esse limite. 0 = o limite da mesa (3).',
           ),
           field('Teto de custo por agente (US$)', budget, 'Ao chegar nele, o agente para e avisa. 0 = sem teto.'),
+        ),
+      ),
+      h(
+        'div',
+        { class: 'bridge-box' },
+        h('div', { class: 'bridge-title' }, icon('gear', 16), 'Plugins e skills dos agentes'),
+        // A fieldset, not field(): the checkboxes carry their own labels and labels cannot nest.
+        h(
+          'fieldset',
+          { class: 'field' },
+          h('legend', { class: 'field-label' }, 'Plugins do Claude Code'),
+          pluginList,
+          h('span', { class: 'field-hint' }, 'Marcados carregam em todos os agentes, fixos e temporários.'),
+        ),
+        field(
+          'Skills de ~/.claude/skills',
+          skillNames,
+          'Nomes das pastas, separados por vírgula. Só essas entram, para não lotar o contexto. Vale para agentes iniciados depois.',
         ),
       ),
       h(
