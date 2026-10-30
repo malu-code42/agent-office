@@ -1,16 +1,30 @@
 # Plano de implementação — Agent Office como centro de controle da vida
 
 **Status:** aprovado pela usuária em 2026-10-21. Base: `centro-de-controle-da-vida-design.md`. Execução autorizada somente para a Fase 0 isolada; as fases posteriores exigem seus gates próprios.
-**Andamento:** implementação da Fase 0 está na worktree `agent/centro-vida-preflight-5702c15`, sem commit/merge. Typecheck, testes, build e lint consolidado passaram depois de remover worktrees antigas já integradas/encerradas; as branches foram preservadas. Restam `main`, esta worktree e as worktrees dos PRs abertos #36/#37.
+**Andamento verificado (2026-10-27):** aposentadoria do OpenCode e PRs #77–#86, incluindo #82, #85 e #86, estão integrados. PRs ativos não foram encontrados na listagem recente. No tracker, #38 segue aberta; #39–#48 estão fechadas, #49–#53 estão abertas, #54 está fechada, #55–#59 estão abertas; #75 e #84 também seguem abertas. #83 está fechada (PR #85); #75 tem PR #77 integrado mas continua aberta; #84 representa agenda/processos diários e rotinas com Luna. Esses estados são um snapshot e devem ser consultados novamente antes de editar o tracker. A worktree antiga `agent/centro-vida-preflight-5702c15` contém alterações locais e foi preservada intacta. A continuação documental está isolada em `agent/centro-vida-followups-261026`, baseada no `main` atual. O checkout principal contém alterações locais/untracked e um stash de segurança; não limpar nem reaplicar alterações nele.
 
 ## Ordem acordada
 
 1. Preflight documental e técnico, incluindo a aposentadoria de OpenCode.
 2. Casa e Luna: redesenho, dados pessoais, memória/perfis e migração local das rotinas.
 3. Estudos e Bonnie.
-4. Telegram, captura de áudio e resumo diário.
+4. **Adiado:** Telegram, captura de áudio e resumo diário. Não iniciar até nova autorização; reconciliar os requisitos ao retomar.
 5. Andares de projeto, squads sob medida e salas de reunião.
 6. Editor de aparência inspirado em The Sims fica futuro/fora das entregas iniciais.
+
+## Reconciliação do tracker — 2026-10-29
+
+- Fechadas com PR integrado: #49–#53, #56, #58, #75, #84, #89 e #92–#94.
+- Abertas: #38 (épico), #55 (Telegram, adiada), #59 (validação final), #90 (aguarda aceite da usuária), #101 (Luna como agente comum) e #102 (data de retorno da revisão). A PR #100 será reconciliada com #101/#102 antes do merge.
+- Decisões da usuária em 2026-10-29: pedidos claros da Luna executam direto (só excluir/descartar confirma); Luna sem popups novas, com as ferramentas comuns dos agentes; preferências de aparência/modelo/esforço da Luna (PR #100) mantidas; agentes convocados não são dispensáveis durante a tarefa e circulam pela Casa depois; nomes com mais variação.
+
+## Reconciliação do tracker — snapshot 2026-10-27 (histórico)
+
+- **Fechado/entregue:** #39–#48, #54 e #83; verificar PR e aceite antes de os considerar encerrados em definitivo. PRs #77–#86 já foram integrados, cobrindo banco de questões, ciclo de estudos, cartões/notas, Telegram e Luna comum.
+- **Abertos existentes (não duplicar):** #49–#53 e #55–#59, mais #75 e #84. #75 não deve ser recriada: PR #77 está integrado, mas o issue permanece aberto e precisa de reconciliação explícita entre critérios/aceite e implementação. #84 deve ser incluída na análise de agenda/rotinas e posicionada na dependência correta.
+- **Gates de decisão humana existentes:** #40 protótipo da Casa está fechado; o HANDOFF e decisões de design mais recentes são fonte vigente para especificação funcional, sem inferir autorização de trabalho visual adicional. #56 protótipo da sala de reuniões permanece aberto como gate humano para a fase de projetos.
+- **Fora desta iniciativa:** issues gerais #62–#64 foram fechadas; não incorporar à decomposição do Centro da Vida sem vínculo demonstrado.
+- A confirmação da divisão por tickets é pendente. Nenhuma issue remota foi criada, editada, reaberta ou fechada nesta revisão.
 
 ## Fase 0 — Preflight, docs e OpenCode
 
@@ -51,22 +65,26 @@
 
 ### O que implementar
 
-1. Criar prévia descartável da casa usando o prompt do `centro-de-controle-da-vida-design.md` e os componentes/ativos reais. Aprovação visual é gate obrigatório antes de alterar `src/`.
-2. Depois da aprovação, atualizar `src/renderer/src/world/layout.ts`, `office.ts`, `furniture.ts` e `game` para sala, cozinha, quarto, escritório pessoal, mesa da Luna, cantinho criativo e acessos físicos de agenda, objetivos e mídias. Manter circulação/elevador; usar `disposeTree` para recursos Three.js.
+1. O redesenho visual e as mudanças estéticas da casa ficam sob responsabilidade da usuária no Claude Code e fora do escopo desta implementação. Alterações funcionais de UI permanecem sujeitas aos critérios abaixo; não bloquear esse trabalho por uma prévia estética.
+2. Não alterar planta, móveis, objetos 3D, estética do quadro de tarefas ou estilo/legibilidade visual dos dropdowns. Esses ajustes estéticos serão feitos pela usuária. Mudanças funcionais de interface não devem introduzir redesign fora dos fluxos aprovados.
 3. Criar codecs puros, arquivos canônicos separados no vault, writers atômicos e backups para objetivos, mídias, escrita e rotinas. Relê/compara o conteúdo antes de gravar para não sobrescrever edição do Obsidian.
-4. Objetivos: alvo, prazo, marcos e vínculo opcional de tarefa; percentual com pesos iguais; Luna pede confirmação para marcar alcançado. Mídias: planejado/em andamento/concluído, progresso por tipo, vínculo opcional à agenda com atualização somente confirmada. Atividades pessoais são adicionadas manualmente como compromissos, nunca como tarefas automáticas.
+4. Objetivos: migrar para o arquivo próprio do vault os objetivos já registrados na seção de objetivos de `tarefas.md`, preservando conteúdo e vínculos; o painel Objetivos lê esse arquivo e é somente para consulta. Manter alvo, prazo, marcos e vínculos opcionais a tarefas; calcular percentual com pesos iguais; Luna pede confirmação para marcar alcançado. Ao criar/alterar objetivo no chat, Luna propõe tarefas vinculadas, revisadas em conjunto e gravadas em `tarefas.md` somente após confirmação explícita, sem duplicatas. No planejamento semanal, combinar tarefas que avançam objetivos; na revisão diária, priorizar tarefas já combinadas e perguntar pendências, sem geração automática por abrir o painel. Mídias: planejado/em andamento/concluído, progresso por tipo, vínculo opcional à agenda com atualização somente confirmada. Atividades pessoais são adicionadas manualmente como compromissos, nunca como tarefas automáticas.
 5. Escrita: arquivo separado, salvar só após confirmação, preservar original; perfil Agatha cria proposta de nova versão, nunca sobrescreve sem aceite.
-6. Luna coordenadora local no chat normal de agente: pedidos claros de organização executam diretamente; ambiguidade pergunta; excluir/descartar pede confirmação; concluir tarefa só por pedido claro da usuária. Perfis iniciais da casa: Ajuda técnica, Estudo avulso e Agatha.
-7. Persistir perfis reutilizáveis e memória resumida privada local. Conversa limpa por tarefa; memória própria atualiza automaticamente, Luna pode ler e a usuária pode consultar/editar/apagar. Skills aprovadas adaptáveis por tarefa; mudanças permanentes de skills/perfis precisam aprovação.
+6. Luna próxima de um agente comum, no chat normal e com as mesmas ferramentas dos demais agentes, sem popups novas. Tem leitura ampla do vault pessoal configurado, dados do Office, memórias e projetos/worktrees registrados, sem gate por consulta. Pedidos claros de organização executam diretamente; ambiguidade pergunta; excluir/descartar pede confirmação explícita. Ajuda com agenda, objetivos, rotinas e tarefas paradas/abandonadas. Revisão e planejamento do dia começam pela notificação comum dos agentes e seguem no chat normal. Perfis iniciais da casa: Ajuda técnica, Estudo avulso e Agatha.
+7. Persistir perfis reutilizáveis e memória resumida privada local. Perfis delegados iniciam conversa nova por tarefa; a conversa principal de Luna mantém continuidade pelo histórico normal do agente. Memória própria atualiza automaticamente; Luna pode ler e a usuária pode consultar/editar/apagar. Skills aprovadas adaptáveis por tarefa; mudanças permanentes de skills/perfis precisam aprovação.
+12. Agentes convocados por Luna vêm com perfil adequado à tarefa; não podem ser dispensados enquanto a tarefa está em andamento; depois de concluída, continuam circulando pela Casa até a usuária dispensá-los. O gerador de nomes ganha mais variação, mantendo o tema de personalidades da tecnologia.
 8. Modelo padrão Haiku 5.5 `medium`; aumento de capacidade pede aceite com modelo, motivo e impacto. Escolher conta com disponibilidade no início e mantê-la fixa; se quota acabar, pausar e perguntar.
-9. Migrar rotinas locais ao fluxo de Luna: definições no vault, execuções/histórico local; importar pausadas, revisar/ativar uma a uma, preservar histórico; rotinas ligadas a projeto continuam no contexto/permissões do projeto.
+9. Migrar rotinas locais ao fluxo de Luna: definições no vault, execuções/histórico local; importar pausadas, revisar/ativar uma a uma, preservar histórico; rotinas ligadas a projeto continuam no contexto/permissões do projeto. Cada rotina pessoal tem cadência própria; metas semanais são distribuídas com Luna semana a semana. No foco diário, itens previstos são sugestões: só se cria a tarefa canônica quando a usuária escolhe e define o objetivo do dia. Metas semanais contam apenas após conclusão manual; pendências são perguntadas na próxima montagem do foco, sem duplicação ou avanço automático do ciclo de estudos. Os painéis de Rotinas pessoais e Objetivos são somente para consulta, no padrão funcional da Agenda; Luna/Secretaria preenche e atualiza esses dados pelo chat, preservando as confirmações exigidas.
+10. No painel Tarefas em foco, manter sempre uma ação para abrir o quadro completo de tarefas, com ou sem tarefas em foco. Abrir o quadro não altera a seleção atual.
+11. O painel operacional de Luna deve mostrar modelo, consumo/custo, effort, pasta/branch se aplicáveis e estado da memória, com ações de compactar/limpar; limpar exige confirmação. Detalhes de projeto ausentes são indicados como não aplicáveis.
 
 ### Verificação e referências
 
 - Reusar `createTaskWriter`, `createAgendaWriter`, `writeFileAtomic`, backups e contratos IPC em `src/main/tasks-write.ts`, `agenda-write.ts`, `fs-safe.ts`, `backups.ts`, `shared/types/ipc.ts`, `main/validate.ts`, `preload/index.ts`.
 - Testes puros de codecs, round-trip, linhas desconhecidas, conflito Obsidian, backups, esquema e migração; sem escrever no vault real.
+- Verificar que os painéis de Objetivos/Rotinas não editam dados diretamente, que Luna os altera somente pelo fluxo conversacional aprovado, que a revisão diária abre no chat via notificação (sem modal) e que o botão do quadro completo permanece disponível com tarefas em foco.
 - Testar goal progress e vínculos sem duplicar tarefa; media progress só avança com confirmação; escrita mantém original; rotinas importadas pausadas.
-- Visual QA com dados `SIMULADO`, pathfinding, circulação, contraste e `__leakTest()`.
+- QA funcional com dados `SIMULADO` para os fluxos aprovados; não executar QA estético de casa, dropdowns ou layout nesta implementação.
 
 ### Anti-patterns
 

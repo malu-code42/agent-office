@@ -5,7 +5,7 @@
 - **Objetivo:** implementar o workflow local de planejamento matinal, lembretes de rotinas pessoais e revisão do fim do dia via notificações/perguntas e chat normais de Luna.
 - **Ticket e contrato:** GitHub issue [#84](https://github.com/malu-code42/agent-office/issues/84); snapshot local em `docs/agents/workflows/snapshots/ticket-84.json`.
 - **Spec vigente:** `docs/specs/centro-de-controle-da-vida-design.md`, sincronizada da versão publicada em #38 em 2026-10-27. Fronteiras de teste: fluxos de Casa/Luna com fixtures e dados sintéticos, sem vault real.
-- **Divisão aprovada:** #84 é local e sem bloqueios; #55 depende do Telegram #53/#83 e deste fluxo; não implementar #55 aqui. #58 é independente, #56 é gate humano, #57 depende de #56, #59 é verificação final. Aprovação registrada em `approval-receipts.md`.
+- **Divisão aprovada:** #84 é local e sem bloqueios; #55 depende do Telegram #53/#83 e deste fluxo; não implementar #55 aqui. #58 é independente. #56 segue como protótipo visual de responsabilidade humana, mas deixou de bloquear #57, que já está fechado. #59 é verificação final. Aprovação registrada em `approval-receipts.md`.
 - **Autorização de implementação:** a usuária escreveu “pode implementar” em 2026-10-27, referindo-se explicitamente ao #84. Fonte e escopo estão em `approval-receipts.md`.
 - **Bloqueios:** nenhum. #83 e #47 estão fechados; confirmado no issue #84 e no tracker consultado em 2026-10-27. Não há dependências pendentes para começar.
 - **Rota:** multi-delivery (projeto pai tem fases e tickets dependentes); esta entrega é exclusivamente #84.
