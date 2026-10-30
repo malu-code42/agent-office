@@ -189,3 +189,17 @@ Erros para o usuário: `throw new Error('<pt-BR>')`, que o renderer mostra.
 3. Mudou texto/cor de UI: `npm run contrast -- --check`. Mudou o mundo 3D: `__leakTest()`.
 4. Mudou comportamento por plataforma: pense em macOS, Windows e Linux; registre ADR se for decisão.
 5. Mudou algo descrito aqui: atualize este arquivo.
+
+## Agent skills
+
+### Issue tracker
+
+Specs e tickets vivem em GitHub Issues de `malu-code42/agent-office`; use `gh`. PRs não são superfície de triagem. Veja `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use os rótulos padrão `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human` e `wontfix`. Veja `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Repositório de contexto único: leia `GLOSSARY.md` e ADRs relevantes em `docs/adr/`. Veja `docs/agents/domain.md`.
