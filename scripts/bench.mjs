@@ -4,6 +4,7 @@
 // AGENT_OFFICE_BENCH_S sets the seconds; AGENT_OFFICE_BENCH_OUT the report path.
 // AGENT_OFFICE_DEMO= (empty) benches an empty, still office; AGENT_OFFICE_BENCH_LIVE=1 keeps
 // the loop's own pacing (idle and fps limit) instead of drawing every frame.
+// AGENT_OFFICE_BENCH_EVAL runs a snippet before recording, e.g. to bench a project floor in 2D or 3D.
 import { spawn } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'

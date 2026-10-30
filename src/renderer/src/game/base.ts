@@ -11,6 +11,8 @@ import { Overlays, Tag } from '../world/overlays'
 import { Effects } from '../world/effects'
 import { FACE_CAMERA, skeleton } from '../world/skull'
 import { totem, type Totem } from '../world/totem'
+import { Renderer2d } from '../world2d/renderer'
+import type { Visual } from '@shared/video'
 import { SeenFailures } from './failure-marks'
 import {
   center,
@@ -86,6 +88,12 @@ export abstract class GameBase {
   /** performance.now() until which the scene draws at full rate even if nothing walks (input, events). */
   protected wakeUntil = 0
   protected reducedEffects = false
+  /** How the project floors are drawn (Configurações → Vídeo → Visual). */
+  protected visual: Visual
+  /** The 2D renderer of the project floors; its canvas hides while the 3D world shows. */
+  readonly flat2d: Renderer2d
+  /** Tile under the pointer on a 2D floor. */
+  protected hover2d: { x: number; z: number; ok: boolean } | null = null
 
   constructor(
     container: HTMLElement,
@@ -94,6 +102,8 @@ export abstract class GameBase {
     protected hooks: GameHooks,
   ) {
     this.engine = new Engine(container, state.settings.pixelSize)
+    this.flat2d = new Renderer2d(container)
+    this.visual = state.settings.video?.visual ?? '2d'
     this.office = buildHome()
     this.engine.scene.add(this.office.group)
     this.overlays = new Overlays(overlayRoot, this.engine)
@@ -233,6 +243,11 @@ export abstract class GameBase {
     return a.project ? this.uppers.findIndex((u) => u.project.id === a.project) + 1 : 0
   }
 
+  /** The 2D renderer while it draws the floor on screen (a project floor, Visual 2D); null for the 3D world. */
+  protected get flat(): Renderer2d | null {
+    return this.visual === '2d' && this.player.floor > 0 ? this.flat2d : null
+  }
+
   protected upperOf(n: number): Upper | undefined {
     return n > 0 ? this.uppers[n - 1] : undefined
   }
@@ -252,10 +267,16 @@ export abstract class GameBase {
     return this.upperOf(n)?.scene ?? this.office
   }
 
+  /** The elevator of a floor: the tile its door opens on and where it drops people. */
+  protected elevatorOf(floor: number): { tile: [number, number]; point: { x: number; z: number } } {
+    return this.upperOf(floor)?.scene.plan.elevator ?? L.elevatorOf(floor)
+  }
+
   /** Where an agent stands when every desk of its floor is taken. */
   protected overflowTile(a: AgentSummary, floor: number): [number, number] {
     const plan = this.upperOf(floor)?.scene.plan
-    if (!plan || a.role === 'orchestrator') return OVERFLOW_TILES[a.desk % OVERFLOW_TILES.length]
+    if (!plan) return OVERFLOW_TILES[a.desk % OVERFLOW_TILES.length]
+    if (a.role === 'orchestrator') return plan.overflow[a.desk % plan.overflow.length]
     return plan.agentStand[(a.desk - plan.agentDesks.length) % plan.agentStand.length] ?? L.SPAWN_TILE
   }
 

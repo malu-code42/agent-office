@@ -3,6 +3,8 @@
 /** 0 = no cap (the display's refresh rate). */
 export type FpsLimit = 0 | 30 | 60
 export type ShadowMapSize = 1024 | 2048
+/** How the project floors are drawn: the 2D pixel-art renderer (beta) or the 3D world. */
+export type Visual = '2d' | '3d'
 
 export interface VideoSettings {
   shadows: boolean
@@ -12,11 +14,13 @@ export interface VideoSettings {
   effects: 'full' | 'reduced'
   /** On battery the scene switches to Economia by itself, and back on the charger. */
   batterySaver: boolean
+  /** Project floors in 2D pixel art or in 3D; missing = 2D. Casa stays 3D for now. */
+  visual?: Visual
 }
 
 export type Quality = 'high' | 'balanced' | 'saver'
 
-type Preset = Omit<VideoSettings, 'batterySaver'>
+type Preset = Omit<VideoSettings, 'batterySaver' | 'visual'>
 
 export const QUALITY_PRESETS: Record<Quality, Preset> = {
   high: { shadows: true, shadowMapSize: 2048, fpsLimit: 0, effects: 'full' },
@@ -27,7 +31,7 @@ export const QUALITY_PRESETS: Record<Quality, Preset> = {
 
 export const QUALITY_LABELS: Record<Quality, string> = { high: 'Alta', balanced: 'Equilibrada', saver: 'Economia' }
 
-export const DEFAULT_VIDEO: VideoSettings = { ...QUALITY_PRESETS.balanced, batterySaver: true }
+export const DEFAULT_VIDEO: VideoSettings = { ...QUALITY_PRESETS.balanced, batterySaver: true, visual: '2d' }
 
 /** The preset these settings match, or null when the player mixed them by hand. */
 export function qualityOf(v: VideoSettings): Quality | null {
@@ -41,7 +45,7 @@ export function qualityOf(v: VideoSettings): Quality | null {
 
 /** What the scene uses now: Economia on battery when the player asked for it. */
 export function effectiveVideo(v: VideoSettings, onBattery: boolean): VideoSettings & { saving: boolean } {
-  if (v.batterySaver && onBattery) return { ...QUALITY_PRESETS.saver, batterySaver: true, saving: true }
+  if (v.batterySaver && onBattery) return { ...QUALITY_PRESETS.saver, batterySaver: true, visual: v.visual, saving: true }
   return { ...v, saving: false }
 }
 

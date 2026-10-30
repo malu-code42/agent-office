@@ -5,15 +5,21 @@ import { mergeStatic } from './merge'
 import { BOSS_DESK, BOSS_SEAT, DESKS, ELEVATOR, H, LOUNGE, PARTITIONS, W, WALL_H, type Partition, type Zone } from './layout'
 import { Grid } from './pathfinding'
 import { beacon, costBoard, type Beacon, type CostBoard } from './props'
-import { arcadePainter, LoopScreen, Screen } from './screens'
+import { arcadePainter, LoopScreen, Screen, type ScreenMode } from './screens'
 import { workstation } from './workstation'
 import { floorTexture, rugTexture, WindowSky } from './textures'
+
+/** A desk's monitor: the 3D screen, or the CRT of a 2D floor. */
+export interface DeskScreen {
+  setMode(mode: ScreenMode): void
+  update(dt: number): void
+}
 
 export interface Office {
   group: THREE.Group
   grid: Grid
   floor: THREE.Mesh
-  deskScreens: Screen[]
+  deskScreens: DeskScreen[]
   update(dt: number): void
   /** Opens the elevator doors for a moment (agent arriving or leaving). */
   ding(): void

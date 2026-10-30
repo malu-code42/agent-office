@@ -296,6 +296,21 @@ export class Avatar {
     return this.walking
   }
 
+  /** Which way it looks now (radians, 0 = towards +z): the 2D world picks its sprite by it. */
+  get heading(): number {
+    return this.angle
+  }
+
+  /** Walk cycle phase, for the 2D world's step frames. */
+  get stride(): number {
+    return this.phase
+  }
+
+  /** Walking, or steered by the keys a moment ago. */
+  get isStepping(): boolean {
+    return this.walking || this.steer > 0
+  }
+
   /** Walking, turning, flinching or falling: the scene should draw at full rate (AO-29). */
   get isMoving(): boolean {
     return this.walking || this.steer > 0 || this.hurt > 0 || (this.downT >= 0 && this.downT < 0.4) || this.angle !== this.targetAngle

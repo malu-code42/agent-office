@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { emiAgentId } from '@shared/emi'
 import { GameMovement } from './movement'
 import { SKULL_HOME, type Point } from './types'
 
@@ -39,7 +40,7 @@ export abstract class GameInput extends GameMovement {
           this.dragging.moved = true
           this.follow = false
           this.watch = null
-          this.engine.pan(dx, dy)
+          this.pan(dx, dy)
           this.dragging.x = e.clientX
           this.dragging.y = e.clientY
         }
@@ -54,6 +55,7 @@ export abstract class GameInput extends GameMovement {
     })
     el.addEventListener('pointerleave', () => {
       this.hover.visible = false
+      this.hover2d = null
       for (const interaction of this.office.interactions) interaction.highlight.visible = false
       document.body.style.cursor = ''
     })
@@ -63,7 +65,7 @@ export abstract class GameInput extends GameMovement {
         e.preventDefault()
         this.wheelAcc += e.deltaY
         if (Math.abs(this.wheelAcc) > 40) {
-          this.engine.zoomStep(this.wheelAcc > 0 ? -1 : 1)
+          this.zoom(this.wheelAcc > 0 ? -1 : 1)
           this.wheelAcc = 0
         }
       },
@@ -73,6 +75,17 @@ export abstract class GameInput extends GameMovement {
 
   /** Helpers answer with their parent's id, plus their own in `helper`. */
   protected agentAt(x: number, y: number): { id: string; helper?: string } | null {
+    const flat = this.flat
+    if (flat) {
+      const hit = flat.pick(x, y)
+      if (hit?.kind !== 'person') return null
+      if (hit.key.startsWith('helper:')) {
+        const h = this.helpers.get(hit.key.slice('helper:'.length))
+        return h ? { id: h.parentId, helper: h.id } : null
+      }
+      if (hit.key === 'emi') return this.currentProject ? { id: emiAgentId(this.currentProject.id) } : null
+      return this.actors.has(hit.key) ? { id: hit.key } : null
+    }
     const view = this.player.floor
     const roots = [...this.actors.values()].filter((a) => a.goal !== 'leave' && !a.down && a.avatar.floor === view).map((a) => a.avatar.root)
     const helpers = [...this.helpers.values()].filter((h) => !h.gone && h.avatar.floor === view)
@@ -106,8 +119,27 @@ export abstract class GameInput extends GameMovement {
       this.hooks.onRoutines()
       return
     }
-    if (this.player.floor > 0) {
-      const roots = [...this.members.values()].filter((m) => m.phase !== 'leaving' && m.avatar.floor === this.player.floor).map((m) => m.avatar.root)
+    const flat = this.flat
+    const project = this.currentProject
+    if (flat && project) {
+      const hit = flat.pick(x, y)
+      if (hit?.kind === 'room') {
+        const room = this.upperOf(this.player.floor)?.scene.plan.rooms[hit.room]
+        if (room) this.hooks.onRoomClick?.(project, room)
+        return
+      }
+      if (hit?.kind === 'meeting') return this.hooks.onMeetingRoomClick?.(project)
+      if (hit?.kind === 'elevator') {
+        const door = this.elevatorOf(this.player.floor)
+        this.walkPlayerTo([door.tile[0], door.tile[1] + 1])
+        this.hooks.onElevator?.()
+        return
+      }
+      if (hit?.kind === 'person' && hit.key.startsWith('member:')) return this.memberClick(hit.key.slice('member:'.length))
+    } else if (this.player.floor > 0) {
+      const roots = [...this.members.values()]
+        .filter((m) => m.phase !== 'leaving' && m.avatar.floor === this.player.floor)
+        .map((m) => m.avatar.root)
       const hit = this.engine.pick(x, y, roots).find((h) => String(h.object.userData.avatarId ?? '').startsWith('member:'))
       if (hit) return this.memberClick(String(hit.object.userData.avatarId).slice('member:'.length))
     }
@@ -116,7 +148,7 @@ export abstract class GameInput extends GameMovement {
       this.hooks.onAgentClick(hit.id, hit.helper)
       return
     }
-    const p = this.engine.pickFloor(x, y)
+    const p = this.floorPoint(x, y)
     if (!p) return
     const tile: [number, number] = [Math.floor(p.x), Math.floor(p.z)]
     if (!this.floorOf(this.player.floor).grid.inside(tile[0], tile[1])) return
@@ -168,7 +200,35 @@ export abstract class GameInput extends GameMovement {
     return [at(-size.w / 2, size.h / 2), at(size.w / 2, size.h / 2), at(-size.w / 2, -size.h / 2)]
   }
 
+  /** The floor point under the pointer, in tiles, in the world on screen. */
+  protected floorPoint(x: number, y: number): { x: number; z: number } | null {
+    const flat = this.flat
+    return flat ? flat.floorAt(x, y) : this.engine.pickFloor(x, y)
+  }
+
+  /** Drags the camera: the 3D one, or the 2D floor's (kept on the floor). */
+  protected pan(dx: number, dy: number): void {
+    const flat = this.flat
+    if (!flat) return this.engine.pan(dx, dy)
+    const d = flat.panBy(dx, dy)
+    const [w, h] = this.upperOf(this.player.floor)?.scene.plan.size ?? [1, 1]
+    const t = this.engine.target
+    t.x = Math.max(0, Math.min(w, t.x + d.x))
+    t.z = Math.max(0, Math.min(h, t.z + d.z))
+  }
+
   protected updateHover(x: number, y: number): void {
+    const flat = this.flat
+    if (flat) {
+      const grid = this.floorOf(this.player.floor).grid
+      const p = flat.floorAt(x, y)
+      const over = flat.pick(x, y)
+      const tx = p ? Math.floor(p.x) : -1
+      const tz = p ? Math.floor(p.z) : -1
+      this.hover2d = !over && grid.inside(tx, tz) ? { x: tx, z: tz, ok: grid.walkable(tx, tz) } : null
+      document.body.style.cursor = over ? 'pointer' : ''
+      return
+    }
     const homeInteraction = this.homeInteractionAt(x, y)
     for (const interaction of this.office.interactions) interaction.highlight.visible = interaction === homeInteraction
     const p = this.engine.pickFloor(x, y)
@@ -239,6 +299,8 @@ export abstract class GameInput extends GameMovement {
   }
 
   zoom(delta: number): void {
-    this.engine.zoomStep(delta)
+    const flat = this.flat
+    if (flat) flat.zoomStep(delta)
+    else this.engine.zoomStep(delta)
   }
 }

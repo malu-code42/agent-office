@@ -5,7 +5,7 @@ import * as L from '../world/layout'
 import { Tag } from '../world/overlays'
 import { GameSubagents } from './subagents'
 import { memberPlace, deliverySpot, floorReservations, spotKey, type Spot } from './member-slots'
-import { clip, MEMBER_EXIT_S, MEMBER_MIN_S, spawnPoint, spawnTile, SQUAD_SPEED, type Member } from './types'
+import { clip, MEMBER_EXIT_S, MEMBER_MIN_S, SQUAD_SPEED, type Member } from './types'
 
 /** Squad members: up the elevator, a desk in the squad room, the delivery at the coordinator, out. */
 export abstract class GameSquads extends GameSubagents {
@@ -83,7 +83,8 @@ export abstract class GameSquads extends GameSubagents {
     avatar.floor = this.homeFloor(a)
     this.dress(avatar, a)
     avatar.speed = SQUAD_SPEED
-    avatar.placeAt(spawnPoint(avatar.floor).x, spawnPoint(avatar.floor).z)
+    const spawn = this.elevatorOf(avatar.floor).point
+    avatar.placeAt(spawn.x, spawn.z)
     avatar.face(0)
     this.engine.scene.add(avatar.root)
     const tag = this.overlays.add(new Tag(avatar.anchor, `${info.icon} ${info.name}`, false, () => this.memberClick(id)))
@@ -253,7 +254,8 @@ export abstract class GameSquads extends GameSubagents {
     m.desk = null
     m.tile = null
     if (!m.failed) this.memberBubble(m)
-    this.route(m.avatar, spawnTile(m.avatar.floor), spawnPoint(m.avatar.floor), () => {
+    const door = this.elevatorOf(m.avatar.floor)
+    this.route(m.avatar, door.tile, door.point, () => {
       this.ding(m.avatar.floor)
       setTimeout(() => this.memberGone(m), 500)
     })

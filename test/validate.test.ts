@@ -545,7 +545,9 @@ describe('cleanSettings', () => {
   })
   it('video: aplica os campos válidos e mantém os inválidos', () => {
     const out = cleanSettings({ video: { ...QUALITY_PRESETS.saver, batterySaver: false } }, settings())
-    expect(out.video).toEqual({ ...QUALITY_PRESETS.saver, batterySaver: false })
+    expect(out.video).toEqual({ ...QUALITY_PRESETS.saver, batterySaver: false, visual: '2d' })
+    expect(cleanSettings({ video: { visual: '3d' } }, settings()).video.visual).toBe('3d')
+    expect(cleanSettings({ video: { visual: 'vr' } }, settings()).video.visual).toBe('2d')
     const bad = cleanSettings(
       { video: { shadows: 'sim', shadowMapSize: 4096, fpsLimit: 144, effects: 'none', batterySaver: 1, evil: '<x>' } },
       settings(),

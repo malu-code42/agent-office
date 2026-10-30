@@ -33,14 +33,20 @@ export abstract class GameDeliveries extends GameLounge {
     if (!agent) return
     const floor = this.homeFloor(agent)
     this.travel(actor, floor, instant, () => {
-      const spot = meetingWaitSpot(
-        (x, z) => this.floorOf(floor).grid.walkable(x, z),
-        [...this.actors.values()]
-          .filter((other) => other !== actor && other.avatar.floor === floor)
-          .flatMap((other) => (other.spot ? [other.spot] : [])),
-        L.DIRECTOR_RECT,
-        L.MEETING_TABLE_AT,
-      )
+      const meeting = this.upperOf(floor)?.scene.plan.meeting
+      const taken = [...this.actors.values()]
+        .filter((other) => other !== actor && other.avatar.floor === floor)
+        .flatMap((other) => (other.spot ? [other.spot] : []))
+      // A floor with meeting chairs seats its visitors; the others stand by the table.
+      const seat = meeting?.seats.find((s) => !taken.some(([x, z]) => x === s.approach[0] && z === s.approach[1]))
+      const spot =
+        seat?.approach ??
+        meetingWaitSpot(
+          (x, z) => this.floorOf(floor).grid.walkable(x, z),
+          taken,
+          meeting?.rect ?? L.DIRECTOR_RECT,
+          meeting?.table ?? L.MEETING_TABLE_AT,
+        )
       if (!spot) return
       actor.spot = spot
       const done = () => {
@@ -48,10 +54,11 @@ export abstract class GameDeliveries extends GameLounge {
         const now = this.state.agents.get(actor.id)
         if (now) this.pose(actor, now)
       }
+      const at = seat ?? { x: spot[0] + 0.5, z: spot[1] + 0.5 }
       if (instant) {
-        actor.avatar.placeAt(spot[0] + 0.5, spot[1] + 0.5)
+        actor.avatar.placeAt(at.x, at.z)
         done()
-      } else this.route(actor.avatar, spot, null, done)
+      } else this.route(actor.avatar, spot, seat ? { x: seat.x, z: seat.z } : null, done)
     })
   }
 
