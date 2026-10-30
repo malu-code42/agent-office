@@ -51,6 +51,26 @@ describe('presença do agente na Casa (AO-94)', () => {
     store.flush()
   })
 
+  it('refuses to send a called agent away while its task runs, and allows it once done (#105)', async () => {
+    app.setPath('userData', mkdtempSync(join(tmpdir(), 'ao-home-busy-')))
+    const { Store } = await import('../src/main/store')
+    const { AgentManager } = await import('../src/main/agents')
+    const store = new Store()
+    store.agents = [{ summary: resident({ homeResident: true, status: 'idle' }), log: [] }]
+    const manager = new AgentManager(store)
+    const agent = (manager as unknown as { agents: Map<string, { summary: AgentSummary }> }).agents.get('home-agent')!
+    for (const status of ['working', 'starting', 'waiting'] as const) {
+      agent.summary.status = status
+      expect(() => manager.setHomeResident('home-agent', false), status).toThrow('ainda está na tarefa')
+      expect(manager.agent('home-agent')).toMatchObject({ homeResident: true })
+    }
+    agent.summary.status = 'done'
+    manager.setHomeResident('home-agent', false)
+    expect(manager.agent('home-agent')).not.toHaveProperty('homeResident')
+    manager.shutdown()
+    store.flush()
+  })
+
   it('keeps a temporary resident after the user acknowledges its delivery', async () => {
     app.setPath('userData', mkdtempSync(join(tmpdir(), 'ao-home-temporary-')))
     const { Store } = await import('../src/main/store')

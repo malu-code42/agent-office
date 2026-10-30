@@ -220,6 +220,8 @@ export interface HireRequest {
   worktree?: boolean
   /** One of the three built-in profiles; its scope is injected by the main process. */
   profile?: ProfileId
+  /** #105: stays in the house after the task until the user sends it away. Set by the main process only. */
+  homeResident?: boolean
   /** Looks picked in a saved template; missing = drawn from the name. */
   look?: Look
 }
