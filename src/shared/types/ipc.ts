@@ -17,7 +17,6 @@ import type { BarTimerView } from '../barTimer'
 import type { IrisResult } from '../iris'
 import type { ProfileId } from '../profiles'
 import type { Proposal } from '../proposals'
-import type { ReviewChoices, ReviewPostpone, ReviewView } from '../review'
 import type { Goal, GoalDraft } from '../goals'
 import type { NewTaskDraft, ParsedBoard, Task, TaskDiscard, TaskMove, TaskRef, TaskReopen, TaskReschedule } from '../tasks'
 import type { PersonalRoutineCreateInput, PersonalRoutineOverview } from '../routine-personal'
@@ -28,7 +27,6 @@ import type { DecodedStudyBank, StudyQuestion } from '../study-questions'
 import type { StudyCycleState } from '../study-cycle'
 import type { StudyLibrarySearch } from '../study-library'
 import type { StudyCardDraft, StudyCardSummary, StudyCardsRead, StudyNotesRead } from '../study-cards'
-import type { TelegramAudioErrorNotice, TelegramExpiredNotice, TelegramMessageNotice, TelegramStatus } from '../telegram'
 
 export interface StudyQuestionCandidates {
   token: string
@@ -228,9 +226,6 @@ export type OfficeEvent =
   | { type: 'focus:count'; count: number }
   /** The Timer of the bar changed (AO-64): the whole session as it reads, or null for a stopped Timer. */
   | { type: 'barTimer'; timer: BarTimerView | null }
-  | ({ type: 'telegram:message' } & TelegramMessageNotice)
-  | ({ type: 'telegram:expired' } & TelegramExpiredNotice)
-  | ({ type: 'telegram:audio-error' } & TelegramAudioErrorNotice)
   | { type: 'luna:profile-task'; profile: ProfileId; task: string }
   | { type: 'luna:media-draft'; draft: Extract<IrisResult, { kind: 'media-draft' }>['draft'] }
   | { type: 'luna:transcript'; text: string }
@@ -322,12 +317,6 @@ export interface OfficeAPI {
   listStudyCards(): Promise<StudyCardsRead>
   /** Marca manualmente se a cópia física do cartão foi escrita. */
   setStudyCardPhysicalWritten(id: string, written: boolean): Promise<StudyCardSummary>
-  /** Estado sanitisado da conta Telegram vinculada; nunca inclui o bot token. */
-  telegramStatus(): Promise<TelegramStatus>
-  /** Abre o seletor nativo para importar arquivo JSON de token/user ID e vincular o bot. */
-  linkTelegram(): Promise<TelegramStatus | null>
-  /** Pede confirmação no processo principal, para o polling e remove a credencial criptografada. */
-  unlinkTelegram(): Promise<boolean>
   /** Lê objetivos.md e tarefas.md; os objetivos continuam editáveis no Obsidian. */
   readGoals(): Promise<{ goals: Goal[]; tasks: Task[] }>
   /** Cria um objetivo em objetivos.md, sem alterar tarefas.md. */
@@ -378,14 +367,6 @@ export interface OfficeAPI {
   discardWritingDraft(draftToken: string): Promise<void>
   /** Starts the review offer for today, once per local day: true when it should be shown now. Without a vault, false. */
   reviewGate(): Promise<boolean>
-  /** The review of today: the draft to resume (or the first step), the agenda of today and the focus as the files say now. Nothing is written. */
-  openReview(): Promise<ReviewView>
-  /** Keeps the review as it is (step and choices) in planning.json, so it can be resumed today. Nothing else changes. */
-  saveReviewDraft(step: number, choices: ReviewChoices): Promise<void>
-  /** "Dispensar hoje" (or adiar 1, 2, 3 days or 1 week). Returns the day the offer comes back. */
-  postponeReview(option: ReviewPostpone): Promise<{ next: string }>
-  /** Applies the review's choices as one proposal, all or none. Returns how many operations were applied. */
-  confirmReview(choices: ReviewChoices): Promise<{ applied: number }>
   /** Rotinas pessoais do vault (AO-42): as de hoje e as linhas que precisam do usuário (candidatas da revisão do dia). Só lê rotinas-pessoais.md. */
   routineCandidates(): Promise<RoutineCandidate[]>
   /** Projeta agenda e pendências pessoais da semana local; não altera o estado das ocorrências. */

@@ -73,6 +73,11 @@ button {
   color: var(--muted);
 }
 
+/* display: flex above would beat the hidden attribute */
+.empty-box[hidden] {
+  display: none;
+}
+
 .empty-box b {
   color: var(--text);
   font-size: 14px;

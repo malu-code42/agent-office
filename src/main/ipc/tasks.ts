@@ -285,7 +285,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
     return !!origin && personalRoutines.matchesTaskFingerprint(id, personalRoutineTaskFingerprintFromTask(task, origin))
   }
 
-  registerReviewIpc(ctx, { tasks: writer, agenda, vault: requireVault }, personalRoutines)
+  const review = registerReviewIpc(ctx, { tasks: writer, agenda, vault: requireVault }, personalRoutines)
   ipcMain.handle('office:dailyWorkflowTimes', () => personalRoutines.dailyTimes())
   ipcMain.handle('office:setDailyWorkflowTimes', (_event, raw: unknown) => {
     const value = dailyWorkflowTimesSchema.safeParse(raw)
@@ -580,6 +580,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
         completeTask: (target) => completeTask(requireVault(), target),
         discardTask: (target, reason) => discardTask(requireVault(), target, reason),
         agenda,
+        review,
         callAgent: async ({ task, cwd, name }) => {
           const req = cleanHire({ task, cwd: cwd ?? requireVault(), ...(name ? { name } : {}) }, ctx.store.settings)
           const agent = await ctx.manager.hire({ ...req, homeResident: true })

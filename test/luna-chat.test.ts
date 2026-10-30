@@ -21,15 +21,6 @@ function setup(result: IrisResult = { kind: 'question', text: 'Qual lista?' }) {
 }
 
 describe('LunaChat', () => {
-  it('devolve o resultado do processamento de áudio para que Telegram mantenha pendências', async () => {
-    const { chat, desk, host } = setup()
-    const processed = await chat.enqueueTelegramAudio(async () => 'pending')
-
-    expect(processed).toBe('pending')
-    expect(host.log).toHaveBeenCalledWith('user', 'Áudio recebido pelo Telegram para transcrição local.')
-    expect(desk.prepare).not.toHaveBeenCalled()
-  })
-
   it('envia grupo encaminhado pela captura direto ao fluxo comum com chave idempotente', async () => {
     const { chat, desk, host } = setup()
     const captureId = 'a'.repeat(64)

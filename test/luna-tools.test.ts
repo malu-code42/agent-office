@@ -31,6 +31,14 @@ beforeEach(() => {
     completeTask: vi.fn(() => 'tabc123'),
     discardTask: vi.fn(() => 'tabc123'),
     agenda: createAgendaWriter({ now: () => new Date(2026, 9, 30, 10) }),
+    review: {
+      focus: vi.fn(() => [
+        { id: 'tabc123', title: 'Lavar louça', list: 'Casa', missing: false, stale: true },
+        { id: 'tsumiu1', title: '', list: '', missing: true, stale: false },
+      ]),
+      done: vi.fn(),
+      postpone: vi.fn(() => '2026-11-02'),
+    },
     callAgent: vi.fn(async () => ({ name: 'Grace' })),
   }
 })
@@ -81,6 +89,18 @@ describe('ferramentas da Luna (#101)', () => {
   it('chama um agente para a Casa', async () => {
     expect((await call('agent_call', { task: 'Revisar o orçamento' })).text).toBe('Grace está a caminho com a tarefa.')
     expect(deps.callAgent).toHaveBeenCalledWith({ task: 'Revisar o orçamento' })
+  })
+
+  it('revisão do dia: lê o foco com as paradas, conclui e adia sem cartão', async () => {
+    const focus = await call('focus_list')
+    expect(focus.text).toContain('- tabc123 · Casa · Lavar louça · parada')
+    expect(focus.text).toContain('- tsumiu1 · não está mais em tarefas.md')
+    expect((await call('review_done')).text).toBe('Revisão do dia registrada.')
+    expect(deps.review.done).toHaveBeenCalledOnce()
+    expect((await call('review_postpone', { days: 3 })).text).toBe('Revisão adiada; volta em 2026-11-02.')
+    expect(deps.review.postpone).toHaveBeenCalledWith(3)
+    expect(LUNA_CONFIRM_TOOLS.has('mcp__casa__review_done')).toBe(false)
+    expect(LUNA_CONFIRM_TOOLS.has('mcp__casa__review_postpone')).toBe(false)
   })
 
   it('falha vira mensagem para a Luna, sem gravar', async () => {

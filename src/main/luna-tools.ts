@@ -4,6 +4,7 @@
 
 import { createSdkMcpServer, tool, type McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
+import { REVIEW_STALE_DAYS, type ReviewFocusRow, type ReviewPostpone } from '@shared/review'
 import type { ParsedBoard } from '@shared/tasks'
 import { allCommitments, planAddCommitment, planRemoveCommitment } from './agenda-write'
 
@@ -26,6 +27,12 @@ export interface LunaToolDeps {
     read(vault: string): string | null
     current(vault: string): string
     write(vault: string, before: string, after: string): void
+  }
+  /** The daily review, done in Luna's chat: the focus as the review reads it, and the end or postponement of today's review. */
+  review: {
+    focus(): ReviewFocusRow[]
+    done(): void
+    postpone(option: ReviewPostpone): string
   }
   /** Calls an agent to the house for a task; it stays around after it until the user sends it away. */
   callAgent(req: { task: string; cwd?: string; name?: string }): Promise<{ name: string }>
@@ -163,6 +170,34 @@ export function lunaToolDefs(deps: LunaToolDeps) {
           return `Compromisso “${args.title}” de ${args.day} às ${args.time} removido.`
         })(),
       { annotations: { destructiveHint: true } },
+    ),
+    tool(
+      'focus_list',
+      `Lista as tarefas em foco hoje. "parada" marca as que estão sem avanço há ${REVIEW_STALE_DAYS} dias ou mais.`,
+      {},
+      () =>
+        run(() => {
+          const rows = deps.review.focus()
+          if (!rows.length) return 'Nenhuma tarefa em foco.'
+          return rows
+            .map((r) =>
+              r.missing ? `- ${r.id} · não está mais em tarefas.md` : `- ${r.id} · ${r.list} · ${r.title}${r.stale ? ' · parada' : ''}`,
+            )
+            .join('\n')
+        })(),
+      { annotations: { readOnlyHint: true } },
+    ),
+    tool('review_done', 'Marca a revisão do dia como feita, o que tira o aviso sobre a Luna. Chame ao terminar a revisão.', {}, () =>
+      run(() => {
+        deps.review.done()
+        return 'Revisão do dia registrada.'
+      })(),
+    ),
+    tool(
+      'review_postpone',
+      'Adia a revisão do dia por 1, 2, 3 ou 7 dias, quando a usuária pedir.',
+      { days: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(7)]) },
+      (args) => run(() => `Revisão adiada; volta em ${deps.review.postpone(args.days)}.`)(),
     ),
     tool(
       'agent_call',

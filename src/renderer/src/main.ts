@@ -22,8 +22,6 @@ import { openTasksBoard } from './ui/tasks-board'
 import { openFocusPopup } from './ui/focus-popup'
 import { openTimerPopup } from './ui/timer-popup'
 import { openProposalReview } from './ui/proposals'
-import { reviewMayShow, todayKey } from '@shared/review'
-import { openReviewWizard } from './ui/review'
 import { openLunaSettings } from './ui/luna-settings'
 import { openLunaPlan } from './ui/luna-plan'
 import { profileById } from '@shared/profiles'
@@ -243,7 +241,8 @@ async function boot(): Promise<void> {
       else if (action === 'personal-routines') void openPersonalRoutinesPanel(ui, toast)
       else if (action === 'radio') void radio.toggle()
     },
-    onLunaReview: () => void openLunaReview(),
+    // The bubble starts the review only while it is due; otherwise Luna's tag just opens her conversation.
+    onLunaReview: () => void openLunaReview(state.reviewDue),
     // Something of the project does not fit on its floor: the user has to know.
     // The members with no place in the scene are named, so nobody thinks they are gone.
     onIncompatible: (_project, issues) =>
@@ -279,9 +278,13 @@ async function boot(): Promise<void> {
     await panel.open(id, helper ?? null)
   }
 
-  /** Abre a revisão diária explícita sem depender da oferta automática ou de a revisão estar vencida. */
-  async function openLunaReview(): Promise<void> {
-    await openReviewWizard(ui, toast)
+  /**
+   * The review of the day happens in Luna's conversation, with her tools: no modal. Opens her panel and, with
+   * `kickoff`, sends the message that starts the review there.
+   */
+  async function openLunaReview(kickoff = true): Promise<void> {
+    await showAgent(LUNA_AGENT_ID)
+    if (kickoff) await window.office.send(LUNA_AGENT_ID, 'Vamos fazer a revisão do dia.').catch((err) => toast(cleanError(err), 'err'))
   }
 
   const hud = new Hud(
@@ -494,13 +497,6 @@ async function boot(): Promise<void> {
 
   window.office.onEvent((e) => {
     if (e.type === 'data:notice') return notice(e.notice)
-    if (e.type === 'telegram:message') return toast(`Telegram · ${e.text.slice(0, 180)}`, 'info')
-    if (e.type === 'telegram:expired') return toast('Uma mensagem do Telegram expirou. Reenvie-a ao bot.', 'err')
-    if (e.type === 'telegram:audio-error')
-      return toast(
-        'Um áudio do Telegram ficou pendente após falha local ou de exclusão. Confira a mensagem e remova-a manualmente, se necessário.',
-        'err',
-      )
     if (e.type === 'luna:profile-task') {
       void startLunaProfileTask(e.profile, e.task)
         .then((agent) => {
@@ -638,7 +634,7 @@ async function boot(): Promise<void> {
     setTimeout(tryTour, 1500)
   }
 
-  // A revisão do dia não abre sozinha: na primeira entrada do dia a Luna sinaliza com uma ação explícita.
+  // The first opening of the day with the review due only shows the bubble over Luna; a click starts it in her chat.
   if (!headless) {
     const tryReview = () => {
       if (tour.showing || tourBlocked()) return setTimeout(tryReview, 1000)
@@ -646,8 +642,6 @@ async function boot(): Promise<void> {
         .reviewGate()
         .then((due) => {
           state.reviewDue = due
-          if (reviewMayShow(due, state.reviewDraft, state.reviewNextDay, todayKey()))
-            toast('A Luna quer revisar o seu dia com você.', 'info', { label: 'Revisar agora', run: () => void openLunaReview() })
         })
         .catch((err) => toast(cleanError(err), 'err'))
     }

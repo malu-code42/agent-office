@@ -21,6 +21,8 @@ let vault: string
 let data: string
 let planning: PlanningStore
 let tasksWriter: ReturnType<typeof createTaskWriter>
+let review: ReturnType<typeof registerReviewIpc>
+let broadcast: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
@@ -34,7 +36,8 @@ beforeEach(() => {
   tasksWriter = createTaskWriter({ now: () => new Date() })
   // popula o cache de leitura do escritor de tarefas (current exige remember prévio)
   tasksWriter.remember(vault, readFileSync(join(vault, 'tarefas.md'), 'utf8'))
-  registerReviewIpc(
+  broadcast = vi.fn()
+  review = registerReviewIpc(
     {
       store: {
         dataDirectory: data,
@@ -44,7 +47,7 @@ beforeEach(() => {
         set settings(_v) {},
       } as never,
       planning,
-      broadcast: vi.fn(),
+      broadcast,
     } as never,
     { tasks: tasksWriter, agenda: createAgendaWriter({ now: () => new Date() }), vault: () => vault } as never,
     {} as never,
@@ -62,84 +65,31 @@ afterEach(() => {
   rmSync(data, { recursive: true, force: true })
 })
 
-describe('confirmReview IPC: não confirma enquanto o rascunho está adiado', () => {
-  const draft = { day: '2026-10-17', step: 0, choices: {} }
-
-  it('recusa a confirmação quando o retorno está no futuro', async () => {
-    planning.saveReviewDraft(draft)
-    planning.setReviewNextDay('2026-10-20')
-
-    await expect(invoke('office:confirmReview', {})).rejects.toThrow('data de retorno')
-
-    // o rascunho não é limpo pela confirmação recusada
-    expect(planning.reviewDraft()?.day).toBe('2026-10-17')
-    expect(planning.reviewNextDay()).toBe('2026-10-20')
-  })
-
-  it('permite confirmar quando a data de retorno já chegou', async () => {
-    planning.saveReviewDraft(draft)
-    planning.setReviewNextDay('2026-10-17')
-
-    const result = await invoke('office:confirmReview', {})
-
-    expect(result).toEqual({ applied: 0 })
-    expect(planning.reviewDraft()).toBeUndefined() // limpo pela confirmação
-  })
-
-  it('permite confirmar quando nunca foi adiado (reviewNextDay nulo)', async () => {
-    planning.saveReviewDraft(draft)
-    expect(planning.reviewNextDay()).toBeUndefined()
-
-    const result = await invoke('office:confirmReview', {})
-
-    expect(result).toEqual({ applied: 0 })
-    expect(planning.reviewDraft()).toBeUndefined()
-  })
-
-  it('não aplica o gate de adiamento quando não há rascunho', async () => {
-    // sem rascunho: não há o que confirmar, o gate de data não se aplica
-    const result = await invoke('office:confirmReview', {})
-
-    expect(result).toEqual({ applied: 0 })
-  })
-
-  it('openReview recusa quando o retorno está no futuro (sem rascunho)', async () => {
-    planning.setReviewNextDay('2026-10-20')
-
-    await expect(invoke('office:openReview')).rejects.toThrow('data de retorno')
-  })
-
-  it('openReview permite quando a data de retorno já chegou (sem rascunho)', async () => {
-    planning.setReviewNextDay('2026-10-17')
-
-    const result = (await invoke('office:openReview')) as { day: string; entries: unknown[]; focus: unknown[] }
-
-    expect(result.day).toBe('2026-10-17')
-    expect(result.focus).toEqual([])
-  })
-
-  it('confirmReview recusa quando o retorno está no futuro (sem rascunho)', async () => {
-    planning.setReviewNextDay('2026-10-20')
-
-    await expect(invoke('office:confirmReview', {})).rejects.toThrow('data de retorno')
-  })
-
-  it('a oferta mostrada hoje abre e confirma hoje, sem cair no gate de retorno (#102)', async () => {
+describe('revisão do dia no chat da Luna: o que as ferramentas dela chamam', () => {
+  it('o portão oferece uma vez por dia; concluir tira o aviso e apaga o rascunho antigo', async () => {
     expect(await invoke('office:reviewGate')).toBe(true)
-    expect(await invoke('office:reviewGate')).toBe(false) // uma vez por dia
+    expect(await invoke('office:reviewGate')).toBe(false)
+    planning.saveReviewDraft({ day: '2026-10-17', step: 1, choices: {} })
+    broadcast.mockClear()
 
-    const view = (await invoke('office:openReview')) as { day: string }
-    expect(view.day).toBe('2026-10-17')
-    planning.saveReviewDraft(draft)
-    expect(await invoke('office:confirmReview', {})).toEqual({ applied: 0 })
+    review.done()
+
+    expect(offerDue(planning, '2026-10-17')).toBe(false)
+    expect(planning.reviewDraft()).toBeUndefined()
+    expect(broadcast).toHaveBeenCalledWith({ type: 'review:due', due: false })
+    expect(broadcast).toHaveBeenCalledWith({ type: 'review:draft', draft: false })
   })
 
-  it('confirmReview permite quando a data de retorno já chegou (sem rascunho)', async () => {
-    planning.setReviewNextDay('2026-10-17')
+  it('adiar grava a data de retorno e segura o portão até ela', async () => {
+    expect(review.postpone(3)).toBe('2026-10-20')
+    expect(broadcast).toHaveBeenCalledWith({ type: 'review:nextDay', nextDay: '2026-10-20' })
+    expect(await invoke('office:reviewGate')).toBe(false)
+    expect(offerDue(planning, '2026-10-20')).toBe(true)
+  })
 
-    const result = await invoke('office:confirmReview', {})
-
-    expect(result).toEqual({ applied: 0 })
+  it('o foco vem como a revisão lê: título, lista e tarefa parada', () => {
+    planning.add('tabc123')
+    expect(review.focus()).toEqual([{ id: 'tabc123', title: 'Tarefa', list: 'Casa', missing: false, stale: true }])
   })
 })
 

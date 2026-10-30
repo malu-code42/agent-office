@@ -455,7 +455,7 @@ describe('the stale suggestion', () => {
 })
 
 describe('the review modules do not call an AI client', () => {
-  const entries = ['src/shared/review.ts', 'src/main/review.ts', 'src/main/ipc/review.ts', 'src/renderer/src/ui/review.ts']
+  const entries = ['src/shared/review.ts', 'src/main/review.ts', 'src/main/ipc/review.ts']
   const forbidden = /anthropic|claude-agent|openai|gemini|generative-ai|(^|\/)agents\/|session-process|claude-messages/i
 
   /**

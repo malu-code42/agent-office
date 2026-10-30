@@ -118,5 +118,4 @@ export function registerIrisIpc(ctx: IpcContext, files: { tasks: TaskWriter; age
     if (agentId !== LUNA_AGENT_ID) return
     return chat.send(request, attachments).finally(() => ctx.broadcast({ type: 'proposals', proposals: ctx.planning.pendingProposals() }))
   })
-  ctx.onTelegramAudio = (payload) => chat.enqueueTelegramAudio(() => audio.processTelegram(payload))
 }
