@@ -61,10 +61,10 @@ import { registerWorktreesIpc } from './ipc/worktrees'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
 let win: BrowserWindow | null = null
+// Screenshot and bench runs (dev only) render in a hidden window so they never steal focus or notify.
+const headless = !!process.env.AGENT_OFFICE_SHOTS || !!process.env.AGENT_OFFICE_BENCH
 
 function createWindow(): BrowserWindow {
-  // Screenshot and bench runs (dev only) render in a hidden window so they never steal focus.
-  const headless = !!process.env.AGENT_OFFICE_SHOTS || !!process.env.AGENT_OFFICE_BENCH
   const w = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -143,7 +143,7 @@ function openFromNotice(target: NoticeTarget): void {
 }
 
 function canNotify(store: Store): boolean {
-  return store.settings.notifications && Notification.isSupported() && !win?.isFocused()
+  return !headless && store.settings.notifications && Notification.isSupported() && !win?.isFocused()
 }
 
 function notify(store: Store, title: string, body: string, target?: NoticeTarget): void {
