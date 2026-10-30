@@ -8,6 +8,9 @@ import { outsideTeam, readProgress, type SquadDefinition } from '../squads'
 import { changesSince, displayPath } from '../git'
 import { decide } from '../permissions/policy'
 import { permissionFromTool } from './permissions'
+import { LUNA_CONFIRM_TOOLS, LUNA_SERVER } from '../luna-tools'
+
+const LUNA_READ_TOOLS = new Set(['Read', 'Grep', 'Glob'])
 import { type Agent } from './types'
 import { AgentSubagents } from './subagents'
 
@@ -49,6 +52,10 @@ export abstract class AgentDecisions extends AgentSubagents {
   ): Promise<PermissionResult> {
     // The board is the office's own tool: no need to walk over and ask.
     if (tool.startsWith('mcp__office__')) return Promise.resolve({ behavior: 'allow', updatedInput: input })
+    const luna = agent.summary.builtIn === 'luna'
+    // #101: Luna's own tools run on a clear request; only taking something away comes to the card.
+    if (luna && tool.startsWith(`mcp__${LUNA_SERVER}__`) && !LUNA_CONFIRM_TOOLS.has(tool))
+      return Promise.resolve({ behavior: 'allow', updatedInput: input })
     const squad = agent.squad
     if (squad && (tool === 'Agent' || tool === 'Task')) {
       // Handing a step to a member is the orchestrator's job; anyone else is out (the hook already says so).
@@ -60,12 +67,19 @@ export abstract class AgentDecisions extends AgentSubagents {
     const s = agent.summary
     const project = projectFor(this.store.settings.projects, s.cwd)
     const scope = {
-      cwd: s.worktree?.path ?? s.cwd,
+      cwd: luna ? this.lunaHome() : (s.worktree?.path ?? s.cwd),
       realpath: lenientRealpath,
       rules: project?.alwaysAllow,
     }
     const check = decide(s.permissionMode, tool, input, scope)
     if (check.verdict === 'allow') return Promise.resolve({ behavior: 'allow', updatedInput: input })
+    // #101: Luna reads every project floor without asking, as the policy would in each folder; writes still ask.
+    if (
+      luna &&
+      LUNA_READ_TOOLS.has(tool) &&
+      this.lunaRoots().some((cwd) => decide(s.permissionMode, tool, input, { ...scope, cwd }).verdict === 'allow')
+    )
+      return Promise.resolve({ behavior: 'allow', updatedInput: input })
     // O que pede é o risco classificado (o porquê da política), não a sugestão do CLI.
     const canAlwaysAllow = !!project && s.permissionMode !== 'plan' && decide('auto', tool, input, scope).verdict === 'allow'
     const req = permissionFromTool(tool, input, check.why ?? opts.decisionReason, canAlwaysAllow)

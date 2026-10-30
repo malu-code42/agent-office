@@ -37,6 +37,8 @@ export abstract class AgentBase extends EventEmitter {
   protected results: AgentResult[]
   /** In-process tools every office agent gets (the ticket board), built per agent. */
   officeTools?: (agent: AgentSummary) => McpSdkServerConfigWithInstance
+  /** Luna's own tools for the personal records (#101); set where the vault writers live. */
+  lunaTools?: () => McpSdkServerConfigWithInstance
   /** Picks the Claude account of each run; missing = the app's own login. */
   accounts?: Accounts
   /** The cost book: every SDK result is booked there. */
@@ -61,7 +63,7 @@ export abstract class AgentBase extends EventEmitter {
               name: 'Luna',
               builtIn: 'luna' as const,
               engine: 'claude' as const,
-              permissionMode: 'plan' as const,
+              permissionMode: 'default' as const,
               look: store.settings.lunaLook,
               model: store.settings.lunaModel || undefined,
               effort: store.settings.lunaEffort || undefined,
@@ -79,13 +81,16 @@ export abstract class AgentBase extends EventEmitter {
         subagents: undefined,
         subagentsDone: undefined,
       }
-      const agent: Agent = { summary, log: p.log, started: true }
+      // #101: Luna's chat used to run without a Claude session; she gets one on her first message.
+      const freshLuna = summary.builtIn === 'luna' && !summary.sessionId
+      if (freshLuna) summary.sessionId = randomUUID()
+      const agent: Agent = { summary, log: p.log, started: !freshLuna }
       this.agents.set(summary.id, agent)
       if (summary.role === 'orchestrator') this.watchSquad(agent)
     }
     if (![...this.agents.values()].some((agent) => agent.summary.builtIn === 'luna')) {
-      const summary = lunaAgentSummary(Date.now(), store.settings)
-      this.agents.set(summary.id, { summary, log: [], started: true })
+      const summary = { ...lunaAgentSummary(Date.now(), store.settings), sessionId: randomUUID() }
+      this.agents.set(summary.id, { summary, log: [], started: false })
       this.persist()
     }
     this.results = store.results.filter((r) => this.agents.has(r.agentId))
@@ -131,6 +136,16 @@ export abstract class AgentBase extends EventEmitter {
   }
 
   // ---------- helpers ----------
+
+  /** Where Luna's session runs (#101): the vault when there is one, else the office's own data folder. */
+  protected lunaHome(): string {
+    return this.store.settings.vaultPath || this.store.dataDirectory
+  }
+
+  /** Folders Luna reads without asking (#101): her home and every project floor. */
+  protected lunaRoots(): string[] {
+    return [...new Set([this.lunaHome(), ...this.store.settings.projects.map((p) => p.cwd)])]
+  }
 
   /** Picks agent names; tests replace it to make the pick deterministic. */
   protected random: () => number = Math.random

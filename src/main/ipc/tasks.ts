@@ -34,6 +34,7 @@ import {
   idSchema,
   moveTaskSchema,
   newTaskSchema,
+  cleanHire,
   parse,
   parseStepText,
   reopenTaskSchema,
@@ -64,12 +65,15 @@ import {
   listStudyCardsArgsSchema,
   setStudyCardPhysicalArgsSchema,
 } from '../validate'
+import { lunaTools } from '../luna-tools'
 import type { IpcContext } from './context'
 
-const dailyWorkflowTimesSchema = z.object({
-  morning: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
-  evening: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
-}).strict()
+const dailyWorkflowTimesSchema = z
+  .object({
+    morning: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
+    evening: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
+  })
+  .strict()
 
 export function registerTasksIpc(ctx: IpcContext): void {
   const writer = createTaskWriter()
@@ -493,14 +497,12 @@ export function registerTasksIpc(ctx: IpcContext): void {
   })
 
   // The task leaves the focus and goes to the Archive in tarefas.md; the undo window starts now (AO-05).
-  ipcMain.handle('office:completeTask', async (_e, target: unknown) => {
-    const input = parse(completeTaskSchema, target, 'Tarefa inválida.')
-    const path = requireVault()
-    const targetId = targetOf(input)
+  // Shared by the board and Luna's task_complete (#101): the same archive, focus and routine bookkeeping.
+  const completeTask = (path: string, targetId: number | string) => {
     const before = taskAt(path, targetId)
     const linkedRoutineId = before?.task.id && personalRoutines.hasTaskLink(before.task.id) ? before.task.id : undefined
     const linkedRoutineMatches = !!linkedRoutineId && routineTaskMatches(linkedRoutineId, before!.task, before!.list)
-    const done = writer.complete(path, 'line' in input ? input.line : input.id)
+    const done = writer.complete(path, targetId)
     const wasFocused = ctx.planning.focus().includes(focusKey(done.id))
     ctx.planning.archive(done.id, { origin: done.origin, completedAt: done.completedAt, originalLine: done.originalLine })
     if (linkedRoutineId === done.id) {
@@ -508,8 +510,14 @@ export function registerTasksIpc(ctx: IpcContext): void {
       else personalRoutines.recoverMissingTask(done.id)
     }
     undo.remember({ ...done, vault: path, wasFocused })
+    return done.id
+  }
+  ipcMain.handle('office:completeTask', async (_e, target: unknown) => {
+    const input = parse(completeTaskSchema, target, 'Tarefa inválida.')
+    const path = requireVault()
+    const id = completeTask(path, targetOf(input))
     const board = read(path)
-    return { id: done.id, board, focus: focusView(board.lists) }
+    return { id, board, focus: focusView(board.lists) }
   })
 
   ipcMain.handle('office:undoCompleteTask', async (_e, id: unknown) => {
@@ -533,13 +541,11 @@ export function registerTasksIpc(ctx: IpcContext): void {
   // The reason is required: an empty one is refused before anything is written. tarefas.md goes first,
   // then the origin is recorded; if that second step fails, the task is in the Archive with no origin,
   // and reopening it asks for a list.
-  ipcMain.handle('office:discardTask', async (_e, raw: unknown) => {
-    const input = parse(discardTaskSchema, raw, 'Descarte inválido.')
-    const path = requireVault()
-    const before = taskAt(path, targetOf(input.target))
+  const discardTask = (path: string, targetId: number | string, reason: string) => {
+    const before = taskAt(path, targetId)
     const linkedRoutineId = before?.task.id && personalRoutines.hasTaskLink(before.task.id) ? before.task.id : undefined
     const linkedRoutineMatches = !!linkedRoutineId && routineTaskMatches(linkedRoutineId, before!.task, before!.list)
-    const done = writer.discard(path, targetOf(input.target), input.reason)
+    const done = writer.discard(path, targetId, reason)
     try {
       ctx.planning.archive(done.id, { origin: done.origin, completedAt: done.completedAt, originalLine: done.originalLine })
       if (linkedRoutineId === done.id) {
@@ -551,9 +557,35 @@ export function registerTasksIpc(ctx: IpcContext): void {
         cause: err,
       })
     }
+    return done.id
+  }
+  ipcMain.handle('office:discardTask', async (_e, raw: unknown) => {
+    const input = parse(discardTaskSchema, raw, 'Descarte inválido.')
+    const path = requireVault()
+    const id = discardTask(path, targetOf(input.target), input.reason)
     const board = read(path)
-    return { id: done.id, board, focus: focusView(board.lists) }
+    return { id, board, focus: focusView(board.lists) }
   })
+
+  // #101: Luna's tools share these writers, so the board and her changes check against the same reads.
+  // Tests may register this area without a manager.
+  if (ctx.manager)
+    ctx.manager.lunaTools = () =>
+      lunaTools({
+        vault: requireVault,
+        readTasks: (path) => read(path),
+        createTask: (path, draft) => writer.create(path, parse(newTaskSchema, draft, 'Tarefa inválida.')),
+        moveTask: (path, line, list) => writer.move(path, line, list),
+        rescheduleTask: (path, line, date) => writer.reschedule(path, line, date),
+        completeTask: (target) => completeTask(requireVault(), target),
+        discardTask: (target, reason) => discardTask(requireVault(), target, reason),
+        agenda,
+        callAgent: async ({ task, cwd, name }) => {
+          const req = cleanHire({ task, cwd: cwd ?? requireVault(), ...(name ? { name } : {}) }, ctx.store.settings)
+          const agent = await ctx.manager.hire({ ...req, homeResident: true })
+          return { name: agent.name }
+        },
+      })
 
   // tarefas.md is written first, then the record of the task is removed. If that second step fails, the
   // task is already back in its list and the record stays; it is replaced by the next completion or discard.

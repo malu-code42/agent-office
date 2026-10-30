@@ -6,8 +6,13 @@ import { describe, expect, it, vi } from 'vitest'
 import type { AgentSummary } from '../src/shared/types'
 import { LUNA_AGENT_ID } from '../src/shared/luna'
 
-vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
-  query: () => ({ [Symbol.asyncIterator]: async function* () {}, close: () => undefined, interrupt: async () => undefined }),
+const sdk = vi.hoisted(() => ({ calls: [] as Array<{ prompt: unknown; options: Record<string, unknown> }> }))
+vi.mock('@anthropic-ai/claude-agent-sdk', async (original) => ({
+  ...(await original<object>()),
+  query: (args: { prompt: unknown; options: Record<string, unknown> }) => {
+    sdk.calls.push(args)
+    return { [Symbol.asyncIterator]: async function* () {}, close: () => undefined, interrupt: async () => undefined }
+  },
 }))
 vi.mock('../src/main/claude-path', () => ({ findClaude: () => '/synthetic/claude' }))
 vi.mock('../src/main/git', () => ({ createWorktree: async () => null, takeSnapshot: async () => null, changesSince: async () => null }))
@@ -27,14 +32,27 @@ const summary = (id: string): AgentSummary => ({
 })
 
 describe('cap central de hires e summons (AO-42)', () => {
-  it('persiste a conversa normal da Luna e a reabre sem duplicar o agente', async () => {
+  it('Luna conversa pela sessão normal do SDK e retoma a mesma sessão depois de reabrir (#101)', async () => {
     const data = mkdtempSync(join(tmpdir(), 'ao-luna-persist-'))
     app.setPath('userData', data)
     const { Store } = await import('../src/main/store')
     const { AgentManager } = await import('../src/main/agents')
+    const { LUNA_PROMPT } = await import('../src/main/luna-prompt')
+    const { lunaTools } = await import('../src/main/luna-tools')
     const store = new Store()
     const manager = new AgentManager(store)
-    await expect(manager.sendMessage(LUNA_AGENT_ID, 'Pedido sintético')).rejects.toThrow('A conversa com Luna não está disponível agora.')
+    manager.lunaTools = () => lunaTools({} as never)
+    sdk.calls.length = 0
+    await manager.sendMessage(LUNA_AGENT_ID, 'Pedido sintético')
+    await vi.waitFor(() => expect(sdk.calls).toHaveLength(1))
+    const first = sdk.calls[0]!.options
+    // Sem vault configurado, a casa dela é a pasta de dados do Office.
+    expect(first.cwd).toBe(store.dataDirectory)
+    expect(first.permissionMode).toBe('default')
+    expect(first.sessionId).toEqual(expect.any(String))
+    expect((first.systemPrompt as { append: string }).append).toBe(LUNA_PROMPT)
+    expect(Object.keys(first.mcpServers as object)).toEqual(expect.arrayContaining(['casa']))
+    const sessionId = first.sessionId
     manager.shutdown()
     store.flush()
 
@@ -42,11 +60,15 @@ describe('cap central de hires e summons (AO-42)', () => {
     const reopened = new AgentManager(restored)
     expect(reopened.list().filter((agent) => agent.id === LUNA_AGENT_ID)).toHaveLength(1)
     expect(reopened.getLog(LUNA_AGENT_ID)).toContainEqual(expect.objectContaining({ kind: 'user', text: 'Pedido sintético' }))
+    sdk.calls.length = 0
+    await reopened.sendMessage(LUNA_AGENT_ID, 'Continuando')
+    await vi.waitFor(() => expect(sdk.calls).toHaveLength(1))
+    expect(sdk.calls[0]!.options.resume).toBe(sessionId)
     reopened.shutdown()
     restored.flush()
   })
 
-  it('mantém Luna no roster e encaminha mensagens do chat normal sem criar um worker com ferramentas', async () => {
+  it('texto vai para a sessão da Luna; só áudio segue o fluxo local, e ela não é dispensada', async () => {
     app.setPath('userData', mkdtempSync(join(tmpdir(), 'ao-luna-manager-')))
     const { Store } = await import('../src/main/store')
     const { AgentManager } = await import('../src/main/agents')
@@ -56,37 +78,17 @@ describe('cap central de hires e summons (AO-42)', () => {
     manager.setBuiltInMessageHandler(handler)
 
     const luna = manager.list().find((agent) => agent.id === LUNA_AGENT_ID)
-    expect(luna?.name).toBe('Luna')
-    expect(luna?.builtIn).toBe('luna')
-    expect(luna?.status).toBe('idle')
+    expect(luna).toMatchObject({ name: 'Luna', builtIn: 'luna', status: 'idle', permissionMode: 'default' })
+    sdk.calls.length = 0
     await manager.sendMessage(LUNA_AGENT_ID, 'Ajude a organizar o dia')
+    await vi.waitFor(() => expect(sdk.calls).toHaveLength(1))
+    expect(handler).not.toHaveBeenCalled()
+    expect(manager.getLog(LUNA_AGENT_ID).find((e) => e.kind === 'user')).toMatchObject({ text: 'Ajude a organizar o dia' })
 
-    expect(handler).toHaveBeenCalledWith(LUNA_AGENT_ID, 'Ajude a organizar o dia', [])
-    expect(manager.getLog(LUNA_AGENT_ID).at(-1)).toMatchObject({ kind: 'user', text: 'Ajude a organizar o dia' })
-    const answer = vi.fn()
-    const requestId = manager.requestDecision(
-      LUNA_AGENT_ID,
-      {
-        kind: 'question',
-        toolName: 'Luna',
-        title: 'Aprovar envio de contexto',
-        detail: '',
-        input: {},
-        canAlwaysAllow: false,
-        questions: [{ header: 'Privacidade', question: 'Enviar?', multiSelect: false, options: [{ label: 'Sim', description: '' }] }],
-      },
-      answer,
-    )
-    manager.respond({ requestId, behavior: 'allow', answers: { Enviar: 'Sim' } })
-    expect(answer).toHaveBeenCalledWith({ requestId, behavior: 'allow', answers: { Enviar: 'Sim' } })
+    const audio = [{ name: 'nota.ogg', mime: 'audio/ogg', dataBase64: 'AA==' }]
+    await manager.sendMessage(LUNA_AGENT_ID, '', undefined, audio)
+    expect(handler).toHaveBeenCalledWith(LUNA_AGENT_ID, '', audio)
     expect(() => manager.fire(LUNA_AGENT_ID)).toThrow(/não pode ser dispensada/)
-    manager.simulate = vi.fn()
-    manager.sendMessage(LUNA_AGENT_ID, 'Pedido sintético em demo')
-    expect(handler).toHaveBeenCalledTimes(1)
-    expect(manager.getLog(LUNA_AGENT_ID).at(-1)).toMatchObject({
-      kind: 'assistant',
-      text: 'A conversa com Luna está em modo de demonstração; nenhum pedido será enviado ou executado.',
-    })
     manager.shutdown()
     store.flush()
   })
