@@ -30,7 +30,6 @@
 .tl-seg {
   display: inline-flex;
   padding: 3px;
-  border-radius: 10px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--line-strong);
 }
@@ -38,7 +37,6 @@
 .tl-seg button {
   padding: 5px 12px;
   border: 0;
-  border-radius: 7px;
   background: transparent;
   color: var(--muted);
   font-size: 13px;
@@ -70,8 +68,7 @@
 
 .tl-day {
   border: 1px solid var(--line-strong);
-  border-radius: 10px;
-  background: #1f2034;
+  background: var(--sunken);
   padding: 0 28px 12px 20px;
 }
 
@@ -87,7 +84,6 @@
   top: 50%;
   height: 4px;
   margin-top: -2px;
-  border-radius: 2px;
   background: linear-gradient(90deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.32));
 }
 
@@ -143,8 +139,7 @@
   top: -6px;
   width: 12px;
   height: 12px;
-  border-radius: 50%;
-  border: 2px solid #1f2034;
+  border: 2px solid var(--sunken);
   z-index: 2;
 }
 
@@ -172,8 +167,7 @@
   left: -14px;
   width: 150px;
   padding: 7px 9px;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow);
 }
 
 .tl-bal-up .tl-bal-box {
@@ -256,9 +250,8 @@
   display: flex;
   flex-direction: column;
   border: 1px solid var(--line-strong);
-  border-radius: 10px;
   overflow: hidden;
-  background: #1f2034;
+  background: var(--sunken);
   font-size: 13px;
 }
 
@@ -293,6 +286,7 @@
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
+  font-family: var(--pixel);
 }
 
 .tl-tl-track {
@@ -338,7 +332,6 @@
   left: -3px;
   width: 8px;
   height: 8px;
-  border-radius: 50%;
   background: var(--accent-hi);
 }
 
@@ -351,7 +344,6 @@
   flex-direction: column;
   justify-content: center;
   padding: 0 7px;
-  border-radius: 7px;
   overflow: hidden;
   font-size: 12px;
   line-height: 1.25;
@@ -426,7 +418,6 @@
 
 .tl-tl-chip {
   padding: 2px 8px;
-  border-radius: 6px;
   border: 1px dashed var(--amber);
   color: var(--amber-text);
 }
@@ -444,8 +435,7 @@
   flex-direction: column;
   gap: 2px;
   padding: 12px 14px;
-  border-radius: 12px;
-  background: #23243a;
+  background: var(--surface-2);
   border: 1px solid var(--line-strong);
 }
 
@@ -474,8 +464,7 @@
   flex-direction: column;
   gap: 10px;
   padding: 12px 14px;
-  border-radius: 12px;
-  background: #23243a;
+  background: var(--surface-2);
   border: 1px solid var(--line-strong);
 }
 
@@ -522,7 +511,6 @@
   left: 0;
   right: 0;
   bottom: 0;
-  border-radius: 5px 5px 2px 2px;
 }
 
 .tl-bar-col i.done {
@@ -555,7 +543,6 @@
 
 .tl-warn {
   padding: 10px 12px;
-  border-radius: 10px;
   border: 1px solid rgba(245, 165, 24, 0.5);
   background: rgba(245, 165, 24, 0.08);
   font-size: 13px;
@@ -590,7 +577,6 @@
 
 .tl-state {
   padding: 2px 8px;
-  border-radius: 6px;
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;

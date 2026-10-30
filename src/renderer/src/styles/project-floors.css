@@ -3,7 +3,6 @@
 .floor-btn.floor-add {
   margin-top: 2px;
   border-top: 1px solid var(--line);
-  border-radius: 0 0 8px 8px;
   color: var(--dim);
 }
 
@@ -60,7 +59,6 @@
   width: 30px;
   height: 30px;
   padding: 2px;
-  border-radius: 6px;
   border: 1px dashed var(--line);
   background: #fff;
   color: #8a8799;
@@ -83,7 +81,6 @@
   width: 16px;
   height: 16px;
   padding: 0;
-  border-radius: 50%;
   background: var(--panel, #1e1d2b);
 }
 
@@ -92,7 +89,6 @@
   height: 30px;
   padding: 0;
   border: 1px solid var(--line);
-  border-radius: 6px;
   background: none;
   cursor: pointer;
 }
@@ -118,7 +114,6 @@
   margin: 0;
   padding: 6px 10px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
 }
 
 .floor-group > legend {

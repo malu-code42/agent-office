@@ -14,7 +14,6 @@
 
 .closed-row {
   border: 1px solid var(--line);
-  border-radius: 8px;
 }
 
 .closed-head {

@@ -50,11 +50,11 @@
   gap: 6px;
   padding: 4px 10px;
   border: 1px solid var(--line-strong);
-  border-radius: 4px;
   background: rgba(255, 255, 255, 0.03);
   color: var(--muted);
   font: 600 11px var(--mono);
   text-transform: uppercase;
+  font-family: var(--pixel);
   letter-spacing: 0.04em;
 }
 
@@ -101,7 +101,6 @@
   padding: 9px 11px 10px;
   border: 1px solid var(--line);
   border-top: 2px solid var(--cs-c);
-  border-radius: 6px;
   background: rgba(255, 255, 255, 0.025);
 }
 
@@ -109,6 +108,7 @@
   color: var(--muted);
   font: 600 10px var(--mono);
   text-transform: uppercase;
+  font-family: var(--pixel);
   letter-spacing: 0.08em;
 }
 
@@ -142,6 +142,7 @@
   color: var(--muted);
   font: 700 11px var(--mono);
   text-transform: uppercase;
+  font-family: var(--pixel);
   letter-spacing: 0.1em;
 }
 
@@ -198,7 +199,6 @@
   display: block;
   width: 11px;
   height: 11px;
-  border-radius: 2px;
   background: rgba(255, 255, 255, 0.05);
 }
 
@@ -207,9 +207,9 @@
   height: 9px;
 }
 
-.cs-cell.l1 { background: color-mix(in srgb, var(--cs-c) 28%, #232436); }
-.cs-cell.l2 { background: color-mix(in srgb, var(--cs-c) 50%, #232436); }
-.cs-cell.l3 { background: color-mix(in srgb, var(--cs-c) 75%, #232436); }
+.cs-cell.l1 { background: color-mix(in srgb, var(--cs-c) 28%, var(--surface-2)); }
+.cs-cell.l2 { background: color-mix(in srgb, var(--cs-c) 50%, var(--surface-2)); }
+.cs-cell.l3 { background: color-mix(in srgb, var(--cs-c) 75%, var(--surface-2)); }
 .cs-cell.l4 { background: var(--cs-c); }
 
 .cs-cell.legacy {
@@ -252,6 +252,7 @@
   font-size: 10px;
   text-align: right;
   text-transform: uppercase;
+  font-family: var(--pixel);
 }
 
 .cs-table td {
@@ -355,7 +356,7 @@
 
 .cs-hours i {
   flex: 1;
-  background: color-mix(in srgb, var(--cs-c) 70%, #232436);
+  background: color-mix(in srgb, var(--cs-c) 70%, var(--surface-2));
 }
 
 .cs-hours-axis {

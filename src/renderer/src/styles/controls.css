@@ -7,16 +7,22 @@
   gap: 6px;
   height: 34px;
   padding: 0 14px;
-  border: 1px solid var(--line-strong);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid var(--ctl-line);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-sm);
   font-weight: 600;
   white-space: nowrap;
   transition: background 0.15s, transform 0.1s;
 }
 
 .btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--hover);
+}
+
+/* Pressed toggle: inverted, like a key held down. */
+.btn[aria-pressed='true'] {
+  background: var(--inv-bg);
+  color: var(--inv-text);
 }
 
 .btn:active {
@@ -30,9 +36,9 @@
 
 .btn-primary {
   background: var(--accent-solid);
-  border-color: transparent;
-  color: #fff;
-  box-shadow: 0 2px 0 #8a3f27;
+  border-color: var(--outline);
+  color: var(--on-accent);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-primary:hover {
@@ -58,14 +64,14 @@
 }
 
 .btn-danger-solid {
-  background: #d9534f;
-  border-color: transparent;
-  color: #fff;
-  box-shadow: 0 2px 0 #9e3431;
+  background: var(--red);
+  border-color: var(--outline);
+  color: var(--on-accent);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-danger-solid:hover {
-  background: #e5605c;
+  background: var(--red-text);
 }
 
 .backdrop-confirm .modal {
@@ -83,7 +89,6 @@
   align-items: flex-start;
   gap: 8px;
   padding: 10px 12px;
-  border-radius: 10px;
   background: rgba(239, 91, 91, 0.12);
   box-shadow: inset 0 0 0 1px rgba(239, 91, 91, 0.5);
   color: #ffb4b4;

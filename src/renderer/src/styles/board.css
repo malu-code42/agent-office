@@ -144,7 +144,6 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border-radius: 12px;
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid var(--line);
 }
@@ -161,7 +160,6 @@
 .tcol-dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
   background: var(--dim);
 }
 
@@ -205,7 +203,6 @@
 .tcol-list.drop-end::after {
   content: '';
   height: 3px;
-  border-radius: 2px;
   background: var(--accent);
 }
 
@@ -221,8 +218,7 @@
 .tcard {
   position: relative;
   padding: 9px 10px;
-  border-radius: 10px;
-  background: #23243a;
+  background: var(--surface-2);
   border: 1px solid var(--line-strong);
   cursor: grab;
   transition:
@@ -285,7 +281,6 @@
   right: 0;
   top: -6px;
   height: 3px;
-  border-radius: 2px;
   background: var(--accent);
 }
 
@@ -310,7 +305,6 @@
   height: 16px;
   display: inline-flex;
   align-items: center;
-  border-radius: 5px;
   font-size: 10px;
   font-weight: 700;
   background: rgba(255, 255, 255, 0.08);
@@ -336,7 +330,6 @@
   max-width: 110px;
   height: 16px;
   padding: 0 6px;
-  border-radius: 5px;
   background: color-mix(in srgb, var(--floor) 20%, transparent);
   color: color-mix(in srgb, var(--floor) 55%, #fff);
   font-size: 10px;
@@ -375,7 +368,6 @@
   margin-left: auto;
   width: 9px;
   height: 9px;
-  border-radius: 3px;
   background: var(--dim);
 }
 
@@ -434,7 +426,6 @@
   flex: none;
   width: 8px;
   height: 8px;
-  border-radius: 50%;
   background: var(--agent, var(--muted));
 }
 
@@ -480,7 +471,6 @@
 
 .ttag {
   padding: 0 6px;
-  border-radius: 5px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--muted);
   font-size: 10.5px;
@@ -515,15 +505,12 @@
   display: inline-flex;
 }
 
-.tavatar .portrait {
-  border-radius: 7px;
-}
+
 
 .avatar-stub {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 7px;
   background: rgba(255, 255, 255, 0.08);
   color: var(--muted);
   font-size: 10px;

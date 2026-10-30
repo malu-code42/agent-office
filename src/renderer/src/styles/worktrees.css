@@ -81,7 +81,6 @@
   max-height: 30vh;
   overflow-y: auto;
   border: 1px solid var(--line);
-  border-radius: 10px;
 }
 
 .chg-file {
@@ -143,7 +142,6 @@
 .chg-diff {
   max-height: 34vh;
   margin: 0 0 4px;
-  border-radius: 0;
   white-space: pre;
   overflow-x: auto;
 }

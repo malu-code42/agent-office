@@ -24,7 +24,6 @@
   height: 28px;
   padding: 0 10px;
   font-size: 12px;
-  border-radius: 8px;
 }
 
 .btn-icon {
@@ -35,9 +34,8 @@
 .input {
   width: 100%;
   padding: 8px 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.25);
+  border: 2px solid var(--ctl-line);
+  background: var(--sunken);
   color: var(--text);
   font: inherit;
   outline: none;
@@ -46,8 +44,9 @@
 }
 
 .input:focus {
-  border-color: rgba(217, 119, 87, 0.7);
-  box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.18);
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 select.input {

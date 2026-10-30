@@ -175,6 +175,35 @@ const PAIRS = [
   ['Elevador: número atual', '.floor-btn.on .floor-num', ['.floor-btn.on .floor-num', 'card']],
   ['Elevador: novo andar', '.floor-btn.floor-add', 'card'],
   ['Elevador: andar com pedido', '.floor-btn.pulse', 'card'],
+  ['Painel: sua mensagem', '.entry-bubble', ['.entry-bubble', 'card']],
+  ['Painel: filtro escolhido', '.panel-filter.on', ['.panel-filter.on', 'card']],
+  ['Seletor: opção escolhida', '.seg-btn.on', ['.seg-btn.on', 'card']],
+  ['Painel: resultado final', '.entry-final', ['.entry-final', 'card']],
+  ['Campo de texto', '.input', ['.input', 'card']],
+  ['Rótulo de campo', '.field-label', 'card'],
+  ['Etiqueta no mundo', '.tag-pill', ['.tag-pill', 'card']],
+  ['Balão no mundo', '.bubble', ['.bubble', 'card']],
+]
+
+/** Theme tokens that are meant to go together, also where no selector pairs them yet (tema noturno). */
+const TOKEN_PAIRS = [
+  ['--text', '--surface-2'],
+  ['--text', '--surface-3'],
+  ['--text', '--hover'],
+  ['--muted', '--surface-2'],
+  ['--muted', '--surface-3'],
+  ['--muted', '--sunken'],
+  ['--dim', '--card'],
+  ['--on-accent', '--accent'],
+  ['--on-accent', '--accent-solid-hi'],
+  ['--inv-text', '--inv-bg'],
+  ['--green-text', '--ok-bg'],
+  ['--green', '--card'],
+  ['--pink', '--card'],
+  ['--amber', '--warn-bg'],
+  ['--amber-text', '--warn-bg'],
+  ['--red', '--err-bg'],
+  ['--red-text', '--err-bg'],
 ]
 
 export function measure() {
@@ -182,7 +211,14 @@ export function measure() {
     const bg = Array.isArray(bgRef) ? stack(BG[bgRef[1]], css(bgRef[0])) : BG[bgRef]
     const fg = stack(bg, css(sel, 'color'))
     return { what, selector: sel, color: resolve(prop(sel, 'color')), ratio: ratio(fg, bg) }
-  })
+  }).concat(
+    TOKEN_PAIRS.map(([fg, bg]) => ({
+      what: `Token ${fg} em ${bg}`,
+      selector: fg,
+      color: resolve(`var(${fg})`),
+      ratio: ratio(parseColor(`var(${fg})`), parseColor(`var(${bg})`)),
+    })),
+  )
 }
 
 const rows = measure()

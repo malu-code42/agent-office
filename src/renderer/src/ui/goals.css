@@ -77,7 +77,6 @@
 
 .tl-state {
   padding: 2px 8px;
-  border-radius: 6px;
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
@@ -101,7 +100,6 @@
 
 .tl-prog {
   height: 8px;
-  border-radius: 4px;
   background: rgba(255, 255, 255, 0.1);
   overflow: hidden;
   margin-top: 4px;
@@ -130,7 +128,6 @@
   align-items: center;
   gap: 5px;
   padding: 2px 8px 2px 4px;
-  border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);
 }
 
@@ -142,7 +139,6 @@
 .tl-mk {
   width: 15px;
   height: 15px;
-  border-radius: 50%;
   border: 1.5px solid var(--dim);
   display: grid;
   place-items: center;

@@ -11,7 +11,6 @@
   align-items: center;
   gap: 10px;
   padding: 6px 8px 6px 12px;
-  border-radius: 12px;
   background: var(--card-solid);
   border: 1px solid var(--line-strong);
   border-left: 3px solid var(--green);

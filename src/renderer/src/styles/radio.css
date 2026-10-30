@@ -7,7 +7,6 @@
   z-index: 100000;
   width: 248px;
   padding: 8px;
-  border-radius: 16px;
   pointer-events: auto;
 }
 
@@ -59,7 +58,6 @@ body:has(.radio:not(.hidden)) .toasts {
 .radio-live {
   width: 7px;
   height: 7px;
-  border-radius: 50%;
   background: var(--red);
   animation: radio-blink 1.6s ease-in-out infinite;
 }
@@ -84,13 +82,12 @@ body:has(.radio:not(.hidden)) .toasts {
   display: flex;
   padding: 3px;
   border: 0;
-  border-radius: 6px;
   background: transparent;
   color: var(--muted);
 }
 
 .radio-off:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--hover);
   color: var(--text);
 }
 
@@ -128,7 +125,6 @@ body:has(.radio:not(.hidden)) .toasts {
   min-width: 0;
   padding: 5px 8px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
   background: rgba(0, 0, 0, 0.25);
   color: var(--text);
   font-size: 12px;
@@ -144,9 +140,8 @@ body:has(.radio:not(.hidden)) .toasts {
   align-items: center;
   padding: 0 8px;
   border: 0;
-  border-radius: 8px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .radio-error {

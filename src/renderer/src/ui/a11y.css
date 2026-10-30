@@ -2,14 +2,14 @@
 
 /* Some rows and cards turn the outline off for their own states; the keyboard ring wins. Fields keep their own focus glow. */
 #ui :focus-visible:not(input, textarea, select, [tabindex='-1']) {
-  outline: 2px solid var(--accent-hi);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
 #ui .roster-row:focus-visible,
 #ui .tcard:focus-visible,
 #ui .inbox-row:focus-visible {
-  outline: 2px solid var(--accent-hi);
+  outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 
@@ -45,6 +45,7 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  font-family: var(--pixel);
   color: var(--muted);
 }
 
@@ -73,7 +74,6 @@
   padding: 1px 6px;
   border: 1px solid var(--line-strong);
   border-bottom-width: 2px;
-  border-radius: 6px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--text);
   font: 600 11.5px/1.5 var(--mono);

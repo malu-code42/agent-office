@@ -15,7 +15,6 @@
   margin: 0;
   padding: 10px 12px;
   border: 1px solid var(--line-strong);
-  border-radius: 10px;
   color: var(--text);
 }
 
@@ -26,7 +25,6 @@
   align-items: start;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
   color: var(--text);
   cursor: pointer;
 }
@@ -52,7 +50,6 @@
   gap: 8px;
   padding: 12px;
   border: 1px solid var(--line-strong);
-  border-radius: 12px;
 }
 
 .study-cycle-gap,
@@ -62,7 +59,6 @@
   gap: 8px;
   padding: 12px;
   border: 1px solid var(--line-strong);
-  border-radius: 12px;
   background: var(--card-solid);
 }
 

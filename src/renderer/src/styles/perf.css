@@ -7,7 +7,6 @@
   z-index: 100001;
   min-width: 190px;
   padding: 8px 10px;
-  border-radius: 8px;
   background: rgba(10, 10, 20, 0.82);
   border: 1px solid var(--line-strong);
   font: 11px/1.5 var(--mono);

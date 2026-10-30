@@ -7,7 +7,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(8, 8, 18, 0.55);
+  background: rgba(15, 13, 20, 0.55);
   animation: fade 0.15s;
 }
 
@@ -59,6 +59,10 @@
   gap: 14px;
 }
 
+.modal-foot .btn {
+  height: 44px;
+}
+
 .modal-foot {
   display: flex;
   justify-content: flex-end;
@@ -82,8 +86,11 @@
 }
 
 .field-label {
+  font-family: var(--pixel);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: 1px;
+  text-transform: uppercase;
   color: var(--muted);
 }
 
@@ -113,7 +120,6 @@
   flex: 1;
   min-width: 0;
   padding: 8px 10px;
-  border-radius: 10px;
   background: rgba(0, 0, 0, 0.25);
   border: 1px solid var(--line-strong);
   font-family: var(--mono);
@@ -136,9 +142,7 @@
   align-items: flex-start;
 }
 
-.look-preview .portrait {
-  border-radius: 18px;
-}
+
 
 .look-fields {
   flex: 1;
@@ -156,13 +160,12 @@
 .swatch {
   width: 22px;
   height: 22px;
-  border-radius: 7px;
   border: 2px solid rgba(255, 255, 255, 0.12);
   padding: 0;
 }
 
 .swatch.on {
-  border-color: #fff;
+  border-color: var(--text);
   box-shadow: 0 0 0 2px var(--accent);
 }
 
@@ -182,7 +185,6 @@
 
 .bridge-box {
   padding: 12px;
-  border-radius: 12px;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.03);
   display: flex;
@@ -259,7 +261,6 @@
   max-width: min(1100px, calc(100vw - 68px));
   max-height: calc(100vh - 200px);
   margin: 0 auto;
-  border-radius: 8px;
   object-fit: contain;
   background: rgba(255, 255, 255, 0.04);
 }
@@ -283,7 +284,6 @@
   gap: 3px;
   border-left: 3px solid var(--muted);
   padding: 7px 10px;
-  border-radius: 4px;
   background: var(--card-solid);
   color: var(--text);
   font-size: 12px;
