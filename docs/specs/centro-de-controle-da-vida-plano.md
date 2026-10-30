@@ -8,14 +8,14 @@
 1. Preflight documental e técnico, incluindo a aposentadoria de OpenCode.
 2. Casa e Luna: redesenho, dados pessoais, memória/perfis e migração local das rotinas.
 3. Estudos e Bonnie.
-4. **Adiado:** Telegram, captura de áudio e resumo diário. Não iniciar até nova autorização; reconciliar os requisitos ao retomar.
+4. **Adiado:** captura de áudio e resumo diário (Telegram removido por decisão da usuária em 2026-10-30). Não iniciar até nova autorização; reconciliar os requisitos ao retomar.
 5. Andares de projeto, squads sob medida e salas de reunião.
 6. Editor de aparência inspirado em The Sims fica futuro/fora das entregas iniciais.
 
 ## Reconciliação do tracker — 2026-10-29
 
 - Fechadas com PR integrado: #49–#53, #56, #58, #75, #84, #89 e #92–#94.
-- Abertas: #38 (épico), #55 (Telegram, adiada), #59 (validação final), #90 (aguarda aceite da usuária), #101 (Luna como agente comum) e #102 (data de retorno da revisão). A PR #100 será reconciliada com #101/#102 antes do merge.
+- Abertas: #38 (épico), #59 (validação final), #90 (aguarda aceite da usuária), #101 (Luna como agente comum) e #102 (data de retorno da revisão). A PR #100 será reconciliada com #101/#102 antes do merge.
 - Decisões da usuária em 2026-10-29: pedidos claros da Luna executam direto (só excluir/descartar confirma); Luna sem popups novas, com as ferramentas comuns dos agentes; preferências de aparência/modelo/esforço da Luna (PR #100) mantidas; agentes convocados não são dispensáveis durante a tarefa e circulam pela Casa depois; nomes com mais variação.
 
 ## Reconciliação do tracker — snapshot 2026-10-27 (histórico)
@@ -124,6 +124,8 @@
 - Não ler o vault real na suíte ou na prévia visual.
 
 ## Fase 3 — Telegram, áudio e agenda remota
+
+> **Removido por decisão da usuária em 2026-10-30:** a integração com o Telegram saiu do código e não está mais planejada (#55 fechada como não planejada). A captura de áudio local continua.
 
 ### O que implementar
 

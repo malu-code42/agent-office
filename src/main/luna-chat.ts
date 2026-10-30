@@ -2,7 +2,7 @@ import type { IrisPreview, IrisResult } from '@shared/iris'
 import type { AgentStatus, AttachmentInput, LogEntry } from '@shared/types'
 import { profileById, type ProfileId } from '@shared/profiles'
 import { isAudioFile } from '@shared/audio'
-import type { TelegramAudioDisposition } from './telegram'
+import type { AudioDisposition } from './audio-capture'
 
 export interface LunaDesk {
   prepare(vault: string, request: string, captureId?: string): IrisPreview
@@ -23,8 +23,7 @@ export class LunaChat {
   private readonly queue: {
     request: string
     attachments: AttachmentInput[]
-    process?: () => Promise<TelegramAudioDisposition>
-    resolve: (disposition: TelegramAudioDisposition) => void
+    resolve: (disposition: AudioDisposition) => void
   }[] = []
   private running = false
 
@@ -35,7 +34,7 @@ export class LunaChat {
   ) {}
 
   send(request: string, attachments: AttachmentInput[] = []): Promise<void> {
-    const done = new Promise<TelegramAudioDisposition>((resolve) => this.queue.push({ request, attachments, resolve }))
+    const done = new Promise<AudioDisposition>((resolve) => this.queue.push({ request, attachments, resolve }))
     if (!this.running) this.host.status('working', 'Preparando seu pedido')
     void this.drain()
     return done.then((disposition) => {
@@ -50,24 +49,15 @@ export class LunaChat {
     return this.handle(request, [], captureId)
   }
 
-  enqueueTelegramAudio(process: () => Promise<TelegramAudioDisposition>): Promise<TelegramAudioDisposition> {
-    const done = new Promise<TelegramAudioDisposition>((resolve) => this.queue.push({ request: '', attachments: [], process, resolve }))
-    this.host.log('user', 'Áudio recebido pelo Telegram para transcrição local.')
-    if (!this.running) this.host.status('working', 'Preparando áudio recebido')
-    void this.drain()
-    return done
-  }
-
   private async drain(): Promise<void> {
     if (this.running) return
     this.running = true
     try {
       while (this.queue.length) {
         const next = this.queue.shift()!
-        let disposition: TelegramAudioDisposition = 'complete'
+        let disposition: AudioDisposition = 'complete'
         try {
-          if (next.process) disposition = await next.process()
-          else disposition = (await this.handle(next.request, next.attachments)) ? 'complete' : 'pending'
+          disposition = (await this.handle(next.request, next.attachments)) ? 'complete' : 'pending'
         } catch (error) {
           disposition = 'retry'
           this.host.log('error', error instanceof Error ? error.message : 'Não consegui processar essa mensagem localmente.')
