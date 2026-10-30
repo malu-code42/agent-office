@@ -36,6 +36,7 @@ import { mountUpdateNotice } from './ui/updates'
 import { announce, isTyping, mountLiveRegions } from './ui/a11y'
 import { openShortcuts } from './ui/shortcuts'
 import { Tour } from './ui/tour'
+import { enhanceSelects } from './ui/dropdown'
 import { autoStart, tourDone } from './ui/tour-plan'
 import { cleanError, confirmDialog, openCreateSquad, openNewAgent, openNewFloor, openResume, openRunSquad, openSettings } from './ui/modals'
 import { osText } from './ui/os-text'
@@ -63,6 +64,8 @@ async function boot(): Promise<void> {
   const initialNotices = initial.dataNotices ?? []
   const state = new State(initial)
   const ui = document.getElementById('ui')!
+  // Every <select> of the app opens the themed dropdown instead of the light menu of the system.
+  enhanceSelects(document.body)
   document.body.classList.add(`platform-${state.platform}`)
   // Empty from the start, so screen readers read what goes in later (AO-38).
   mountLiveRegions(document.body)

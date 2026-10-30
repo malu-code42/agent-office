@@ -27,6 +27,15 @@
   flex: 1;
 }
 
+.tl-ahead {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-left: 14px;
+}
+
 .tl-seg {
   display: inline-flex;
   padding: 3px;
@@ -167,7 +176,14 @@
   left: -14px;
   width: 150px;
   padding: 7px 9px;
+  background: var(--bal-bg);
+  border: 2px solid var(--bal);
+  color: var(--bal-tx);
   box-shadow: var(--shadow);
+}
+
+.tl-bal-dot {
+  background: var(--bal);
 }
 
 .tl-bal-up .tl-bal-box {
@@ -451,8 +467,36 @@
 
 .tl-stats {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
+}
+
+/* the lower row of the week dashboard: bars, routines and what comes next */
+.tl-dash {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 0.9fr);
+  gap: 10px;
+  align-items: stretch;
+}
+
+.tl-dash.tl-dash-2 {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+}
+
+.tl-dash-rt {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.tl-dash-rt li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .tl-stat {
@@ -540,6 +584,13 @@
 
 .tl-bar-col i.done {
   background: var(--green);
+  border: 2px solid var(--outline);
+}
+
+.tl-bar-col i.none,
+.tl-tl-legend i.tl-bar-of {
+  border: 2px dashed var(--ctl-line);
+  background: var(--sunken);
 }
 
 .tl-dash-next {

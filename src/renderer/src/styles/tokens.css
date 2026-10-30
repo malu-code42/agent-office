@@ -83,6 +83,9 @@
   --ok-bg: #1f3528;
   --warn-bg: #3a2f1f;
   --err-bg: #3a1f22;
+  /* Fundos sólidos de informação (azul) e de destaque (laranja), para chips com --blue e --accent-hi. */
+  --info-bg: #222a40;
+  --accent-bg: #3d2a26;
   /* Âmbar do placar de gastos (parede do escritório e relatórios). */
   --board-amber: #ffb347;
   --radius: 0;

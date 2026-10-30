@@ -101,3 +101,116 @@
   margin-top: 1px;
   color: var(--red);
 }
+
+/* ---------- dropdown of the app (ui/dropdown.ts): a combobox button and a listbox in the theme, not the light menu of the system ---------- */
+.dd-native {
+  display: none !important;
+}
+
+.dd-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 2px solid var(--ctl-line);
+  background: var(--sunken);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dd-trigger.input {
+  padding: 0 10px;
+}
+
+.dd-trigger:hover {
+  border-color: var(--muted);
+}
+
+.dd-trigger.open {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+.dd-trigger:focus-visible {
+  outline: 2px solid var(--accent-hi);
+  outline-offset: 2px;
+}
+
+.dd-trigger:disabled {
+  border-style: dashed;
+  color: var(--dim);
+  cursor: not-allowed;
+}
+
+.dd-trigger.err {
+  border-color: var(--red);
+}
+
+.dd-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dd-chev {
+  display: inline-flex;
+  color: var(--muted);
+  transform: rotate(90deg);
+}
+
+.dd-trigger.open .dd-chev {
+  transform: rotate(-90deg);
+}
+
+.dd-list {
+  position: fixed;
+  z-index: 200;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  overflow-y: auto;
+  background: var(--card);
+  border: 3px solid var(--outline);
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+
+.dd-opt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 10px 0 6px;
+  cursor: pointer;
+}
+
+.dd-opt:hover {
+  background: var(--hover);
+}
+
+.dd-opt.sel {
+  background: var(--accent-bg);
+  font-weight: 700;
+}
+
+.dd-opt.active {
+  box-shadow: inset 0 0 0 2px var(--accent-hi);
+}
+
+.dd-opt.dis {
+  color: var(--dim);
+  cursor: not-allowed;
+}
+
+.dd-opt.dis:hover {
+  background: none;
+}
+
+.dd-check {
+  display: inline-flex;
+  width: 16px;
+  color: var(--accent-hi);
+}

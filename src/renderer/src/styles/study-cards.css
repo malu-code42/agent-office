@@ -18,8 +18,9 @@
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  border: 1px solid var(--line-strong);
-  background: var(--card-solid);
+  border: 2px solid var(--ctl-line);
+  box-shadow: var(--shadow-sm);
+  background: var(--surface-2);
 }
 
 .study-card-note-row {

@@ -12,6 +12,7 @@ import type { FocusItem } from '@shared/planning'
 import type { State } from '../state'
 import { keepFocus, modalA11y } from './a11y'
 import { h, icon } from './dom'
+import { renderInlineMarkdown } from './markdown'
 import { closeFocusPopup } from './focus-state'
 import { openFocusPopup } from './focus-popup'
 import { cleanError } from './modals/common'
@@ -136,7 +137,7 @@ export async function openTimerPopup(root: HTMLElement, state: State, toast: Toa
         {},
         task ? h('span', { class: 'tfloor', title: `Lista: ${task.list}` }, task.list) : null,
         ' ',
-        task ? task.text : 'Sem tarefa',
+        task ? renderInlineMarkdown(task.text, 'tm-task-title') : 'Sem tarefa',
       ),
     )
   }
@@ -157,7 +158,7 @@ export async function openTimerPopup(root: HTMLElement, state: State, toast: Toa
         'div',
         { class: 'tm-face' },
         linked
-          ? h('div', { class: 'hint' }, `${intervalTitle(shown)} em: ${linked}`)
+          ? h('div', { class: 'hint' }, `${intervalTitle(shown)} em: `, renderInlineMarkdown(linked, 'tm-task-title'))
           : h('div', { class: 'hint' }, intervalTitle(shown)),
         h(
           'div',
@@ -272,7 +273,8 @@ export async function openTimerPopup(root: HTMLElement, state: State, toast: Toa
     const running = v?.state === 'em andamento' && left > 0
 
     dot.style.background = running ? 'var(--green)' : v?.state === 'pausada' ? 'var(--amber)' : 'var(--dim)'
-    headLabel.textContent = intervalTitle(shown)
+    // The head names the interval and its length apart, like the prototype: "Foco" and "25 min".
+    headLabel.textContent = intervalTitle(shown).replace(/ · \d+ min$/, '')
     headCount.textContent = `${shown} min`
     count.textContent = BAR_STATUS[v?.state ?? 'parada']
     keepFocus(list, () => list.replaceChildren(face(v, shown, left, running), tasksCard(), actionsCard(v)))

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createTaskWriter, planReschedule } from '../src/main/tasks-write'
-import { parseTasksFile, rescheduleTargets, taskWhen } from '../src/shared/tasks'
+import { parseTasksFile, rescheduleTargets, taskDue, taskWhen } from '../src/shared/tasks'
 
 const SOURCE = [
   '## Estudo',
@@ -162,5 +162,17 @@ describe('reschedule in createTaskWriter', () => {
     expect(() => writer.reschedule(vault, 2, '20.10.2026')).toThrow('Reescreva esta tarefa no novo formato antes de reagendar')
     expect(readFileSync(file, 'utf8')).toBe(LEGACY_BOLD)
     expect(existsSync(join(vault, 'backups'))).toBe(false)
+  })
+})
+
+describe('taskDue', () => {
+  const now = new Date(2026, 9, 30, 15, 0)
+  it('says how near the deadline is, with the day as DD/MM', () => {
+    expect(taskDue({ date: '22.10.2026' }, now)).toEqual({ kind: 'late', day: '22/10' })
+    expect(taskDue({ date: '30.10.2026' }, now)).toEqual({ kind: 'today', day: '30/10' })
+    expect(taskDue({ date: '31.10.2026' }, now)).toEqual({ kind: 'soon', day: '31/10' })
+    expect(taskDue({ dueDate: '2026-11-02' }, now)).toEqual({ kind: 'later', day: '02/11' })
+    expect(taskDue({}, now)).toEqual({ kind: 'none', day: '' })
+    expect(taskDue({ date: '31.02.2026' }, now)).toEqual({ kind: 'none', day: '' })
   })
 })

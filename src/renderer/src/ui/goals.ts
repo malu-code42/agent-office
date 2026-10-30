@@ -60,7 +60,7 @@ function goalItem(goal: Goal, completedTaskIds: ReadonlySet<string>): HTMLElemen
 export function openGoals(root: HTMLElement, _toast: (message: string, kind?: 'ok' | 'err') => void): void {
   const content = h('div', { class: 'goals-content' }, h('p', { class: 'hint' }, 'Lendo os objetivos…'))
   const close = () => backdrop.remove()
-  const closeButton = h('button', { class: 'btn btn-primary', type: 'button', onclick: close }, 'Fechar')
+  const closeButton = h('button', { class: 'btn', type: 'button', onclick: close }, 'Fechar')
   const footHint = h('span', { class: 'hint grow tl-foot-hint' }, 'Somente leitura. Mudanças nos objetivos são feitas pela Luna, no chat.')
   const backdrop = modal('Objetivos', [content], [footHint, closeButton], close)
   root.append(backdrop)

@@ -59,7 +59,8 @@ export interface FocusTimerView {
 
 /** A focused task: its title and list in tarefas.md; `missing` when its id is no longer there. `step` is today's step, when there is one; `timer` is the session of this task, when it has one. */
 export type FocusItem =
-  { id: string; missing: false; text: string; list: string; step?: string; timer?: FocusTimerView } | { id: string; missing: true }
+  | { id: string; missing: false; text: string; list: string; date?: string; step?: string; timer?: FocusTimerView }
+  | { id: string; missing: true }
 
 /** mm:ss for the popup. Rounds up, so the last second still shows 00:01. */
 export function clockText(ms: number): string {
@@ -78,9 +79,10 @@ export function focusItems(
   todaySteps: ReadonlyMap<string, string> = new Map(),
   timers: ReadonlyMap<string, FocusTimerView> = new Map(),
 ): FocusItem[] {
-  const tasks = new Map<string, { text: string; list: string }>()
+  const tasks = new Map<string, { text: string; list: string; date?: string }>()
   for (const list of lists) {
-    for (const task of list.tasks) if (task.id) tasks.set(focusKey(task.id), { text: task.text, list: list.name })
+    for (const task of list.tasks)
+      if (task.id) tasks.set(focusKey(task.id), { text: task.text, list: list.name, date: task.date ?? task.dueDate })
   }
   return focus.map((id) => {
     const task = tasks.get(id)
@@ -92,6 +94,7 @@ export function focusItems(
       missing: false,
       text: task.text,
       list: task.list,
+      ...(task.date ? { date: task.date } : {}),
       ...(step ? { step } : {}),
       ...(timer ? { timer } : {}),
     }

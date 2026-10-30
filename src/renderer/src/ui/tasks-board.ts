@@ -5,15 +5,18 @@ import { parseEmphasis } from '@shared/emphasis'
 import {
   ARCHIVE_LIST,
   boardView,
+  type DueKind,
   type ParsedBoard,
   rescheduleTargets,
   type Task,
+  taskDue,
   taskWhen,
   type TaskList,
   type TaskRef,
 } from '@shared/tasks'
 import { asDialog, FocusReturn, focusedKey, isTyping, refocusKey, rove } from './a11y'
 import { h, icon } from './dom'
+import { renderInlineMarkdown } from './markdown'
 import { cleanError } from './modals'
 import { offerUndo, type Toast } from './tasks-complete'
 import { openMoveMenu, openTaskMenu } from './tasks-move'
@@ -25,82 +28,39 @@ import { runDiscard, runReopen } from './tasks-discard'
 import { keepScroll } from './tasks-scroll'
 import './focus.css'
 
-const ARROWS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
-
 /** The focus memory of each open board. A redraw hands it to the board that replaces it. */
 const focusMemory = new WeakMap<HTMLElement, FocusReturn>()
 /** Boards taken out by a redraw: their close watcher must not give the focus back. */
 const replaced = new WeakSet<HTMLElement>()
+/** The list shown on the right, remembered between openings (round 5: one list at a time). */
+let chosenList: string | undefined
+/** Whether the "Concluídas e descartadas" group of the list is open. */
+let doneOpen = true
 
-/** Scroll of the lists (by name) and of the columns row, read before a redraw. */
-function readScroll(board: HTMLElement): { lists: Record<string, number>; columns: number } {
-  const lists: Record<string, number> = {}
-  for (const el of board.querySelectorAll<HTMLElement>('.tcol-list')) lists[el.dataset.list ?? ''] = el.scrollTop
-  return { lists, columns: board.querySelector<HTMLElement>('.board-cols')?.scrollTop ?? 0 }
+const DUE_LABEL: Record<DueKind, string> = { late: 'Atrasada', today: 'Hoje', soon: 'Amanhã', later: '', none: 'Sem prazo' }
+
+/** The deadline badge of the boards: label and color, never color alone (Atrasada · 22/10, Hoje, Amanhã, 02/11, Sem prazo). */
+export function dueBadge(kind: DueKind, day: string): HTMLElement {
+  const text = kind === 'later' ? day : kind === 'late' && day ? `${DUE_LABEL.late} · ${day}` : DUE_LABEL[kind]
+  return h('span', { class: `due due-${kind}` }, kind === 'none' ? null : icon('calendar', 12), text)
+}
+
+/** Scroll of the open list (by name), read before a redraw. */
+function readScroll(board: HTMLElement): Record<string, number> {
+  const panel = board.querySelector<HTMLElement>('.tk-panel')
+  return panel ? { [panel.dataset.list ?? '']: panel.scrollTop } : {}
 }
 
 /** Puts the scroll back on the new board; it must be in the document, so the sizes are known. */
-function applyScroll(board: HTMLElement, scroll: { lists: Record<string, number>; columns: number }): void {
-  const els = [...board.querySelectorAll<HTMLElement>('.tcol-list')]
-  const names = els.map((el) => el.dataset.list ?? '')
-  const maxScroll: Record<string, number> = {}
-  els.forEach((el, i) => (maxScroll[names[i]!] = el.scrollHeight - el.clientHeight))
-  const kept = keepScroll(scroll.lists, names, maxScroll)
-  els.forEach((el, i) => {
-    const top = kept[names[i]!]
-    if (top !== undefined) el.scrollTop = top
-  })
-  const columns = board.querySelector<HTMLElement>('.board-cols')
-  if (columns) columns.scrollTop = scroll.columns
+function applyScroll(board: HTMLElement, scroll: Record<string, number>): void {
+  const panel = board.querySelector<HTMLElement>('.tk-panel')
+  if (!panel) return
+  const name = panel.dataset.list ?? ''
+  const top = keepScroll(scroll, [name], { [name]: panel.scrollHeight - panel.clientHeight })[name]
+  if (top !== undefined) panel.scrollTop = top
 }
 
-/** Renders `**negrito**` and `*itálico*` as elements; everything else stays text. */
-function taskTitle(text: string): (Node | string)[] {
-  return parseEmphasis(text).map((segment) =>
-    segment.kind === 'bold'
-      ? h('strong', { class: 'tcard-bold' }, segment.text)
-      : segment.kind === 'italic'
-        ? h('em', { class: 'tcard-italic' }, segment.text)
-        : segment.text,
-  )
-}
-
-/** ↑/↓ move between the cards of a list, ←/→ between lists (same row when there is one). */
-function moveFocus(columns: HTMLElement[], key: string): void {
-  const focused = document.activeElement instanceof HTMLElement ? document.activeElement : null
-  const column = focused?.closest<HTMLElement>('.tcol') ?? columns[0]
-  if (!column) return
-  const cards = [...column.querySelectorAll<HTMLElement>('.task-readonly')]
-  const card = focused?.closest<HTMLElement>('.task-readonly') ?? null
-  const row = card ? cards.indexOf(card) : -1
-
-  if (key === 'ArrowUp' || key === 'ArrowDown') {
-    if (!cards.length) return
-    if (row < 0) {
-      const current = cards.find((c) => c.tabIndex === 0) ?? cards[0]
-      current.focus()
-      return
-    }
-    const next = Math.max(0, Math.min(cards.length - 1, row + (key === 'ArrowDown' ? 1 : -1)))
-    rove(cards, next)
-    cards[next].focus()
-    return
-  }
-
-  const col = columns.indexOf(column)
-  const target = columns[Math.max(0, Math.min(columns.length - 1, col + (key === 'ArrowRight' ? 1 : -1)))]
-  if (!target || target === column) return
-  const targetCards = [...target.querySelectorAll<HTMLElement>('.task-readonly')]
-  if (!targetCards.length || row < 0) {
-    target.focus()
-    return
-  }
-  const at = Math.min(row, targetCards.length - 1)
-  rove(targetCards, at)
-  targetCards[at].focus()
-}
-
-/** `moved` is the card to focus after a move: the list it went to and its title. */
+/** `moved` is the card to focus after a change: the list it is in and its title. */
 export async function openTasksBoard(
   root: HTMLElement,
   state: State,
@@ -118,19 +78,29 @@ export async function openTasksBoard(
     const data = initialBoard ?? (await window.office.readTasks())
     const focused = new Set((await window.office.readFocus()).map((item) => item.id))
     const isFocused = (task: Task) => !!task.id && focused.has(focusKey(task.id))
+    const now = new Date()
     const taskAriaLabel = (task: Task) =>
       [
-        parseEmphasis(task.text).map((segment) => segment.text).join(''),
-        task.status === 'discarded' ? 'Descartada' : '',
+        parseEmphasis(task.text)
+          .map((segment) => segment.text)
+          .join(''),
+        task.status === 'open' ? 'Aberta' : task.status === 'completed' ? 'Concluída' : 'Descartada',
         isFocused(task) ? 'Em foco' : '',
-        taskWhen(task) ? `Data ${taskWhen(task)}` : '',
-        task.completedDate ? `Descartada em ${task.completedDate}` : '',
-        `Pressione Enter para mover para outra lista, F para pôr ou tirar do foco${task.status === 'open' ? ', R para reagendar, D para descartar' : ''}`,
+        taskWhen(task) ? `Data ${taskWhen(task)}` : 'Sem prazo',
+        task.completedDate ? `Em ${task.completedDate}` : '',
+        task.status === 'open'
+          ? 'Enter move para outra lista, F põe ou tira do foco, R reagenda, D descarta'
+          : 'Enter move para outra lista, F põe ou tira do foco',
       ]
         .filter(Boolean)
         .join('. ')
-    // The Archive is not a column, and completed tasks are listed apart: see boardView.
+    // The Archive is not a list of its own on the left unless it holds something: see boardView.
     const { columns, completed } = boardView(data.lists)
+    const openOf = (list: TaskList) => list.tasks.filter((task) => task.status === 'open')
+    const archived = completed.filter((item) => item.list === ARCHIVE_LIST).map((item) => item.task)
+    const names = columns.map((list) => list.name).concat(archived.length ? [ARCHIVE_LIST] : [])
+    if (moved && names.includes(moved.list)) chosenList = moved.list
+    if (!chosenList || !names.includes(chosenList)) chosenList = names[0]
     let dragging: { line: number; list: string; text: string } | null = null
     let selectingFocus = false
     const selectedFocusLines = new Set<number>()
@@ -145,23 +115,23 @@ export async function openTasksBoard(
         toast(cleanError(err), 'err')
       }
     }
-    const openMove = (card: HTMLElement, list: TaskList, task: Task) =>
+    const openMove = (card: HTMLElement, list: string, task: Task) =>
       openMoveMenu(
         card,
-        data.lists.map((l) => l.name).filter((name) => name !== list.name && name !== ARCHIVE_LIST),
+        data.lists.map((l) => l.name).filter((name) => name !== list && name !== ARCHIVE_LIST),
         (to) => void move(task.line, task.text, to),
       )
     // The main process writes the new date; a refusal (a legacy line, the file changed) comes back as the toast.
-    const reschedule = async (list: TaskList, task: Task, date: string) => {
+    const reschedule = async (list: string, task: Task, date: string) => {
       try {
         const next = await window.office.rescheduleTask({ line: task.line, date })
         toast(`Tarefa reagendada para ${date}.`, 'ok')
-        void openTasksBoard(root, state, toast, next.board, { list: list.name, text: task.text })
+        void openTasksBoard(root, state, toast, next.board, { list, text: task.text })
       } catch (err) {
         toast(cleanError(err), 'err')
       }
     }
-    const openReschedule = (card: HTMLElement, list: TaskList, task: Task) =>
+    const openReschedule = (card: HTMLElement, list: string, task: Task) =>
       openTaskMenu(
         card,
         'Reagendar para…',
@@ -172,7 +142,7 @@ export async function openTasksBoard(
         'Não há data para escolher.',
       )
     // A task with no id gets one in tarefas.md when it is put in focus; the card is focused again after the redraw.
-    const toggleFocus = async (list: TaskList, task: Task, wasFocused: boolean) => {
+    const toggleFocus = async (list: string, task: Task, wasFocused: boolean) => {
       try {
         let next: ParsedBoard
         if (wasFocused) {
@@ -183,35 +153,45 @@ export async function openTasksBoard(
           next = (await window.office.focusTask(task.line)).board
           toast('Tarefa posta em foco.', 'ok')
         }
-        void openTasksBoard(root, state, toast, next, { list: list.name, text: task.text })
+        void openTasksBoard(root, state, toast, next, { list, text: task.text })
       } catch (err) {
         toast(cleanError(err), 'err')
       }
     }
     const focusSelectionLabel = h('span', {}, 'Pôr em foco')
-    const focusSelectionButton = h('button', {
-      class: 'btn btn-small tasks-focus-select',
-      type: 'button',
-      'aria-pressed': 'false',
-      'data-focus-key': 'selecionar-foco',
-    }, icon('pin', 14), focusSelectionLabel) as HTMLButtonElement
-    const cancelFocusSelectionButton = h('button', {
-      class: 'btn btn-small tasks-focus-cancel hidden',
-      type: 'button',
-      'data-focus-key': 'cancelar-selecao-foco',
-    }, 'Cancelar') as HTMLButtonElement
-    // The checkbox completes the task at once: the card leaves the board, and the undo toast stays for 10 s.
-    const complete = async (box: HTMLInputElement, target: TaskRef, title: string) => {
+    const focusSelectionButton = h(
+      'button',
+      {
+        class: 'btn btn-small tasks-focus-select',
+        type: 'button',
+        'aria-pressed': 'false',
+        'data-focus-key': 'selecionar-foco',
+      },
+      icon('pin', 14),
+      focusSelectionLabel,
+    ) as HTMLButtonElement
+    const cancelFocusSelectionButton = h(
+      'button',
+      {
+        class: 'btn btn-small tasks-focus-cancel hidden',
+        type: 'button',
+        'data-focus-key': 'cancelar-selecao-foco',
+      },
+      'Cancelar',
+    ) as HTMLButtonElement
+    // "Concluir" completes the task at once: the card leaves the list, and the undo toast stays for 10 s.
+    const complete = async (button: HTMLButtonElement, target: TaskRef, title: string) => {
+      button.disabled = true
       try {
         const next = await window.office.completeTask(target)
         offerUndo(toast, title, next.id, (undone) => refreshTasksBoard(root, state, toast, undone.board))
         refreshTasksBoard(root, state, toast, next.board)
       } catch (err) {
-        box.checked = false
+        button.disabled = false
         toast(cleanError(err), 'err')
       }
     }
-    // Discarding asks for the reason first; the card leaves the board and its line goes to the Archive.
+    // Discarding asks for the reason first; the card leaves the list and its line goes to the Archive.
     const discardCard = (task: Task) =>
       void runDiscard(root, toast, { line: task.line }, task.text, (next) => {
         void openTasksBoard(root, state, toast, next.board)
@@ -221,9 +201,9 @@ export async function openTasksBoard(
       void runReopen(root, toast, { line: task.line }, task.text, (next) => {
         void openTasksBoard(root, state, toast, next.board, { list: next.list, text: task.text })
       })
-    /** Drag and keyboard for a card; the Archive is read-only. */
-    const dragAndMove = (list: TaskList, task: Task): Record<string, string | EventListener | undefined> => {
-      if (list.name === ARCHIVE_LIST) return {}
+    /** Drag (onto a list button) and keyboard for a card; the Archive is read-only. */
+    const dragAndMove = (list: string, task: Task): Record<string, string | EventListener | undefined> => {
+      if (list === ARCHIVE_LIST) return {}
       return {
         draggable: 'true',
         ondragstart: (e: Event) => {
@@ -232,17 +212,16 @@ export async function openTasksBoard(
             return
           }
           const drag = e as DragEvent
-          dragging = { line: task.line, list: list.name, text: task.text }
+          dragging = { line: task.line, list, text: task.text }
           if (drag.dataTransfer) {
             drag.dataTransfer.effectAllowed = 'move'
             drag.dataTransfer.setData('text/plain', task.text)
           }
-          const card = drag.currentTarget as HTMLElement
-          card.classList.add('dragging')
+          ;(drag.currentTarget as HTMLElement).classList.add('dragging')
         },
         ondragend: () => {
           dragging = null
-          board.querySelectorAll('.dragging, .tcol-over').forEach((n) => n.classList.remove('dragging', 'tcol-over'))
+          board.querySelectorAll('.dragging, .tk-over').forEach((n) => n.classList.remove('dragging', 'tk-over'))
         },
         onkeydown: (e: Event) => {
           const key = e as KeyboardEvent
@@ -255,125 +234,220 @@ export async function openTasksBoard(
             }
             return
           }
+          const plain = !key.ctrlKey && !key.metaKey && !key.altKey
           if (key.key === 'Enter' || key.key === ' ') {
             key.preventDefault()
             openMove(key.currentTarget as HTMLElement, list, task)
-          } else if (key.key.toLowerCase() === 'f' && !key.ctrlKey && !key.metaKey && !key.altKey) {
+          } else if (plain && key.key.toLowerCase() === 'f') {
             key.preventDefault()
             void toggleFocus(list, task, isFocused(task))
-          } else if (key.key.toLowerCase() === 'r' && !key.ctrlKey && !key.metaKey && !key.altKey && task.status === 'open') {
+          } else if (plain && key.key.toLowerCase() === 'r' && task.status === 'open') {
             // R is also the Reports shortcut of the page: this keeps it from opening over the board.
             key.preventDefault()
             key.stopPropagation()
             openReschedule(key.currentTarget as HTMLElement, list, task)
-          } else if (key.key.toLowerCase() === 'd' && !key.ctrlKey && !key.metaKey && !key.altKey && task.status === 'open') {
+          } else if (plain && key.key.toLowerCase() === 'd' && task.status === 'open') {
             key.preventDefault()
             discardCard(task)
           }
         },
       }
     }
-    const moveButton = (list: TaskList, task: Task) =>
-      h(
-        'button',
-        {
-          class: 'btn btn-small tcard-move',
-          type: 'button',
-          tabindex: '-1',
-          onclick: (e: Event) => openMove((e.currentTarget as HTMLElement).closest<HTMLElement>('.tcard')!, list, task),
-        },
-        'Mover para…',
-      )
-    const rescheduleButton = (list: TaskList, task: Task) =>
-      h(
-        'button',
-        {
-          class: 'btn btn-small tcard-reschedule',
-          type: 'button',
-          tabindex: '-1',
-          onclick: (e: Event) => openReschedule((e.currentTarget as HTMLElement).closest<HTMLElement>('.tcard')!, list, task),
-        },
-        'Reagendar…',
-      )
-    const discardButton = (task: Task) =>
-      h(
-        'button',
-        {
-          class: 'btn btn-small tcard-discard',
-          type: 'button',
-          tabindex: '-1',
-          onclick: () => discardCard(task),
-        },
-        'Descartar…',
-      )
-    // Tab reaches it and Space toggles it. Only open tasks have one.
-    const completeBox = (task: Task) =>
-      h('input', {
-        class: 'tcard-done',
-        type: 'checkbox',
-        'aria-label': `Marcar “${task.text}” como concluída`,
-        onchange: (e: Event) => void complete(e.currentTarget as HTMLInputElement, { line: task.line }, task.text),
-      })
-    const focusButton = (list: TaskList, task: Task) => {
-      const wasFocused = isFocused(task)
+    const cardOf = (e: Event) => (e.currentTarget as HTMLElement).closest<HTMLElement>('.tk-card')!
+    /** The actions of a card show when it is selected (clicked or focused): round 5, capture 20. */
+    const cardActions = (list: string, task: Task) => {
+      const button = (text: string, onclick: (e: Event) => void, extra = '') =>
+        h('button', { class: `btn btn-small${extra}`, type: 'button', onclick }, text)
+      if (task.status === 'open')
+        return h(
+          'div',
+          { class: 'tk-actions' },
+          button('Concluir', (e) => void complete(e.currentTarget as HTMLButtonElement, { line: task.line }, task.text), ' tcard-complete'),
+          button('Reagendar', (e) => openReschedule(cardOf(e), list, task), ' tcard-reschedule'),
+          button('Mover', (e) => openMove(cardOf(e), list, task), ' tcard-move'),
+          button(isFocused(task) ? 'Tirar do foco' : 'Pôr em foco', () => void toggleFocus(list, task, isFocused(task)), ' tcard-focus'),
+          button('Descartar', () => discardCard(task), ' btn-danger-soft tcard-discard'),
+        )
       return h(
-        'button',
-        {
-          class: 'btn btn-small tcard-focus',
-          type: 'button',
-          tabindex: '-1',
-          onclick: () => void toggleFocus(list, task, wasFocused),
-        },
-        wasFocused ? 'Tirar do foco' : 'Pôr em foco',
+        'div',
+        { class: 'tk-actions' },
+        button('Reabrir', () => reopenRow(task), ' tcard-reopen'),
+        list !== ARCHIVE_LIST && isFocused(task) ? button('Tirar do foco', () => void toggleFocus(list, task, true), ' tcard-focus') : null,
       )
     }
-    const toggleCompleted = (button: HTMLButtonElement) => {
-      const show = completedPanel.hidden
-      completedPanel.hidden = !show
-      button.textContent = show ? 'Ocultar concluídas' : 'Mostrar concluídas'
-      button.setAttribute('aria-pressed', String(show))
-    }
-    const completedPanel = h(
-      'section',
-      { class: 'tasks-completed', hidden: true, 'aria-label': 'Tarefas concluídas', tabindex: '0' },
-      completed.length === 0
-        ? h('div', { class: 'hint' }, 'Nenhuma tarefa concluída ainda.')
-        : h(
-            'ul',
-            { class: 'tcompleted-list', 'aria-label': 'Tarefas concluídas' },
-            ...completed.map(({ list, task }) =>
-              h(
-                'li',
-                { class: 'tcompleted-row' },
-                h('span', { class: 'tcompleted-title' }, `${task.status === 'discarded' ? '❌' : '✅'} ${task.text}`),
-                h(
-                  'span',
-                  { class: 'tcompleted-foot' },
-                  [task.completedDate, list === ARCHIVE_LIST ? '' : list].filter(Boolean).join(' · '),
-                ),
-                task.reason ? h('span', { class: 'tcompleted-foot' }, `Motivo: ${task.reason}`) : null,
-                h(
-                  'button',
-                  {
-                    class: 'btn btn-small tcompleted-reopen',
-                    type: 'button',
-                    'aria-label': `Reabrir “${task.text}”`,
-                    onclick: () => reopenRow(task),
-                  },
-                  'Reabrir',
-                ),
-              ),
-            ),
+    const card = (list: string, task: Task, pos: number) => {
+      const due = taskDue(task, now)
+      const late = task.status === 'open' && due.kind === 'late'
+      return h(
+        'li',
+        {
+          class: `tcard task-readonly tk-card${late ? ' tk-late' : ''}${task.status === 'open' ? '' : ` task-${task.status}`}`,
+          tabindex: '0',
+          'data-focus-key': `${list} / ${task.text}`,
+          'data-task-line': String(task.line),
+          'data-task-text': task.text,
+          ...dragAndMove(list, task),
+          onclick: (event: Event) => {
+            if (!selectingFocus || task.status !== 'open') return
+            const target = event.target instanceof HTMLElement ? event.target : null
+            if (target?.closest('button, input, a')) return
+            toggleFocusSelection(task, event.currentTarget as HTMLElement)
+          },
+          'aria-label': taskAriaLabel(task),
+        },
+        h(
+          'div',
+          { class: 'tk-top' },
+          h('span', { class: 'tk-pos', title: 'Posição na lista' }, `#${pos}`),
+          h(
+            'span',
+            { class: `tk-state tk-state-${task.status}` },
+            task.status === 'open' ? 'Aberta' : task.status === 'completed' ? 'Concluída' : 'Descartada',
           ),
+          isFocused(task) ? h('span', { class: 'tk-focus-chip' }, icon('pin', 11), 'Em foco') : null,
+          h('span', { class: 'grow' }),
+          task.status === 'open'
+            ? dueBadge(due.kind, due.day)
+            : task.completedDate
+              ? h('span', { class: 'tk-sub' }, task.completedDate)
+              : null,
+        ),
+        renderInlineMarkdown(task.text, 'tcard-title tk-title'),
+        task.time ? h('div', { class: 'tk-sub' }, `às ${task.time}`) : null,
+        task.reason ? h('div', { class: 'tk-sub' }, `Motivo: ${task.reason}`) : null,
+        cardActions(list, task),
+      )
+    }
+    const legend = h(
+      'div',
+      { class: 'tk-legend', 'aria-label': 'Cores do prazo' },
+      dueBadge('late', ''),
+      dueBadge('today', ''),
+      dueBadge('soon', ''),
+      dueBadge('later', 'Data'),
+      dueBadge('none', ''),
     )
+    const nav = h('nav', { class: 'tk-lists', 'aria-label': 'Listas' }, h('div', { class: 'tk-lists-cap' }, 'Listas'))
+    const panel = h('section', { class: 'tk-panel', tabindex: '-1' })
+    /** The tasks of the chosen list in one column; completed and discarded ones in a group below. */
+    const paintPanel = () => {
+      const name = chosenList ?? ''
+      const column = columns.find((list) => list.name === name)
+      const open = column ? openOf(column) : []
+      const done = column
+        ? column.tasks.filter((task) => task.status === 'discarded').concat(completed.filter((c) => c.list === name).map((c) => c.task))
+        : archived
+      const doneList = h('ul', { class: 'tk-cards', hidden: !doneOpen }, ...done.map((task, i) => card(name, task, open.length + i + 1)))
+      const doneHead = h(
+        'button',
+        {
+          class: 'tk-done-head',
+          type: 'button',
+          'aria-expanded': String(doneOpen),
+          'data-focus-key': 'concluidas',
+          onclick: () => {
+            doneOpen = !doneOpen
+            doneList.hidden = !doneOpen
+            doneHead.setAttribute('aria-expanded', String(doneOpen))
+          },
+        },
+        icon('chevron', 13),
+        `Concluídas e descartadas (${done.length})`,
+      )
+      panel.dataset.list = name
+      panel.setAttribute('aria-label', `Lista ${name}`)
+      panel.replaceChildren(
+        ...[
+          h(
+            'div',
+            { class: 'tk-panel-head' },
+            h('h3', {}, name === ARCHIVE_LIST ? 'Arquivo' : name),
+            h('span', { class: 'tk-sub' }, column ? `${open.length} aberta${open.length === 1 ? '' : 's'}` : 'só leitura'),
+            column ? legend : null,
+          ),
+          open.length
+            ? h('ul', { class: 'tk-cards', 'aria-label': `Tarefas de ${name}` }, ...open.map((task, i) => card(name, task, i + 1)))
+            : column
+              ? h(
+                  'div',
+                  { class: 'tk-empty' },
+                  icon('list', 26),
+                  h('b', {}, 'Nenhuma tarefa aberta nesta lista'),
+                  h('span', {}, 'Use “Nova tarefa” ou peça à Luna.'),
+                )
+              : null,
+          done.length ? h('div', { class: 'tk-done' }, doneHead, doneList) : null,
+        ].filter((n) => n !== null),
+      )
+      for (const btn of nav.querySelectorAll<HTMLElement>('.tk-lbtn')) {
+        const on = btn.dataset.list === name
+        btn.classList.toggle('on', on)
+        btn.setAttribute('aria-current', String(on))
+      }
+      const cards = [...panel.querySelectorAll<HTMLElement>('.tk-card')]
+      if (cards.length) rove(cards, 0)
+      if (selectingFocus) syncFocusSelectionButtons()
+    }
+    const choose = (name: string) => {
+      if (name === chosenList) return
+      chosenList = name
+      paintPanel()
+    }
+    for (const name of names) {
+      const column = columns.find((list) => list.name === name)
+      const open = column ? openOf(column) : []
+      const kinds = open.map((task) => taskDue(task, now).kind)
+      const late = kinds.filter((k) => k === 'late').length
+      const today = kinds.filter((k) => k === 'today').length
+      const btn = h(
+        'button',
+        {
+          class: 'tk-lbtn',
+          type: 'button',
+          'data-list': name,
+          'data-focus-key': `lista / ${name}`,
+          onclick: () => choose(name),
+        },
+        h('span', { class: 'grow' }, name === ARCHIVE_LIST ? 'Arquivo' : name),
+        late
+          ? h('span', { class: 'tk-lbadge late' }, `${late} atrasada${late === 1 ? '' : 's'}`)
+          : today
+            ? h('span', { class: 'tk-lbadge today' }, `${today} hoje`)
+            : null,
+        h('span', { class: 'tk-lcount', title: column ? 'Abertas' : 'Descartadas' }, String(column ? open.length : archived.length)),
+      )
+      // Dropping a card on another list's button moves the task there.
+      if (column) {
+        btn.addEventListener('dragover', (e) => {
+          if (!dragging || dragging.list === name) return
+          e.preventDefault()
+          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+          btn.classList.add('tk-over')
+        })
+        btn.addEventListener('dragleave', () => btn.classList.remove('tk-over'))
+        btn.addEventListener('drop', (e) => {
+          e.preventDefault()
+          btn.classList.remove('tk-over')
+          const drop = dragging
+          dragging = null
+          if (drop && drop.list !== name) void move(drop.line, drop.text, name)
+        })
+      }
+      nav.append(btn)
+    }
+    const openTotal = columns.reduce((count, list) => count + openOf(list).length, 0)
     const board = h(
       'div',
-      { class: 'board', tabindex: '-1', 'data-tasks-board': 'true' },
+      { class: 'board tasks-board', tabindex: '-1', 'data-tasks-board': 'true' },
       h(
         'div',
         { class: 'board-head' },
-        h('div', { class: 'board-title' }, icon('list', 18), 'Tarefas'),
-        h('span', { class: 'board-count' }, `${columns.reduce((count, list) => count + list.tasks.length, 0)} tarefas`),
+        h('div', { class: 'board-title' }, icon('kanban', 18), 'Tarefas'),
+        h(
+          'span',
+          { class: 'board-count' },
+          `${openTotal} aberta${openTotal === 1 ? '' : 's'} em ${columns.length} lista${columns.length === 1 ? '' : 's'}`,
+        ),
         h('span', { class: 'grow' }),
         focusSelectionButton,
         cancelFocusSelectionButton,
@@ -387,7 +461,11 @@ export async function openTasksBoard(
           { class: 'btn btn-small', type: 'button', 'data-focus-key': 'objetivos', onclick: () => openGoals(root, toast) },
           'Objetivos',
         ),
-        h('button', { class: 'btn btn-small', type: 'button', 'data-focus-key': 'midias', onclick: () => void openMediaLibrary(root, toast) }, 'Mídias'),
+        h(
+          'button',
+          { class: 'btn btn-small', type: 'button', 'data-focus-key': 'midias', onclick: () => void openMediaLibrary(root, toast) },
+          'Mídias',
+        ),
         h(
           'button',
           {
@@ -404,17 +482,6 @@ export async function openTasksBoard(
           },
           icon('plus', 14),
           'Nova tarefa',
-        ),
-        h(
-          'button',
-          {
-            class: 'btn btn-small',
-            type: 'button',
-            'aria-pressed': 'false',
-            'data-focus-key': 'concluidas',
-            onclick: (e: Event) => toggleCompleted(e.currentTarget as HTMLButtonElement),
-          },
-          'Mostrar concluídas',
         ),
         h(
           'button',
@@ -437,92 +504,18 @@ export async function openTasksBoard(
             h('ul', {}, ...data.warnings.map((warning) => h('li', {}, warning))),
           )
         : null,
-      h(
-        'div',
-        { class: 'board-body' },
-        h(
-          'div',
-          { class: 'board-cols', role: 'group', 'aria-label': 'Colunas do quadro Tarefas' },
-          ...(data.lists.length === 0
-            ? [
-                h(
-                  'div',
-                  { class: 'empty-box panelbox' },
-                  h('b', {}, 'Nenhuma lista encontrada'),
-                  h('span', {}, 'O arquivo tarefas.md não contém títulos de lista iniciados por “##”.'),
-                ),
-              ]
-            : []),
-          ...columns.map((list: TaskList) =>
+      names.length === 0
+        ? h(
+            'div',
+            { class: 'board-body tk-board' },
             h(
-              'section',
-              { class: 'tcol', tabindex: '0', 'aria-label': `Lista ${list.name}` },
-              h(
-                'div',
-                { class: 'tcol-head' },
-                h('span', { class: 'tcol-dot' }),
-                h('span', { class: 'grow' }, list.name),
-                h('span', { class: 'tcol-count' }, String(list.tasks.length)),
-              ),
-              h(
-                'ul',
-                {
-                  class: 'tcol-list',
-                  style: 'list-style:none;margin:0',
-                  'data-list': list.name,
-                  'aria-label': `Tarefas de ${list.name}`,
-                },
-                ...(list.tasks.length === 0
-                  ? [h('li', { class: 'tcol-empty' }, 'Nenhuma tarefa')]
-                  : list.tasks.map((task) =>
-                      h(
-                        'li',
-                        {
-                          class: `tcard task-readonly${task.status === 'discarded' ? ' task-discarded' : ''}`,
-                          role: 'button',
-                          tabindex: '0',
-                          'data-focus-key': `${list.name} / ${task.text}`,
-                          'data-task-line': String(task.line),
-                          ...dragAndMove(list, task),
-                          onclick: (event: Event) => {
-                            if (!selectingFocus || task.status !== 'open') return
-                            const target = event.target instanceof HTMLElement ? event.target : null
-                            if (target?.closest('button, input')) return
-                            toggleFocusSelection(task, event.currentTarget as HTMLElement)
-                          },
-                          'aria-label': taskAriaLabel(task),
-                        },
-                        h(
-                          'div',
-                          { class: 'tcard-top' },
-                          task.status === 'open' ? completeBox(task) : null,
-                          taskWhen(task)
-                            ? h('div', { class: 'tcard-date' }, h('span', { class: 'tcard-date-text' }, taskWhen(task)))
-                            : null,
-                          h('span', { class: `tcard-title${task.date ? ' tcard-bold' : ''}` }, ...taskTitle(task.text)),
-                          task.status !== 'open'
-                            ? h(
-                                'span',
-                                { class: `chip ${task.status === 'completed' ? 'chip-done' : 'chip-err'}` },
-                                task.status === 'completed' ? 'Concluída' : 'Descartada',
-                              )
-                            : null,
-                          isFocused(task) ? h('span', { class: 'chip' }, 'Em foco') : null,
-                        ),
-                        task.completedDate ? h('div', { class: 'tcard-foot' }, `❌ ${task.completedDate}`) : null,
-                        task.reason ? h('div', { class: 'hint' }, task.reason) : null,
-                        moveButton(list, task),
-                        task.status === 'open' ? rescheduleButton(list, task) : null,
-                        task.status === 'open' ? discardButton(task) : null,
-                        task.status === 'open' || isFocused(task) ? focusButton(list, task) : null,
-                      ),
-                    )),
-              ),
+              'div',
+              { class: 'empty-box panelbox' },
+              h('b', {}, 'Nenhuma lista encontrada'),
+              h('span', {}, 'O arquivo tarefas.md não contém títulos de lista iniciados por “##”.'),
             ),
-          ),
-        ),
-        completedPanel,
-      ),
+          )
+        : h('div', { class: 'board-body tk-board' }, nav, panel),
     ) as HTMLElement
 
     const updateFocusSelectionCard = (card: HTMLElement, task: Task) => {
@@ -530,7 +523,10 @@ export async function openTasksBoard(
       card.classList.toggle('focus-select-selected', selectingFocus && selected)
       if (selectingFocus) {
         card.setAttribute('aria-pressed', String(selected))
-        card.setAttribute('aria-label', `${task.text}. ${selected ? 'Selecionada' : 'Não selecionada'} para pôr em foco. Pressione Enter ou Espaço para alterar.`)
+        card.setAttribute(
+          'aria-label',
+          `${task.text}. ${selected ? 'Selecionada' : 'Não selecionada'} para pôr em foco. Pressione Enter ou Espaço para alterar.`,
+        )
       } else {
         card.removeAttribute('aria-pressed')
         card.setAttribute('aria-label', taskAriaLabel(task))
@@ -577,7 +573,11 @@ export async function openTasksBoard(
         toast('Selecione ao menos uma tarefa para pôr em foco.', 'info')
         return
       }
-      const selected = tasksToFocusSelection(columns.flatMap((list) => list.tasks), selectedFocusLines, focused)
+      const selected = tasksToFocusSelection(
+        columns.flatMap((list) => list.tasks),
+        selectedFocusLines,
+        focused,
+      )
       if (!selected.length) {
         finishFocusSelection()
         toast('As tarefas selecionadas já estão em foco.', 'info')
@@ -606,7 +606,7 @@ export async function openTasksBoard(
         selectingFocus = true
         selectedFocusLines.clear()
         syncFocusSelectionButtons()
-        board.querySelector<HTMLElement>('.task-readonly')?.focus({ preventScroll: true })
+        board.querySelector<HTMLElement>('.tk-card')?.focus({ preventScroll: true })
       }
     })
     cancelFocusSelectionButton.addEventListener('click', () => {
@@ -615,36 +615,39 @@ export async function openTasksBoard(
     })
 
     asDialog(board, { label: 'Quadro Tarefas' })
-    const columnEls = [...board.querySelectorAll<HTMLElement>('.tcol')]
-    const cardsOf = (column: HTMLElement) => [...column.querySelectorAll<HTMLElement>('.task-readonly')]
-    for (const column of columnEls) {
-      const cards = cardsOf(column)
-      if (cards.length) rove(cards, 0)
+    if (names.length) paintPanel()
+    // The selected card shows its actions; it stays selected until another card is.
+    const select = (event: Event) => {
+      const card = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>('.tk-card') : null
+      if (!card) return
+      for (const other of board.querySelectorAll('.tk-card.tk-sel')) if (other !== card) other.classList.remove('tk-sel')
+      card.classList.add('tk-sel')
+      const cards = [...panel.querySelectorAll<HTMLElement>('.tk-card')]
+      rove(cards, cards.indexOf(card))
     }
-    board.addEventListener('focusin', (event) => {
-      const card = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>('.task-readonly') : null
-      const column = card?.closest<HTMLElement>('.tcol')
-      if (card && column) rove(cardsOf(column), cardsOf(column).indexOf(card))
-    })
-    const dropZone = (column: HTMLElement, name: string) => {
-      column.addEventListener('dragover', (e) => {
-        if (!dragging || dragging.list === name) return
-        e.preventDefault()
-        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
-        column.classList.add('tcol-over')
-      })
-      column.addEventListener('dragleave', (e) => {
-        if (!column.contains(e.relatedTarget as Node | null)) column.classList.remove('tcol-over')
-      })
-      column.addEventListener('drop', (e) => {
-        e.preventDefault()
-        column.classList.remove('tcol-over')
-        const drop = dragging
-        dragging = null
-        if (drop && drop.list !== name) void move(drop.line, drop.text, name)
-      })
+    board.addEventListener('focusin', select)
+    board.addEventListener('click', select)
+    /** ↑/↓ go through the lists (choosing them) or through the cards; ← and → cross between the two. */
+    const arrow = (key: string): void => {
+      const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      const buttons = [...nav.querySelectorAll<HTMLElement>('.tk-lbtn')]
+      const cards = [...panel.querySelectorAll<HTMLElement>('.tk-card')].filter((c) => c.offsetParent !== null)
+      const current = buttons.find((b) => b.dataset.list === chosenList)
+      if (active && nav.contains(active)) {
+        if (key === 'ArrowRight') return cards[0]?.focus()
+        if (key !== 'ArrowUp' && key !== 'ArrowDown') return
+        const at = Math.max(0, Math.min(buttons.length - 1, buttons.indexOf(active) + (key === 'ArrowDown' ? 1 : -1)))
+        buttons[at]?.focus()
+        choose(buttons[at]?.dataset.list ?? '')
+        return
+      }
+      const card = active?.closest<HTMLElement>('.tk-card') ?? null
+      if (key === 'ArrowLeft') return current?.focus()
+      if (key === 'ArrowRight') return
+      if (!card) return (cards[0] ?? current)?.focus()
+      const at = Math.max(0, Math.min(cards.length - 1, cards.indexOf(card) + (key === 'ArrowDown' ? 1 : -1)))
+      cards[at]?.focus()
     }
-    columnEls.forEach((column, i) => dropZone(column, columns[i]!.name))
     // Capture on window, like the "?" shortcut: the game listens on window and would move the player.
     const onKey = (event: KeyboardEvent) => {
       if (!board.isConnected || isTyping() || event.altKey || event.metaKey || event.ctrlKey) return
@@ -657,10 +660,10 @@ export async function openTasksBoard(
         } else board.remove()
         return
       }
-      if (!ARROWS.includes(event.key)) return
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return
       event.preventDefault()
       event.stopPropagation()
-      moveFocus(columnEls, event.key)
+      arrow(event.key)
     }
     window.addEventListener('keydown', onKey, true)
     board.addEventListener('click', (event) => {
@@ -687,21 +690,17 @@ export async function openTasksBoard(
     })
     observer.observe(root, { childList: true })
     const landing = moved
-      ? [...board.querySelectorAll<HTMLElement>('.task-readonly')].find(
-          (card) =>
-            card.closest('.tcol')?.getAttribute('aria-label') === `Lista ${moved.list}` &&
-            card.querySelector('.tcard-title')?.textContent === moved.text,
-        )
+      ? [...panel.querySelectorAll<HTMLElement>('.tk-card')].find((card) => card.dataset.taskText === moved.text)
       : undefined
-    const target: HTMLElement = landing ?? columnEls[0] ?? board
+    const target: HTMLElement = landing ?? nav.querySelector<HTMLElement>('.tk-lbtn.on') ?? board
     if (previous && scroll) {
       replaced.add(previous)
       board.classList.add('board-redraw')
       previous.replaceWith(board)
       applyScroll(board, scroll)
       // The focus moves to the same card or button; if it was outside the board (a text field, the popup), it stays there.
-      const back = keyBefore !== undefined && refocusKey(board, keyBefore)
-      if (hadFocus && !back) target.focus({ preventScroll: true })
+      const back = !landing && keyBefore !== undefined && refocusKey(board, keyBefore)
+      if ((hadFocus || landing) && !back) target.focus({ preventScroll: true })
     } else {
       root.append(board)
       target.focus({ preventScroll: true })

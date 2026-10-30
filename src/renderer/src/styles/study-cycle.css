@@ -14,7 +14,8 @@
 .study-cycle-status {
   margin: 0;
   padding: 10px 12px;
-  border: 1px solid var(--line-strong);
+  border: 2px solid var(--ctl-line);
+  box-shadow: var(--shadow-sm);
   color: var(--text);
 }
 
@@ -24,7 +25,7 @@
   gap: 8px;
   align-items: start;
   padding: 10px 12px;
-  border: 1px solid var(--line);
+  border: 2px solid var(--line);
   color: var(--text);
   cursor: pointer;
 }
@@ -49,7 +50,8 @@
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  border: 1px solid var(--line-strong);
+  border: 2px solid var(--ctl-line);
+  box-shadow: var(--shadow-sm);
 }
 
 .study-cycle-gap,
@@ -58,8 +60,9 @@
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  border: 1px solid var(--line-strong);
-  background: var(--card-solid);
+  border: 2px solid var(--ctl-line);
+  box-shadow: var(--shadow-sm);
+  background: var(--surface-2);
 }
 
 .study-cycle-gap h4,

@@ -81,7 +81,7 @@
   width: 16px;
   height: 16px;
   padding: 0;
-  background: var(--panel, #1e1d2b);
+  background: var(--card);
 }
 
 .floor-brand-color {

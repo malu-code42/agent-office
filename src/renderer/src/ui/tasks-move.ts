@@ -27,6 +27,7 @@ export function openTaskMenu(
   const menu = h(
     'div',
     { class: 'tmenu', role: 'menu', tabindex: '-1', 'aria-label': label },
+    h('div', { class: 'tmenu-head', 'aria-hidden': 'true' }, label),
     ...(options.length
       ? options.map((option) =>
           h(
