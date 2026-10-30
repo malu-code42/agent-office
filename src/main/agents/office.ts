@@ -390,7 +390,8 @@ export abstract class AgentOffice extends AgentBase {
   sendMessage(id: string, text: string, display?: string, attachments: AttachmentInput[] = []): void | Promise<void> {
     const agent = this.agents.get(id)
     if (!agent || agent.summary.source !== 'office' || agent.summary.departed || agent.demo) return
-    if (agent.summary.builtIn === 'luna') {
+    // #101: Luna talks through the ordinary agent session; only audio keeps its own local workflow.
+    if (agent.summary.builtIn === 'luna' && (attachments.length || this.simulate)) {
       const userText = display ?? text
       this.addLog(agent, 'user', attachments.length ? `${userText || 'Áudio anexado para transcrição local.'}\n[Áudio anexado]` : userText)
       this.dropResults(id)
@@ -433,7 +434,6 @@ export abstract class AgentOffice extends AgentBase {
   compact(id: string): void {
     const agent = this.agents.get(id)
     if (!agent || agent.summary.source !== 'office' || !agent.started || this.busy(agent)) return
-    if (agent.summary.builtIn) throw new Error('O histórico de Luna não pode ser compactado por este controle.')
     if (agent.summary.engine === 'opencode') throw new Error('Registros históricos OpenCode são somente para consulta.')
     if (agent.summary.quotaPaused)
       throw new Error('Uma tarefa pausada ou encerrada pela cota não pode ser compactada. Comece uma conversa nova para continuar.')
@@ -449,7 +449,6 @@ export abstract class AgentOffice extends AgentBase {
   clearContext(id: string): void {
     const agent = this.agents.get(id)
     if (!agent || agent.summary.source !== 'office') return
-    if (agent.summary.builtIn) throw new Error('O histórico de Luna não pode ser limpo por este controle.')
     if (agent.summary.engine === 'opencode')
       throw new Error('Registros históricos OpenCode não podem ser retomados. Crie um novo agente Claude se quiser recomeçar.')
     if (agent.summary.quotaPaused && this.results.some((result) => result.agentId === id && result.limit))
@@ -495,7 +494,6 @@ export abstract class AgentOffice extends AgentBase {
   async interrupt(id: string): Promise<void> {
     const agent = this.agents.get(id)
     if (!agent) return
-    if (agent.summary.builtIn) return
     if (agent.summary.engine === 'opencode') return
     this.cancelAgentRequests(id)
     if (!agent.query) return

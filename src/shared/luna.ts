@@ -13,7 +13,8 @@ export function lunaAgentSummary(now = Date.now(), settings?: Pick<Settings, 'lu
     builtIn: 'luna',
     engine: 'claude',
     cwd: '',
-    permissionMode: 'plan',
+    // #101: an ordinary session; the office's permission policy and cards decide each tool.
+    permissionMode: 'default',
     status: 'idle',
     activity: 'Pronta para ajudar',
     desk: -1,
