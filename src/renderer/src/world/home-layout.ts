@@ -63,6 +63,17 @@ export const HOME_INTERACTIONS: HomeInteraction[] = [
 export const HOME_SPAWN_TILE: [number, number] = [13, 1]
 export const HOME_SPAWN_POINT = { x: 13.5, z: 0.45 }
 
+/** Luna's round table in the personal office and its eight chairs, facing the table. */
+export const HOME_TABLE_AT = { x: 5, z: 5.6 }
+export const HOME_TABLE_SEATS = [157.5, 202.5, 247.5, 292.5, 337.5, 22.5, 67.5, 112.5].map((degrees) => {
+  const angle = (degrees * Math.PI) / 180
+  const x = HOME_TABLE_AT.x + Math.sin(angle) * 1.85
+  const z = HOME_TABLE_AT.z + Math.cos(angle) * 1.85
+  return { x, z, face: Math.atan2(HOME_TABLE_AT.x - x, HOME_TABLE_AT.z - z) }
+})
+/** The chair Luna always sits on. */
+export const LUNA_SEAT = 1
+
 export function isHomeRoomTile(x: number, z: number): boolean {
   return x >= 0 && z >= 0 && x < W && z < H && HOME_ROOMS.some(({ rect }) => x >= rect[0] && x < rect[2] && z >= rect[1] && z < rect[3])
 }

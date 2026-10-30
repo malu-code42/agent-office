@@ -31,8 +31,8 @@ export interface Actor {
   chatUntil: number
   /** Wall-clock ms since the agent has had nothing to do; null while busy. */
   restSince: number | null
-  /** Next time a house resident may choose another public room. */
-  homeNextAt: number
+  /** A house resident's place at Luna's table (see homeSpot); kept until it stops living there. */
+  homeSeat: number | null
   /** Bumped on every new goal; an elevator ride that ends under an old goal starts over. */
   trip: number
   /** Inside the elevator between floors: goal changes wait for the doors to open. */

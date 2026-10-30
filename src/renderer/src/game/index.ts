@@ -86,7 +86,6 @@ export class Game extends GameInput {
           continue
         }
         if (actor.goal === 'desk' && actor.restSince !== null && Date.now() - actor.restSince >= LOUNGE_AFTER_MS) this.reconcile(actor)
-        if (actor.goal === 'home' && actor.arrived && this.time >= actor.homeNextAt) this.wanderHome(actor)
       }
     }
 
