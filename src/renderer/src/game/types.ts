@@ -154,6 +154,8 @@ export interface GameHooks {
   onRoomClick?(project: ProjectFloor, room: L.SquadRoom): void
   /** The player clicked the meeting-room label on a project floor. */
   onMeetingRoomClick?(project: ProjectFloor): void
+  /** The player clicked the elevator door on a 2D floor. */
+  onElevator?(): void
 }
 
 /** Entry-hall tile reserved for the existing agent-routine scheduler totem, west of the hall runner. */
@@ -169,14 +171,6 @@ export const HELPER_SCALE = 0.62
 /** Subagents can finish in a few seconds; keep each helper on screen at least this long. */
 export const HELPER_MIN_S = 4
 
-/** Where the elevator drops people on a floor: the hall of a project floor, the team room downstairs. */
-export function spawnPoint(floor: number): { x: number; z: number } {
-  return L.elevatorOf(floor).point
-}
-/** The tile the elevator door opens on. */
-export function spawnTile(floor: number): [number, number] {
-  return L.elevatorOf(floor).tile
-}
 /** Seconds inside the elevator between floors. */
 export const RIDE_S = 1.1
 /** Squad people walk briskly between the squad room, the coordinator and the elevator. */
@@ -185,16 +179,8 @@ export const SQUAD_SPEED = 4.4
 export const MEMBER_MIN_S = 5
 /** Whatever happens, a member leaves the floor this long after its work ends. */
 export const MEMBER_EXIT_S = 40
-export const OVERFLOW_TILES: [number, number][] = [
-  [29, 9],
-  [30, 9],
-  [29, 10],
-  [30, 10],
-  [28, 9],
-  [28, 10],
-  [31, 9],
-  [31, 10],
-]
+/** Where an orchestrator waits when its squad has no room (ground floor fallback). */
+export const OVERFLOW_TILES = L.UPPER_OVERFLOW
 export const center = ([x, z]: [number, number]) => ({ x: x + 0.5, z: z + 0.5 })
 export const clip = (text: string, n: number) => (text.length > n ? text.slice(0, n - 1) + '…' : text)
 export type Point = { x: number; y: number }

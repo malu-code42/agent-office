@@ -113,3 +113,11 @@ h3,
   color: var(--text);
   font-size: 14px;
 }
+
+/* the 2D world's canvas fills the world; its pixels are drawn at whole-number scales */
+.world-canvas-2d {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}

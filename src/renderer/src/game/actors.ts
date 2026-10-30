@@ -6,7 +6,7 @@ import { Tag } from '../world/overlays'
 import { HOME_SPAWN_POINT, HOME_SPAWN_TILE, HOME_TABLE_AT } from '../world/home-layout'
 import { GameBoards } from './boards'
 import { canContinueHomeArrival, freeHomeSeat, homeSpot } from './home-seats'
-import { LOUNGE_AFTER_MS, screenMode, seatKey, spawnPoint, spawnTile, SQUAD_SPEED, type Actor, type Goal } from './types'
+import { LOUNGE_AFTER_MS, screenMode, seatKey, SQUAD_SPEED, type Actor, type Goal } from './types'
 import { resultDestination } from './result-destination'
 
 /** The agents: arriving, choosing where to be (desk, boss, lounge), posing and leaving. */
@@ -64,7 +64,7 @@ export abstract class GameActors extends GameBoards {
     this.engine.scene.add(avatar.root)
     if (animate) {
       // The agent comes out of the elevator of its own floor.
-      const spawn = spawnPoint(avatar.floor)
+      const spawn = this.elevatorOf(avatar.floor).point
       avatar.placeAt(spawn.x, spawn.z)
       avatar.face(0)
       this.ding(avatar.floor)
@@ -84,7 +84,8 @@ export abstract class GameActors extends GameBoards {
     actor.tag.setBubble('Tchau!', 'idle')
     if (actor.riding) return this.vanish(actor, 0)
     // It leaves by the elevator of the floor it is on.
-    this.route(actor.avatar, spawnTile(actor.avatar.floor), spawnPoint(actor.avatar.floor), () => {
+    const door = this.elevatorOf(actor.avatar.floor)
+    this.route(actor.avatar, door.tile, door.point, () => {
       this.ding(actor.avatar.floor)
       this.vanish(actor, 500)
     })
@@ -292,7 +293,15 @@ export abstract class GameActors extends GameBoards {
       const items = this.state.itemsFor(a.id)
       const result = items.results[0]
       av.setProp(items.permissions.length ? 'none' : result ? (result.isError ? 'redPaper' : 'paper') : 'none')
-      if (actor.goal === 'meeting') av.faceTowards(L.MEETING_TABLE_AT.x, L.MEETING_TABLE_AT.z)
+      const meeting = actor.goal === 'meeting' ? this.upperOf(av.floor)?.scene.plan.meeting : undefined
+      const chair = meeting?.seats.find((s) => actor.spot && s.approach[0] === actor.spot[0] && s.approach[1] === actor.spot[1])
+      if (chair) {
+        // a meeting chair: sit at the table, looking at it
+        av.face(chair.face)
+        av.pose = 'sit'
+        return
+      }
+      if (actor.goal === 'meeting') av.faceTowards((meeting?.table ?? L.MEETING_TABLE_AT).x, (meeting?.table ?? L.MEETING_TABLE_AT).z)
       else if (av.floor === this.player.floor && this.playerInBossRoom()) av.faceTowards(this.player.position.x, this.player.position.z)
       else av.faceTowards(L.BOSS_SEAT.x, L.BOSS_SEAT.z)
       av.pose = this.time < actor.waveUntil ? 'wave' : actor.id === this.nearId ? 'talk' : 'stand'

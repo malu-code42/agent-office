@@ -1,9 +1,14 @@
 import { totemView } from '@shared/routines'
+import { emiAgentId } from '@shared/emi'
 import type { State } from '../state'
 import { Aura } from '../world/aura'
 import type { Avatar } from '../world/avatar'
+import type { UpperFloor } from '../world/upper-floor'
+import type { FlatFloor } from '../world2d/floor'
+import type { FlatView, Person2d } from '../world2d/renderer'
+import { agentBubble, EMI_VARIANT, variantOf } from '../world2d/sprites'
 import { GameInput } from './input'
-import { LOUNGE_AFTER_MS, type GameHooks } from './types'
+import { LOUNGE_AFTER_MS, screenMode, type GameHooks, type Upper } from './types'
 
 export type { GameHooks } from './types'
 
@@ -32,7 +37,8 @@ export class Game extends GameInput {
    */
   get busy(): boolean {
     if (performance.now() < this.wakeUntil || this.keys.size || this.dragging || this.doomed.size) return true
-    if (this.engine.moving || this.engine.dirty || this.effects.active) return true
+    const flat = this.flat
+    if (flat ? flat.moving || flat.dirty : this.engine.moving || this.engine.dirty || this.effects.active) return true
     const view = this.player.floor
     const moving = (av: Avatar) => av.floor === view && av.isMoving
     if (moving(this.player)) return true
@@ -113,8 +119,100 @@ export class Game extends GameInput {
 
   /** Draws the scene and moves the HTML tags along. Skipped while the window is hidden. */
   draw(dt: number): void {
-    this.engine.render(dt)
+    const flat = this.flat
+    const up = this.upperOf(this.player.floor)
+    const floor = up && (up.scene as UpperFloor & { flat?: FlatFloor }).flat
+    this.flat2d.show(!!flat)
+    this.engine.renderer.domElement.classList.toggle('hidden', !!flat)
+    if (flat && up && floor) {
+      flat.draw(this.flatView(up, floor), dt)
+      // tags float a little higher than in 3D: the sprite's pixel bubble sits over the head
+      this.overlays.projector = (v) => flat.project(v.x, v.y + 1.2, v.z)
+    } else {
+      this.overlays.projector = null
+      this.engine.render(dt)
+    }
     this.overlays.update(dt)
+  }
+
+  /** What the 2D renderer draws this frame: the people of the floor on screen and the state of its desks. */
+  private flatView(up: Upper, floor: FlatFloor): FlatView {
+    const view = this.player.floor
+    const plan = floor.plan
+    const people: Person2d[] = []
+    const add = (key: string, av: Avatar, variant: number, bubble: Person2d['bubble'] = null) => {
+      if (av.floor !== view || !av.root.visible) return
+      const seated = !av.isWalking && (av.pose === 'sit' || av.pose === 'type' || av.pose === 'relax')
+      people.push({
+        key,
+        variant,
+        x: av.position.x,
+        z: av.position.z,
+        heading: av.heading,
+        stride: av.isStepping ? av.stride : null,
+        seated,
+        bubble,
+      })
+    }
+    add('player', this.player, variantOf(this.state.settings.playerLook))
+    const desks = new Set<number>()
+    for (const r of plan.rooms) for (const d of r.desks) desks.add(d.index)
+    for (const actor of this.actors.values()) {
+      const a = this.state.agents.get(actor.id)
+      const items = a ? this.state.itemsFor(a.id) : null
+      const result = items?.results[0] ? (items.results[0].isError ? 'error' : 'ok') : null
+      add(
+        actor.id,
+        actor.avatar,
+        variantOf(actor.avatar.look),
+        a && items ? agentBubble(a.status, items.permissions.length > 0, result) : null,
+      )
+      if (a && a.role !== 'orchestrator' && this.homeFloor(a) === view && a.desk < plan.agentDesks.length)
+        desks.add(plan.agentDesks[a.desk].index)
+    }
+    for (const h of this.helpers.values()) if (!h.gone) add(`helper:${h.id}`, h.avatar, variantOf(h.avatar.look))
+    for (const m of this.members.values())
+      add(
+        `member:${m.id}`,
+        m.avatar,
+        variantOf(m.avatar.look),
+        m.failed ? 'bang' : m.phase === 'delivering' ? 'ok' : m.phase === 'working' ? 'dots' : null,
+      )
+    const orchestrators = this.orchestratorsOn(view)
+    const coordinators = plan.rooms.map((_, i) => {
+      const a = orchestrators.get(i)
+      if (!a) return null
+      const items = this.state.itemsFor(a.id)
+      return items.permissions.length || items.results.length ? ('waiting' as const) : screenMode(a)
+    })
+    const emi = this.state.agents.get(emiAgentId(up.project.id))
+    if (emi) {
+      const seat = floor.layout.emi.seat
+      people.push({
+        key: 'emi',
+        variant: EMI_VARIANT,
+        x: seat.at[0] / 16,
+        z: seat.at[1] / 16,
+        heading: 0,
+        stride: null,
+        seated: true,
+        bubble: agentBubble(emi.status, this.state.itemsFor(emi.id).permissions.length > 0, null),
+      })
+    }
+    let meeting = 0
+    for (const actor of this.actors.values())
+      if (actor.goal === 'meeting' && actor.arrived && actor.avatar.floor === view && actor.avatar.pose === 'sit') meeting++
+    return {
+      floor,
+      people,
+      desks,
+      coordinators,
+      emi: emi ? screenMode(emi) : null,
+      rooms: plan.rooms.map((r) => this.roomPlate(r)),
+      meeting,
+      hover: this.hover2d,
+      target: { x: this.engine.target.x, z: this.engine.target.z },
+    }
   }
 
   /** People in the scene besides the player, for the dev leak test (dev/leak-test.ts). */

@@ -659,6 +659,13 @@ function videoFields(state: State): { el: HTMLElement; value: () => VideoSetting
     h('option', { value: 'full' }, 'Completos'),
     h('option', { value: 'reduced' }, 'Reduzidos'),
   )
+  const visual = h(
+    'select',
+    { class: 'input' },
+    h('option', { value: '2d' }, '2D (beta)'),
+    h('option', { value: '3d' }, '3D'),
+  ) as HTMLSelectElement
+  visual.value = v.visual ?? '2d'
   const battery = h('input', { type: 'checkbox' }) as HTMLInputElement
   battery.checked = v.batterySaver
 
@@ -668,8 +675,9 @@ function videoFields(state: State): { el: HTMLElement; value: () => VideoSetting
     fpsLimit: Number(fps.value) as FpsLimit,
     effects: effects.value === 'reduced' ? 'reduced' : 'full',
     batterySaver: battery.checked,
+    visual: visual.value === '3d' ? '3d' : '2d',
   })
-  const fill = (x: Omit<VideoSettings, 'batterySaver'>) => {
+  const fill = (x: Omit<VideoSettings, 'batterySaver' | 'visual'>) => {
     fps.value = String(x.fpsLimit)
     shadows.value = x.shadows ? String(x.shadowMapSize) : 'off'
     effects.value = x.effects
@@ -695,6 +703,7 @@ function videoFields(state: State): { el: HTMLElement; value: () => VideoSetting
       { class: 'field-hint' },
       'Economia desliga as sombras, limita a 30 fps e reduz fumaça, faíscas e giroflex. Com o escritório parado ou a janela minimizada, o app já desenha menos sozinho.',
     ),
+    field('Visual', visual, 'Os andares de projeto em pixel art 2D, mais leve. A Casa continua em 3D por enquanto.'),
     h('div', { class: 'field-row' }, field('Qualidade', quality), field('Limite de fps', fps)),
     h('div', { class: 'field-row' }, field('Sombras', shadows), field('Efeitos', effects)),
     h('label', { class: 'check' }, battery, 'Economia automática na bateria'),

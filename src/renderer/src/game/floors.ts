@@ -4,10 +4,14 @@ import { brandOf, releaseLogos } from '../world/brand'
 import { disposeTree } from '../world/dispose'
 import * as L from '../world/layout'
 import { buildUpperFloor } from '../world/upper-floor'
+import { PROJECT_LAYOUT } from '../world2d/atlas'
+import { buildFloor2d } from '../world2d/floor'
+import { projectPlan2d } from '../world2d/layout'
+import type { Visual } from '@shared/video'
 import { Tag } from '../world/overlays'
 import { GameBase } from './base'
 import { floorsKey, issuesToken } from './floor-key'
-import { RIDE_S, spawnPoint, spawnTile, type Actor } from './types'
+import { RIDE_S, type Actor } from './types'
 
 /** Elevator and floors: rides between floors, the project floors and which one is drawn. */
 export abstract class GameFloors extends GameBase {
@@ -24,7 +28,7 @@ export abstract class GameFloors extends GameBase {
     if (av.floor === floor) return then()
     if (instant) {
       av.floor = floor
-      const spawn = spawnPoint(floor)
+      const spawn = this.elevatorOf(floor).point
       av.placeAt(spawn.x, spawn.z)
       return then()
     }
@@ -32,7 +36,7 @@ export abstract class GameFloors extends GameBase {
     // The walk to the elevator happens on the floor the agent is on now; the ride
     // ends at the elevator of the floor it is going to.
     const from = av.floor
-    const ride = L.rideBetween(from, floor)
+    const ride = { from: this.elevatorOf(from).tile, at: this.elevatorOf(from).point, to: this.elevatorOf(floor).point }
     this.route(av, ride.from, ride.at, () => {
       if (actor.trip !== trip || actor.goal === 'leave') return
       this.ding(from)
@@ -64,8 +68,11 @@ export abstract class GameFloors extends GameBase {
     // A room with a proposal waiting keeps it: it is not free for a squad. A proposal
     // whose composition is being redone holds the room too (the amber outline stays).
     const proposedOf = (p: ProjectFloor) => heldRooms(p.id, proposals)
-    const plans = projects.map((p) => L.projectPlan(squadsOf(p), proposedOf(p)))
-    const key = floorsKey(projects, squads, plans, this.state.squadQueues)
+    const flat = this.visual === '2d'
+    const plans = projects.map((p) =>
+      flat ? projectPlan2d(PROJECT_LAYOUT, squadsOf(p), proposedOf(p)) : L.projectPlan(squadsOf(p), proposedOf(p)),
+    )
+    const key = `${this.visual}:${floorsKey(projects, squads, plans, this.state.squadQueues)}`
     if (key === this.uppersKey) return
     this.uppersKey = key
     const playerOn = this.upperOf(this.player.floor)?.project.id
@@ -85,15 +92,22 @@ export abstract class GameFloors extends GameBase {
     this.uppers = projects.map((project, i) => {
       const n = i + 1
       const plan = plans[i]
-      const scene = buildUpperFloor(plan, brandOf(project))
+      // a 2D floor draws its own plates (and answers their clicks); the 3D one has HTML labels
+      const scene = flat ? buildFloor2d(plan) : buildUpperFloor(plan, brandOf(project))
       scene.reducedMotion = this.reducedEffects
       this.engine.scene.add(scene.group)
-      this.overlays.label('Diretoria', 12.8, 20, n)
-      this.overlays.label('Sala de reunião', L.MEETING_TABLE_AT.x, L.MEETING_TABLE_AT.z, n, () => this.hooks.onMeetingRoomClick?.(project))
-      this.overlays.label('Descanso e lazer', 15.5, 7.6, n)
-      this.overlays.label('Agentes individuais', (L.AGENT_ROOM_RECT[0] + L.AGENT_ROOM_RECT[2]) / 2, 22.9, n)
-      for (const r of plan.rooms)
-        this.overlays.label(this.roomPlate(r), (r.rect[0] + r.rect[2]) / 2, r.rect[1] + 0.6, n, () => this.hooks.onRoomClick?.(project, r))
+      if (!flat) {
+        this.overlays.label('Diretoria', 12.8, 20, n)
+        this.overlays.label('Sala de reunião', L.MEETING_TABLE_AT.x, L.MEETING_TABLE_AT.z, n, () =>
+          this.hooks.onMeetingRoomClick?.(project),
+        )
+        this.overlays.label('Descanso e lazer', 15.5, 7.6, n)
+        this.overlays.label('Agentes individuais', (L.AGENT_ROOM_RECT[0] + L.AGENT_ROOM_RECT[2]) / 2, 22.9, n)
+        for (const r of plan.rooms)
+          this.overlays.label(this.roomPlate(r), (r.rect[0] + r.rect[2]) / 2, r.rect[1] + 0.6, n, () =>
+            this.hooks.onRoomClick?.(project, r),
+          )
+      }
       // one "Passo 3/6 · Texto" line over the coordinator's desk of each squad room
       const stepTags = plan.rooms.map((room) => {
         const anchor = new THREE.Object3D()
@@ -119,7 +133,7 @@ export abstract class GameFloors extends GameBase {
       const waiting = plan.rooms.find((r) => r.state === 'proposed')
       if (waiting) {
         const anchor = new THREE.Object3D()
-        anchor.position.set(L.UPPER_ELEVATOR.x, 2.5, 0.5)
+        anchor.position.set(plan.elevator.point.x, 2.5, 0.5)
         scene.group.add(anchor)
         proposalTag = this.overlays.add(new Tag(anchor, 'Equipe proposta', false, () => this.hooks.onRoomClick?.(project, waiting)))
         proposalTag.setDot('waiting')
@@ -173,6 +187,23 @@ export abstract class GameFloors extends GameBase {
     // The notice of the floor: what does not fit, and who has no place in the scene.
     this.refreshIssues()
     if (notify) this.hooks.onFloor(this.player.floor)
+  }
+
+  /** Project floors in 2D or 3D (Configurações → Vídeo): the floors are built again in the other one. */
+  setVisual(visual: Visual): void {
+    if (visual === this.visual) return
+    this.visual = visual
+    this.hover2d = null
+    this.setProjects(this.state.settings.projects, this.state.squads, this.state.squadProposals, false)
+    // the other floor plan has other walls: the player steps out of the elevator again
+    if (this.player.floor > 0) {
+      const door = this.elevatorOf(this.player.floor)
+      this.player.stop()
+      this.player.pose = 'stand'
+      this.player.placeAt(door.point.x, door.point.z + 0.6)
+      this.engine.jumpTo(door.point.x, door.point.z)
+    }
+    this.wake(400)
   }
 
   /**
@@ -238,13 +269,13 @@ export abstract class GameFloors extends GameBase {
     p.seatY = 0
     this.ding(p.floor)
     p.floor = n
-    const point = spawnPoint(n)
-    p.placeAt(point.x, point.z)
+    const door = this.elevatorOf(n)
+    p.placeAt(door.point.x, door.point.z)
     p.face(0)
     this.ding(n)
     this.engine.jumpTo(p.position.x, p.position.z)
     this.follow = true
-    this.route(p, [spawnTile(n)[0], spawnTile(n)[1] + 1], null, () => undefined)
+    this.route(p, [door.tile[0], door.tile[1] + 1], null, () => undefined)
     this.hooks.onFloor(n)
   }
 
@@ -281,6 +312,7 @@ export abstract class GameFloors extends GameBase {
       u.stepTags.forEach((t, room) => (t.hidden = !seated?.has(room)))
     })
     this.skull.tag.hidden = view !== 0
+    this.totem.tag.hidden = view !== 0
     this.pcTag.hidden = view !== 0
     this.alarmTag.hidden = view !== 0 || !this.office.alarm.on
     this.moneyTag.hidden = view !== 0

@@ -79,7 +79,8 @@ async function pressKeys(w: BrowserWindow, spec: string): Promise<void> {
 /**
  * Dev helper (`npm run bench`): AGENT_OFFICE_BENCH=out/bench.json waits for the office
  * to fill up, records the frames for AGENT_OFFICE_BENCH_S seconds (30 by default),
- * writes the report there and quits.
+ * writes the report there and quits. AGENT_OFFICE_BENCH_EVAL runs a snippet first (e.g. to
+ * take the elevator to a project floor and pick the 2D or 3D world).
  */
 export function runBench(w: BrowserWindow, file: string): void {
   const seconds = Number(process.env.AGENT_OFFICE_BENCH_S) || 30
@@ -89,6 +90,8 @@ export function runBench(w: BrowserWindow, file: string): void {
     setTimeout(async () => {
       try {
         const paced = process.env.AGENT_OFFICE_BENCH_LIVE === '1'
+        const setup = process.env.AGENT_OFFICE_BENCH_EVAL ?? ''
+        if (setup.trim()) await w.webContents.executeJavaScript(setup)
         const report = await w.webContents.executeJavaScript(`window.__perf.record(${seconds * 1000}, ${paced})`)
         const gpu = app.getGPUFeatureStatus()
         const out = {
@@ -96,6 +99,7 @@ export function runBench(w: BrowserWindow, file: string): void {
           date: new Date().toISOString(),
           demo: process.env.AGENT_OFFICE_DEMO ?? '',
           paced,
+          setup,
           platform: `${process.platform}-${process.arch}`,
           electron: process.versions.electron,
           gpu,

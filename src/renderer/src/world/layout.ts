@@ -208,6 +208,18 @@ export const UPPER_ELEVATOR = { x: 15.5, z: 0 }
 export const UPPER_SPAWN_TILE: [number, number] = [15, 1]
 export const UPPER_SPAWN_POINT = { x: 15.5, z: 0.45 }
 
+/** Where an orchestrator without a squad room waits on a 3D project floor. */
+export const UPPER_OVERFLOW: [number, number][] = [
+  [29, 9],
+  [30, 9],
+  [29, 10],
+  [30, 10],
+  [28, 9],
+  [28, 10],
+  [31, 9],
+  [31, 10],
+]
+
 /** The elevator of a floor: the tile its door opens on, and where it drops people. */
 export function elevatorOf(floor: number): { tile: [number, number]; point: { x: number; z: number } } {
   return floor > 0 ? { tile: UPPER_SPAWN_TILE, point: UPPER_SPAWN_POINT } : { tile: SPAWN_TILE, point: SPAWN_POINT }
@@ -286,7 +298,24 @@ export interface ProjectIssue {
   reason: string
 }
 
+/** A chair where an agent waiting in the meeting room sits (2D floors). */
+export interface MeetingSeat {
+  x: number
+  z: number
+  approach: [number, number]
+  /** Which way the sitter looks (radians, 0 = towards +z). */
+  face: number
+}
+
 export interface ProjectPlan {
+  /** Floor size in tiles. */
+  size: [number, number]
+  /** The elevator: the tile its door opens on and where it drops people. */
+  elevator: { tile: [number, number]; point: { x: number; z: number } }
+  /** Where the results of the project wait: the room, its table and its chairs (none: they stand). */
+  meeting: { rect: Rect; table: { x: number; z: number }; seats: MeetingSeat[] }
+  /** Tiles where an orchestrator whose squad has no room waits. */
+  overflow: [number, number][]
   /** The three squad rooms, west side. */
   rooms: SquadRoom[]
   /** The ten desks of the glass room with the individual agents. */
@@ -492,7 +521,19 @@ export function projectPlan(
     approach: [15, 23],
     face: Math.PI,
   }
-  return { rooms, agentDesks, agentStand, director, partitions: projectPartitions(), squadOf, issues }
+  return {
+    size: [W, H],
+    elevator: { tile: UPPER_SPAWN_TILE, point: UPPER_SPAWN_POINT },
+    meeting: { rect: DIRECTOR_RECT, table: MEETING_TABLE_AT, seats: [] },
+    overflow: UPPER_OVERFLOW,
+    rooms,
+    agentDesks,
+    agentStand,
+    director,
+    partitions: projectPartitions(),
+    squadOf,
+    issues,
+  }
 }
 
 /** The name of the plate of a room: the squad's, or what the room is waiting for. */

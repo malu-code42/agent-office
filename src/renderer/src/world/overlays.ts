@@ -128,6 +128,11 @@ export class Overlays {
   private drift = new WeakMap<Tag, { w: number; h: number; shown: boolean; dx: number; dy: number }>()
   /** Floor on screen: labels of other floors hide. */
   floor = 0
+  /**
+   * Page position of a world point when the 2D world is on screen (null: the 3D camera).
+   * The 3D scene is not rendered then, so the anchors' world matrices are refreshed here.
+   */
+  projector: ((v: THREE.Vector3) => { x: number; y: number }) | null = null
 
   constructor(
     private root: HTMLElement,
@@ -181,7 +186,7 @@ export class Overlays {
     for (const l of this.labels) {
       l.el.style.display = l.floor === this.floor ? '' : 'none'
       if (l.floor !== this.floor) continue
-      const p = this.engine.project(l.pos)
+      const p = this.project(l.pos)
       l.el.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, -50%)`
     }
 
@@ -210,8 +215,9 @@ export class Overlays {
         m.w = t.el.offsetWidth
         m.h = t.el.offsetHeight
       }
+      if (this.projector) t.anchor.updateWorldMatrix(true, false)
       t.anchor.getWorldPosition(this.tmp)
-      const p = this.engine.project(this.tmp)
+      const p = this.project(this.tmp)
       live.push({ t, m, x: p.x, y: p.y })
     }
 
@@ -231,6 +237,10 @@ export class Overlays {
       // The depth stays anchored: the drift is sideways, not further from the camera.
       t.el.style.zIndex = String(1000 + y)
     }
+  }
+
+  private project(v: THREE.Vector3): { x: number; y: number } {
+    return this.projector ? this.projector(v) : this.engine.project(v)
   }
 
   /** The drift of a tag, kept per tag so a removed tag leaves no work behind. */

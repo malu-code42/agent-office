@@ -51,10 +51,12 @@ src/renderer/   UI sem framework (DOM puro + three.js)
   src/state.ts    espelho observável do estado do main (apply(OfficeEvent), onChange)
   src/game/       classe Game em cadeia: base → floors → boards → actors → lounge → deliveries → subagents → squads → skull → movement → input → index
   src/world/      peças three.js (engine, layout, móveis, avatar, dispose, merge, pathfinding)
+  src/world2d/    mundo 2D em pixel art (Canvas2D) dos andares de projeto; ver docs/specs/motor-2d.md
+  src/assets/pixel/  atlas, layout e fonte gerados por scripts/pixel-art (não edite à mão)
   src/ui/         HUD, modais, painel do agente, quadro, relatórios, rotinas, a11y
   src/styles/     um CSS por componente, importados por index.css
 test/           vitest, um arquivo por módulo: test/<modulo>.test.ts
-scripts/        demo, bench, contrast, dist-mac, ícone e fundo do dmg
+scripts/        demo, bench, contrast, dist-mac, ícone e fundo do dmg; pixel-art/ gera a arte 2D (Python + Pillow)
 docs/adr/       decisões (pt-BR); docs/prd/ requisitos
 mockups/        HTML estático de exploração visual (fora do lint)
 ```

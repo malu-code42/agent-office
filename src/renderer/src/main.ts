@@ -220,6 +220,8 @@ async function boot(): Promise<void> {
     onSkull: () => openSkull(ui, state, dismiss),
     onComputer: () => void newAgent('summon'),
     onFloor: (n) => hud.setFloors(game.floors, n),
+    // the elevator door of a 2D floor: the elevator panel takes the keyboard
+    onElevator: () => document.querySelector<HTMLElement>('[data-tour="floors"] button')?.focus(),
     onTv: () => void radio.toggle(),
     onRoutines: () =>
       openRoutines(ui, state, {
@@ -471,6 +473,7 @@ async function boot(): Promise<void> {
     videoKey = key
     game.engine.setShadows(video.shadows, video.shadowMapSize)
     game.setReducedEffects(reduced)
+    game.setVisual(video.visual ?? '2d')
   }
   applyVideo()
   reduceMotion.addEventListener('change', applyVideo)
