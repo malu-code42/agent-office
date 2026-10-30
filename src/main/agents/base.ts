@@ -55,6 +55,18 @@ export abstract class AgentBase extends EventEmitter {
         : projectFor(store.settings.projects, p.summary.cwd)
       const summary: AgentSummary = {
         ...p.summary,
+        ...(p.summary.builtIn === 'luna'
+          ? {
+              id: 'agent-office:luna',
+              name: 'Luna',
+              builtIn: 'luna' as const,
+              engine: 'claude' as const,
+              permissionMode: 'plan' as const,
+              look: store.settings.lunaLook,
+              model: store.settings.lunaModel || undefined,
+              effort: store.settings.lunaEffort || undefined,
+            }
+          : {}),
         // Legacy orchestrators must always reload their definition from the stable floor root,
         // never from a copied worktree or another transient working directory.
         ...(p.summary.role === 'orchestrator' && floor ? { cwd: floor.cwd, project: floor.id } : {}),
@@ -72,7 +84,7 @@ export abstract class AgentBase extends EventEmitter {
       if (summary.role === 'orchestrator') this.watchSquad(agent)
     }
     if (![...this.agents.values()].some((agent) => agent.summary.builtIn === 'luna')) {
-      const summary = lunaAgentSummary()
+      const summary = lunaAgentSummary(Date.now(), store.settings)
       this.agents.set(summary.id, { summary, log: [], started: true })
       this.persist()
     }

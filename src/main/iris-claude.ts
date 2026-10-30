@@ -62,7 +62,7 @@ export const IRIS_INSTRUCTIONS = [
  */
 export function claudeIrisInterpreter(): IrisInterpreter {
   return {
-    async interpret(context, signal) {
+    async interpret(context, signal, preferences) {
       const claude = findClaude()
       if (!claude) throw new IrisUnavailable(claudeNotFoundMessage(process.platform))
       const abort = new AbortController()
@@ -72,6 +72,8 @@ export function claudeIrisInterpreter(): IrisInterpreter {
         prompt: context,
         options: {
           cwd: homedir(),
+          model: preferences?.model,
+          effort: preferences?.effort,
           pathToClaudeCodeExecutable: claude,
           systemPrompt: IRIS_INSTRUCTIONS,
           tools: [],

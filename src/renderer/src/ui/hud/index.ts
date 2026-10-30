@@ -49,6 +49,8 @@ export interface HudActions {
   review(): void
   /** "Tarefas em foco": the popup of the tasks in the focus (the key F does the same). */
   focus(): void
+  /** Opens the Obsidian tasks board directly. */
+  tasks(): void
   /** Timer: opens the popup of the interval (no keyboard shortcut: it lives on the bar). */
   timer(): void
 }
@@ -144,6 +146,12 @@ export class Hud {
         h('span', { class: 'brand-mark' }, '✳'),
         h('span', { class: 'brand-name' }, 'Agent Office'),
         h('span', { class: 'brand-version', title: `Build de ${__APP_BUILD__}` }, `v${__APP_VERSION__}`),
+        h(
+          'button',
+          { class: 'btn btn-small brand-tasks', type: 'button', title: 'Abrir quadro Tarefas', 'aria-label': 'Abrir quadro Tarefas', onclick: () => actions.tasks() },
+          icon('list', 14),
+          'Tarefas',
+        ),
       ),
       this.stats,
     )
@@ -544,9 +552,7 @@ export class Hud {
           h('span', { class: `dot dot-${a.status}` }),
           h('span', { class: 'name' }, a.name),
           a.builtIn === 'luna' ? h('span', { class: 'chip' }, 'Secretária') : null,
-          a.builtIn === 'luna' && this.state.reviewDue
-            ? h('span', { class: 'dot dot-waiting', 'aria-hidden': 'true' })
-            : null,
+          a.builtIn === 'luna' && this.state.reviewDue ? h('span', { class: 'dot dot-waiting', 'aria-hidden': 'true' }) : null,
           a.source === 'terminal' ? h('span', { class: 'chip chip-term' }, 'terminal') : null,
           helpersChip(a, true),
           this.floorChip(a),

@@ -24,6 +24,7 @@ export function registerIrisIpc(ctx: IpcContext, files: { tasks: TaskWriter; age
     interpreter: claudeIrisInterpreter(),
     log,
     memories: () => ctx.profileMemory.summaries(), // AO-43
+    lunaPreferences: () => ({ model: ctx.store.settings.lunaModel || undefined, effort: ctx.store.settings.lunaEffort || undefined }),
   })
   // Lightweight IPC tests register task handlers with a partial context and do not exercise the built-in roster.
   if (!ctx.manager) return
@@ -104,7 +105,6 @@ export function registerIrisIpc(ctx: IpcContext, files: { tasks: TaskWriter; age
   const chat = new LunaChat(
     desk,
     {
-      confirmContext: (preview) => confirmContext(preview.context),
       log: (kind, text) => ctx.manager.appendBuiltInLog(LUNA_AGENT_ID, kind, text),
       status: (status, activity) => ctx.manager.setBuiltInStatus(LUNA_AGENT_ID, status, activity),
       startProfileTask: async (profile, task) => ctx.broadcast({ type: 'luna:profile-task', profile, task }),

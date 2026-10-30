@@ -22,6 +22,9 @@ describe('Store: carga e migração das configurações', () => {
     expect(s.settings.defaultEngine).toBe('claude')
     expect(s.settings.accounts.map((a) => a.id)).toEqual(['main'])
     expect(s.settings.projects).toEqual([])
+    expect(s.settings.lunaModel).toBe('')
+    expect(s.settings.lunaEffort).toBe('')
+    expect(s.settings.lunaLook).toEqual(expect.objectContaining({ skin: expect.any(String), shirt: expect.any(String) }))
     expect(s.agents).toEqual([])
     expect(s.results).toEqual([])
     expect(s.ledger).toEqual({ days: {}, agents: {}, switches: [] })
@@ -85,16 +88,43 @@ describe('Store: carga e migração das configurações', () => {
       agents: [
         {
           summary: {
-            id: 'legacy-agent', name: 'Arquivo', source: 'office', engine: 'opencode', cwd: '/project',
-            permissionMode: 'default', status: 'done', activity: 'Pronto', desk: 0,
+            id: 'legacy-agent',
+            name: 'Arquivo',
+            source: 'office',
+            engine: 'opencode',
+            cwd: '/project',
+            permissionMode: 'default',
+            status: 'done',
+            activity: 'Pronto',
+            desk: 0,
             look: { skin: '#f2c9a0', hair: '#332211', hairStyle: 0, shirt: '#4a8fe0', pants: '#222222', shoes: '#111111' },
-            costUsd: 0, createdAt: 1, sessionId: 'ses_legacy', opencodeUsage: { inputTokens: 40, outputTokens: 20 },
+            costUsd: 0,
+            createdAt: 1,
+            sessionId: 'ses_legacy',
+            opencodeUsage: { inputTokens: 40, outputTokens: 20 },
           },
           log: [{ id: 'legacy-log', t: 1, kind: 'assistant', text: 'Resposta antiga' }],
         },
       ],
-      results: [{ id: 'legacy-result', agentId: 'legacy-agent', text: 'Resultado antigo', isError: false, costUsd: 0, durationMs: 1, turns: 1, createdAt: 1 }],
-      ledger: { days: { '/project': { '2026-10-21': { costUsd: 0, costUnknown: true, accounts: { opencode: { costUsd: 0, costUnknown: true } } } } }, agents: {}, switches: [] },
+      results: [
+        {
+          id: 'legacy-result',
+          agentId: 'legacy-agent',
+          text: 'Resultado antigo',
+          isError: false,
+          costUsd: 0,
+          durationMs: 1,
+          turns: 1,
+          createdAt: 1,
+        },
+      ],
+      ledger: {
+        days: {
+          '/project': { '2026-10-21': { costUsd: 0, costUnknown: true, accounts: { opencode: { costUsd: 0, costUnknown: true } } } },
+        },
+        agents: {},
+        switches: [],
+      },
       ledgerSessions: {},
     })
     const store = new Store()

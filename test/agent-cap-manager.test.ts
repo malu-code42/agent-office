@@ -34,7 +34,7 @@ describe('cap central de hires e summons (AO-42)', () => {
     const { AgentManager } = await import('../src/main/agents')
     const store = new Store()
     const manager = new AgentManager(store)
-    manager.sendMessage(LUNA_AGENT_ID, 'Pedido sintético')
+    await expect(manager.sendMessage(LUNA_AGENT_ID, 'Pedido sintético')).rejects.toThrow('A conversa com Luna não está disponível agora.')
     manager.shutdown()
     store.flush()
 
@@ -59,7 +59,7 @@ describe('cap central de hires e summons (AO-42)', () => {
     expect(luna?.name).toBe('Luna')
     expect(luna?.builtIn).toBe('luna')
     expect(luna?.status).toBe('idle')
-    manager.sendMessage(LUNA_AGENT_ID, 'Ajude a organizar o dia')
+    await manager.sendMessage(LUNA_AGENT_ID, 'Ajude a organizar o dia')
 
     expect(handler).toHaveBeenCalledWith(LUNA_AGENT_ID, 'Ajude a organizar o dia', [])
     expect(manager.getLog(LUNA_AGENT_ID).at(-1)).toMatchObject({ kind: 'user', text: 'Ajude a organizar o dia' })

@@ -17,6 +17,7 @@ import type { PlanningStore } from './planning'
 import { planProposal } from './proposals'
 import { readTasks, type TaskWriter } from './tasks-write'
 import { parseIrisAnswer } from './validate'
+import type { EffortLevel } from '@shared/types'
 
 /**
  * Luna (AO-13). A request in words goes through here: the context is built from the files and kept, the user
@@ -38,7 +39,7 @@ export class IrisUnavailable extends Error {}
 
 /** Sends the context to a model and resolves with its text. `signal` aborts the call when the time is up. */
 export interface IrisInterpreter {
-  interpret(context: string, signal: AbortSignal): Promise<string>
+  interpret(context: string, signal: AbortSignal, preferences?: { model?: string; effort?: EffortLevel }): Promise<string>
 }
 
 export interface IrisLog {
@@ -53,6 +54,7 @@ export interface IrisDeps {
   log: IrisLog
   /** AO-43: the memories of the profiles, read when the context is built; empty when none has a summary. */
   memories?: () => { profile: string; summary: string }[]
+  lunaPreferences?: () => { model?: string; effort?: EffortLevel }
   now?: () => Date
   newId?: () => string
   timeoutMs?: number
@@ -165,7 +167,7 @@ export class IrisDesk {
     const timer = setTimeout(() => ac.abort(), this.deps.timeoutMs ?? IRIS_TIMEOUT_MS)
     let raw: unknown
     try {
-      raw = await this.deps.interpreter.interpret(context, ac.signal)
+      raw = await this.deps.interpreter.interpret(context, ac.signal, this.deps.lunaPreferences?.())
     } catch (err) {
       if (ac.signal.aborted) {
         this.deps.log.warn('Luna: a resposta demorou demais')

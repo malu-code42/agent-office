@@ -9,9 +9,7 @@ function setup(result: IrisResult = { kind: 'question', text: 'Qual lista?' }) {
     send: vi.fn(async (_token: string) => result),
     cancel: vi.fn(),
   }
-  let allow: ((yes: boolean) => void) | undefined
   const host = {
-    confirmContext: vi.fn(() => new Promise<boolean>((resolve) => (allow = resolve))),
     log: vi.fn(),
     status: vi.fn(),
     startProfileTask: vi.fn(async () => undefined),
@@ -19,7 +17,7 @@ function setup(result: IrisResult = { kind: 'question', text: 'Qual lista?' }) {
     transcribeAudio: vi.fn(async () => undefined),
   }
   const chat = new LunaChat(desk, host, () => 'C:/vault')
-  return { chat, desk, host, decide: (yes: boolean) => allow?.(yes) }
+  return { chat, desk, host }
 }
 
 describe('LunaChat', () => {
@@ -33,12 +31,11 @@ describe('LunaChat', () => {
   })
 
   it('envia grupo encaminhado pela captura direto ao fluxo comum com chave idempotente', async () => {
-    const { chat, desk, host, decide } = setup()
+    const { chat, desk, host } = setup()
     const captureId = 'a'.repeat(64)
     const pending = chat.sendDirect('Trecho aprovado para agenda: Dentista às 16', captureId)
     expect(host.log).toHaveBeenCalledWith('user', 'Trecho aprovado para agenda: Dentista às 16')
     expect(desk.prepare).toHaveBeenCalledWith('C:/vault', 'Trecho aprovado para agenda: Dentista às 16', captureId)
-    decide(true)
     await expect(pending).resolves.toBe(true)
   })
 
@@ -55,61 +52,45 @@ describe('LunaChat', () => {
   it('recusa anexos não-audio do agente built-in sem invocar nenhum interpretador', async () => {
     const { chat, desk, host } = setup()
     const document: AttachmentInput = { name: 'nota.txt', mime: 'text/plain', path: 'C:/synthetic/nota.txt' }
-    await chat.send('', [document])
+    await expect(chat.send('', [document])).rejects.toThrow('A Luna não conseguiu concluir esse pedido. Tente novamente.')
 
     expect(host.transcribeAudio).not.toHaveBeenCalled()
     expect(host.log).toHaveBeenCalledWith('error', 'A Luna aceita somente um anexo de áudio por vez.')
     expect(desk.prepare).not.toHaveBeenCalled()
   })
 
-  it('exibe a prévia pelo fluxo de pergunta do agente e não envia antes da aprovação', async () => {
-    const { chat, desk, host, decide } = setup()
-    const pending = chat.send('Organize minhas tarefas')
-
+  it('envia o contexto local preparado ao Claude sem uma aprovação intermediária', async () => {
+    const { chat, desk, host } = setup()
+    await chat.send('Organize minhas tarefas')
     expect(desk.prepare).toHaveBeenCalledWith('C:/vault', 'Organize minhas tarefas', undefined)
-    expect(host.confirmContext).toHaveBeenCalledWith({ token: 'preview-1', context: 'Contexto exato' })
-    expect(desk.send).not.toHaveBeenCalled()
-
-    decide(true)
-    await pending
     expect(desk.send).toHaveBeenCalledWith('preview-1')
     expect(host.log).toHaveBeenCalledWith('assistant', 'Qual lista?')
   })
 
-  it('cancela a prévia quando a usuária recusa o envio', async () => {
-    const { chat, desk, host, decide } = setup()
-    const pending = chat.send('Meu pedido')
-    decide(false)
-    await pending
-
-    expect(desk.cancel).toHaveBeenCalledWith('preview-1')
-    expect(desk.send).not.toHaveBeenCalled()
-    expect(host.log).toHaveBeenCalledWith('assistant', 'Envio cancelado. Nenhum dado foi enviado.')
+  it('rejeita o envio quando a Luna não consegue responder, permitindo manter a mensagem para nova tentativa', async () => {
+    const { chat, desk, host } = setup()
+    desk.send.mockRejectedValueOnce(new Error('A Luna demorou para responder. Tente de novo.'))
+    await expect(chat.send('Tente de novo')).rejects.toThrow('A Luna não conseguiu concluir esse pedido. Tente novamente.')
+    expect(host.log).toHaveBeenCalledWith('error', 'A Luna demorou para responder. Tente de novo.')
   })
 
   it('entrega propostas, sugestões de perfil e rascunhos pelos callbacks próprios', async () => {
     const profile = setup({ kind: 'task', profile: 'escrita' })
-    const task = profile.chat.send('Revise este texto')
-    profile.decide(true)
-    await task
+    await profile.chat.send('Revise este texto')
     expect(profile.host.startProfileTask).toHaveBeenCalledWith('escrita', 'Revise este texto')
 
     const media = setup({ kind: 'media-draft', draft: { kind: 'livro', title: 'Livro sintético' } })
-    const mediaTask = media.chat.send('Adicione este livro')
-    media.decide(true)
-    await mediaTask
+    await media.chat.send('Adicione este livro')
     expect(media.host.openMediaDraft).toHaveBeenCalledWith({ kind: 'livro', title: 'Livro sintético' })
   })
 
   it('serializa mensagens para não sobrescrever a prévia pendente', async () => {
-    const { chat, desk, decide } = setup()
+    const { chat, desk } = setup()
     const first = chat.send('Primeiro pedido')
     const second = chat.send('Segundo pedido')
     expect(desk.prepare).toHaveBeenCalledTimes(1)
-    decide(true)
     await first
     await vi.waitFor(() => expect(desk.prepare).toHaveBeenCalledTimes(2))
-    decide(true)
     await second
   })
 })

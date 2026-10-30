@@ -61,7 +61,15 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
   )
   const change = h(
     'button',
-    { class: 'btn btn-small', type: 'button', hidden: true, onclick: () => { close(); void openTasksBoard(root, state, toast) } },
+    {
+      class: 'btn btn-small',
+      type: 'button',
+      hidden: true,
+      onclick: () => {
+        close()
+        void openTasksBoard(root, state, toast)
+      },
+    },
     'Mudar seleção',
   )
   const col = h(
@@ -177,11 +185,13 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
 
   const paint = (next: FocusItem[]): void => {
     current = next
-    status.textContent = next.length === 1 ? '1 tarefa em foco' : `${next.length} tarefas em foco`
-    colCount.textContent = String(next.length)
-    change.hidden = next.length === 0
+    const validCount = next.filter((item) => !item.missing).length
+    const missingCount = next.length - validCount
+    status.textContent = `${validCount} ${validCount === 1 ? 'tarefa' : 'tarefas'} em foco${missingCount ? ` · ${missingCount} ausente${missingCount === 1 ? '' : 's'}` : ''}`
+    colCount.textContent = String(validCount)
+    change.hidden = validCount === 0
     list.hidden = next.length === 0
-    empty.hidden = next.length > 0
+    empty.hidden = validCount > 0
     keepFocus(list, () => list.replaceChildren(...next.map(card)))
     const cards = [...list.querySelectorAll<HTMLElement>('.focus-card')]
     if (cards.length) rove(cards, 0)

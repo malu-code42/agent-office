@@ -21,7 +21,7 @@ const LABEL: Record<MediaKind, string> = { livro: 'Livros', filme: 'Filmes', jog
 const STATES: MediaStatus[] = ['planejado', 'em andamento', 'concluído']
 
 /** Media library UI; all persistence and poster path resolution stay in main. The house opens it on the clicked tab. */
-export async function openMediaLibrary(root: HTMLElement, toast: Toast, initial: MediaKind = 'livro'): Promise<void> {
+export async function openMediaLibrary(root: HTMLElement, toast: Toast, initial: MediaKind = 'livro', categoryOnly = false): Promise<void> {
   let active: MediaKind = initial
   let done = false
   const content = h('div', { class: 'media-library-content', 'aria-live': 'polite' })
@@ -77,11 +77,12 @@ export async function openMediaLibrary(root: HTMLElement, toast: Toast, initial:
     el.remove()
   }
   const el = modal(
-    'Biblioteca de mídias',
+    categoryOnly ? LABEL[initial] : 'Biblioteca de mídias',
     [tabs, content],
     [h('button', { class: 'btn', type: 'button', onclick: finish }, 'Fechar'), addButton],
     finish,
   )
+  tabs.hidden = categoryOnly
   content.id = 'media-library-panel'
   root.append(el)
   tabsDraw()

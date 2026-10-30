@@ -22,7 +22,7 @@ function templateMeta(t: AgentTemplate, state: State): string {
 }
 
 /** Skin, hair, cut, shirt and pants, with a preview and a dice to draw a new one. */
-function lookEditor(initial: Look): { el: HTMLElement; value(): Look } {
+export function lookEditor(initial: Look): { el: HTMLElement; value(): Look } {
   const look: Look = { ...initial }
   const preview = h('div', { class: 'look-preview' })
   const rows: (() => void)[] = []

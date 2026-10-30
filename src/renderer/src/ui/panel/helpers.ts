@@ -28,6 +28,9 @@ export interface PanelActions {
   focusCard(): boolean
   /** A plan limit stopped the agent: open the card that offers another account. */
   chooseAccount(agentId: string, limit: AccountLimit): void
+  openLunaReview(): void
+  openLunaSettings(): void
+  openLunaPlan(): void
 }
 
 /** Entradas que o feed mantém no DOM; a busca alcança o log inteiro (AO-36). */
