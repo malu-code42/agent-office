@@ -106,7 +106,22 @@ describe('gate: the offer', () => {
   it('the mark survives a restart: it is written to planning.json', () => {
     const clock = { t: MORNING }
     markOffered(deps(clock).planning, '2026-10-17')
-    expect(planningFile().review.next).toBe('2026-10-18')
+    expect(planningFile().review.offered).toBe('2026-10-17')
+  })
+
+  it('showing the offer sets no return date, so it still opens and confirms today (#102)', () => {
+    const clock = { t: MORNING }
+    const p = deps(clock).planning
+    markOffered(p, '2026-10-17')
+    expect(p.reviewNextDay()).toBeUndefined()
+  })
+
+  it('a postponement still running holds the offer back', () => {
+    const clock = { t: MORNING }
+    const p = deps(clock).planning
+    postponeReview(p, '2026-10-17', 2)
+    expect(offerDue(p, '2026-10-18')).toBe(false)
+    expect(offerDue(p, '2026-10-19')).toBe(true)
   })
 })
 
@@ -133,12 +148,16 @@ describe('postpone: Adiar and Dispensar hoje', () => {
     const clock = { t: MORNING }
     const p = deps(clock).planning
     markOffered(p, '2026-10-17')
-    const before = readFileSync(join(data, 'planning.json'), 'utf8')
+    const before = JSON.parse(readFileSync(join(data, 'planning.json'), 'utf8'))
     postponeReview(p, '2026-10-17', 'dispensar')
 
     expect(offerDue(new PlanningStore(data, () => clock.t), '2026-10-17')).toBe(false)
     expect(offerDue(new PlanningStore(data, () => clock.t), '2026-10-18')).toBe(true)
-    expect(readFileSync(join(data, 'planning.json'), 'utf8')).toBe(before)
+    // Only the return date is new.
+    expect(JSON.parse(readFileSync(join(data, 'planning.json'), 'utf8'))).toEqual({
+      ...before,
+      review: { ...before.review, next: '2026-10-18' },
+    })
   })
 
   it('the postpone options are checked: 4 days and "concluir" are refused', () => {

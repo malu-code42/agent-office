@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { focusItems, focusKey } from '@shared/planning'
 import {
-  addDays,
   isStale,
   REVIEW_SOURCE,
   reviewNextDay,
   reviewOperations,
+  reviewPostponed,
   type ReviewChoices,
   type ReviewDraft,
   type ReviewPostpone,
@@ -33,15 +33,18 @@ export interface ReviewDeps {
   newId?: () => string
 }
 
-/** The offer is due when it was never shown, or the day it waits for has come. */
+/** The offer is due once a day, when it was not shown today and no postponement is still running. */
 export function offerDue(planning: PlanningStore, today: string): boolean {
-  const next = planning.reviewNextDay()
-  return next === undefined || today >= next
+  return planning.reviewOfferedDay() !== today && !reviewPostponed(planning.reviewNextDay(), today)
 }
 
-/** The offer was shown: today is taken, so a second open the same day does not show it again. */
+/**
+ * The offer was shown: today is taken, so a second open the same day does not show it again.
+ * Kept apart from the return date, which only "Adiar"/"Dispensar" set (#102): an offer shown
+ * today must still open and confirm today.
+ */
 export function markOffered(planning: PlanningStore, today: string): void {
-  planning.setReviewNextDay(addDays(today, 1))
+  planning.setReviewOffered(today)
 }
 
 /** The user postponed the offer, or dismissed it for the day. Returns the day it comes back. */
