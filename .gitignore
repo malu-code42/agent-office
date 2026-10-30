@@ -12,6 +12,7 @@ dist/
 .agent-office/
 .claude/worktrees/
 coverage/
+__pycache__/
 
 # Certificados de assinatura e segredos: vão nos secrets do GitHub, nunca no repo
 *.p12
