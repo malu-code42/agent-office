@@ -20,6 +20,7 @@ describe('TicketDesk: OpenCode histórico não recebe tickets', () => {
     }
     const ticket = { id: 'ticket-1', key: 'AO-1', title: 'Tarefa', status: 'todo', cwd: archived.cwd } as Ticket
     const board = {
+      assertCanStart: vi.fn(),
       get: vi.fn(() => ticket),
       update: vi.fn(),
       assign: vi.fn(),

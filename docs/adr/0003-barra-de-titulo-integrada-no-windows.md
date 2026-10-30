@@ -1,6 +1,6 @@
 # 0003 — Barra de título integrada no Windows com `titleBarOverlay` e CSS por plataforma
 
-- **Status:** aceito
+- **Status:** superado — Hoje o Windows usa `titleBarStyle: 'default'` (`src/main/index.ts`); `src/main/window-frame.ts` não existe.
 - **Data:** 2026-10-07 (aceito no checkpoint 12 da rodada `2026-10-07-185405`)
 - **Origem:** ADR-run-3 · requisito FR-11
 
