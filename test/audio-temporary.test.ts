@@ -15,7 +15,7 @@ afterEach(() => {
   for (const path of dirs.splice(0)) rmSync(path, { recursive: true, force: true })
 })
 
-describe('cópia efêmera de áudio Telegram', () => {
+describe('cópia efêmera de áudio', () => {
   it('grava apenas bytes sintéticos e apaga a cópia após a liberação', () => {
     const data = Buffer.from('synthetic audio bytes')
     const copy = materializeTemporaryAudio(dataDirectory(), 'voice.ogg', 'audio/ogg', data)

@@ -28,7 +28,6 @@ import type { DecodedStudyBank, StudyQuestion } from '../study-questions'
 import type { StudyCycleState } from '../study-cycle'
 import type { StudyLibrarySearch } from '../study-library'
 import type { StudyCardDraft, StudyCardSummary, StudyCardsRead, StudyNotesRead } from '../study-cards'
-import type { TelegramAudioErrorNotice, TelegramExpiredNotice, TelegramMessageNotice, TelegramStatus } from '../telegram'
 
 export interface StudyQuestionCandidates {
   token: string
@@ -228,9 +227,6 @@ export type OfficeEvent =
   | { type: 'focus:count'; count: number }
   /** The Timer of the bar changed (AO-64): the whole session as it reads, or null for a stopped Timer. */
   | { type: 'barTimer'; timer: BarTimerView | null }
-  | ({ type: 'telegram:message' } & TelegramMessageNotice)
-  | ({ type: 'telegram:expired' } & TelegramExpiredNotice)
-  | ({ type: 'telegram:audio-error' } & TelegramAudioErrorNotice)
   | { type: 'luna:profile-task'; profile: ProfileId; task: string }
   | { type: 'luna:media-draft'; draft: Extract<IrisResult, { kind: 'media-draft' }>['draft'] }
   | { type: 'luna:transcript'; text: string }
@@ -322,12 +318,6 @@ export interface OfficeAPI {
   listStudyCards(): Promise<StudyCardsRead>
   /** Marca manualmente se a cópia física do cartão foi escrita. */
   setStudyCardPhysicalWritten(id: string, written: boolean): Promise<StudyCardSummary>
-  /** Estado sanitisado da conta Telegram vinculada; nunca inclui o bot token. */
-  telegramStatus(): Promise<TelegramStatus>
-  /** Abre o seletor nativo para importar arquivo JSON de token/user ID e vincular o bot. */
-  linkTelegram(): Promise<TelegramStatus | null>
-  /** Pede confirmação no processo principal, para o polling e remove a credencial criptografada. */
-  unlinkTelegram(): Promise<boolean>
   /** Lê objetivos.md e tarefas.md; os objetivos continuam editáveis no Obsidian. */
   readGoals(): Promise<{ goals: Goal[]; tasks: Task[] }>
   /** Cria um objetivo em objetivos.md, sem alterar tarefas.md. */

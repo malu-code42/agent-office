@@ -485,13 +485,6 @@ async function boot(): Promise<void> {
 
   window.office.onEvent((e) => {
     if (e.type === 'data:notice') return notice(e.notice)
-    if (e.type === 'telegram:message') return toast(`Telegram · ${e.text.slice(0, 180)}`, 'info')
-    if (e.type === 'telegram:expired') return toast('Uma mensagem do Telegram expirou. Reenvie-a ao bot.', 'err')
-    if (e.type === 'telegram:audio-error')
-      return toast(
-        'Um áudio do Telegram ficou pendente após falha local ou de exclusão. Confira a mensagem e remova-a manualmente, se necessário.',
-        'err',
-      )
     if (e.type === 'luna:profile-task') {
       void startLunaProfileTask(e.profile, e.task)
         .then((agent) => {

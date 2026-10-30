@@ -29,7 +29,7 @@ Texto para a Luna passava por `LunaChat` → `IrisDesk` → `claudeIrisInterpret
 
 - Objetivos, rotinas e mídias: só leitura (pelo `Read` no vault). Escrever neles fica para um próximo ticket, com writers próprios.
 - `IrisDesk`/`claudeIrisInterpreter` ficam no código para o fluxo de áudio; remover o que sobrar depois.
-- Telegram (#55) segue adiado.
+- Telegram (#55) removido por decisão da usuária em 2026-10-30.
 
 ## Verificação
 
