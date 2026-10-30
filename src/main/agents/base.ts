@@ -19,6 +19,7 @@ import type {
   SubagentInfo,
 } from '@shared/types'
 import { pickAgentName } from '@shared/describe'
+import { emiAgentId, emiAgentSummary } from '@shared/emi'
 import { lunaAgentSummary } from '@shared/luna'
 import { projectFor } from '@shared/projects'
 import { type Accounts } from '../accounts'
@@ -39,6 +40,8 @@ export abstract class AgentBase extends EventEmitter {
   officeTools?: (agent: AgentSummary) => McpSdkServerConfigWithInstance
   /** Luna's own tools for the personal records (#101); set where the vault writers live. */
   lunaTools?: () => McpSdkServerConfigWithInstance
+  /** The tools of a floor's Emi (plan and squads of that floor); set where the squad writers live. */
+  emiTools?: (projectId: string) => McpSdkServerConfigWithInstance
   /** Picks the Claude account of each run; missing = the app's own login. */
   accounts?: Accounts
   /** The cost book: every SDK result is booked there. */
@@ -52,6 +55,9 @@ export abstract class AgentBase extends EventEmitter {
   constructor(protected store: Store) {
     super()
     for (const p of store.agents) {
+      // An Emi whose floor was removed while the office was closed leaves with it.
+      const emiFloor = p.summary.builtIn === 'emi' ? store.settings.projects.find((x) => emiAgentId(x.id) === p.summary.id) : undefined
+      if (p.summary.builtIn === 'emi' && !emiFloor) continue
       const floor = p.summary.project
         ? store.settings.projects.find((x) => x.id === p.summary.project)
         : projectFor(store.settings.projects, p.summary.cwd)
@@ -69,6 +75,15 @@ export abstract class AgentBase extends EventEmitter {
               effort: store.settings.lunaEffort || undefined,
             }
           : {}),
+        ...(emiFloor
+          ? {
+              name: 'Emi',
+              engine: 'claude' as const,
+              permissionMode: 'default' as const,
+              cwd: emiFloor.cwd,
+              project: emiFloor.id,
+            }
+          : {}),
         // Legacy orchestrators must always reload their definition from the stable floor root,
         // never from a copied worktree or another transient working directory.
         ...(p.summary.role === 'orchestrator' && floor ? { cwd: floor.cwd, project: floor.id } : {}),
@@ -84,7 +99,8 @@ export abstract class AgentBase extends EventEmitter {
       // #101: Luna's chat used to run without a Claude session; she gets one on her first message.
       const freshLuna = summary.builtIn === 'luna' && !summary.sessionId
       if (freshLuna) summary.sessionId = randomUUID()
-      const agent: Agent = { summary, log: p.log, started: !freshLuna }
+      // An Emi nobody talked to yet has no Claude session to resume.
+      const agent: Agent = { summary, log: p.log, started: emiFloor ? p.log.length > 0 : !freshLuna }
       this.agents.set(summary.id, agent)
       if (summary.role === 'orchestrator') this.watchSquad(agent)
     }
@@ -188,7 +204,7 @@ export abstract class AgentBase extends EventEmitter {
    * move there and take a free desk. Returns whether anyone moved.
    */
   relocate(): boolean {
-    let moved = false
+    let moved = this.syncEmis()
     for (const agent of this.agents.values()) {
       const s = agent.summary
       if (s.departed || s.builtIn) continue
@@ -198,6 +214,48 @@ export abstract class AgentBase extends EventEmitter {
       moved = true
     }
     return moved
+  }
+
+  /**
+   * One resident Emi per project floor: she arrives with the floor, follows its folder and
+   * leaves when the floor is removed. Returns whether anything changed.
+   */
+  private syncEmis(): boolean {
+    const floors = this.store.settings.projects
+    let changed = false
+    for (const agent of [...this.agents.values()]) {
+      const s = agent.summary
+      if (s.builtIn !== 'emi') continue
+      const floor = floors.find((f) => emiAgentId(f.id) === s.id)
+      if (!floor) {
+        this.cancelAgentRequests(s.id)
+        this.dropResults(s.id)
+        agent.input?.close()
+        agent.query?.close()
+        this.agents.delete(s.id)
+        this.book?.dismissed(s.id)
+        this.send({ type: 'agent:removed', agentId: s.id })
+        this.persist()
+        changed = true
+      } else if (s.cwd !== floor.cwd) {
+        // A Claude session belongs to its folder: a floor in another folder starts a new conversation.
+        agent.input?.close()
+        agent.query?.close()
+        agent.query = undefined
+        agent.started = false
+        Object.assign(s, { cwd: floor.cwd, project: floor.id, sessionId: randomUUID() })
+        this.upsert(agent)
+        changed = true
+      }
+    }
+    for (const floor of floors) {
+      if (this.agents.has(emiAgentId(floor.id))) continue
+      const agent: Agent = { summary: { ...emiAgentSummary(floor), sessionId: randomUUID() }, log: [], started: false }
+      this.agents.set(agent.summary.id, agent)
+      this.upsert(agent)
+      changed = true
+    }
+    return changed
   }
 
   /** Exact reading, the same numbers /context shows. */

@@ -109,6 +109,29 @@
   min-width: 0;
 }
 
+/* Each floor card in Configurações: Projeto, Permissões and Aparência, each a labelled group. */
+.floor-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 6px 10px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.floor-group > legend {
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.floor-row-main > .floor-group + .floor-group {
+  margin-top: 6px;
+}
+
 .floor-row-path {
   font: 11px var(--mono);
   color: var(--dim);

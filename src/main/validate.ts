@@ -567,6 +567,19 @@ export const squadRoomSchema = z
   .int()
   .min(0)
   .max(SQUAD_ROOM_COUNT - 1)
+/** One member of a proposed squad, as the "Criar squad" form and Emi (mcp__emi__squad_create) send it. */
+export const squadMemberSchema = z
+  .object({
+    id: z.string().regex(/^[a-z][a-z0-9_-]{0,39}$/),
+    name: z.string().trim().min(1).max(80),
+    role: z.enum(SQUAD_ROLES),
+    engine: z.literal('claude'),
+    model: z.enum(SQUAD_MODELS),
+    account: z.string().max(120),
+    focus: z.string().trim().min(1).max(1000),
+    competencyProfileId: z.enum(competencyProfileIds).optional(),
+  })
+  .strict()
 /** A proposal of a squad: the id, the floor, the room, the brief and the tickets (optional). */
 export const squadProposalRequestSchema = z.object({
   /** The id the page chose: it may throw the proposal away while it generates. */
@@ -575,24 +588,7 @@ export const squadProposalRequestSchema = z.object({
   room: squadRoomSchema,
   brief: z.string().trim().min(1).max(4_000),
   ticketIds: z.array(idSchema).max(50).default([]),
-  members: z
-    .array(
-      z
-        .object({
-          id: z.string().regex(/^[a-z][a-z0-9_-]{0,39}$/),
-          name: z.string().trim().min(1).max(80),
-          role: z.enum(SQUAD_ROLES),
-          engine: z.literal('claude'),
-          model: z.enum(SQUAD_MODELS),
-          account: z.string().max(120),
-          focus: z.string().trim().min(1).max(1000),
-          competencyProfileId: z.enum(competencyProfileIds).optional(),
-        })
-        .strict(),
-    )
-    .min(2)
-    .max(6)
-    .optional(),
+  members: z.array(squadMemberSchema).min(2).max(6).optional(),
 })
 /** The id of a proposal. The page never sends a path: only the proposal it means. */
 export const squadProposalIdSchema = z.object({ id: idSchema })

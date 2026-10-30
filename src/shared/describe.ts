@@ -1,4 +1,4 @@
-import type { Look, SubagentInfo } from './types'
+import { SQUAD_ROLE_LABELS, type Look, type SquadRole, type SubagentInfo } from './types'
 
 const basename = (p: unknown): string => {
   if (typeof p !== 'string' || !p) return ''
@@ -11,6 +11,8 @@ const clip = (s: unknown, n = 60): string => {
   const one = str.replace(/\s+/g, ' ').trim()
   return one.length > n ? one.slice(0, n - 1) + '…' : one
 }
+
+const list = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : [])
 
 /** Present-tense activity line for a tool call, shown on the agent's name tag. */
 export function describeTool(tool: string, input: Record<string, unknown> = {}): string {
@@ -100,6 +102,40 @@ export function describePermission(tool: string, input: Record<string, unknown> 
       return { title: 'Posso acessar este site?', detail: String(input.url ?? '') }
     case 'WebSearch':
       return { title: 'Posso pesquisar na web?', detail: String(input.query ?? '') }
+    // Emi's cards show the whole plan / squad, never a clipped JSON: it is what the user approves.
+    case 'mcp__emi__plan_approve':
+      return {
+        title: 'Posso aprovar este plano do andar?',
+        detail: [
+          `Objetivo: ${String(input.goal ?? '')}`,
+          `Tickets: ${list(input.tickets).join(', ')}`,
+          'Critérios de aceite:',
+          ...list(input.criteria).map((c) => `- ${c}`),
+          '',
+          'Grill:',
+          String(input.grill ?? ''),
+          '',
+          'Especificação:',
+          String(input.spec ?? ''),
+        ].join('\n'),
+      }
+    case 'mcp__emi__squad_create': {
+      const members = Array.isArray(input.members) ? (input.members as Record<string, unknown>[]) : []
+      return {
+        title: `Posso criar o squad ${String(input.name ?? '')}?`,
+        detail: [
+          `Squad: ${String(input.name ?? '')}${input.room ? ` · Sala ${String(input.room)}` : ''}`,
+          `Para: ${String(input.brief ?? '')}`,
+          `Tickets: ${list(input.tickets).join(', ')}`,
+          'Membros:',
+          ...members.map(
+            (m) =>
+              `- ${String(m.name ?? '')} · ${SQUAD_ROLE_LABELS[m.role as SquadRole] ?? String(m.role ?? '')} · ` +
+              `modelo ${m.model ? String(m.model) : 'padrão do Claude Code'}${m.account ? ` · conta ${String(m.account)}` : ''}\n  ${String(m.focus ?? '')}`,
+          ),
+        ].join('\n'),
+      }
+    }
     default:
       return { title: `Posso usar ${tool}?`, detail: clip(input, 400) }
   }
