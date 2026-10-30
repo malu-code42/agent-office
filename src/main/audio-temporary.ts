@@ -40,14 +40,14 @@ export function materializeAudioAttachment(dataDirectory: string, input: Attachm
   return materializeTemporaryAudio(dataDirectory, basename(input.name), input.mime, Buffer.from(input.dataBase64, 'base64'))
 }
 
-/** Saves an in-memory Telegram audio buffer into a private disposable directory; never persists metadata. */
+/** Saves an in-memory audio buffer into a private disposable directory; never persists metadata. */
 export function materializeTemporaryAudio(
   dataDirectory: string,
   fileName: string,
   mime: string | undefined,
   bytes: Uint8Array,
 ): TemporaryAudio {
-  if (!isAudioFile(fileName, mime)) throw new Error('O Telegram enviou um formato que não é áudio reconhecido.')
+  if (!isAudioFile(fileName, mime)) throw new Error('O arquivo enviado não é áudio reconhecido.')
   if (!bytes.byteLength || bytes.byteLength > AUDIO_MAX_BYTES) throw new Error('O áudio precisa ter até 20 MB.')
   const suppliedExtension = extname(fileName).toLowerCase()
   const extension = suppliedExtension && isAudioFile(`audio${suppliedExtension}`) ? suppliedExtension : EXTENSION_BY_MIME[mime ?? '']

@@ -8,9 +8,11 @@ import { AudioDictionaryStore } from './audio-dictionary'
 import { LocalAudioProcessingFailure, LocalAudioTranscriber } from './audio-transcriber'
 import { normalizeAudioPhrase } from './audio-dictionary'
 import { parseAudioPlan, audioPlanContext } from './audio-plan'
-import { cleanupTemporaryAudio, materializeAudioAttachment, materializeTemporaryAudio } from './audio-temporary'
+import { cleanupTemporaryAudio, materializeAudioAttachment } from './audio-temporary'
 import { AudioPlanUnavailable, type AudioPlanInterpreter } from './audio-claude'
-import type { TelegramAudioDisposition, TelegramAudioPayload } from './telegram'
+
+/** Whether an audio finished, needs the user again, or failed locally and may be retried. */
+export type AudioDisposition = 'complete' | 'pending' | 'retry'
 
 type AskOption = AskQuestion['options'][number]
 type Ask = (header: string, question: string, options: AskOption[]) => Promise<string | null>
@@ -39,7 +41,7 @@ const EDIT_GROUP = 'Editar grupo'
 const KEEP_TRANSCRIPT = 'Manter como foi transcrito'
 const MAX_EDIT_ROUNDS = 3
 
-/** Local ASR, contextual dictionary and one-by-one group review for local/Telegram audio (AO-54). */
+/** Local ASR, contextual dictionary and one-by-one group review for local audio (AO-54). */
 export class AudioCaptureWorkflow {
   private queue: Promise<void> = Promise.resolve()
   private readonly appliedGroups = new Set<string>()
@@ -70,18 +72,6 @@ export class AudioCaptureWorkflow {
     })
   }
 
-  processTelegram(payload: TelegramAudioPayload): Promise<TelegramAudioDisposition> {
-    return this.serial(async () => {
-      const audio = materializeTemporaryAudio(this.host.dataDirectory(), payload.fileName, payload.mime, payload.bytes)
-      payload.bytes.fill(0)
-      try {
-        return await this.process(audio.path, payload.caption ?? '', audio.fingerprint)
-      } finally {
-        audio.dispose()
-      }
-    })
-  }
-
   private serial<T>(run: () => Promise<T>): Promise<T> {
     const result = this.queue.then(run)
     this.queue = result.then(
@@ -91,7 +81,7 @@ export class AudioCaptureWorkflow {
     return result
   }
 
-  private async process(path: string, caption: string, audioFingerprint: string): Promise<TelegramAudioDisposition> {
+  private async process(path: string, caption: string, audioFingerprint: string): Promise<AudioDisposition> {
     this.host.status('Transcrevendo áudio localmente')
     let transcript: LocalAudioTranscript
     try {

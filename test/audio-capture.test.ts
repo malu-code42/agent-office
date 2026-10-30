@@ -230,21 +230,4 @@ describe('captura de áudio e gravação por grupo', () => {
     expect(host.confirmContext).not.toHaveBeenCalled()
     expect(host.log).toHaveBeenCalledWith('error', 'Runtime local indisponível; sem fallback.')
   })
-
-  it('marca processamento Telegram completo somente depois que os grupos chegam a uma decisão', async () => {
-    const { workflow, answers } = fixture()
-    answers.push('Aprovar e gravar grupo')
-    const disposition = await workflow.processTelegram({
-      bytes: Buffer.from('synthetic audio'),
-      fileId: 'synthetic-file-id',
-      updateId: 1,
-      fileName: 'voice.wav',
-      mime: 'audio/wav',
-      caption: '',
-      chatId: 42,
-      messageId: 7,
-      receivedAt: Date.now(),
-    })
-    expect(disposition).toBe('complete')
-  })
 })

@@ -57,6 +57,8 @@ A edição livre da aparência dos andares, inspirada em The Sims, fica para uma
 
 ### 2.3 Telegram e tarefas por áudio
 
+> **Removido por decisão da usuária em 2026-10-30:** a integração com o Telegram saiu do código e não está mais planejada (#55 fechada como não planejada). A captura de áudio local continua.
+
 > **Adiado por decisão da usuária em 2026-10-29:** não implementar nem avançar integração, captura, notificações ou aprovações pelo Telegram agora. Os requisitos abaixo ficam preservados como histórico; ao retomar, reconciliar todos com as regras vigentes da Luna antes de executar.
 
 - O Telegram é o canal remoto de conversa com Luna e de envio de áudios. Também são aceitos arquivos de áudio importados no Agent Office.

@@ -6,7 +6,7 @@
 
 ## Execução autorizada pela usuária — 2026-10-29
 
-Escopo desta rodada: reconciliar a PR #100, implementar #101 e corrigir #102. Não executar Telegram/áudio, tickets #89/#90 nem tarefas do Ticket 2/3 deste plano. Commit, push, PR e merge autorizados pela usuária em 2026-10-29; versão e release continuam exigindo pedido explícito.
+Escopo desta rodada: reconciliar a PR #100, implementar #101 e corrigir #102. Não executar Telegram/áudio (Telegram removido por decisão da usuária em 2026-10-30), tickets #89/#90 nem tarefas do Ticket 2/3 deste plano. Commit, push, PR e merge autorizados pela usuária em 2026-10-29; versão e release continuam exigindo pedido explícito.
 
 ### Plano técnico
 
