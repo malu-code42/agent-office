@@ -36,7 +36,13 @@ beforeEach(() => {
   tasksWriter.remember(vault, readFileSync(join(vault, 'tarefas.md'), 'utf8'))
   registerReviewIpc(
     {
-      store: { dataDirectory: data, get settings() { return { vaultPath: vault } }, set settings(_v) {} } as never,
+      store: {
+        dataDirectory: data,
+        get settings() {
+          return { vaultPath: vault }
+        },
+        set settings(_v) {},
+      } as never,
       planning,
       broadcast: vi.fn(),
     } as never,
@@ -116,6 +122,16 @@ describe('confirmReview IPC: não confirma enquanto o rascunho está adiado', ()
     planning.setReviewNextDay('2026-10-20')
 
     await expect(invoke('office:confirmReview', {})).rejects.toThrow('data de retorno')
+  })
+
+  it('a oferta mostrada hoje abre e confirma hoje, sem cair no gate de retorno (#102)', async () => {
+    expect(await invoke('office:reviewGate')).toBe(true)
+    expect(await invoke('office:reviewGate')).toBe(false) // uma vez por dia
+
+    const view = (await invoke('office:openReview')) as { day: string }
+    expect(view.day).toBe('2026-10-17')
+    planning.saveReviewDraft(draft)
+    expect(await invoke('office:confirmReview', {})).toEqual({ applied: 0 })
   })
 
   it('confirmReview permite quando a data de retorno já chegou (sem rascunho)', async () => {

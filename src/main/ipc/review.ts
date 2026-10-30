@@ -16,6 +16,7 @@ import {
 } from '../review'
 import type { TaskWriter } from '../tasks-write'
 import { taskIdsIn } from '../tasks-write'
+import { reviewPostponed } from '@shared/review'
 import { PERSONAL_ROUTINES_FILE, personalRoutineCandidates, personalRoutineDefinition, personalRoutineOverview } from '../routines-personal'
 import { localWeek, routineOccurrenceId, weeklyOccurrenceDates } from '@shared/routine-personal'
 import type { PersonalRoutineStore } from '../personal-routines-store'
@@ -58,7 +59,7 @@ export function registerReviewIpc(
   ipcMain.handle('office:openReview', async () => {
     const today = dayKey()
     const nextDay = ctx.planning.reviewNextDay()
-    if (nextDay && today < nextDay) throw new Error('A revisão só pode ser reaberta após a data de retorno.')
+    if (reviewPostponed(nextDay, today)) throw new Error('A revisão só pode ser reaberta após a data de retorno.')
     return openReview(files.vault(), deps())
   })
 
@@ -223,7 +224,7 @@ export function registerReviewIpc(
     const c = parse(reviewChoicesSchema, choices, 'Escolhas da revisão invǭlidas.')
     const today = dayKey()
     const nextDay = ctx.planning.reviewNextDay()
-    if (nextDay && today < nextDay) {
+    if (reviewPostponed(nextDay, today)) {
       throw new Error('A revisão só pode ser confirmada após a data de retorno.')
     }
     try {

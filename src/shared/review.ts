@@ -104,19 +104,17 @@ export function reviewNextDay(today: string, option: ReviewPostpone): string {
   return addDays(today, option === 'dispensar' ? 1 : option)
 }
 
-/** Pode (re)abrir a revisão hoje?
- * - Se a oferta está devida (reviewDue), mostra imediatamente (primeira entrada do dia).
- * - Se há rascunho (reviewDraft), só mostra quando a data de retorno já chegou (reviewNextDay nulo ou vencida).
- * Impede reabrir antes da data escolhida em "Adiar"/"Dispensar". */
-export function reviewMayShow(
-  reviewDue: boolean,
-  reviewDraft: boolean,
-  reviewNextDay: string | null,
-  today: string,
-): boolean {
-  if (reviewDue) return true
-  if (!reviewDraft) return false
-  return reviewNextDay == null || today >= reviewNextDay
+/** Pode (re)abrir a revisão hoje? A mesma regra do IPC (#102):
+ * - Antes da data de retorno escolhida em "Adiar"/"Dispensar" nada aparece, nem com a oferta devida.
+ * - Fora disso, mostra a oferta devida (primeira entrada do dia) ou o rascunho do dia. */
+export function reviewMayShow(reviewDue: boolean, reviewDraft: boolean, reviewNextDay: string | null, today: string): boolean {
+  if (reviewPostponed(reviewNextDay, today)) return false
+  return reviewDue || reviewDraft
+}
+
+/** Hoje ainda é antes da data de retorno de um adiamento? Abrir e confirmar a revisão ficam recusados. */
+export function reviewPostponed(reviewNextDay: string | null | undefined, today: string): boolean {
+  return reviewNextDay != null && today < reviewNextDay
 }
 
 /** Dia local como AAAA-MM-DD. */

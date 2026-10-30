@@ -1,11 +1,5 @@
 import { join } from 'node:path'
-import {
-  focusKey,
-  type ArchivedTask,
-  type FocusTimer,
-  type Step,
-  type TimerState,
-} from '@shared/planning'
+import { focusKey, type ArchivedTask, type FocusTimer, type Step, type TimerState } from '@shared/planning'
 import type { Proposal, ProposalFailure, ProposalOperation } from '@shared/proposals'
 import type { ReviewDraft } from '@shared/review'
 import { backupCopies, shapeOf } from './backups'
@@ -30,7 +24,7 @@ interface Planning {
   timer?: FocusTimer | undefined
   archived?: Record<string, ArchivedTask> | undefined
   proposals?: Proposal[] | undefined
-  review?: { next?: string | undefined; draft?: ReviewDraft | undefined } | undefined
+  review?: { next?: string | undefined; offered?: string | undefined; draft?: ReviewDraft | undefined } | undefined
 }
 
 const isArchived = (v: unknown): v is ArchivedTask =>
@@ -82,6 +76,7 @@ export class PlanningStore {
   private archived: Map<string, ArchivedTask>
   private proposals: Proposal[]
   private reviewNext: string | undefined
+  private reviewOffered: string | undefined
   private draft: ReviewDraft | undefined
   private readonly now: () => number
   /** How many tasks were in the focus the last time the app was told about it. */
@@ -124,6 +119,7 @@ export class PlanningStore {
     // A review draft or day this version cannot read is dropped: the review starts over, nothing is applied from it.
     const review = raw.review && typeof raw.review === 'object' ? raw.review : {}
     this.reviewNext = typeof review.next === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(review.next) ? review.next : undefined
+    this.reviewOffered = typeof review.offered === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(review.offered) ? review.offered : undefined
     const draft = reviewDraftSchema.safeParse(review.draft)
     this.draft = draft.success ? draft.data : undefined
     this.settle()
@@ -282,6 +278,16 @@ export class PlanningStore {
     this.save()
   }
 
+  /** The local day the review offer was last shown (AAAA-MM-DD), or undefined. */
+  reviewOfferedDay(): string | undefined {
+    return this.reviewOffered
+  }
+
+  setReviewOffered(day: string): void {
+    this.reviewOffered = day
+    this.save()
+  }
+
   /** The draft of a review, of any day: the caller checks the day. */
   reviewDraft(): ReviewDraft | undefined {
     return this.draft
@@ -313,7 +319,10 @@ export class PlanningStore {
         timer: this.timer,
         archived: this.archived.size ? Object.fromEntries(this.archived) : undefined,
         proposals: this.proposals.length ? this.proposals : undefined,
-        review: this.reviewNext || this.draft ? { next: this.reviewNext, draft: this.draft } : undefined,
+        review:
+          this.reviewNext || this.reviewOffered || this.draft
+            ? { next: this.reviewNext, offered: this.reviewOffered, draft: this.draft }
+            : undefined,
       } satisfies Planning,
       { space: 2, newline: true },
     )

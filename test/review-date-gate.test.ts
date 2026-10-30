@@ -6,7 +6,14 @@ describe('reviewMayShow: a oferta/reabertura da revisão só aparece quando deve
 
   it('mostra a oferta quando está devida, mesmo sem rascunho', () => {
     expect(reviewMayShow(true, false, null, today)).toBe(true)
-    expect(reviewMayShow(true, false, '2026-10-20', today)).toBe(true)
+    expect(reviewMayShow(true, false, '2026-10-17', today)).toBe(true)
+  })
+
+  it('a data de retorno futura prevalece sobre a oferta devida (#102)', () => {
+    expect(reviewMayShow(true, true, '2026-10-18', today)).toBe(false) // rascunho adiado
+    expect(reviewMayShow(true, false, '2026-10-20', today)).toBe(false) // concorda com o IPC, que recusaria abrir
+    expect(reviewMayShow(true, true, '2026-10-17', today)).toBe(true) // data de retorno é hoje
+    expect(reviewMayShow(true, true, '2026-10-16', today)).toBe(true) // data já passou
   })
 
   it('não mostra quando não há oferta nem rascunho', () => {
