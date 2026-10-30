@@ -20,8 +20,9 @@ type Preset = Omit<VideoSettings, 'batterySaver'>
 
 export const QUALITY_PRESETS: Record<Quality, Preset> = {
   high: { shadows: true, shadowMapSize: 2048, fpsLimit: 0, effects: 'full' },
-  // 1024 looks the same as 2048 at the pixel-art scale and costs a quarter of the texels
-  balanced: { shadows: true, shadowMapSize: 1024, fpsLimit: 60, effects: 'full' },
+  // no shadow maps: the pixel-art look paints its light and contact blobs, and each map
+  // pass redraws the whole scene (Alta keeps them for whoever wants them)
+  balanced: { shadows: false, shadowMapSize: 1024, fpsLimit: 60, effects: 'full' },
   saver: { shadows: false, shadowMapSize: 1024, fpsLimit: 30, effects: 'reduced' },
 }
 

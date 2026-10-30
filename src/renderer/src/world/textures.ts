@@ -76,24 +76,6 @@ const planks =
     }
   }
 
-const carpet =
-  (a: string, b: string, line: string): Painter =>
-  (ctx, x0, z0, w, h, r) => {
-    for (let x = x0; x < x0 + w; x++) {
-      for (let z = z0; z < z0 + h; z++) {
-        ctx.fillStyle = (x + z) % 2 ? a : b
-        ctx.fillRect(x * TILE_PX, z * TILE_PX, TILE_PX, TILE_PX)
-        for (let i = 0; i < 10; i++) {
-          ctx.fillStyle = shade((x + z) % 2 ? a : b, r() < 0.5 ? -8 : 8)
-          ctx.fillRect(x * TILE_PX + Math.floor(r() * TILE_PX), z * TILE_PX + Math.floor(r() * TILE_PX), 1, 1)
-        }
-        ctx.fillStyle = line
-        ctx.fillRect(x * TILE_PX, z * TILE_PX, TILE_PX, 1)
-        ctx.fillRect(x * TILE_PX, z * TILE_PX, 1, TILE_PX)
-      }
-    }
-  }
-
 const diamonds =
   (a: string, b: string): Painter =>
   (ctx, x0, z0, w, h) => {
@@ -137,8 +119,9 @@ const tiles =
 const PAINTERS: Record<FloorStyle, Painter> = {
   hall: planks('#dcb98f', '#d3ad80', '#b48c62', true),
   boss: planks('#a8734d', '#9c6844', '#7a4f33', false),
-  team: carpet('#8d96bd', '#868fb6', 'rgba(60,64,100,0.18)'),
-  lounge: diamonds('#b7a5d8', '#ad9ad1'),
+  // light grey checkered tiles, like an old office sim
+  team: tiles('#c9ccd1', '#a8adb6', 'rgba(60,66,82,0.4)'),
+  lounge: diamonds('#d9cbb0', '#cdbc9d'),
   cafe: tiles('#eef0f3', '#dfe3ea', 'rgba(90,96,120,0.25)'),
 }
 
@@ -151,7 +134,7 @@ export function floorTexture(zones: Zone[] = ZONES): THREE.CanvasTexture {
     const [x0, z0, x1, z1] = z.rect
     PAINTERS[z.id](ctx, x0, z0, x1 - x0, z1 - z0, r)
     // soft border so zones read as separate areas
-    ctx.fillStyle = 'rgba(40,30,60,0.22)'
+    ctx.fillStyle = 'rgba(60,46,34,0.3)'
     ctx.fillRect(x0 * TILE_PX, z0 * TILE_PX, (x1 - x0) * TILE_PX, 1)
     ctx.fillRect(x0 * TILE_PX, z0 * TILE_PX, 1, (z1 - z0) * TILE_PX)
     ctx.fillRect(x0 * TILE_PX, z1 * TILE_PX - 1, (x1 - x0) * TILE_PX, 1)
@@ -184,7 +167,7 @@ export function rugTexture(w: number, h: number, base: string, border: string, a
 export function homeFloorTexture(): THREE.CanvasTexture {
   const [c, ctx] = canvas(W * TILE_PX, H * TILE_PX)
   const rooms = [
-    { rect: [0, 0, 10, 10], colors: ['#795137', '#69432f'], kind: 'wood' },
+    { rect: [0, 0, 10, 10], colors: ['#9a6e4f', '#8c6246'], kind: 'wood' },
     { rect: [10, 0, 17, 10], colors: ['#d2aa7a', '#c79b69'], kind: 'wood' },
     { rect: [17, 0, 25, 10], colors: ['#eee3d1', '#dfbca4'], kind: 'tile' },
     { rect: [25, 0, 32, 10], colors: ['#7fae5a', '#73a252'], kind: 'grass' },
@@ -192,7 +175,7 @@ export function homeFloorTexture(): THREE.CanvasTexture {
     { rect: [8, 10, 23, 13], colors: ['#d2aa7a', '#c79b69'], kind: 'wood' },
     { rect: [8, 13, 23, 24], colors: ['#c9965f', '#b98450'], kind: 'herringbone' },
     { rect: [0, 14, 8, 24], colors: ['#e2cfad', '#d7c09a'], kind: 'wood' },
-    { rect: [23, 10, 32, 16], colors: ['#346e74', '#2c5e66'], kind: 'carpet' },
+    { rect: [23, 10, 32, 16], colors: ['#6f9c98', '#64908c'], kind: 'carpet' },
     { rect: [23, 16, 32, 24], colors: ['#eee3d1', '#e4d5ba'], kind: 'wood' },
   ] as const
   const shade = (hex: string, amount: number) => {

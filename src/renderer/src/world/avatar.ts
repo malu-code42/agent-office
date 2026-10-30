@@ -26,7 +26,7 @@ export interface Uniform {
 
 let shadowGeo: THREE.CircleGeometry | null = null
 let gemGeo: THREE.OctahedronGeometry | null = null
-const shadowMat = shared(new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.2, depthWrite: false }))
+const shadowMat = shared(new THREE.MeshBasicMaterial({ color: '#2a1e18', transparent: true, opacity: 0.32, depthWrite: false }))
 
 function wrapAngle(a: number): number {
   while (a > Math.PI) a -= Math.PI * 2

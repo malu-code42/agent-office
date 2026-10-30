@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { RenderPixelatedPass } from 'three/addons/postprocessing/RenderPixelatedPass.js'
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
 import { H, W } from './layout'
 
 // 2:1 pixel-art isometric: 45° around Y, 30° above the floor.
@@ -9,6 +9,27 @@ const AZIMUTH = Math.PI / 4
 const ELEVATION = Math.PI / 6
 const ZOOMS = [0.55, 0.7, 0.85, 1, 1.25, 1.5, 1.8]
 const BASE_VIEW = 15 // world units visible vertically at zoom 1
+
+/** Linear to sRGB, then a little less saturation and a warm lift: the cozy, slightly faded palette. */
+const PASTEL_OUTPUT = {
+  uniforms: { tDiffuse: { value: null } },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    varying vec2 vUv;
+    void main() {
+      vec4 c = linearToOutputTexel(texture2D(tDiffuse, vUv));
+      float l = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+      c.rgb = mix(vec3(l), c.rgb, 0.82);
+      c.rgb = mix(c.rgb, vec3(1.0, 0.95, 0.86), 0.05);
+      gl_FragColor = c;
+    }`,
+}
 
 export class Engine {
   readonly renderer: THREE.WebGLRenderer
@@ -37,23 +58,25 @@ export class Engine {
     this.pixelSize = pixelSize
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'default' })
     this.renderer.setPixelRatio(1)
-    this.renderer.shadowMap.enabled = true
+    // off by default: painted light and the avatars' contact blobs do the job (Vídeo → Sombras turns it on)
+    this.renderer.shadowMap.enabled = false
     this.renderer.shadowMap.type = THREE.PCFShadowMap
     this.renderer.toneMapping = THREE.NoToneMapping
     container.appendChild(this.renderer.domElement)
     this.renderer.domElement.classList.add('world-canvas')
 
-    this.scene.background = new THREE.Color('#1c1d2e')
+    // a dark, warm frame so the light diorama stands out
+    this.scene.background = new THREE.Color('#231f26')
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200)
 
-    // lights: soft sky fill + one warm sun from the front-right so both back walls read
-    const hemi = new THREE.HemisphereLight('#f4f1ff', '#8c7f9f', 2.1)
+    // painted pixel-art light: warm sky fill + a sun mostly from above, a bit more from the
+    // left (+z) than the right (+x), so tops read lightest and the two side faces step darker
+    const hemi = new THREE.HemisphereLight('#fff8ec', '#8a8078', 2.2)
     this.scene.add(hemi)
-    const sun = new THREE.DirectionalLight('#fff1dc', 2.4)
+    const sun = new THREE.DirectionalLight('#fff4e2', 2.3)
     sun.position.set(W / 2 + 7, 22, H / 2 + 12)
     sun.target.position.set(W / 2, 0, H / 2)
-    sun.castShadow = true
-    sun.shadow.mapSize.set(2048, 2048)
+    sun.shadow.mapSize.set(1024, 1024)
     const s = 24
     Object.assign(sun.shadow.camera, { left: -s, right: s, top: s, bottom: -s, near: 1, far: 70 })
     sun.shadow.bias = -0.0008
@@ -62,9 +85,11 @@ export class Engine {
     this.sun = sun
 
     this.composer = new EffectComposer(this.renderer)
-    this.pixelPass = new RenderPixelatedPass(pixelSize, this.scene, this.camera, { normalEdgeStrength: 0.35, depthEdgeStrength: 0.55 })
+    // strong depth edges = the dark outline around every object; soft normal edges keep the bevels
+    this.pixelPass = new RenderPixelatedPass(pixelSize, this.scene, this.camera, { normalEdgeStrength: 0.2, depthEdgeStrength: 0.9 })
     this.composer.addPass(this.pixelPass)
-    this.composer.addPass(new OutputPass())
+    // replaces OutputPass (same single full-screen draw): sRGB out plus a soft pastel grade
+    this.composer.addPass(new ShaderPass(PASTEL_OUTPUT))
 
     new ResizeObserver(() => this.resize()).observe(container)
     this.resize()

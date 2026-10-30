@@ -42,10 +42,11 @@ export interface GroundFloor extends Office {
   roomLabels?: { label: string; x: number; z: number }[]
 }
 
-const WALL = '#aaa6d6'
-const WAINSCOT = '#8f8ac2'
-const BASEBOARD = '#5f5a8c'
-const CAP = '#c9c5ea'
+// retro office: light beige walls, a deeper beige wainscot and a slate baseboard
+const WALL = '#ead9bc'
+const WAINSCOT = '#d9c29e'
+const BASEBOARD = '#5d6474'
+const CAP = '#f4e8d0'
 
 export function buildOffice(): GroundFloor {
   const group = new THREE.Group()
@@ -300,7 +301,7 @@ export function buildOffice(): GroundFloor {
 /** Floor slab and the two back walls, shared by every floor; `zones` paint the floor. */
 export function buildShell(group: THREE.Group, zones?: Zone[]): THREE.Mesh {
   // ---------- floor slab ----------
-  const side = mat('#4a4366')
+  const side = mat('#6b5c50')
   const floor = new THREE.Mesh(new THREE.BoxGeometry(W, 0.4, H), [
     side,
     side,
@@ -313,7 +314,7 @@ export function buildShell(group: THREE.Group, zones?: Zone[]): THREE.Mesh {
   floor.receiveShadow = true
   floor.name = 'floor'
   group.add(floor)
-  box(group, W, 0.04, 0.02, '#36304f', W / 2, -0.4, H + 0.01, false)
+  box(group, W, 0.04, 0.02, '#4a3e36', W / 2, -0.4, H + 0.01, false)
 
   // ---------- back walls (z = 0 and x = 0) ----------
   const T = 0.25
@@ -335,7 +336,7 @@ export function buildShell(group: THREE.Group, zones?: Zone[]): THREE.Mesh {
 /** Glass partitions with doors; each pane also blocks its tile edge in the grid. */
 export function buildPartitions(group: THREE.Group, grid: Grid, partitions: Partition[]): void {
   const glass = new THREE.MeshLambertMaterial({ color: '#cfe8ff', transparent: true, opacity: 0.22, depthWrite: false })
-  const frame = '#6d6a8f'
+  const frame = '#7d808a'
   for (const p of partitions) {
     for (let i = p.from; i < p.to; i++) {
       const isDoor = p.doors.includes(i)
