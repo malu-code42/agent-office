@@ -4,7 +4,10 @@ import { realpathSync } from 'node:fs'
 import { isAbsolute, relative, sep, join } from 'node:path'
 import { z } from 'zod'
 import { projectFor } from '@shared/projects'
+import { squadInRoom } from '@shared/squad-rooms'
 import { ticketBrief } from '@shared/tickets'
+import { SQUAD_ROOM_COUNT, type ProjectFloor } from '@shared/types'
+import { emiTools } from '../emi-tools'
 import { copySquadRuntime, findSquad, inspectSquads, isDir, squadInfo, validateSquad } from '../squads'
 import { createWorktree, excludeSquadRuntime } from '../git'
 import {
@@ -91,17 +94,17 @@ export function registerSquadsIpc(ctx: IpcContext): void {
     }
     try {
       const agent = await manager.runSquad(
-      squadInfo({ ...squad, cwd: projectFor(store.settings.projects, cwd)!.cwd }),
-      `Rode um ciclo do squad ${squad.name} (squads/${squad.code}), do primeiro passo do pipeline até o fim.${ticketNote}${extra ? `\n\nRecado de ${store.settings.playerName}: ${extra}` : ''}`,
-      `Rodar um ciclo de ${squad.icon} ${squad.name}${extra ? `\n\n${extra}` : ''}`,
-      {
-        ...defaultBrain(),
-        model: 'claude-haiku-5-5',
-        // Same rule as tickets: a cycle reaches real systems, so it never runs with "bypass".
-        permissionMode,
-      },
-      worktree,
-      active?.id,
+        squadInfo({ ...squad, cwd: projectFor(store.settings.projects, cwd)!.cwd }),
+        `Rode um ciclo do squad ${squad.name} (squads/${squad.code}), do primeiro passo do pipeline até o fim.${ticketNote}${extra ? `\n\nRecado de ${store.settings.playerName}: ${extra}` : ''}`,
+        `Rodar um ciclo de ${squad.icon} ${squad.name}${extra ? `\n\n${extra}` : ''}`,
+        {
+          ...defaultBrain(),
+          model: 'claude-haiku-5-5',
+          // Same rule as tickets: a cycle reaches real systems, so it never runs with "bypass".
+          permissionMode,
+        },
+        worktree,
+        active?.id,
       )
       if (active) ctx.creation.clearStartupError(squad.code, active.id)
       return agent
@@ -137,16 +140,93 @@ export function registerSquadsIpc(ctx: IpcContext): void {
     const project = workflowProject(raw)
     return ctx.projectWorkflows.approveSpec(project.id)
   })
-  ipcMain.handle('office:saveProjectWorkflowTickets', (_e, ...raw: unknown[]) => {
-    const [projectId, ticketIds] = parse(projectWorkflowTicketsArgsSchema, raw, 'Seleção de tickets inválida.')
-    const project = workflowProject(projectId)
+  const assertFloorTickets = (project: ProjectFloor, ticketIds: string[]) => {
     for (const id of ticketIds) {
       const ticket = ctx.board.get(id)
       if (!ticket || projectFor(store.settings.projects, ticket.cwd)?.id !== project.id || ticket.closedAt)
         throw new Error('Todos os tickets precisam estar abertos e pertencer a este andar.')
     }
+  }
+  ipcMain.handle('office:saveProjectWorkflowTickets', (_e, ...raw: unknown[]) => {
+    const [projectId, ticketIds] = parse(projectWorkflowTicketsArgsSchema, raw, 'Seleção de tickets inválida.')
+    const project = workflowProject(projectId)
+    assertFloorTickets(project, ticketIds)
     return ctx.projectWorkflows.saveTickets(project.id, ticketIds)
   })
+
+  // ---------- Emi, the facilitator of each floor: the same stores and writers, from her chat ----------
+
+  const ticketIdsOf = (keys: string[]) =>
+    keys.map((key) => {
+      const ticket = ctx.board.byKey(key.trim())
+      if (!ticket) throw new Error(`Não achei o ticket aberto ${key}. Use tickets_list para ver as chaves.`)
+      return ticket.id
+    })
+  ctx.manager.emiTools = (projectId) => {
+    const floor = () => workflowProject(projectId)
+    return emiTools({
+      squads: () => inspectSquads(floor().cwd),
+      plan: () => {
+        const w = ctx.projectWorkflows.get(floor().id)
+        const ticket = (id: string) => {
+          const t = ctx.board.get(id)
+          return `- ${t ? `${t.key} · ${t.title}` : id}${w.assignments[id] ? ` · squad ${w.assignments[id]}` : ''}`
+        }
+        if (!w.goal && !w.ticketIds.length) return 'Este andar ainda não tem plano aprovado.'
+        return [
+          `Objetivo: ${w.goal || '(sem objetivo)'}`,
+          `Grill: ${w.grillApprovedAt ? 'aprovado' : 'não aprovado'} · Spec: ${w.specApprovedAt ? 'aprovada' : 'não aprovada'} · Tickets: ${w.ticketsApprovedAt ? 'aprovados' : 'não aprovados'}`,
+          '',
+          w.spec ? `Especificação:\n${w.spec}` : 'Sem especificação.',
+          w.criteria.length ? `Critérios:\n${w.criteria.map((c) => `- ${c}`).join('\n')}` : '',
+          w.ticketIds.length ? `Tickets do plano:\n${w.ticketIds.map(ticket).join('\n')}` : 'Sem tickets no plano.',
+        ].join('\n')
+      },
+      approvePlan: (plan) => {
+        const project = floor()
+        const ids = ticketIdsOf(plan.tickets)
+        assertFloorTickets(project, ids)
+        // The same steps the "Fluxo do projeto" window takes, one after the other, after the user's card.
+        const w = ctx.projectWorkflows
+        w.saveGrill(project.id, plan.goal, plan.grill)
+        w.approveGrill(project.id)
+        w.saveSpec(project.id, plan.spec, plan.criteria)
+        w.approveSpec(project.id)
+        w.saveTickets(project.id, ids)
+        w.approveTickets(project.id)
+        return `Plano do andar ${project.name} aprovado, com ${ids.length} ticket${ids.length === 1 ? '' : 's'}.`
+      },
+      createSquad: async (req) => {
+        const project = floor()
+        const squads = inspectSquads(project.cwd)
+        const held = (room: number) =>
+          ctx.creation.list().some((p) => p.projectId === project.id && p.room === room && p.status !== 'assigned')
+        const room =
+          req.room !== undefined
+            ? req.room - 1
+            : Array.from({ length: SQUAD_ROOM_COUNT }, (_, i) => i).find((r) => !squadInRoom(squads, r) && !held(r))
+        if (room === undefined) throw new Error('Todas as salas de squad deste andar estão ocupadas.')
+        const id = randomUUID()
+        await ctx.creation.propose({
+          id,
+          projectId: project.id,
+          room,
+          brief: req.brief,
+          ticketIds: ticketIdsOf(req.tickets),
+          members: req.members,
+        })
+        try {
+          const { squad } = await ctx.creation.approve(id, req.name)
+          ctx.broadcast({ type: 'squads', squads: ctx.rereadSquads() })
+          return squad
+        } catch (err) {
+          // A refused approval must not leave a proposal holding the room.
+          if (ctx.creation.get(id)?.status === 'pending') ctx.creation.discard(id)
+          throw err
+        }
+      },
+    })
+  }
   ipcMain.handle('office:approveProjectWorkflowTickets', (_e, raw: unknown) => {
     const project = workflowProject(raw)
     const workflow = ctx.projectWorkflows.get(project.id)
@@ -163,12 +243,18 @@ export function registerSquadsIpc(ctx: IpcContext): void {
           if (error instanceof Error && error.message.includes('vault real')) throw error
         }
       }
-      const ids = workflow.ticketDrafts.map((draft) => ctx.board.create({
-        title: draft.title,
-        description: draft.description,
-        acceptance: draft.acceptance.map((text) => ({ text, done: false })),
-        cwd: project.cwd,
-      }, ctx.player()).id)
+      const ids = workflow.ticketDrafts.map(
+        (draft) =>
+          ctx.board.create(
+            {
+              title: draft.title,
+              description: draft.description,
+              acceptance: draft.acceptance.map((text) => ({ text, done: false })),
+              cwd: project.cwd,
+            },
+            ctx.player(),
+          ).id,
+      )
       ctx.projectWorkflows.saveTickets(project.id, ids)
     }
     return ctx.projectWorkflows.approveTickets(project.id)
@@ -200,29 +286,67 @@ export function registerSquadsIpc(ctx: IpcContext): void {
       kind,
       workflow,
       documents: docs.documents,
-      squads: kind === 'redistribution' ? ctx.rereadSquads().filter((squad) => squad.cwd === project.cwd).map((squad) => squad.code) : undefined,
-      tickets: kind === 'redistribution' ? workflow.ticketIds.flatMap((id) => {
-        const ticket = ctx.board.get(id)
-        return ticket && !ticket.closedAt ? [{ id, title: ticket.title, description: ticket.description }] : []
-      }) : undefined,
+      squads:
+        kind === 'redistribution'
+          ? ctx
+              .rereadSquads()
+              .filter((squad) => squad.cwd === project.cwd)
+              .map((squad) => squad.code)
+          : undefined,
+      tickets:
+        kind === 'redistribution'
+          ? workflow.ticketIds.flatMap((id) => {
+              const ticket = ctx.board.get(id)
+              return ticket && !ticket.closedAt ? [{ id, title: ticket.title, description: ticket.description }] : []
+            })
+          : undefined,
     })
     if (kind === 'grill') {
       const parsed = z.object({ grill: z.string().trim().min(1).max(20_000) }).parse(result)
       return ctx.projectWorkflows.saveGrill(project.id, workflow.goal, parsed.grill)
     }
     if (kind === 'spec') {
-      const parsed = z.object({ spec: z.string().trim().min(1).max(20_000), criteria: z.array(z.string().trim().min(1).max(500)).min(1).max(15) }).parse(result)
+      const parsed = z
+        .object({ spec: z.string().trim().min(1).max(20_000), criteria: z.array(z.string().trim().min(1).max(500)).min(1).max(15) })
+        .parse(result)
       return ctx.projectWorkflows.saveSpec(project.id, parsed.spec, parsed.criteria)
     }
     if (kind === 'tickets') {
-      const parsed = z.object({ tickets: z.array(z.object({ title: z.string().trim().min(1).max(200), description: z.string().max(4000), acceptance: z.array(z.string().max(500)).max(20) }).strict()).min(1).max(30) }).strict().parse(result)
+      const parsed = z
+        .object({
+          tickets: z
+            .array(
+              z
+                .object({
+                  title: z.string().trim().min(1).max(200),
+                  description: z.string().max(4000),
+                  acceptance: z.array(z.string().max(500)).max(20),
+                })
+                .strict(),
+            )
+            .min(1)
+            .max(30),
+        })
+        .strict()
+        .parse(result)
       return ctx.projectWorkflows.saveTicketDrafts(project.id, parsed.tickets)
     }
-    const parsed = z.object({ changes: z.array(z.object({
-      ticketId: z.string().min(1).max(100),
-      fromSquad: z.string().max(64).nullable(),
-      toSquad: z.string().max(64).nullable(),
-    }).strict()).max(30) }).strict().parse(result)
+    const parsed = z
+      .object({
+        changes: z
+          .array(
+            z
+              .object({
+                ticketId: z.string().min(1).max(100),
+                fromSquad: z.string().max(64).nullable(),
+                toSquad: z.string().max(64).nullable(),
+              })
+              .strict(),
+          )
+          .max(30),
+      })
+      .strict()
+      .parse(result)
     return ctx.projectWorkflows.saveRedistributionProposal(project.id, parsed.changes)
   })
   ipcMain.handle('office:approveProjectWorkflowRedistribution', (_e, raw: unknown) => {
@@ -273,8 +397,7 @@ export function registerSquadsIpc(ctx: IpcContext): void {
     const parsed = squadCodeSchema.safeParse(code)
     if (!parsed.success) throw new Error('Squad inválido.')
     const queue = ctx.creation.queue(parsed.data)
-    if (!queue?.active || queue.cycle?.ticketId !== queue.active)
-      throw new Error('Não há ciclo ativo salvo para retomar.')
+    if (!queue?.active || queue.cycle?.ticketId !== queue.active) throw new Error('Não há ciclo ativo salvo para retomar.')
     await ctx.startActiveSquadTicket(parsed.data)
   })
 }

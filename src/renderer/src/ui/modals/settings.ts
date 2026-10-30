@@ -216,14 +216,25 @@ export function openSettings(
               ...MODES.map((m) => h('option', { value: m.value }, m.label)),
             ) as HTMLSelectElement
             floorMode.value = p.permissionMode ?? s.defaultPermissionMode
-            floorMode.addEventListener('change', () => set({ permissionMode: floorMode.value as OfficePermissionMode }))
+            const modeHint = h('span', {})
+            const paintModeHint = () => (modeHint.textContent = MODES.find((m) => m.value === floorMode.value)?.hint ?? '')
+            paintModeHint()
+            floorMode.addEventListener('change', () => {
+              set({ permissionMode: floorMode.value as OfficePermissionMode })
+              paintModeHint()
+            })
             const ruleKind = h(
               'select',
-              { class: 'input' },
+              { class: 'input', 'aria-label': 'Tipo de regra' },
               h('option', { value: 'tool' }, 'Ferramenta exata'),
               h('option', { value: 'command' }, 'Comando exato'),
             ) as HTMLSelectElement
-            const ruleValue = h('input', { class: 'input', maxlength: 500, placeholder: 'Ex.: Read ou npm test' }) as HTMLInputElement
+            const ruleValue = h('input', {
+              class: 'input',
+              maxlength: 500,
+              placeholder: 'Ex.: Read ou npm test',
+              'aria-label': 'Ferramenta ou comando',
+            }) as HTMLInputElement
             const ruleList = h('div', { class: 'field-hint' })
             const importPreview = h('div', { class: 'field-hint' })
             const previewImport = h(
@@ -276,7 +287,8 @@ export function openSettings(
                   }
                 },
               },
-              'Pré-visualizar permissões Claude',
+              icon('download', 14),
+              'Importar regras do Claude Code',
             )
             const paintRules = () => {
               const rules = floors[i]?.alwaysAllow ?? []
@@ -334,20 +346,41 @@ export function openSettings(
               h(
                 'div',
                 { class: 'floor-row-main' },
-                nameIn,
                 h(
-                  'span',
-                  { class: 'floor-row-path', title: p.cwd },
-                  p.cwd,
-                  squads ? ` · ${squads === 1 ? '1 squad' : `${squads} squads`}` : '',
+                  'fieldset',
+                  { class: 'floor-group' },
+                  h('legend', {}, 'Projeto'),
+                  field('Nome do andar', nameIn),
+                  h('span', { class: 'floor-row-path', title: p.cwd }, p.cwd),
+                  h(
+                    'span',
+                    { class: 'field-hint' },
+                    `${squads ? (squads === 1 ? '1 squad' : `${squads} squads`) : 'Nenhum squad ainda'}. A Emi cuida dos squads deste andar: converse com ela no chat.`,
+                  ),
                 ),
-                field('Modo padrão do projeto', floorMode),
-                field(
-                  'Sempre permitir (regra exata e revogável)',
-                  h('div', {}, h('div', { class: 'field-row' }, ruleKind, ruleValue, addRule), ruleList, previewImport, importPreview),
-                  'Só vale para ações classificadas como seguras. Ações externas, sensíveis, desconhecidas e de risco continuam pedindo confirmação.',
+                h(
+                  'fieldset',
+                  { class: 'floor-group' },
+                  h('legend', {}, 'Permissões'),
+                  field('Modo padrão dos agentes', floorMode, modeHint),
+                  h(
+                    'fieldset',
+                    { class: 'floor-group' },
+                    h('legend', {}, 'Sempre permitir'),
+                    h(
+                      'span',
+                      { class: 'field-hint' },
+                      'Ações que os agentes deste andar fazem sem perguntar. "Ferramenta exata" libera uma ferramenta pelo nome (ex.: Read, Grep). ' +
+                        '"Comando exato" libera só aquele comando, igual letra por letra (ex.: npm test). ' +
+                        'Só vale para ações seguras: as externas, sensíveis ou de risco continuam pedindo.',
+                    ),
+                    h('div', { class: 'field-row' }, ruleKind, ruleValue, addRule),
+                    ruleList,
+                    h('div', {}, previewImport),
+                    importPreview,
+                  ),
                 ),
-                brandFields(floors[i], set, toast),
+                h('fieldset', { class: 'floor-group' }, h('legend', {}, 'Aparência'), brandFields(floors[i], set, toast)),
               ),
               remove,
             )
@@ -443,12 +476,8 @@ export function openSettings(
         h(
           'div',
           { class: 'field-hint' },
-          'Cada andar é uma pasta de projeto: quem você contrata ou chama lá trabalha nela. Se a pasta tiver squads (squads/<code>/squad.yaml), eles ocupam as salas de squad do andar.',
-        ),
-        h(
-          'div',
-          { class: 'field-hint' },
-          'Por segurança, agentes gerenciados pelo Office não carregam settings externos do Claude nem CLAUDE.md. Inclua as instruções importantes na tarefa ou no modelo do agente.',
+          'Cada andar é uma pasta de projeto: os agentes de lá trabalham nela, e a Emi do andar monta os squads com você. ' +
+            'Agentes do Office não leem o CLAUDE.md nem os settings do Claude: ponha as instruções na tarefa.',
         ),
         floorList,
         addFloor,

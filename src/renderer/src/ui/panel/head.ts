@@ -39,11 +39,13 @@ export abstract class PanelHead extends PanelSearch {
     this.input.placeholder =
       a.builtIn === 'luna'
         ? 'Converse com a Luna…'
-        : terminal
-          ? 'Sessão do terminal: responda por lá. Permissões chegam aqui.'
-          : a.status === 'working' || a.status === 'starting'
-            ? 'Mande uma instrução (entra na fila do agente)…'
-            : 'Mande uma nova tarefa…'
+        : a.builtIn === 'emi'
+          ? 'Conte à Emi o que quer construir neste andar…'
+          : terminal
+            ? 'Sessão do terminal: responda por lá. Permissões chegam aqui.'
+            : a.status === 'working' || a.status === 'starting'
+              ? 'Mande uma instrução (entra na fila do agente)…'
+              : 'Mande uma nova tarefa…'
     const attachButton = this.composer.querySelector<HTMLButtonElement>('.composer-row > .btn-icon')
     if (attachButton) {
       attachButton.hidden = a.builtIn !== undefined && a.builtIn !== 'luna'
@@ -107,7 +109,13 @@ export abstract class PanelHead extends PanelSearch {
               ? h(
                   'div',
                   { class: 'ab-role' },
-                  a.builtIn ? 'Secretária' : a.role === 'orchestrator' ? 'Orquestrador' : 'Agente',
+                  a.builtIn === 'emi'
+                    ? 'Facilitadora do andar'
+                    : a.builtIn
+                      ? 'Secretária'
+                      : a.role === 'orchestrator'
+                        ? 'Orquestrador'
+                        : 'Agente',
                   accountChip(this.state, a),
                 )
               : led(false),
@@ -282,7 +290,8 @@ export abstract class PanelHead extends PanelSearch {
       h(
         'div',
         { class: 'ab-foot' },
-        h('button', { class: 'btn btn-small', onclick: () => this.actions.goTo(a.id) }, icon('walk', 14), 'Ir até'),
+        // Emi lives on her floor: she is not seated on the map, nor saved as a template or dismissed.
+        a.builtIn ? null : h('button', { class: 'btn btn-small', onclick: () => this.actions.goTo(a.id) }, icon('walk', 14), 'Ir até'),
         a.homeResident
           ? h(
               'button',
@@ -299,7 +308,7 @@ export abstract class PanelHead extends PanelSearch {
               'Mandar embora da Casa',
             )
           : null,
-        office
+        office && !a.builtIn
           ? h(
               'button',
               {
@@ -311,9 +320,11 @@ export abstract class PanelHead extends PanelSearch {
               'Salvar como modelo',
             )
           : null,
-        office
-          ? h('button', { class: 'ab-fire', onclick: () => this.fire(a) }, 'Dispensar agente')
-          : h('button', { class: 'ab-fire', onclick: () => this.actions.closeTerminal(a.id) }, 'Fechar sessão'),
+        a.builtIn
+          ? null
+          : office
+            ? h('button', { class: 'ab-fire', onclick: () => this.fire(a) }, 'Dispensar agente')
+            : h('button', { class: 'ab-fire', onclick: () => this.actions.closeTerminal(a.id) }, 'Fechar sessão'),
       ),
     )
   }

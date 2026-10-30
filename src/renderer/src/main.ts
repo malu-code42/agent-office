@@ -26,6 +26,7 @@ import { openLunaSettings } from './ui/luna-settings'
 import { openLunaPlan } from './ui/luna-plan'
 import { profileById } from '@shared/profiles'
 import { LUNA_AGENT_ID } from '@shared/luna'
+import { emiAgentId } from '@shared/emi'
 import { startLunaProfileTask } from './ui/luna-actions'
 import { openMediaDraft } from './ui/modals/media-draft'
 import { openReports } from './ui/reports'
@@ -190,7 +191,8 @@ async function boot(): Promise<void> {
     if (!floor) return
     game.setProjects(state.settings.projects, state.squads, state.squadProposals)
     game.goFloor(state.settings.projects.findIndex((p) => p.id === floor.id) + 1)
-    toast(`Andar ${floor.name} pronto. Quem você contratar ou chamar aqui trabalha em ${floor.cwd}.`, 'ok')
+    toast(`Andar ${floor.name} pronto. A Emi já está lá: converse com ela para planejar e montar os squads.`, 'ok')
+    if (state.agents.has(emiAgentId(floor.id))) void showAgent(emiAgentId(floor.id))
   }
 
   const radio = new Radio(document.getElementById('overlay')!)
@@ -251,6 +253,13 @@ async function boot(): Promise<void> {
       // A proposal waiting in the room (or one whose composition is being redone) is
       // reopened where it was left, not started over.
       const waiting = state.squadProposals.find((p) => p.projectId === project.id && p.room === room.index && holdsRoom(p))
+      // The floor's Emi builds squads with you in the chat; the form stays for a proposal already open.
+      const emi = emiAgentId(project.id)
+      if (!waiting && state.agents.has(emi)) {
+        void showAgent(emi)
+        toast(`Converse com a Emi: ela monta o squad da Sala ${room.index + 1} com você.`, 'info')
+        return
+      }
       openCreateSquad(ui, state, { project, room, proposal: waiting, toast })
     },
     onMeetingRoomClick: (project) => {
