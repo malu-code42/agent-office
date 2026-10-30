@@ -2,7 +2,7 @@
 
 > **HISTORICAL / SUPERSEDED WHERE CONFLICTING (2026-10-21).** Preserve this earlier product/planning record. The approved `centro-de-controle-da-vida-design.md` and plan now define personal-life scope and phase order. Do not treat the old ticket-01 authorization or delivery sequence as current authorization; external issues/PRs are unchanged.
 
-**Status:** rascunho para aprovação integral. A usuária autorizou especificamente a implementação do ticket 01 em 2026-10-16; isso não autoriza os demais tickets, merge, push, publicação ou release.
+**Status:** planejamento histórico, supersedido onde conflita com o plano aprovado de 2026-10-21. A autorização do ticket 01 em 2026-10-16 não é autorização atual para executar fases ou tickets, fazer merge, push, publicação ou release.
 **Fontes:** [estado consolidado](../prd/hera-integracao-consolidado.md) (seções 3, 4, 7, 10, 12 e 13) e [registro de descoberta](../prd/hera-integracao-descoberta.md).
 **Tracker:** o Agent Office não tem tracker configurado; esta spec é publicada como arquivo, sem label `ready-for-agent`.
 

@@ -9,7 +9,7 @@ export interface Account {
   /** 'main' for ~/.claude. */
   id: string
   name: string
-  /** Only Claude for now; Codex comes later. */
+  /** Claude is the only provider in the product. */
   provider: 'claude'
   /** Config folder; missing = ~/.claude. */
   configDir?: string
