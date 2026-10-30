@@ -1,6 +1,6 @@
 # 0010 — Empacotamento Windows: NSIS x64 e arm64 em instaladores separados, assinatura preparada e desligada
 
-- **Status:** aceito
+- **Status:** superado — O `electron-builder.yml` atual gera só o instalador NSIS x64.
 - **Data:** 2026-10-07 (aceito no checkpoint 12 da rodada `2026-10-07-185405`; Q-7: instaladores separados)
 - **Origem:** ADR-run-10 · lacuna L15 · escopo extra aprovado no PRD
 

@@ -1,6 +1,6 @@
 # 0009 — Testes de funções puras com `node:test` nativo (sem dependência)
 
-- **Status:** aceito
+- **Status:** superado — O projeto migrou para o Vitest (`vitest.config.ts`, `test/**/*.test.ts`).
 - **Data:** 2026-10-07 (aceito no checkpoint 12 da rodada `2026-10-07-185405`, pergunta Q-1, opção a)
 - **Origem:** ADR-run-9
 

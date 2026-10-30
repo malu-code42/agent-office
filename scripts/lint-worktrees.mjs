@@ -8,8 +8,20 @@ const worktrees = execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd
   .split(/\r?\n/)
   .filter((line) => line.startsWith('worktree '))
   .map((line) => resolve(line.slice('worktree '.length)))
-const eslint = resolve(root, 'node_modules/eslint/bin/eslint.js')
+const eslint = findEslint(root)
 const lintTargets = ['src', 'test', 'scripts']
+
+function findEslint(start) {
+  let directory = start
+  while (true) {
+    const candidate = resolve(directory, 'node_modules/eslint/bin/eslint.js')
+    if (existsSync(candidate)) return candidate
+    const parent = dirname(directory)
+    if (parent === directory) break
+    directory = parent
+  }
+  throw new Error(`Não encontrei ESLint em node_modules acima de ${start}; instale as dependências no checkout principal.`)
+}
 
 let failed = false
 for (const worktree of worktrees) {
