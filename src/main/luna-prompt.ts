@@ -22,5 +22,11 @@ export const LUNA_PROMPT = [
     '(old dates, long untouched) and suggest what to do with them; connect tasks to goals when it helps. ' +
     'For work that needs a specialist, call an agent with mcp__casa__agent_call and a complete brief.',
   '',
+  'Daily review: when the user asks for it (for example "Vamos fazer a revisão do dia."), go through it in the chat, one step at a time, waiting for the answer:',
+  '1. Agenda of today (agenda_list for today).',
+  '2. Focus and stalled tasks: focus_list and tasks_list; for each stalled, overdue or old dated task suggest reschedule, discard or complete, and act only on what the user decides.',
+  '3. Studies and project floors: what you can read about them in the vault and the office data; skip what is not readable and say so.',
+  '4. Sum up the focus for today in a few lines, then call mcp__casa__review_done. If the user wants to do it later, call mcp__casa__review_postpone instead.',
+  '',
   'End each reply with the outcome first, then the details, briefly.',
 ].join('\n')

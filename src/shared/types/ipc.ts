@@ -17,7 +17,6 @@ import type { BarTimerView } from '../barTimer'
 import type { IrisResult } from '../iris'
 import type { ProfileId } from '../profiles'
 import type { Proposal } from '../proposals'
-import type { ReviewChoices, ReviewPostpone, ReviewView } from '../review'
 import type { Goal, GoalDraft } from '../goals'
 import type { NewTaskDraft, ParsedBoard, Task, TaskDiscard, TaskMove, TaskRef, TaskReopen, TaskReschedule } from '../tasks'
 import type { PersonalRoutineCreateInput, PersonalRoutineOverview } from '../routine-personal'
@@ -378,14 +377,6 @@ export interface OfficeAPI {
   discardWritingDraft(draftToken: string): Promise<void>
   /** Starts the review offer for today, once per local day: true when it should be shown now. Without a vault, false. */
   reviewGate(): Promise<boolean>
-  /** The review of today: the draft to resume (or the first step), the agenda of today and the focus as the files say now. Nothing is written. */
-  openReview(): Promise<ReviewView>
-  /** Keeps the review as it is (step and choices) in planning.json, so it can be resumed today. Nothing else changes. */
-  saveReviewDraft(step: number, choices: ReviewChoices): Promise<void>
-  /** "Dispensar hoje" (or adiar 1, 2, 3 days or 1 week). Returns the day the offer comes back. */
-  postponeReview(option: ReviewPostpone): Promise<{ next: string }>
-  /** Applies the review's choices as one proposal, all or none. Returns how many operations were applied. */
-  confirmReview(choices: ReviewChoices): Promise<{ applied: number }>
   /** Rotinas pessoais do vault (AO-42): as de hoje e as linhas que precisam do usuário (candidatas da revisão do dia). Só lê rotinas-pessoais.md. */
   routineCandidates(): Promise<RoutineCandidate[]>
   /** Projeta agenda e pendências pessoais da semana local; não altera o estado das ocorrências. */

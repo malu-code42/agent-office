@@ -47,6 +47,12 @@ export function markOffered(planning: PlanningStore, today: string): void {
   planning.setReviewOffered(today)
 }
 
+/** Luna finished the review of today in her chat: today is taken and any draft of the old wizard is dropped. */
+export function finishReview(planning: PlanningStore, today: string): void {
+  markOffered(planning, today)
+  planning.clearReviewDraft()
+}
+
 /** The user postponed the offer, or dismissed it for the day. Returns the day it comes back. */
 export function postponeReview(planning: PlanningStore, today: string, option: ReviewPostpone): string {
   const next = reviewNextDay(today, option)
