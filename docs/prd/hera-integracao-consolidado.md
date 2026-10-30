@@ -189,7 +189,7 @@ Mostrar vistas diferentes: **só diretoria**; **salas já existentes sem squad, 
 - Ao abrir, mostrar um resumo curto da situação e a conversa, destacando a decisão pendente quando houver. Detalhes técnicos não dominam a abertura. Não exigir exibição de raciocínio interno; mostrar ações, justificativas e evidências úteis.
 - Malu pode conversar com qualquer integrante de um squad. Um pedido que altere escopo ou redistribua trabalho **vira proposta ao responsável correto, não execução paralela**. Quando o pedido sai do escopo do agente, ele o encaminha ao responsável adequado e informa Malu. O encaminhamento não amplia permissões nem pula aprovações; nos estudos, mudar tópico ou critério exige confirmação explícita.
 - Conversar não substitui ações estruturadas: aprovar spec, entrega, merge, conclusão de ciclo ou aceite de cartão continuam nos controles próprios; respostas de estudo são dadas na atividade, não no chat.
-- Referência visual: `claude design/proto/agent-popups.html` (galeria descartável dos 15 papéis, simulada) e `claude design/exports/`.
+- Referência visual histórica: a galeria dos 15 papéis e exports foram movidos para `D:\Documents\agent-office-arquivo\claude-design-legado-2026-10-22\`; não fazem parte do design vigente. A prévia atual permanece em `claude design/proto/`.
 
 ### Fontes externas (Q73) e tópicos (Q76)
 
@@ -341,7 +341,7 @@ Os pontos P1 a P9 da seção 12 estão fechados:
 
 **Pendências técnicas que o to-spec resolve com proposta:** formato do arquivo de agenda (P4) e o que "Reabrir" faz com a data de conclusão (P2).
 
-**Spec e tickets publicados:** [entrega 1 — planejamento pessoal](../specs/entrega-1-planejamento.md) e `.scratch/entrega-1-planejamento/issues/` (13 tickets).
+**Referencias:** [spec de planejamento pessoal](../specs/entrega-1-planejamento.md). Os tickets historicos que ficavam em `.scratch/entrega-1-planejamento/issues/` foram movidos para `D:\Documents\agent-office-arquivo\scratch-legado-2026-10-22\`; nao sao uma fila ativa. Para a direcao atual do produto, use `../specs/centro-de-controle-da-vida-design.md` e `../specs/centro-de-controle-da-vida-plano.md`.
 
 **Autorização de implementação (2026-10-16, pedido da usuária):** a implementação dos tickets com status `ready-for-agent` será feita com o próprio Agent Office, em worktree e branch separados por ticket. Escopo da autorização: criar worktrees e branches, implementar e rodar as verificações. **Não inclui merge, push, publicação, mudança de versão nem release**, que exigem aprovação separada. Tickets `awaiting-decision` só começam depois da decisão do ponto pendente indicado em cada um.
 

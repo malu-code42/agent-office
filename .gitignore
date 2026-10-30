@@ -21,3 +21,10 @@ coverage/
 .env
 .env.*
 !.env.example
+
+# Arquivos locais da máquina da Malu (fora do repo)
+.scratch/
+.tmp/
+/CLAUDE.md
+/claude design/
+/vault-agent-office/
