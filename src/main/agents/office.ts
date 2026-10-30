@@ -89,6 +89,8 @@ export abstract class AgentOffice extends AgentBase {
         ...(worktree ? { worktree } : {}),
       }
       if (seat.temporary) summary.temporary = true
+      // #105: an agent called to the house (by Luna) stays around it after the task until sent away.
+      if (req.homeResident) summary.homeResident = true
       const agent: Agent = { summary, log: [], started: false }
       this.agents.set(id, agent)
       this.upsert(agent)

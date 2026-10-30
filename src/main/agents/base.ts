@@ -18,7 +18,7 @@ import type {
   PermissionRequest,
   SubagentInfo,
 } from '@shared/types'
-import { AGENT_NAMES } from '@shared/describe'
+import { pickAgentName } from '@shared/describe'
 import { lunaAgentSummary } from '@shared/luna'
 import { projectFor } from '@shared/projects'
 import { type Accounts } from '../accounts'
@@ -107,6 +107,8 @@ export abstract class AgentBase extends EventEmitter {
     const agent = this.agents.get(id)
     if (!agent || agent.summary.source !== 'office' || agent.summary.builtIn || agent.summary.departed)
       throw new Error('Este agente não pode ficar na Casa.')
+    // #105: a called agent stays until its task is over; only then may it be sent away.
+    if (!resident && this.busy(agent)) throw new Error(`${agent.summary.name} ainda está na tarefa. Mande embora depois que ele terminar.`)
     if (resident) agent.summary.homeResident = true
     else delete agent.summary.homeResident
     this.upsert(agent)
@@ -130,9 +132,19 @@ export abstract class AgentBase extends EventEmitter {
 
   // ---------- helpers ----------
 
+  /** Picks agent names; tests replace it to make the pick deterministic. */
+  protected random: () => number = Math.random
+
   protected freeName(fallback = 'Agente'): string {
-    const used = new Set([...this.agents.values()].map((a) => a.summary.name))
-    return AGENT_NAMES.find((n) => !used.has(n)) ?? fallback
+    const all = [...this.agents.values()].map((a) => a.summary)
+    const active = all.filter((a) => !a.departed).map((a) => a.name)
+    return (
+      pickAgentName(
+        active,
+        all.map((a) => a.name),
+        this.random,
+      ) ?? fallback
+    )
   }
 
   /**
@@ -234,6 +246,7 @@ export abstract class AgentBase extends EventEmitter {
   // ---------- implemented by the later parts ----------
   protected abstract watchSquad(agent: Agent): void
   protected abstract run(agent: Agent, prompt: Prompt): void
+  protected abstract busy(agent: Agent): boolean
   protected abstract pauseOnLimit(agent: Agent, hit: { resetsAt?: number }): boolean
   protected abstract trackSubagents(agent: Agent, msg: Extract<SDKMessage, { type: 'system' }>): void
   protected abstract subLogs(agent: Agent): SubagentLogs

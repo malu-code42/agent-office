@@ -288,7 +288,11 @@ export abstract class PanelHead extends PanelSearch {
               'button',
               {
                 class: 'btn btn-small',
-                title: 'Encerra somente a presença na Casa; a tarefa, sessão e histórico continuam.',
+                // #105: the main process refuses it too while the task runs.
+                disabled: ['working', 'starting', 'waiting'].includes(a.status),
+                title: ['working', 'starting', 'waiting'].includes(a.status)
+                  ? `${a.name} ainda está na tarefa. Dá para mandar embora depois que ele terminar.`
+                  : 'Encerra somente a presença na Casa; a sessão e o histórico continuam.',
                 onclick: () => void this.releaseHome(a),
               },
               icon('walk', 14),

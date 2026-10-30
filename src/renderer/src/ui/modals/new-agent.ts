@@ -1,4 +1,4 @@
-import { AGENT_NAMES } from '@shared/describe'
+import { pickAgentName } from '@shared/describe'
 import { projectFor } from '@shared/projects'
 import { PROFILES, profileById } from '@shared/profiles'
 import type { AgentBrain, OfficePermissionMode, ProjectFloor } from '@shared/types'
@@ -142,7 +142,7 @@ export function openNewAgent(
   return new Promise((resolve) => {
     const { toast } = opts
     const used = new Set([...state.agents.values()].map((a) => a.name))
-    const name = h('input', { class: 'input', value: AGENT_NAMES.find((n) => !used.has(n)) ?? `Agente ${used.size + 1}`, maxlength: 40 })
+    const name = h('input', { class: 'input', value: pickAgentName(used) ?? `Agente ${used.size + 1}`, maxlength: 40 })
     const isolated = worktreeToggle()
     const folder = folderField(state, project, (p) => isolated.set(p))
     isolated.set(folder.cwd())
