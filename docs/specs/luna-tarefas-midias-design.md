@@ -2,13 +2,18 @@
 
 **Data:** 2026-10-28  
 **Base:** `origin/main` em `1f4dd84` (PR #98 integrada)  
-**Status:** aprovada para implementação; execução sequencial documentada em `luna-tarefas-midias-plan.md`.
+**Status:** lote de tarefas/mídias aprovado; desenho antigo da Luna foi supersedido pela autorização conversacional de 2026-10-29 em `centro-de-controle-da-vida-design.md` e ticket #101. Reconciliar a parte Luna antes de integrar a PR #100.
 
 ## Objetivo
 
 Corrigir os fluxos de assistência diária, tarefas em foco e acesso à biblioteca de mídias, preservando os padrões visuais e de segurança do Agent Office. O trabalho será entregue em três partes: Luna, tarefas e mídias.
 
 ## Decisões confirmadas
+
+- **Atualização 2026-10-29:** Luna é assistente pessoal o mais próxima possível de um agente comum: chat normal, mesmas ferramentas dos demais agentes, sem popups novas. Tem leitura ampla do vault pessoal configurado, dados pessoais do Office, memórias disponíveis e projetos/worktrees registrados, sem aprovação por consulta. Ajuda com agenda, objetivos, rotinas e tarefas paradas/abandonadas.
+- Pedidos claros de organização são executados diretamente; ambiguidade gera pergunta; exclusões/descartes exigem confirmação explícita.
+- Leitura ampla não remove sandbox, permissões, validação IPC, proteção de segredos ou gates de publicação. Fontes externas precisam ser conectadas pela usuária; credenciais e segredos nunca são enviados ao modelo.
+- As popups já existentes descritas abaixo não são caminho obrigatório: tudo o que fazem também precisa funcionar pelo chat normal da Luna.
 
 - Luna continua sendo uma agente fixa do Agent Office. Não pode ser removida nem renomeada; poderá editar sua **aparência**, **modelo** e **esforço**. Essas preferências são próprias da Luna, não alteram os padrões globais nem a identidade/nome/função dela.
 - Revisão do dia e planejamento de amanhã terão popups próprios, coerentes com os modais atuais. As alterações do planejamento só serão persistidas após confirmação final explícita.
