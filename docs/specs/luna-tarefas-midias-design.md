@@ -16,7 +16,7 @@ Corrigir os fluxos de assistência diária, tarefas em foco e acesso à bibliote
 - As popups já existentes descritas abaixo não são caminho obrigatório: tudo o que fazem também precisa funcionar pelo chat normal da Luna.
 
 - Luna continua sendo uma agente fixa do Agent Office. Não pode ser removida nem renomeada; poderá editar sua **aparência**, **modelo** e **esforço**. Essas preferências são próprias da Luna, não alteram os padrões globais nem a identidade/nome/função dela.
-- Revisão do dia e planejamento de amanhã terão popups próprios, coerentes com os modais atuais. As alterações do planejamento só serão persistidas após confirmação final explícita.
+- Revisão do dia e planejamento de amanhã terão popups próprios, coerentes com os modais atuais. As alterações do planejamento só serão persistidas após confirmação final explícita. _(Atualizado: a revisão do dia não tem mais popup; acontece na conversa com a Luna, ver `luna-agente-comum-tecnico.md`.)_
 - A conversa normal com a Luna não deve pedir aprovação intermediária do contexto preparado antes de enviar ao Claude. Isso não muda o modo de permissão da Luna nem elimina confirmações de ações destrutivas ou de outras operações.
 - O motivo de o chat não responder será diagnosticado no fluxo completo; remover a aprovação de contexto, isoladamente, não será considerado prova de correção.
 - A entrada de tarefas deve oferecer um botão superior para abrir o quadro; o estado vazio não pode aparecer junto de tarefas válidas.

@@ -4,19 +4,10 @@ import { join } from 'node:path'
 import type { AgendaWriter } from '../agenda-write'
 import { dayKey } from '../backups'
 import { focusItems } from '@shared/planning'
-import {
-  confirmReview,
-  hasDraftToday,
-  offerDue,
-  markOffered,
-  openReview,
-  postponeReview,
-  saveReviewDraft,
-  type ReviewDeps,
-} from '../review'
+import { finishReview, hasDraftToday, markOffered, offerDue, openReview, postponeReview, type ReviewDeps } from '../review'
 import type { TaskWriter } from '../tasks-write'
 import { taskIdsIn } from '../tasks-write'
-import { reviewPostponed } from '@shared/review'
+import type { ReviewPostpone } from '@shared/review'
 import { PERSONAL_ROUTINES_FILE, personalRoutineCandidates, personalRoutineDefinition, personalRoutineOverview } from '../routines-personal'
 import { localWeek, routineOccurrenceId, weeklyOccurrenceDates } from '@shared/routine-personal'
 import type { PersonalRoutineStore } from '../personal-routines-store'
@@ -27,22 +18,19 @@ import {
   createPersonalRoutineTaskSchema,
   parse,
   personalRoutineOccurrenceSchema,
-  reviewChoicesSchema,
-  reviewPostponeSchema,
-  reviewStepSchema,
 } from '../validate'
 import type { IpcContext } from './context'
 
 /**
- * The daily review (AO-12). Every handler here is free of AI: it reads the files, keeps the review's state
- * in planning.json and, on confirmation, applies one proposal. `files` are the writers of tasks.ts, so one read
- * of tarefas.md is what every confirmation checks against.
+ * The daily review (AO-12). It happens in Luna's chat: the page only asks whether it is due, and Luna reads the
+ * focus, finishes or postpones it through her tools, which call what this returns. Nothing here calls an AI.
+ * `files` are the writers of tasks.ts, so the reads here are the ones the board checks against.
  */
 export function registerReviewIpc(
   ctx: IpcContext,
   files: { tasks: TaskWriter; agenda: AgendaWriter; vault(): string },
   personalRoutines: PersonalRoutineStore,
-): void {
+) {
   const deps = (): ReviewDeps => ({ planning: ctx.planning, tasks: files.tasks, agenda: files.agenda, now: () => new Date() })
   const draftChanged = () => ctx.broadcast({ type: 'review:draft', draft: hasDraftToday(ctx.planning, new Date()) })
   // The offer is shown once per local day. Without a vault there is nothing to review, so no offer and no mark.
@@ -54,13 +42,6 @@ export function registerReviewIpc(
     ctx.broadcast({ type: 'review:due', due: true })
     ctx.broadcast({ type: 'review:nextDay', nextDay: ctx.planning.reviewNextDay() })
     return true
-  })
-
-  ipcMain.handle('office:openReview', async () => {
-    const today = dayKey()
-    const nextDay = ctx.planning.reviewNextDay()
-    if (reviewPostponed(nextDay, today)) throw new Error('A revisão só pode ser reaberta após a data de retorno.')
-    return openReview(files.vault(), deps())
   })
 
   // AO-47: definitions remain read-only in the vault; distribution/occurrence state stays in userData.
@@ -201,38 +182,20 @@ export function registerReviewIpc(
     if (error) throw new Error(`Não consegui abrir rotinas-pessoais.md: ${error}`)
   })
 
-  ipcMain.handle('office:saveReviewDraft', async (_e, step: unknown, choices: unknown) => {
-    const s = parse(reviewStepSchema, step, 'Passo da revisão invǭlido.')
-    const c = parse(reviewChoicesSchema, choices, 'Escolhas da revisão invǭlidas.')
-    saveReviewDraft(ctx.planning, dayKey(), s, c)
-    draftChanged()
-  })
-
-  ipcMain.handle('office:postponeReview', async (_e, option: unknown) => {
-    const o = parse(reviewPostponeSchema, option, 'Opção de adiamento invǭlida.')
-    try {
-      return { next: postponeReview(ctx.planning, dayKey(), o) }
-    } finally {
-      ctx.broadcast({ type: 'review:due', due: false })
-      ctx.broadcast({ type: 'review:nextDay', nextDay: ctx.planning.reviewNextDay() })
-    }
-  })
-
-  // The choices come from the page, so they are checked here; the proposal is then planned and applied in the main process.
-  // A draft deferred by "Adiar"/"Dispensar" may not be confirmed before its return date, with or without a saved draft.
-  ipcMain.handle('office:confirmReview', async (_e, choices: unknown) => {
-    const c = parse(reviewChoicesSchema, choices, 'Escolhas da revisão invǭlidas.')
-    const today = dayKey()
-    const nextDay = ctx.planning.reviewNextDay()
-    if (reviewPostponed(nextDay, today)) {
-      throw new Error('A revisão só pode ser confirmada após a data de retorno.')
-    }
-    try {
-      return confirmReview(files.vault(), c, deps())
-    } finally {
-      ctx.broadcast({ type: 'proposals', proposals: ctx.planning.pendingProposals() })
+  return {
+    focus: () => openReview(files.vault(), deps()).focus,
+    done: () => {
+      finishReview(ctx.planning, dayKey())
       ctx.broadcast({ type: 'review:due', due: false })
       draftChanged()
-    }
-  })
+    },
+    postpone: (option: ReviewPostpone) => {
+      try {
+        return postponeReview(ctx.planning, dayKey(), option)
+      } finally {
+        ctx.broadcast({ type: 'review:due', due: false })
+        ctx.broadcast({ type: 'review:nextDay', nextDay: ctx.planning.reviewNextDay() })
+      }
+    },
+  }
 }
