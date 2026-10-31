@@ -101,7 +101,12 @@ export function entryView(e: LogEntry): HTMLElement {
                 'div',
                 { class: 'entry-files' },
                 e.attachments.map((a) =>
-                  h('span', { class: 'file-chip', title: `${ATTACH_KIND_LABEL[a.kind]} · ${formatBytes(a.size)}` }, icon(a.kind === 'image' ? 'image' : 'file', 12), h('span', { class: 'file-chip-name' }, a.name)),
+                  h(
+                    'span',
+                    { class: 'file-chip', title: `${ATTACH_KIND_LABEL[a.kind]} · ${formatBytes(a.size)}` },
+                    icon(a.kind === 'image' ? 'image' : 'file', 12),
+                    h('span', { class: 'file-chip-name' }, a.name),
+                  ),
                 ),
               )
             : null,
@@ -110,7 +115,12 @@ export function entryView(e: LogEntry): HTMLElement {
     case 'assistant':
       return h('div', { class: 'entry entry-assistant' }, renderMarkdown(e.text))
     case 'tool':
-      return h('div', { class: 'entry entry-tool' }, h('span', { class: 'tool-name' }, icon(toolIcon(e.tool), 12), e.tool ?? 'tool'), h('span', { class: 'tool-text' }, e.text))
+      return h(
+        'div',
+        { class: 'entry entry-tool' },
+        h('span', { class: 'tool-name' }, icon(toolIcon(e.tool), 12), e.tool ?? 'tool'),
+        h('span', { class: 'tool-text' }, e.text),
+      )
     case 'tool_result': {
       const pre = h('pre', { class: 'entry-pre' + (e.isError ? ' err' : '') }, e.text)
       const wrap = h('div', { class: 'entry entry-result collapsed' }, pre)
@@ -128,7 +138,11 @@ export function entryView(e: LogEntry): HTMLElement {
           { class: 'final-head' },
           h('div', { class: 'final-label' }, e.isError ? 'Erro' : 'Resultado entregue'),
           // The panel opens it as a card (delegated click in PanelBase).
-          h('button', { class: 'icon-btn final-open', type: 'button', title: 'Abrir como cartão', 'aria-label': 'Abrir como cartão' }, icon('expand', 13)),
+          h(
+            'button',
+            { class: 'icon-btn final-open', type: 'button', title: 'Abrir como cartão', 'aria-label': 'Abrir como cartão' },
+            icon('expand', 13),
+          ),
         ),
         renderMarkdown(e.text),
       )

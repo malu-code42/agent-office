@@ -1,10 +1,24 @@
+import type { LogEntry } from '@shared/types'
 import { h, icon } from '../dom'
+import { isDupOfResult } from '@shared/feed-dedupe'
 import { entryCategory, entryText, entryView, passesFilter } from './entries'
 import { FEED_MAX, FILTERS, MOD, type LogFilter } from './helpers'
 import { PanelBase } from './base'
 
 /** Log filters, search (CSS Highlight API) and the export buttons. */
 export abstract class PanelSearch extends PanelBase {
+  /** The last entry appended and its view, to hide a bubble the final result repeats. */
+  protected lastEntry?: LogEntry
+  protected lastView?: HTMLElement
+
+  /** First log index shown: entries before the agent's last "Limpar conversa" stay stored but hidden. */
+  protected get floor(): number {
+    const at = this.agentId ? this.state.agents.get(this.agentId)?.clearedAt : undefined
+    if (!at) return 0
+    const i = this.log.findIndex((e) => e.t >= at)
+    return i < 0 ? this.log.length : i
+  }
+
   // ---------- filtros, busca e exportação (AO-36) ----------
 
   protected renderTools(): void {
@@ -14,13 +28,33 @@ export abstract class PanelSearch extends PanelBase {
         'div',
         { class: 'panel-filters' },
         ...FILTERS.map((f) =>
-          h('button', { class: `panel-filter${this.filter === f.value ? ' on' : ''}`, title: f.title, onclick: () => this.setFilter(f.value) }, f.label),
+          h(
+            'button',
+            { class: `panel-filter${this.filter === f.value ? ' on' : ''}`, title: f.title, onclick: () => this.setFilter(f.value) },
+            f.label,
+          ),
         ),
       ),
       h('div', { class: 'grow' }),
       h('button', { class: 'icon-btn', title: `Buscar no log (${MOD}F)`, onclick: () => this.openSearch() }, icon('search', 15)),
-      h('button', { class: 'icon-btn', title: 'Copiar relatório (o resultado final do agente)', onclick: () => id() && this.actions.copyReport(id()!) }, icon('copy', 15)),
-      h('button', { class: 'icon-btn', title: 'Exportar a conversa em Markdown (.md)', onclick: () => id() && this.actions.exportConversation(id()!) }, icon('file', 15)),
+      h(
+        'button',
+        {
+          class: 'icon-btn',
+          title: 'Copiar relatório (o resultado final do agente)',
+          onclick: () => id() && this.actions.copyReport(id()!),
+        },
+        icon('copy', 15),
+      ),
+      h(
+        'button',
+        {
+          class: 'icon-btn',
+          title: 'Exportar a conversa em Markdown (.md)',
+          onclick: () => id() && this.actions.exportConversation(id()!),
+        },
+        icon('file', 15),
+      ),
     )
   }
 
@@ -63,8 +97,9 @@ export abstract class PanelSearch extends PanelBase {
 
   /** Entrada antes do feed mais próxima dele que tem o termo e passa no filtro; -1 se nenhuma. */
   protected olderMatch(term: string): number {
-    for (let i = this.from - 1; i >= 0; i--) {
+    for (let i = this.from - 1; i >= this.floor; i--) {
       const e = this.log[i]
+      if (isDupOfResult(e, this.log[i + 1])) continue
       if (passesFilter(entryCategory(e), this.filter) && entryText(e).includes(term)) return i
     }
     return -1
@@ -76,8 +111,9 @@ export abstract class PanelSearch extends PanelBase {
     const views: HTMLElement[] = []
     // a saída com erro marca a ferramenta que veio antes dela, como em append()
     let tool: HTMLElement | null = null
-    for (const e of this.log.slice(index, this.from)) {
+    for (const [n, e] of this.log.slice(index, this.from).entries()) {
       const view = entryView(e)
+      if (isDupOfResult(e, this.log[index + n + 1])) view.classList.add('entry-dup')
       view.dataset.cat = entryCategory(e)
       if (e.kind === 'tool') tool = view
       else if (e.kind === 'tool_result' && e.isError && tool) tool.dataset.cat += ' err'
