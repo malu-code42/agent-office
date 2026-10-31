@@ -5,7 +5,7 @@ Detalhes de produto e uso: `README.md` e `COMO-RODAR.md`. Decisões de Windows: 
 
 ## O que é
 
-App Electron (TypeScript, ESM) que mostra um escritório isométrico em three.js onde agentes do Claude Code trabalham,
+App Electron (TypeScript, ESM) que mostra um escritório isométrico em pixel art (Canvas2D) onde agentes do Claude Code trabalham,
 pedem permissão e entregam resultados. Os agentes rodam via `@anthropic-ai/claude-agent-sdk` usando o `claude` instalado
 pelo usuário (o binário de ~220 MB do SDK é excluído do pacote). Roda em macOS, Windows 10/11 e Linux x64.
 
@@ -46,12 +46,12 @@ src/main/       processo principal (Node/Electron)
   log.ts          log em arquivo com redact()
 src/preload/    index.ts expõe window.office (precisa compilar em CJS); api.d.ts só tipa
 src/shared/     código puro usado por main e renderer; types/ipc.ts define OfficeAPI, OfficeState, OfficeEvent
-src/renderer/   UI sem framework (DOM puro + three.js)
+src/renderer/   UI sem framework (DOM puro + Canvas2D)
   src/main.ts     boot, atalhos globais, loop de render
   src/state.ts    espelho observável do estado do main (apply(OfficeEvent), onChange)
   src/game/       classe Game em cadeia: base → floors → boards → actors → lounge → deliveries → subagents → squads → skull → movement → input → index
-  src/world/      peças three.js (engine, layout, móveis, avatar, dispose, merge, pathfinding)
-  src/world2d/    mundo 2D em pixel art (Canvas2D) dos andares de projeto; ver docs/specs/motor-2d.md
+  src/world2d/    o mundo em pixel art (Canvas2D): renderer, avatar (quem anda), plan/layout/casa/estudos
+                  (plantas), pathfinding, overlays (tags HTML), skins (cores do Look); ver docs/specs/motor-2d.md
   src/assets/pixel/  atlas, layout e fonte gerados por scripts/pixel-art (não edite à mão)
   src/ui/         HUD, modais, painel do agente, quadro, relatórios, rotinas, a11y
   src/styles/     um CSS por componente, importados por index.css
@@ -134,15 +134,17 @@ Erros para o usuário: `throw new Error('<pt-BR>')`, que o renderer mostra.
 6. Exporte em `modals/index.ts` e ligue em `main.ts` por um hook.
 7. CSS em `styles/modals.css` ou arquivo novo com `@import` em `styles/index.css` (a ordem dos imports é a ordem da cascata).
 
-### Mudanças no mundo 3D
-- Remover objeto da cena **não** libera GPU. Chame `disposeTree(root)` de `world/dispose.ts`.
-- Recursos compartilhados/cacheados: envolva com `shared()` para `disposeTree` pular.
-- Em `avatar.ts`, faça dispose **antes** de limpar os filhos (ordem inversa causou vazamento AO-28).
-- `merge.ts` funde malhas estáticas. Tudo que se move, alterna ou é clicável precisa de `animated()`.
-  Nunca altere material de `kit.ts` em tempo de execução.
+### Mudanças no mundo 2D
+- A arte vem de `scripts/pixel-art` (Python + Pillow): mudou sprite ou planta, rode `export_app.py` e faça o commit dos
+  arquivos gerados em `src/assets/pixel/`. Não edite `atlas.png`/`*.json` à mão.
+- O renderer desenha sob demanda: só os retângulos de quem mudou (pessoas, extras como portas, cordões, efeitos).
+  Animação nova entra no `sig` da pessoa/extra; o que não muda não redesenha.
+- Animação dirigida pelo `update(dt)` (tempo do jogo), nunca por `requestAnimationFrame` próprio nem só por `setTimeout`:
+  a janela oculta (capturas, bench) quase não roda rAF.
 - Depois de input/evento, chame `game.wake()`/`wakeUntil`, senão o loop fica no tick lento.
 - `update(dt)` só move; `draw(dt)` só desenha.
-- Valide vazamentos com `await __leakTest()` no console em dev. Performance: F3 ou `?perf`, e `npm run bench`.
+- Valide vazamentos com `await __leakTest()` no console em dev (canvases, KB de pixels, tags, heap). Performance: F3 ou
+  `?perf`, e `npm run bench`.
 
 ### UI e acessibilidade
 - Tema escuro só. Cores vêm de tokens em `styles/tokens.css`. Cor nova de texto: rode `npm run contrast`.
@@ -157,7 +159,7 @@ Erros para o usuário: `throw new Error('<pt-BR>')`, que o renderer mostra.
 - Vitest, ambiente Node. `electron` é mockado por `test/mocks/electron.ts` (userData em pasta temporária por arquivo).
 - Lógica nova não trivial ganha teste em `test/<modulo>.test.ts`.
 - Módulos puros evitam importar Electron para serem testáveis (`fs-safe.ts`, `backups.ts`, `claude-path.ts`).
-- No renderer, só código sem DOM é testado (`world/pathfinding.ts`, `ui/tour-plan.ts`, `ui/os-text.ts`, `ui/a11y.ts`).
+- No renderer, só código sem DOM é testado (`world2d/pathfinding.ts`, `ui/tour-plan.ts`, `ui/os-text.ts`, `ui/a11y.ts`).
   Para testar outro arquivo do renderer, inclua-o em `tsconfig.test.json`.
 - Cobertura mínima de 70% de linhas nos módulos listados em `vitest.config.ts`.
 - Timeout de 20 s porque testes de git são lentos no Windows.
@@ -188,7 +190,7 @@ Erros para o usuário: `throw new Error('<pt-BR>')`, que o renderer mostra.
 
 1. `npm run typecheck && npm run lint && npm test && npm run build`.
 2. Formate só os arquivos tocados.
-3. Mudou texto/cor de UI: `npm run contrast -- --check`. Mudou o mundo 3D: `__leakTest()`.
+3. Mudou texto/cor de UI: `npm run contrast -- --check`. Mudou o mundo 2D: `__leakTest()`.
 4. Mudou comportamento por plataforma: pense em macOS, Windows e Linux; registre ADR se for decisão.
 5. Mudou algo descrito aqui: atualize este arquivo.
 
