@@ -2,6 +2,8 @@ import * as THREE from 'three'
 import { emiAgentId } from '@shared/emi'
 import { CASA_LAYOUT } from '../world2d/atlas'
 import { zoneAt, type CasaAct } from '../world2d/casa'
+import { studyZoneAt, type StudyAct } from '../world2d/estudos'
+import type { HomeChair } from '../world/home-layout'
 import { GameMovement } from './movement'
 import { SKULL_HOME, type Point } from './types'
 
@@ -18,6 +20,18 @@ const CASA_TITLES: Record<CasaAct, string> = {
   skull: 'Caveira: dispensar um agente',
   totem: 'Rotinas de agentes',
   computer: 'Novo agente',
+}
+
+/** What the pointer over a clickable thing of the study floor says. */
+const STUDY_TITLES: Record<StudyAct, string> = {
+  library: 'Biblioteca: pesquisar com a Cora',
+  cycle: 'Tópico atual: abrir o ciclo de estudo',
+  desk: 'Sua carteira: sentar e estudar',
+  questions: 'Banco de questões',
+  cards: 'Notas e cartões',
+  schedule: 'Horário de aula',
+  cora: 'Cora · bibliotecária',
+  bonnie: 'Bonnie · ciclo de estudo',
 }
 
 /** Camera and input: keys, drag to pan, wheel to zoom, clicks and the hover outline. */
@@ -75,6 +89,7 @@ export abstract class GameInput extends GameMovement {
       this.hover.visible = false
       this.hover2d = null
       this.casaHot = null
+      this.studyHot = null
       for (const interaction of this.office.interactions) interaction.highlight.visible = false
       document.body.style.cursor = ''
     })
@@ -103,7 +118,7 @@ export abstract class GameInput extends GameMovement {
         return h ? { id: h.parentId, helper: h.id } : null
       }
       if (hit.key === 'emi') return this.currentProject ? { id: emiAgentId(this.currentProject.id) } : null
-      if (hit.key === 'luna') return null
+      if (hit.key === 'luna' || hit.key === 'cora' || hit.key === 'bonnie' || hit.key.startsWith('teacher:')) return null
       return this.actors.has(hit.key) ? { id: hit.key } : null
     }
     const view = this.player.floor
@@ -125,6 +140,7 @@ export abstract class GameInput extends GameMovement {
 
   protected click(x: number, y: number): void {
     if (this.flat && this.player.floor === 0 && this.clickCasa2d(x, y)) return
+    if (this.flat && this.player.floor === this.studyFloor && this.clickStudy2d(x, y)) return
     if (this.onSkull(x, y)) {
       this.hooks.onSkull()
       return
@@ -203,6 +219,49 @@ export abstract class GameInput extends GameMovement {
     else if (act === 'radio') this.hooks.onTv()
     else this.hooks.onHomeAction(act)
     return true
+  }
+
+  /**
+   * A click on the study floor: Cora, Bonnie, a teacher (the study cycle), the furniture
+   * (library, blackboard, the user's desk, question bank, notes and cards, class schedule)
+   * and the elevator door. False lets the click go on to the agents and the floor.
+   */
+  private clickStudy2d(x: number, y: number): boolean {
+    const hit = this.flat2d.pick(x, y)
+    if (hit?.kind === 'person') {
+      if (hit.key === 'cora' || hit.key === 'bonnie') {
+        this.hooks.onStudy?.(hit.key)
+        return true
+      }
+      const teacher = this.study.teacherOf(hit.key)
+      if (teacher) {
+        this.hooks.onStudy?.('cycle', teacher)
+        return true
+      }
+      return false
+    }
+    if (hit?.kind === 'elevator') {
+      const door = this.elevatorOf(this.player.floor)
+      this.walkPlayerTo([door.tile[0], door.tile[1] + 1])
+      this.hooks.onElevator?.()
+      return true
+    }
+    if (hit?.kind !== 'study') return false
+    // the user's desk: the player sits down to study, and the cycle opens
+    if (hit.act === 'desk') this.sitPlayerOn(this.study.plan.student)
+    this.hooks.onStudy?.(hit.act)
+    return true
+  }
+
+  /** The player walks to a chair of the floor it is on and sits there. */
+  protected sitPlayerOn(chair: HomeChair): void {
+    const p = this.player
+    this.follow = true
+    this.route(p, [Math.floor(chair.x), Math.floor(chair.z)], chair, () => {
+      p.placeAt(chair.x, chair.z)
+      p.face(chair.face, true, true)
+      p.pose = 'sit'
+    })
   }
 
   protected onTv(x: number, y: number): boolean {
@@ -294,6 +353,22 @@ export abstract class GameInput extends GameMovement {
               : over || !grid.inside(tx, tz)
                 ? ''
                 : (zoneAt(CASA_LAYOUT, tx, tz) ?? '')
+        if (flat.canvas.title !== title) flat.canvas.title = title
+      } else if (this.player.floor === this.studyFloor) {
+        // the study floor has no plates either: names and what a click does on hover
+        this.studyHot = over?.kind === 'study' ? over.act : null
+        const teacher = over?.kind === 'person' ? this.study.teacherOf(over.key) : undefined
+        const title = this.studyHot
+          ? STUDY_TITLES[this.studyHot]
+          : teacher
+            ? `${teacher.name} · ${teacher.role}`
+            : over?.kind === 'person' && (over.key === 'cora' || over.key === 'bonnie')
+              ? STUDY_TITLES[over.key]
+              : over?.kind === 'elevator'
+                ? 'Elevador'
+                : over || !grid.inside(tx, tz)
+                  ? ''
+                  : (studyZoneAt(this.study.layout, tx, tz) ?? '')
         if (flat.canvas.title !== title) flat.canvas.title = title
       } else if (flat.canvas.title) flat.canvas.title = ''
       return

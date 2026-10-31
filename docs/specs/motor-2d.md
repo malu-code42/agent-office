@@ -1,6 +1,6 @@
 # Motor 2D: pixel art isométrica no lugar do mundo 3D
 
-**Status:** fases 1 (motor + andar de projeto) e 2 (Casa) entregues, atrás de Configurações → Vídeo → Visual (2D beta, padrão).
+**Status:** fases 1 (motor + andar de projeto), 2 (Casa) e 3 (andar de estudos) entregues, atrás de Configurações → Vídeo → Visual (2D beta, padrão). Com Visual = 2D, todos os andares são 2D.
 **Aprovado em:** 2026-10-30.
 
 ## Por quê
@@ -72,6 +72,40 @@ dela), porta do elevador (o jogador anda até lá e o painel Elevador ganha o fo
 - Trocar o Visual no térreo senta o jogador na cadeira do plano novo e reposiciona quem está na Casa.
 - Com Visual 2D, a Casa 3D continua construída (para trocar de volta), mas não atualiza nem desenha.
 
+## O andar de estudos (fase 3)
+
+- Não existia andar de estudos no 3D: as telas de estudo (`ui/study-cycle.ts`, `study-cards.ts`,
+  `study-questions.ts`) não abriam de lugar nenhum. O andar existe só no 2D e é a porta de entrada delas.
+- É o andar de cima, depois dos de projeto (`GameBase.studyFloor` = número de andares de projeto + 1; -1 no
+  3D). O elevador mostra "Estudos"; quem está lá continua lá quando um andar de projeto entra ou sai; trocar
+  para 3D leva o jogador para a Casa. O botão "Andar de projeto" conta só os andares de projeto.
+- `scene_estudos.py` foi dividida como a Casa: `shell()` (piso, paredes, tapetes, elevador, horário de aula,
+  mural e quadro na parede oeste) vira `estudos-base.png`; o resto vira sprites em `estudos.json`. A prévia
+  (`build()`) sai pixel a pixel igual à arte aprovada.
+- `estudos.json`: móveis (os clicáveis com `act`), o horário de aula (`hot`, desenhado na base), as cadeiras
+  da Cora, da Bonnie, das visitas, dos 5 professores (na ordem de `TEACHERS`), a carteira do usuário e a da
+  mesa de notas, onde o professor da vez fica (`class`), zonas, tags e elevador. Os vidros que caem no meio
+  de um tile (biblioteca, diretoria, parede entre professores e aula) bloqueiam o tile inteiro, menos a porta.
+- `world2d/estudos.ts`: `studyPlan` (cadeiras, lugar da aula, elevador, em tiles, como o `HomePlan`),
+  `studyZoneAt`, `teacherOfStage` e os professores (Curador, Tutor, Verificador, Assistente de cartões,
+  Verificador de fontes). `game/study.ts` (`StudyFloor`) guarda o andar, os professores e as tags.
+- **Professor da vez**: a etapa do ciclo ativo escolhe quem dá aula (diagnóstico e revisão → Tutor, prática →
+  Curador, reteste → Verificador; sem ciclo, ninguém). Ele levanta, anda pelo `Grid` até a frente da carteira
+  e fica de pé virado para ela com o balão `?`; quando a etapa muda, volta para a cadeira. Os professores
+  andam com `world2d/walker.ts` (posição, direção e passo, sem three.js). O ciclo é lido no início, ao chegar
+  no andar e a cada 4 s enquanto o jogador está lá (`main.ts refreshStudy`).
+- Clique (`hit.ts actAt`, `Hit` `study`): Bonnie, um professor, o quadro "Tópico atual" e a carteira abrem o
+  ciclo de estudo (a carteira também senta o jogador nela); Cora e as 11 estantes (9 da biblioteca, 1 da sala
+  de aula, 1 do estudo individual) abrem a biblioteca (`ui/study-library.ts`, busca local da Cora, com o
+  tópico atual); o arquivo da sala dos professores e o cavalete abrem o banco de questões; a mesa de notas, a
+  mesa de cartões e os arquivos do estudo individual abrem notas e cartões; o horário de aula abre a Agenda
+  (onde ficam as aulas de `aulas.md`). Hover: o clicável fica mais claro e o `title` diz o que faz ou o nome
+  da sala. Sem placas.
+- Tags: Cora e Bonnie com nome e papel (tamanho normal); o professor da vez com nome e etapa; Biblioteca,
+  Tópico atual (com o tópico), Horário de aula, Questões, Sua carteira, Notas e cartões pequenas (`tag-mini`).
+- Os NPCs do andar (Cora, Bonnie, professores) não têm Look salvo: usam as cores da arte. Quem sobe ao
+  andar (jogador, agentes que vêm entregar algo) usa as cores do seu Look.
+
 ## Mapa 3D → 2D
 
 | 3D (`world/`) | 2D (`world2d/`) | Fase |
@@ -85,7 +119,7 @@ dela), porta do elevador (o jogador anda até lá e o painel Elevador ganha o fo
 | `overlays.ts` (projeção 3D) | `overlays.projector` com a projeção 2D | 1 |
 | `engine.ts` sombras, `effects.ts`, `aura.ts`, `skull.ts`, `totem.ts` | — | 4 (ou fora) |
 | `home.ts`, `home-layout.ts` (Casa) | `casa.ts` `casaPlan`, `floor.ts` `buildCasa2d`, `assets/pixel/casa*`, `HomePlan` | 2 |
-| andar de estudos | — | 3 |
+| andar de estudos (não havia) | `estudos.ts` `studyPlan`, `floor.ts` `buildEstudos2d`, `walker.ts`, `game/study.ts`, `assets/pixel/estudos*` | 3 |
 
 Arquivos novos da fase 1: `world2d/{atlas,depth,floor,font,hit,iso,layout,plaque,renderer,sprites}.ts`,
 `assets/pixel/*`, `scripts/pixel-art/*`, `test/world2d.test.ts`.
@@ -133,18 +167,38 @@ Mesmo cenário (stress, 50 agentes), jogador na Casa, janela 1424×835, dpr 1.
 | `update` média · p95 (120 frames seguidos) | 1,09 · 2,2 ms | 0,52 · 0,7 ms |
 | `draw` média · p95 | 39,6 · 43,8 ms | 1,34 · 1,8 ms |
 
+## Medidas (fase 3, andar de estudos)
+
+Mesmo cenário (stress, 50 agentes, 3 andares de projeto), janela 1424×835, dpr 1. Não há andar de estudos
+no 3D: a comparação é com o 1º andar de projeto em 3D.
+
+| | 3D (1º andar) | 2D (estudos) |
+| --- | --- | --- |
+| bench `workMs` média · p95 (15 s) | 28,3 · 47,6 ms | 18,8 · 38,3 ms |
+| draw calls · triângulos | 1489 · 57 645 | 0 · 0 |
+| `update` média · p95 (120 frames seguidos) | 0,66 · 1,4 ms | 0,38 · 0,6 ms |
+| `draw` média · p95 | 25,7 · 57,1 ms | 5,1 · 32,2 ms |
+| heap JS depois | 47,4 MB | 29,4 MB |
+
+O p95 do `draw` 2D vem dos quadros inteiros redesenhados enquanto a câmera ainda acompanha o jogador saindo
+do elevador e os agentes do stress que sobem para entregar algo.
+
 ## Fases
 
 1. **Motor + andar de projeto** (este PR).
 2. **Casa** (feito): `scene_casa2.py` exportada como o projeto; `HomePlan`; Visual 2D vale para o térreo.
-3. **Andar de estudos**: exportar `scene_estudos.py`.
+3. **Andar de estudos** (feito): `scene_estudos.py` exportada; professores chamados à sala de aula pela etapa do ciclo.
 4. **Animação e limpeza**: andar e digitar com mais quadros, balões de reação, ajudantes menores,
    marcas de falha, efeitos (faíscas/fumaça/fantasma) em 2D; simulação sem `Avatar`/three.js
    (posição, direção e fase num objeto simples); remover three.js, o seletor Visual e o 3D.
 
 ## O que falta (conhecido)
 
-- O andar de estudos ainda é 3D; o 3D inteiro (three.js) segue carregado, inclusive a Casa 3D.
+- O 3D inteiro (three.js) segue carregado, inclusive a Casa 3D. O andar de estudos não existe no 3D.
+- No andar de estudos: os 5 professores são fixos (não são agentes, não conversam); o professor que dá aula
+  fica de pé, sem gesto; a etapa só é relida a cada 4 s; as 9 estantes da biblioteca abrem a mesma
+  busca (não há estante por tópico com livros próprios); Cora e Bonnie não são agentes (sem conversa) nem
+  andam; o mural da sala dos professores e o quadro na parede são só decoração.
 - Na Casa 2D: agentes sem projeto e sem casa não têm mesa (esperam no hall, perto do elevador); quem
   descansa "senta" no sofá em pé (sem quadro sentado fora de cadeira); a caveira não anda até o agente
   nem mostra o golpe/fantasma (efeitos 3D); o totem não mostra a tela (a tag carrega o texto); quadro

@@ -152,8 +152,10 @@ export abstract class GameFloors extends GameBase {
     for (const u of this.uppers) u.scene.setFloors(projects.length + 1)
 
     // The player stays with the same project, wherever its floor is now; a floor that is gone sends them down.
+    // On the study floor (the top one) they stay there; in 3D there is none, so they go down too.
     const at = playerOn ? this.uppers.findIndex((u) => u.project.id === playerOn) + 1 : 0
-    if (this.player.floor > 0 && at === 0) this.goFloor(0)
+    if (this.onStudy && flat) this.player.floor = this.studyFloor
+    else if (this.player.floor > 0 && at === 0) this.goFloor(0)
     else this.player.floor = at
     // Everyone upstairs starts over on the new plans, on their project's floor (or downstairs if it is gone).
     for (const actor of this.actors.values()) {
@@ -198,6 +200,7 @@ export abstract class GameFloors extends GameBase {
     this.visual = visual
     this.hover2d = null
     this.casaHot = null
+    this.studyHot = null
     this.setProjects(this.state.settings.projects, this.state.squads, this.state.squadProposals, false)
     this.placeCasa()
     // the other floor plan has other walls: the player steps out of the elevator again
@@ -265,8 +268,9 @@ export abstract class GameFloors extends GameBase {
     }
   }
 
+  /** The elevator's floors: the Casa, the project floors and, in 2D, the study floor on top. */
   get floors(): string[] {
-    return ['Casa', ...this.uppers.map((u) => u.project.name)]
+    return ['Casa', ...this.uppers.map((u) => u.project.name), ...(this.studyFloor > 0 ? ['Estudos'] : [])]
   }
 
   get currentFloor(): number {
@@ -280,8 +284,9 @@ export abstract class GameFloors extends GameBase {
 
   /** The player takes the elevator: out on the other floor, with the camera. */
   goFloor(n: number): void {
-    if (n === this.player.floor || n < 0 || n > this.uppers.length) return
+    if (n === this.player.floor || n < 0 || n > Math.max(this.uppers.length, this.studyFloor)) return
     const p = this.player
+    this.onStudy = n === this.studyFloor
     p.stop()
     p.pose = 'stand'
     p.seatY = 0
@@ -329,6 +334,7 @@ export abstract class GameFloors extends GameBase {
       const seated = here ? this.orchestratorsOn(i + 1) : null
       u.stepTags.forEach((t, room) => (t.hidden = !seated?.has(room)))
     })
+    this.study.show(view === this.studyFloor)
     this.skull.tag.hidden = view !== 0
     this.totem.tag.hidden = view !== 0
     this.pcTag.hidden = view !== 0

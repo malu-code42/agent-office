@@ -720,9 +720,9 @@ function videoFields(state: State): { el: HTMLElement; value: () => VideoSetting
       { class: 'field-hint' },
       'Economia desliga as sombras, limita a 30 fps e reduz fumaça, faíscas e giroflex. Com o escritório parado ou a janela minimizada, o app já desenha menos sozinho.',
     ),
-    field('Visual', visual, 'A Casa e os andares de projeto em pixel art 2D, mais leve (só no 3D: o andar de estudos).'),
+    field('Visual', visual, 'Em 2D, todos os andares em pixel art, mais leve; o andar de estudos só existe no 2D.'),
     h('div', { class: 'field-row' }, field('Qualidade', quality), field('Limite de fps', fps)),
-    h('div', { class: 'field-row' }, field('Sombras', shadows), field('Efeitos', effects)),
+    h('div', { class: 'field-row' }, field('Sombras (só no 3D)', shadows), field('Efeitos (só no 3D)', effects)),
     h('label', { class: 'check' }, battery, 'Economia automática na bateria'),
     ...(now.length ? [h('div', { class: 'field-hint' }, now.join(' '))] : []),
   )

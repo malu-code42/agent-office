@@ -16,6 +16,8 @@ import { Renderer2d } from '../world2d/renderer'
 import { CASA_LAYOUT } from '../world2d/atlas'
 import { casaPlan, type CasaAct, type CasaFlat } from '../world2d/casa'
 import { buildCasa2d } from '../world2d/floor'
+import type { StudyAct } from '../world2d/estudos'
+import { StudyFloor } from './study'
 import type { Visual } from '@shared/video'
 import { SeenFailures } from './failure-marks'
 import {
@@ -101,6 +103,12 @@ export abstract class GameBase {
   protected hover2d: { x: number; z: number; ok: boolean } | null = null
   /** The clickable thing of the 2D Casa under the pointer (drawn brighter). */
   protected casaHot: CasaAct | null = null
+  /** The clickable thing of the study floor under the pointer (drawn brighter). */
+  protected studyHot: StudyAct | null = null
+  /** The study floor (2D only, the top floor): Cora, Bonnie, the teachers and the classroom. */
+  protected readonly study: StudyFloor
+  /** The player is on the study floor (its number moves when project floors come and go). */
+  protected onStudy = false
   /** The Casa of the 2D world: its grid and spots (the 3D Casa is `office`). */
   protected readonly casa2d: Office & { flat: CasaFlat } = buildCasa2d(CASA_LAYOUT)
   protected readonly casaPlan2d: HomePlan = casaPlan(CASA_LAYOUT, this.casa2d.grid)
@@ -122,6 +130,7 @@ export abstract class GameBase {
     this.office = buildHome()
     this.engine.scene.add(this.office.group)
     this.overlays = new Overlays(overlayRoot, this.engine)
+    this.study = new StudyFloor(this.overlays, (act, teacher) => this.hooks.onStudy?.(act, teacher))
 
     this.office.setFloors(1)
     // player
@@ -282,7 +291,13 @@ export abstract class GameBase {
 
   /** Tiles of a floor (x, z). */
   protected floorSize(n: number): [number, number] {
+    if (n === this.studyFloor) return this.study.plan.size
     return this.upperOf(n)?.scene.plan.size ?? this.home.size
+  }
+
+  /** The number of the study floor: the one over the project floors, in 2D only (-1 in 3D). */
+  get studyFloor(): number {
+    return this.visual === '2d' ? this.uppers.length + 1 : -1
   }
 
   /** Floor an agent works on: its project's floor, or the ground floor. */
@@ -311,11 +326,13 @@ export abstract class GameBase {
   }
 
   floorOf(n: number): Office {
+    if (n === this.studyFloor) return this.study.scene
     return this.upperOf(n)?.scene ?? (this.visual === '2d' ? this.casa2d : this.office)
   }
 
   /** The elevator of a floor: the tile its door opens on and where it drops people. */
   protected elevatorOf(floor: number): { tile: [number, number]; point: { x: number; z: number } } {
+    if (floor === this.studyFloor) return this.study.plan.elevator
     return this.upperOf(floor)?.scene.plan.elevator ?? (floor > 0 ? L.elevatorOf(floor) : this.home.elevator)
   }
 
