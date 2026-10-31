@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { app } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 import { agentCapDecision } from '../src/shared/agent-cap'
-import { emiAgentId } from '../src/shared/emi'
+import { EMI_LOOK, emiAgentId, emiAgentSummary } from '../src/shared/emi'
 import type { OfficeEvent, ProjectFloor } from '../src/shared/types'
 
 const sdk = vi.hoisted(() => ({ calls: [] as Array<{ prompt: unknown; options: Record<string, unknown> }> }))
@@ -95,5 +95,23 @@ describe('a Emi de cada andar', () => {
     expect(reopened.list().filter((a) => a.builtIn === 'emi')).toEqual([])
     reopened.shutdown()
     restored.flush()
+  })
+
+  it('o modelo e o esforço da Emi valem para todos os andares e chegam na próxima conversa', async () => {
+    const p1 = floor('p1')
+    const { manager, store } = await office([p1])
+    manager.emiTools = vi.fn(() => ({ type: 'sdk', name: 'emi' }) as never)
+    store.settings = { ...store.settings, emiModel: 'sonnet', emiEffort: 'high' }
+    manager.setEmiPreferences(store.settings)
+    expect(manager.list().find((a) => a.id === emiAgentId('p1'))).toMatchObject({ model: 'sonnet', effort: 'high', look: EMI_LOOK })
+    sdk.calls.length = 0
+    await manager.sendMessage(emiAgentId('p1'), 'Oi')
+    await vi.waitFor(() => expect(sdk.calls).toHaveLength(1))
+    expect(sdk.calls[0]!.options).toMatchObject({ model: 'sonnet', effort: 'high' })
+    // a floor created later starts with the same preferences
+    expect(emiAgentSummary(floor('p2'), 0, store.settings)).toMatchObject({ model: 'sonnet', effort: 'high', look: EMI_LOOK })
+    expect(emiAgentSummary(floor('p3'), 0, { emiModel: '', emiEffort: '' }).model).toBeUndefined()
+    manager.shutdown()
+    store.flush()
   })
 })

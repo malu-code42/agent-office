@@ -57,6 +57,8 @@ export interface Upper {
   issueTag: Tag | null
   /** Over the elevator, while a squad proposal waits for the approval. */
   proposalTag: Tag | null
+  /** Emi's name tag at her desk (2D floors, where she is drawn). */
+  emiTag: Tag | null
 }
 
 /** A subagent shown as a small copy of its parent, standing by the parent's desk. */

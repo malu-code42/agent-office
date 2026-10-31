@@ -38,8 +38,8 @@ andar, Look, uniforme, tamanho e "caído". Nada de three.js.
 ### Entrada
 
 `game/input.ts` pergunta ao renderer: arrastar move a câmera (presa ao andar), roda/zoom do HUD troca 1×/2×/3×,
-clique acerta pessoa (pixel pintado do sprite, a da frente primeiro, escala dos ajudantes considerada), placa de
-sala, placa da reunião, Emi, móveis clicáveis da Casa e do andar de estudos, porta do elevador ou o chão.
+clique acerta pessoa (pixel pintado do sprite, a da frente primeiro, escala dos ajudantes considerada), parede do
+fundo de uma sala de squad, mesa da reunião, Emi, móveis clicáveis da Casa e do andar de estudos, porta do elevador ou o chão.
 
 ## A Casa (fase 2)
 
@@ -73,7 +73,10 @@ sala, placa da reunião, Emi, móveis clicáveis da Casa e do andar de estudos, 
   aberta, fechada); quadros `elevator.open` em cada layout, desenhados por cima da base.
 - **Descanso no sofá**: quem descansa (`relax`) num canto `sit` da Casa aparece sentado de costas no sofá. Atingido
   pela Caveira ali, vai antes para o piso livre mais perto (`game/strike-spot.ts`) e cai no chão, não no sofá.
-- **Placas**: um canvas por texto, num LRU de 32 (`world2d/lru.ts`), então textos que mudam não acumulam.
+- **Sem placas no chão**: o nome da sala, da reunião, da diretoria e do lounge aparece como dica ao passar o mouse;
+  a sala de squad abre pela parede do fundo e a reunião pela mesa.
+- **Emi**: mesa virada para a parede do fundo (ela de costas, ao sul da mesa; visitas ao norte), tag de nome e
+  status como a de qualquer agente (clique abre o chat) e visual fixo `EMI_LOOK`.
 - **Mesas 5 e 6** de cada sala de squad ficam na parede do fundo, atrás do coordenador (a estante foi para o meio
   dessa parede): as seis mesas bloqueiam o tile delas e as fileiras do meio ficam livres da porta até o coordenador.
 - **Caveira**: como era no 3D: a caveira cai sobre o agente, ri parada no ar, mergulha; fumaça roxa, o agente cai

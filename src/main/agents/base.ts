@@ -19,7 +19,7 @@ import type {
   SubagentInfo,
 } from '@shared/types'
 import { pickAgentName } from '@shared/describe'
-import { emiAgentId, emiAgentSummary } from '@shared/emi'
+import { EMI_LOOK, emiAgentId, emiAgentSummary } from '@shared/emi'
 import { lunaAgentSummary } from '@shared/luna'
 import { projectFor } from '@shared/projects'
 import { type Accounts } from '../accounts'
@@ -78,6 +78,9 @@ export abstract class AgentBase extends EventEmitter {
         ...(emiFloor
           ? {
               name: 'Emi',
+              look: EMI_LOOK,
+              model: store.settings.emiModel || undefined,
+              effort: store.settings.emiEffort || undefined,
               engine: 'claude' as const,
               permissionMode: 'default' as const,
               cwd: emiFloor.cwd,
@@ -250,7 +253,11 @@ export abstract class AgentBase extends EventEmitter {
     }
     for (const floor of floors) {
       if (this.agents.has(emiAgentId(floor.id))) continue
-      const agent: Agent = { summary: { ...emiAgentSummary(floor), sessionId: randomUUID() }, log: [], started: false }
+      const agent: Agent = {
+        summary: { ...emiAgentSummary(floor, Date.now(), this.store.settings), sessionId: randomUUID() },
+        log: [],
+        started: false,
+      }
       this.agents.set(agent.summary.id, agent)
       this.upsert(agent)
       changed = true

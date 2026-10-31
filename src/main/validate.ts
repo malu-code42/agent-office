@@ -938,6 +938,8 @@ const settingsFields = {
   lunaModel: z.union([z.literal(''), z.string().regex(MODEL_RE)]),
   lunaEffort: z.union([z.literal(''), z.enum(EFFORT_LEVELS as [EffortLevel, ...EffortLevel[]])]),
   lunaLook: lookSchema,
+  emiModel: z.union([z.literal(''), z.string().regex(MODEL_RE)]),
+  emiEffort: z.union([z.literal(''), z.enum(EFFORT_LEVELS as [EffortLevel, ...EffortLevel[]])]),
   defaultPermissionMode: permissionModeSchema,
   notifications: z.boolean(),
   ticketAutoCloseDays: numberField.pipe(z.number().int().min(0).max(365)),

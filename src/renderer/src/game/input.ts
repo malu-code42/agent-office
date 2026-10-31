@@ -271,6 +271,9 @@ export abstract class GameInput extends GameMovement {
               : over || !grid.inside(tx, tz)
                 ? ''
                 : (studyZoneAt(this.study.layout, tx, tz) ?? '')
+    } else {
+      // a project floor has no plates either: the room under the pointer names itself
+      title = over?.kind === 'person' ? '' : (flat.roomAt(x, y) ?? '')
     }
     if (flat.canvas.title !== title) flat.canvas.title = title
   }
