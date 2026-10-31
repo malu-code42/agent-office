@@ -230,11 +230,11 @@ export function lunaToolDefs(deps: LunaToolDeps) {
       () =>
         run(() => {
           const { goals } = deps.goals.read(deps.vault())
-          if (!goals.length) return 'Nenhum objetivo em objetivos.md.'
+          if (!goals.length) return 'Nenhum objetivo em objetivos.md ou objetivos.txt.'
           return goals
             .map((g) =>
               [
-                `## ${g.title} · ${g.id} · prazo ${g.deadline}${g.achieved ? ' · alcançado' : ''}`,
+                `## ${g.title} · ${g.id}${g.deadline ? ` · prazo ${g.deadline}` : ''}${g.achieved ? ' · alcançado' : ''}`,
                 ...g.milestones.map((m, i) => `- marco ${i + 1} [${m.done ? 'x' : ' '}] ${m.text}`),
               ].join('\n'),
             )
@@ -307,7 +307,7 @@ export function lunaToolDefs(deps: LunaToolDeps) {
       () =>
         run(() => {
           const week = deps.routines.overview()
-          if (!week.rows.length) return 'Nenhuma rotina pessoal em rotinas-pessoais.md.'
+          if (!week.rows.length) return 'Nenhuma rotina pessoal em rotinas-pessoais.md ou rotina_pessoal.txt.'
           return [
             `Semana ${week.weekStart} a ${week.weekEnd}`,
             ...week.rows.map((r) => {

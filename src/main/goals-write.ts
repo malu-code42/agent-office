@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { parseTasksFile } from '@shared/tasks'
 import {
   GOALS_FILE,
+  GOALS_FILES,
   appendGoal,
   goalProgress,
   linkGoalTask,
@@ -34,7 +35,9 @@ export function createGoalsWriter(opts: GoalWriterOptions = {}) {
   const backedUp = new Set<string>()
   const now = opts.now ?? (() => new Date())
   const newId = opts.newId ?? (() => `g${Array.from({ length: 8 }, () => ALPHABET[randomInt(ALPHABET.length)]).join('')}`)
-  const fileOf = (vault: string) => join(vault, GOALS_FILE)
+  /** The vault's own goals file: objetivos.md, else objetivos.txt; objetivos.md when neither exists. */
+  const nameOf = (vault: string): string => GOALS_FILES.find((name) => existsSync(join(vault, name))) ?? GOALS_FILE
+  const fileOf = (vault: string) => join(vault, nameOf(vault))
   const readFile = (vault: string): string | null => {
     try {
       return readFileSync(fileOf(vault), 'utf8')
@@ -79,7 +82,7 @@ export function createGoalsWriter(opts: GoalWriterOptions = {}) {
     create(vault: string, draft: Omit<GoalDraft, 'id'>): string {
       const before = changed(vault)
       const id = newId()
-      const after = appendGoal(before ?? '', { ...draft, id })
+      const after = appendGoal(before ?? '', { ...draft, id }, nameOf(vault).endsWith('.txt') || undefined)
       save(vault, before, after)
       return id
     },
@@ -104,7 +107,7 @@ export function createGoalsWriter(opts: GoalWriterOptions = {}) {
       if (!goal) throw new Error('Não encontrei esse objetivo no arquivo objetivos.md.')
       if (goal.achieved) return true
       const completed = new Set(tasks.filter((task) => task.status === 'completed' && task.id).map((task) => task.id!.toLowerCase()))
-      if (goalProgress(goal, completed).percent !== 100)
+      if (!goal.simple && goalProgress(goal, completed).percent !== 100)
         throw new Error('O objetivo só pode ser marcado como alcançado quando o progresso chegar a 100%.')
       if (!(await opts.confirmAchieved?.(goal.title))) return false
       const currentGoals = readFile(vault)
@@ -114,7 +117,8 @@ export function createGoalsWriter(opts: GoalWriterOptions = {}) {
         currentTasks.filter((task) => task.status === 'completed' && task.id).map((task) => task.id!.toLowerCase()),
       )
       const currentGoal = parseGoals(currentGoals ?? '').goals.find((item) => item.id === id)
-      if (!currentGoal || goalProgress(currentGoal, currentlyCompleted).percent !== 100) throw new Error(NO_LONGER_COMPLETE)
+      if (!currentGoal || (!currentGoal.simple && goalProgress(currentGoal, currentlyCompleted).percent !== 100))
+        throw new Error(NO_LONGER_COMPLETE)
       const after = markGoalAchieved(before, id)
       save(vault, before, after)
       return true

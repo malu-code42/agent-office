@@ -26,7 +26,8 @@ type RoutineLike = { cadence: 'diária' | 'semanal'; days?: string[]; target?: n
 
 function frequencyText(item: RoutineLike): string {
   if (item.cadence === 'diária') return 'Todo dia'
-  if (item.days?.length) return 'Toda ' + (item.days.length > 1 ? `${item.days.slice(0, -1).join(', ')} e ${item.days.at(-1)}` : item.days[0])
+  if (item.days?.length)
+    return 'Toda ' + (item.days.length > 1 ? `${item.days.slice(0, -1).join(', ')} e ${item.days.at(-1)}` : item.days[0])
   if (item.target) return `${item.target} vezes por semana`
   return 'Semanal'
 }
@@ -69,9 +70,14 @@ function routineCard(card: RoutineCard): HTMLElement {
         )
       : h(
           'div',
-          { class: 'tl-rt-days', 'aria-label': card.days ? `Dias: ${card.days.map((d) => WEEKDAY_NAMES[d]).join(', ') || 'nenhum marcado'}` : 'Todos os dias' },
+          {
+            class: 'tl-rt-days',
+            'aria-label': card.days ? `Dias: ${card.days.map((d) => WEEKDAY_NAMES[d]).join(', ') || 'nenhum marcado'}` : 'Todos os dias',
+          },
           // The chips start on Monday; the days of a row are JS weekdays (Sunday is 0).
-          ...WEEKDAY_CHIPS.map((chip, i) => h('span', { class: !card.days || card.days.includes((i + 1) % 7) ? 'on' : '', 'aria-hidden': 'true' }, chip)),
+          ...WEEKDAY_CHIPS.map((chip, i) =>
+            h('span', { class: !card.days || card.days.includes((i + 1) % 7) ? 'on' : '', 'aria-hidden': 'true' }, chip),
+          ),
         ),
     card.problem
       ? h('div', { class: 'tl-rt-problem' }, `Linha ${card.line}: ${card.problem}`)
@@ -132,12 +138,27 @@ export async function openPersonalRoutinesPanel(root: HTMLElement, _toast?: (mes
   const render = (): void => {
     if (!cards.length) {
       content.replaceChildren(
-        h('div', { class: 'tl-empty' }, icon('history', 28), h('b', {}, 'Nenhuma rotina ainda'), h('span', {}, 'As rotinas vêm de rotinas-pessoais.md no vault. Peça à Luna para criar a primeira.')),
+        h(
+          'div',
+          { class: 'tl-empty' },
+          icon('history', 28),
+          h('b', {}, 'Nenhuma rotina ainda'),
+          h(
+            'span',
+            {},
+            'As rotinas vêm de rotinas-pessoais.md ou rotina_pessoal.txt na pasta do vault. Peça à Luna para criar a primeira.',
+          ),
+        ),
       )
       return
     }
     content.replaceChildren(
-      h('div', { class: 'tl-tl-head' }, h('h3', { class: 'agenda-title' }, `${cards.length} rotina${cards.length === 1 ? '' : 's'}`), h('span', { class: 'grow' })),
+      h(
+        'div',
+        { class: 'tl-tl-head' },
+        h('h3', { class: 'agenda-title' }, `${cards.length} rotina${cards.length === 1 ? '' : 's'}`),
+        h('span', { class: 'grow' }),
+      ),
       h('ul', { class: 'tl-rts' }, ...cards.map(routineCard)),
     )
   }
