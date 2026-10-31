@@ -44,6 +44,7 @@ import {
   evaluateStudyAnswerArgsSchema,
   advanceStudyCycleArgsSchema,
   resetStudyCycleArgsSchema,
+  resumeStudyCycleArgsSchema,
   searchStudyLibraryArgsSchema,
   studyLibrarySourceArgsSchema,
   studyCycleNoteArgsSchema,
@@ -731,6 +732,8 @@ describe('argumentos IPC do ciclo de estudo', () => {
     expect(evaluateStudyAnswerArgsSchema.safeParse(['q-12345678', 'C:\\vault']).success).toBe(false)
     expect(advanceStudyCycleArgsSchema.safeParse([]).success).toBe(true)
     expect(resetStudyCycleArgsSchema.safeParse([]).success).toBe(true)
+    expect(resumeStudyCycleArgsSchema.safeParse(['sc-1793442931038-hb8ak0bs']).success).toBe(true)
+    expect(resumeStudyCycleArgsSchema.safeParse(['../office.json']).success).toBe(false)
     expect(searchStudyLibraryArgsSchema.safeParse(['probabilidade']).success).toBe(true)
     expect(searchStudyLibraryArgsSchema.safeParse(['C:\\private\\book.md']).success).toBe(true)
     expect(studyLibrarySourceArgsSchema.safeParse(['q-12345678', '550e8400-e29b-41d4-a716-446655440000', 'a'.repeat(20)]).success).toBe(

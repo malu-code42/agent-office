@@ -496,6 +496,17 @@ export function resetActiveStudyCycle(state: StudyCycleState): StudyCycleState {
   return { ...state, activeId: null }
 }
 
+/**
+ * Pins a cycle kept in the history (a topic switched away from) again, exactly where it was.
+ * Only one cycle is active; the one active now goes back to the history untouched.
+ */
+export function resumeStudyCycle(state: StudyCycleState, cycleId: string): StudyCycleState {
+  const cycle = state.cycles.find((item) => item.id === cycleId)
+  if (!cycle) throw new Error('Esse ciclo não está no histórico.')
+  if (cycle.stage === 'completed') throw new Error('Esse ciclo já foi concluído.')
+  return { ...state, activeId: cycle.id }
+}
+
 export const emptyStudyCycleState = (): StudyCycleState => ({ activeId: null, cycles: [] })
 
 function activeCycle(state: StudyCycleState): StudyCycle {

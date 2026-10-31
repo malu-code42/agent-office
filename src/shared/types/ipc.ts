@@ -25,6 +25,8 @@ import type { DelegateTarget, Ticket, TicketDraft, TicketPatch, TicketStatus } f
 import type { WritingVersion } from '../writing'
 import type { DecodedStudyBank, StudyQuestion } from '../study-questions'
 import type { StudyCycleState } from '../study-cycle'
+import type { StudyTrail } from '../study-trail'
+import type { ClassScheduleView } from '../class-schedule'
 import type { StudyLibrarySearch } from '../study-library'
 import type { StudyCardDraft, StudyCardSummary, StudyCardsRead, StudyNotesRead } from '../study-cards'
 
@@ -286,6 +288,12 @@ export interface OfficeAPI {
   advanceStudyCycle(): Promise<StudyCycleState>
   /** Desativa a seleção do ciclo, mantendo tópico e evidências no histórico local. */
   resetStudyCycle(): Promise<StudyCycleState>
+  /** Volta a um ciclo guardado no histórico (troca de tópico), sem apagar nada do ciclo ativo. */
+  resumeStudyCycle(cycleId: string): Promise<StudyCycleState>
+  /** Lê os tópicos de `trilha zettel.md` do vault, para escolher o tópico do ciclo. Só lê. */
+  readStudyTrail(): Promise<StudyTrail>
+  /** Lê a grade semanal de aulas.md do vault para o quadro "Horário de aula" (semana atual, com exceções). Só lê. */
+  readClassSchedule(): Promise<ClassScheduleView>
   /** Busca trechos apenas nos arquivos locais de estudo; nenhum conteúdo é enviado a modelos. */
   searchStudyLibrary(query: string): Promise<StudyLibrarySearch>
   /** Vincula ao ciclo uma fonte pertencente a uma busca local anterior. */

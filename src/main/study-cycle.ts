@@ -12,6 +12,7 @@ import {
   recordStudyNote,
   reviewStudyGap,
   resetActiveStudyCycle,
+  resumeStudyCycle,
   startStudyPracticeRound,
   saveStudyPracticeResponse,
   startStudyRetest,
@@ -285,6 +286,12 @@ export class StudyCycleService {
 
   reset(): StudyCycleState {
     const next = resetActiveStudyCycle(this.store.read())
+    this.store.write(next)
+    return next
+  }
+
+  resume(cycleId: string): StudyCycleState {
+    const next = resumeStudyCycle(this.store.read(), cycleId)
     this.store.write(next)
     return next
   }

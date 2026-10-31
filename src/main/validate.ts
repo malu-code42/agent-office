@@ -234,6 +234,7 @@ export const answerStudyCycleArgsSchema = z.tuple([
 export const evaluateStudyAnswerArgsSchema = z.tuple([studyBankQuestionIdSchema])
 export const advanceStudyCycleArgsSchema = z.tuple([])
 export const resetStudyCycleArgsSchema = z.tuple([])
+export const resumeStudyCycleArgsSchema = z.tuple([z.string().regex(/^sc-\d{1,16}-[a-z0-9]{1,16}$/)])
 export const reviewStudyGapArgsSchema = z.tuple([
   z.string().regex(/^q-[a-z0-9-]{8,72}$/i),
   z.string().trim().min(1).max(2000),

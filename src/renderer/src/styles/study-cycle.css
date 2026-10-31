@@ -157,3 +157,124 @@
     flex-direction: column;
   }
 }
+
+.study-cycle-topic {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.study-cycle-topic b {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.study-cycle-kept {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.study-cycle-kept h4,
+.study-cycle-kept p {
+  margin: 0;
+}
+
+.study-cycle-kept-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+  border: 2px solid var(--line);
+  background: var(--surface-2);
+}
+
+.study-cycle-kept-row > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.study-cycle-kept-row strong,
+.study-cycle-kept-row span span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.study-cycle-kept-row span span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* The footers of the study popups wrap instead of pushing buttons (or text) out of the modal. */
+.study-modal-foot {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* "Buscar questões": the consent sits in the body, under the candidates. */
+.study-questions-consent {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  margin: 0;
+  padding: 10px 12px;
+  border: 2px solid var(--ctl-line);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.study-questions-consent input {
+  margin-top: 2px;
+  accent-color: var(--accent-solid);
+}
+
+.study-question-results {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.study-question-results:empty {
+  display: none;
+}
+
+.study-question-results section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.study-question-results h3 {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.study-question-results p {
+  margin: 0;
+}
+
+.study-question-candidate {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 2px solid var(--line);
+  background: var(--surface-2);
+  overflow-wrap: anywhere;
+}
+
+.study-question-candidate label {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.study-question-candidate input {
+  margin-top: 3px;
+  accent-color: var(--accent-solid);
+}

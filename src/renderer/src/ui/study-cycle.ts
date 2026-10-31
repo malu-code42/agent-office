@@ -11,11 +11,24 @@ import {
 import type { StudyQuestion } from '@shared/study-questions'
 import type { StudyLibraryHit, StudyLibrarySearch } from '@shared/study-library'
 import type { StudyPracticeQuestion } from '@shared/study-cycle'
+import { trailTopicOf, type StudyTrail, type StudyTrailTopic } from '@shared/study-trail'
 import { announce } from './a11y'
 import { h } from './dom'
 import { cleanError, modal } from './modals/common'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
+
+const stageLabel: Record<StudyCycle['stage'], string> = {
+  diagnosis: 'diagnóstico',
+  'review-required': 'erros e dúvidas',
+  practice: 'prática e fontes',
+  'retest-ready': 'reteste liberado',
+  retest: 'reteste',
+  completed: 'concluído',
+}
+
+/** "tópico 5 de 6 · Estrutura de Dados…" for a topic of the trail. */
+const trailPlace = (topic: StudyTrailTopic) => `tópico ${topic.index} de ${topic.total} · ${topic.discipline}`
 
 const originLabel: Record<StudyQuestion['originKind'], string> = {
   enem: 'ENEM',
@@ -29,8 +42,14 @@ const originLabel: Record<StudyQuestion['originKind'], string> = {
 export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<void> {
   let state: StudyCycleState
   let bank: StudyQuestion[]
+  let trail: StudyTrail
   try {
-    ;[state, { questions: bank }] = await Promise.all([window.office.readStudyCycle(), window.office.readStudyQuestions()])
+    ;[state, { questions: bank }, trail] = await Promise.all([
+      window.office.readStudyCycle(),
+      window.office.readStudyQuestions(),
+      // The trail only offers topics: without it the topic is typed by hand.
+      window.office.readStudyTrail().catch((): StudyTrail => ({ found: false, topics: [] })),
+    ])
   } catch (error) {
     toast(cleanError(error), 'err')
     return
@@ -182,7 +201,15 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
               : cycle.stage === 'retest'
                 ? 'Reteste em andamento · responda todas as questões sem consulta. O resultado só aparece depois da conferência final.'
                 : 'Ciclo concluído com sua confirmação. O histórico permanece salvo.'
+    const inTrail = trailTopicOf(trail, cycle.topic)
     const body: HTMLElement[] = [
+      h(
+        'div',
+        { class: 'study-cycle-topic' },
+        h('span', { class: 'field-label' }, 'Tópico atual'),
+        h('b', {}, cycle.topic),
+        inTrail ? h('span', { class: 'field-hint' }, `${trailPlace(inTrail)} · trilha zettel`) : null,
+      ),
       h('p', { class: 'study-cycle-status', role: 'status' }, status),
       h(
         'p',
@@ -418,7 +445,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
       'article',
       { class: 'study-cycle-source-hit' },
       h('h4', {}, hit.title),
-      h('p', { class: 'study-cycle-source' }, `${hit.sourceRef} · linha ${hit.line}`),
+      h('p', { class: 'study-cycle-source' }, hit.line ? `${hit.sourceRef} · linha ${hit.line}` : hit.sourceRef),
       h('p', { class: 'study-cycle-prompt' }, hit.excerpt),
       gapSelect,
       h(
@@ -816,6 +843,76 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
   }
 
   const pickerBody = (): HTMLElement[] => {
+    const place = h('span', { class: 'field-hint', 'aria-live': 'polite' })
+    const showPlace = () => {
+      const chosen = trailTopicOf(trail, topic)
+      const kept = state.cycles.find((cycle) => cycle.topic === topic.trim() && cycle.stage !== 'completed')
+      place.textContent = [
+        chosen ? `${trailPlace(chosen)}${chosen.done ? ' · marcado como estudado na trilha' : ''}` : '',
+        kept ? 'Já há um ciclo guardado deste tópico: retome-o abaixo para continuar de onde parou.' : '',
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    }
+    const trailSelect = h(
+      'select',
+      {
+        class: 'input',
+        'aria-label': 'Escolher o tópico na trilha zettel',
+        disabled: busy || !trail.topics.length || undefined,
+        onchange: (event: Event) => {
+          const value = (event.currentTarget as HTMLSelectElement).value
+          if (!value) return
+          topic = value
+          topicInput.value = value
+          showPlace()
+          if (startButton) startButton.disabled = busy || !topic.trim() || !selected.size
+        },
+      },
+      h(
+        'option',
+        { value: '' },
+        trail.found
+          ? trail.topics.length
+            ? 'Escolha um tópico da trilha…'
+            : 'A trilha não tem tópicos'
+          : 'trilha zettel.md não encontrada no vault',
+      ),
+      ...trail.topics.map((item) =>
+        h(
+          'option',
+          { value: item.label, selected: item.label === topic.trim() || undefined },
+          `${item.done ? '✓ ' : ''}${item.id ? `${item.id} · ` : ''}${item.title} — ${item.discipline} (${item.index} de ${item.total})`,
+        ),
+      ),
+    ) as HTMLSelectElement
+    const kept = state.cycles.filter((cycle) => cycle.id !== state.activeId && cycle.stage !== 'completed').reverse()
+    const keptRows = kept.map((cycle) =>
+      h(
+        'div',
+        { class: 'study-cycle-kept-row' },
+        h(
+          'span',
+          {},
+          h('strong', {}, cycle.topic),
+          h(
+            'span',
+            {},
+            `${stageLabel[cycle.stage]} · ${cycle.questions.filter((q) => q.response).length} de ${cycle.questions.length} respondidas · ${new Date(cycle.updatedAt).toLocaleDateString('pt-BR')}`,
+          ),
+        ),
+        h(
+          'button',
+          {
+            class: 'btn btn-small',
+            type: 'button',
+            disabled: busy || undefined,
+            onclick: () => void save(() => window.office.resumeStudyCycle(cycle.id), `Ciclo de “${cycle.topic}” retomado de onde parou.`),
+          },
+          'Retomar',
+        ),
+      ),
+    )
     const topicInput = h('input', {
       class: 'input',
       value: topic,
@@ -825,9 +922,13 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
       disabled: busy || undefined,
       oninput: (event: Event) => {
         topic = (event.currentTarget as HTMLInputElement).value
+        if (trailSelect.value !== topic.trim())
+          trailSelect.value = trail.topics.some((item) => item.label === topic.trim()) ? topic.trim() : ''
+        showPlace()
         if (startButton) startButton.disabled = busy || !topic.trim() || !selected.size
       },
     }) as HTMLInputElement
+    showPlace()
     const visible = bank.filter((question) => !question.sourceOnly && question.question.trim())
     return [
       h('p', {}, 'Selecione questões já salvas no banco local. Este início não busca nem gera questões.'),
@@ -836,7 +937,25 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
         { class: 'field-hint' },
         'O banco atual é lido localmente. Cada ciclo guarda um snapshot para preservar as questões mesmo se o banco mudar.',
       ),
-      h('label', { class: 'study-cycle-field' }, h('span', { class: 'field-label' }, 'Novo tópico'), topicInput),
+      h(
+        'div',
+        { class: 'study-cycle-field' },
+        h('span', { class: 'field-label' }, 'Tópico da trilha zettel'),
+        trailSelect,
+        h('label', { class: 'study-cycle-field' }, h('span', { class: 'field-hint' }, 'ou escreva outro tópico'), topicInput),
+        place,
+      ),
+      ...(keptRows.length
+        ? [
+            h(
+              'section',
+              { class: 'study-cycle-kept', 'aria-label': 'Ciclos guardados' },
+              h('h4', {}, 'Ciclos guardados'),
+              h('p', { class: 'field-hint' }, 'Trocar de tópico não apaga nada: cada ciclo fica guardado com respostas, notas e fontes.'),
+              ...keptRows,
+            ),
+          ]
+        : []),
       ...(visible.length
         ? visible.map((question) => {
             const checkbox = h('input', {
@@ -879,10 +998,14 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
               selectedRetest.clear()
               selectedPracticeGaps.clear()
               libraryResult = null
-              void save(() => window.office.resetStudyCycle(), 'Ciclo preservado no histórico. Escolha outro tópico quando quiser.')
+              topic = ''
+              void save(
+                () => window.office.resetStudyCycle(),
+                'Ciclo guardado. Escolha o próximo tópico na trilha ou retome um ciclo guardado.',
+              )
             },
           },
-          'Trocar tópico (preservar ciclo)',
+          'Trocar tópico',
         ),
       )
     } else {
@@ -906,6 +1029,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
   }
 
   const el = modal('Ciclo de estudo · Bonnie', [content], [actions], () => el.remove())
+  el.querySelector('.modal-foot')?.classList.add('study-modal-foot')
   root.append(el)
   render()
   actions.querySelector<HTMLButtonElement>('button')?.focus()

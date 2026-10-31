@@ -295,6 +295,7 @@ export async function openStudyCards(root: HTMLElement, toast: Toast): Promise<v
   }
 
   const el = modal('Notas e cartões de estudo', [content], [actions], () => el.remove())
+  el.querySelector('.modal-foot')?.classList.add('study-modal-foot')
   root.append(el)
   await refresh()
   render()
