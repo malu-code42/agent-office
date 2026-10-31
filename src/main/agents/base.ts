@@ -74,7 +74,8 @@ export abstract class AgentBase extends EventEmitter {
               name: 'Luna',
               builtIn: 'luna' as const,
               engine: 'claude' as const,
-              permissionMode: 'default' as const,
+              // Automatic mode: edits and proven-safe commands in her folders run; risk still comes to the card.
+              permissionMode: 'auto' as const,
               look: store.settings.lunaLook,
               model: store.settings.lunaModel || undefined,
               effort: store.settings.lunaEffort || undefined,

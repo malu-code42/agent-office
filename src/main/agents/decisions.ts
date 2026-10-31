@@ -90,10 +90,12 @@ export abstract class AgentDecisions extends AgentSubagents {
     }
     const check = decide(s.permissionMode, tool, input, scope)
     if (check.verdict === 'allow' && !confirm) return Promise.resolve({ behavior: 'allow', updatedInput: input })
-    // #101: Luna reads every project floor without asking, as the policy would in each folder; writes still ask.
+    // #101: Luna reads every project floor without asking, as the policy would in each folder. In
+    // Automatic mode the same goes for what the policy allows there (edits, proven-safe commands).
     if (
       luna &&
-      LUNA_READ_TOOLS.has(tool) &&
+      !confirm &&
+      (LUNA_READ_TOOLS.has(tool) || s.permissionMode === 'auto') &&
       this.lunaRoots().some((cwd) => decide(s.permissionMode, tool, input, { ...scope, cwd }).verdict === 'allow')
     )
       return Promise.resolve({ behavior: 'allow', updatedInput: input })
