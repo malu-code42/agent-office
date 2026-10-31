@@ -1,23 +1,40 @@
+import type { Look } from '@shared/types'
 import atlasUrl from '../assets/pixel/atlas.png'
 import atlasData from '../assets/pixel/atlas.json'
 import projectBaseUrl from '../assets/pixel/project-base.png'
 import projectData from '../assets/pixel/project.json'
+import casaBaseUrl from '../assets/pixel/casa-base.png'
+import casaData from '../assets/pixel/casa.json'
+import type { CasaLayout } from './casa'
 import type { ProjectLayout } from './layout'
+import { recolour, recolourMap, skinKey, type Palette } from './skins'
 
 /** The project floor exported by scripts/pixel-art/export_app.py. */
 export const PROJECT_LAYOUT = projectData as unknown as ProjectLayout
+/** The Casa (ground floor) exported by scripts/pixel-art/export_app.py. */
+export const CASA_LAYOUT = casaData as unknown as CasaLayout
 
-const DATA = atlasData as unknown as { frames: Record<string, [number, number, number, number]>; anchors: Record<string, [number, number]> }
+const DATA = atlasData as unknown as {
+  frames: Record<string, [number, number, number, number]>
+  anchors: Record<string, [number, number]>
+  palettes: Palette[]
+}
+
+/** Painted sheets kept at once (one per variant and Look on screen). */
+const SKINS_MAX = 96
 
 /** The sprite sheet of the 2D world: frames by name, their anchors, and the pixels for hit-tests. */
 export class Atlas {
   readonly image = new Image()
-  readonly base = new Image()
+  /** The base image of each floor, by the name its layout gives. */
+  readonly bases: Record<string, HTMLImageElement> = { 'project-base.png': new Image(), 'casa-base.png': new Image() }
   readonly frames = DATA.frames
   /** Where a bubble's tail tip or the shadow's centre is, inside its frame. */
   readonly anchors = DATA.anchors
-  private alpha: Uint8ClampedArray | null = null
+  private pixels: Uint8ClampedArray | null = null
   private width = 0
+  /** Characters painted in a Look: a strip of the variant's frames and where each one is. */
+  private skins = new Map<string, { canvas: HTMLCanvasElement; at: Map<string, number> }>()
   readonly ready: Promise<void>
 
   constructor() {
@@ -28,14 +45,18 @@ export class Atlas {
         img.onerror = () => resolve()
         img.src = url
       })
-    this.ready = Promise.all([load(this.image, atlasUrl), load(this.base, projectBaseUrl)]).then(() => this.readAlpha())
+    this.ready = Promise.all([
+      load(this.image, atlasUrl),
+      load(this.bases['project-base.png'], projectBaseUrl),
+      load(this.bases['casa-base.png'], casaBaseUrl),
+    ]).then(() => this.readPixels())
   }
 
   get loaded(): boolean {
     return this.image.naturalWidth > 0
   }
 
-  private readAlpha(): void {
+  private readPixels(): void {
     if (!this.loaded) return
     const c = document.createElement('canvas')
     c.width = this.image.naturalWidth
@@ -43,20 +64,63 @@ export class Atlas {
     const ctx = c.getContext('2d', { willReadFrequently: true })!
     ctx.drawImage(this.image, 0, 0)
     this.width = c.width
-    this.alpha = ctx.getImageData(0, 0, c.width, c.height).data
+    this.pixels = ctx.getImageData(0, 0, c.width, c.height).data
   }
 
-  /** Draws a frame with its top-left corner at (x, y) on a native-size canvas. */
-  draw(ctx: CanvasRenderingContext2D, name: string, x: number, y: number): void {
+  /** Draws a frame with its top-left corner at (x, y) on a native-size canvas; `look` paints a character. */
+  draw(ctx: CanvasRenderingContext2D, name: string, x: number, y: number, look?: Look): void {
     const f = this.frames[name]
-    if (f) ctx.drawImage(this.image, f[0], f[1], f[2], f[3], x, y, f[2], f[3])
+    if (!f) return
+    const skin = look ? this.skin(name, look) : null
+    if (skin) ctx.drawImage(skin.canvas, skin.x, 0, f[2], f[3], x, y, f[2], f[3])
+    else ctx.drawImage(this.image, f[0], f[1], f[2], f[3], x, y, f[2], f[3])
+  }
+
+  /** The frame of a character (`char/<variant>/...`) painted in a Look, built once per variant and Look. */
+  private skin(name: string, look: Look): { canvas: HTMLCanvasElement; x: number } | null {
+    const m = /^char\/(\d+)\//.exec(name)
+    const palette = m ? DATA.palettes?.[Number(m[1])] : undefined
+    if (!m || !palette || !this.pixels) return null
+    const variant = Number(m[1])
+    const k = skinKey(variant, look)
+    let sheet = this.skins.get(k)
+    if (!sheet) {
+      if (this.skins.size >= SKINS_MAX) this.skins.clear()
+      const names = Object.keys(this.frames).filter((n) => n.startsWith(`char/${variant}/`))
+      const at = new Map<string, number>()
+      let w = 0
+      let h = 0
+      for (const n of names) {
+        at.set(n, w)
+        w += this.frames[n][2] + 1
+        h = Math.max(h, this.frames[n][3])
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, w)
+      canvas.height = Math.max(1, h)
+      const img = new ImageData(canvas.width, canvas.height)
+      for (const n of names) {
+        const [fx, fy, fw, fh] = this.frames[n]
+        const ox = at.get(n)!
+        for (let v = 0; v < fh; v++) {
+          const from = ((fy + v) * this.width + fx) * 4
+          img.data.set(this.pixels.subarray(from, from + fw * 4), (v * canvas.width + ox) * 4)
+        }
+      }
+      recolour(img.data, recolourMap(palette, look))
+      canvas.getContext('2d')!.putImageData(img, 0, 0)
+      sheet = { canvas, at }
+      this.skins.set(k, sheet)
+    }
+    const x = sheet.at.get(name)
+    return x === undefined ? null : { canvas: sheet.canvas, x }
   }
 
   /** True when the pixel (u, v) of a frame is painted (hit-tests ignore the transparent corners). */
   solid(name: string, u: number, v: number): boolean {
     const f = this.frames[name]
     if (!f || u < 0 || v < 0 || u >= f[2] || v >= f[3]) return false
-    if (!this.alpha) return true
-    return this.alpha[((f[1] + Math.floor(v)) * this.width + f[0] + Math.floor(u)) * 4 + 3] > 0
+    if (!this.pixels) return true
+    return this.pixels[((f[1] + Math.floor(v)) * this.width + f[0] + Math.floor(u)) * 4 + 3] > 0
   }
 }

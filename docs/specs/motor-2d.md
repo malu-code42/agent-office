@@ -1,6 +1,6 @@
 # Motor 2D: pixel art isométrica no lugar do mundo 3D
 
-**Status:** fase 1 entregue (motor + andar de projeto), atrás de Configurações → Vídeo → Visual (2D beta, padrão).
+**Status:** fases 1 (motor + andar de projeto) e 2 (Casa) entregues, atrás de Configurações → Vídeo → Visual (2D beta, padrão).
 **Aprovado em:** 2026-10-30.
 
 ## Por quê
@@ -20,7 +20,7 @@ indo ao elevador como antes, com caminhos no `Grid` do andar. O que muda é o **
 - O `Grid` vem dos móveis e das paredes de vidro do mesmo layout.
 - O WebGL do 3D não renderiza: um `<canvas>` 2D desenha o andar, e as tags HTML (nomes, balões de
   texto, passo do squad, gasto, alarme) seguem posicionadas pela projeção 2D.
-- A Casa (térreo) continua 3D nesta fase.
+- A Casa (térreo) também é 2D desde a fase 2 (abaixo).
 
 ### Desenho
 
@@ -42,6 +42,36 @@ andar), roda/zoom do HUD troca 1×/2×/3×, clique acerta pessoa (pixel pintado 
 primeiro), placa de sala (`onRoomClick`), placa da reunião (`onMeetingRoomClick`), Emi (abre a conversa
 dela), porta do elevador (o jogador anda até lá e o painel Elevador ganha o foco) ou o chão (anda).
 
+## A Casa (fase 2)
+
+- `scene_casa2.py` foi dividida como o projeto: `shell()` (piso, paredes, tapetes, elevador, quadros de
+  cortiça, decoração de parede) vira `casa-base.png`; as outras partes viram sprites ordenáveis em
+  `casa.json`. A prévia (`build()`) sai pixel a pixel igual à arte aprovada.
+- `casa.json`: móveis (os clicáveis com `act`: `radio`, `books`, `films`, `games`, `writing`, `skull`,
+  `totem`, `computer`), quadros da parede (`hot`: agenda, objetivos, rotinas pessoais, clicados pela
+  caixa), as 6 cadeiras da mesa da Luna (a dela primeiro, depois a ordem em que a arte enche), a cadeira e
+  a mesa do Você, meias-paredes com portas, tiles ocupados, cantos de lazer (`hang`), zonas (nome no
+  hover), onde ficam as tags HTML e a tela da Claude FM.
+- O jogo pergunta os lugares do térreo a um `HomePlan` (`world/home-layout.ts`): `HOME_PLAN_3D` (os
+  valores de antes) ou `casaPlan` (`world2d/casa.ts`). Cadeira do jogador, visitas, mesa da Luna e
+  cadeiras dos residentes (`homeSpot(grid, n, plan)`, lugar fixo por agente), cantos de lazer,
+  elevador e espera. `floorOf(0)` devolve o grid da Casa 2D (`buildCasa2d`).
+- Clique (`world2d/hit.ts actAt`): pessoa da frente primeiro (Luna abre a conversa dela ou a revisão do
+  dia), depois o móvel da frente pintado naquele pixel (um móvel sem ação na frente esconde o de trás),
+  depois os quadros da parede, depois a porta do elevador. Hover: o clicável fica mais claro e o
+  `title` do canvas diz o que o clique faz ou o nome da zona. Sem placas no chão.
+- Tags HTML: Caveira, Rotinas de agentes, Novo agente, quadros, Claude FM, Livros, Filmes, Jogos, Escrita
+  ficam pequenas (`tag-mini`) no 2D; Luna, alarme e gastos no tamanho normal. Cada tag guarda a âncora 3D
+  e a 2D e troca com o Visual (`placeCasa`). O player da Claude FM vai para a tela do console 2D.
+- **Cores do Look**: `atlas.json` traz a paleta de cada variante (`palettes`, de `chars.py`); `skins.ts`
+  pinta pele, cabelo, camisa, calça e sapato mantendo a razão de cada tom com a base, e o contorno
+  acompanha. Uma tira pintada por variante + Look (cache de 96). Vale para todos: jogador, agentes,
+  ajudantes, membros, Luna (look salvo) e Emi; a camisa do uniforme da empresa também.
+- O penteado escolhe a variante (`hairStyle % 6`: curto, espetado, longo, coque, maria-chiquinha,
+  cacheado → 0, 4, 1, 3, 7, 5); a Luna usa a 6 (fone).
+- Trocar o Visual no térreo senta o jogador na cadeira do plano novo e reposiciona quem está na Casa.
+- Com Visual 2D, a Casa 3D continua construída (para trocar de volta), mas não atualiza nem desenha.
+
 ## Mapa 3D → 2D
 
 | 3D (`world/`) | 2D (`world2d/`) | Fase |
@@ -51,10 +81,10 @@ dela), porta do elevador (o jogador anda até lá e o painel Elevador ganha o fo
 | `upper-floor.ts` `buildUpperFloor` | `floor.ts` `buildFloor2d` (mesmo formato `UpperFloor`, monitores = `Crt`) | 1 |
 | `furniture.ts`, `workstation.ts`, `office.ts` partições, `textures.ts` | `assets/pixel/atlas.png` + `project.json` (gerados por `scripts/pixel-art/export_app.py`) | 1 |
 | `screens.ts` (`Screen` animada) | cor do CRT por estado (`crtOf`: verde/âmbar/vermelho/desligado) | 1 |
-| `avatar.ts` (malha + ossos) | sprite por variante/direção/quadro (`sprites.ts` `variantOf`, `iso.ts` `dirOf`) | 1 (desenho); a simulação ainda usa `Avatar` |
+| `avatar.ts` (malha + ossos) | sprite por variante/direção/quadro (`sprites.ts` `variantOf`, `iso.ts` `dirOf`), cores do Look (`skins.ts`) | 1 (desenho), 2 (cores); a simulação ainda usa `Avatar` |
 | `overlays.ts` (projeção 3D) | `overlays.projector` com a projeção 2D | 1 |
 | `engine.ts` sombras, `effects.ts`, `aura.ts`, `skull.ts`, `totem.ts` | — | 4 (ou fora) |
-| `home.ts`, `home-layout.ts` (Casa) | — | 2 |
+| `home.ts`, `home-layout.ts` (Casa) | `casa.ts` `casaPlan`, `floor.ts` `buildCasa2d`, `assets/pixel/casa*`, `HomePlan` | 2 |
 | andar de estudos | — | 3 |
 
 Arquivos novos da fase 1: `world2d/{atlas,depth,floor,font,hit,iso,layout,plaque,renderer,sprites}.ts`,
@@ -92,12 +122,21 @@ Medida direta, 120 frames de `update(1/60)` + `draw(1/60)` seguidos no mesmo cen
 | `draw` (render + tags HTML) média · p95 | 37,3 · 27,9 ms | 1,28 · 2,5 ms |
 | heap JS depois | 29,8 MB | 18,4 MB |
 
+## Medidas (fase 2, Casa)
+
+Mesmo cenário (stress, 50 agentes), jogador na Casa, janela 1424×835, dpr 1.
+
+| | 3D | 2D |
+| --- | --- | --- |
+| bench `workMs` média · p95 (15 s) | 190 · 1638 ms | 45 · 72 ms |
+| draw calls · triângulos | 2396 · 87 666 | 0 · 0 |
+| `update` média · p95 (120 frames seguidos) | 1,09 · 2,2 ms | 0,52 · 0,7 ms |
+| `draw` média · p95 | 39,6 · 43,8 ms | 1,34 · 1,8 ms |
+
 ## Fases
 
 1. **Motor + andar de projeto** (este PR).
-2. **Casa**: exportar `scene_casa2.py` como o projeto (base, móveis, lugares da mesa da Luna, ações
-   clicáveis: agenda, objetivos, livros, filmes, TV/Claude FM, caveira, totem de rotinas, computador
-   "Novo agente"); `home-layout` vira layout 2D; Visual 2D vale para o térreo.
+2. **Casa** (feito): `scene_casa2.py` exportada como o projeto; `HomePlan`; Visual 2D vale para o térreo.
 3. **Andar de estudos**: exportar `scene_estudos.py`.
 4. **Animação e limpeza**: andar e digitar com mais quadros, balões de reação, ajudantes menores,
    marcas de falha, efeitos (faíscas/fumaça/fantasma) em 2D; simulação sem `Avatar`/three.js
@@ -105,10 +144,13 @@ Medida direta, 120 frames de `update(1/60)` + `draw(1/60)` seguidos no mesmo cen
 
 ## O que falta (conhecido)
 
-- A Casa e o andar de estudos ainda são 3D; o 3D inteiro (three.js) segue carregado.
+- O andar de estudos ainda é 3D; o 3D inteiro (three.js) segue carregado, inclusive a Casa 3D.
+- Na Casa 2D: agentes sem projeto e sem casa não têm mesa (esperam no hall, perto do elevador); quem
+  descansa "senta" no sofá em pé (sem quadro sentado fora de cadeira); a caveira não anda até o agente
+  nem mostra o golpe/fantasma (efeitos 3D); o totem não mostra a tela (a tag carrega o texto); quadro
+  de gastos e giroflex só como tag; sem porta do elevador abrindo.
+- Os pixels meio transparentes do contorno (cantos) não mudam de cor no Look (o canvas arredonda o alfa).
 - Os avatares ainda são objetos three.js atualizados a cada frame (só não são desenhados no 2D).
-- O visual do agente (`Look`) escolhe uma das 6 variantes da folha; ainda não pinta pele, cabelo e
-  roupa com as cores escolhidas.
 - Ajudantes (subagentes) aparecem no tamanho normal; o cordão e as marcas de falha não são desenhados.
 - Sem animação de digitar (o sprite sentado é um quadro só) nem portas do elevador abrindo.
 - As mesas 5 e 6 de uma sala ficam no corredor do meio e não bloqueiam a passagem (alguém pode cruzar

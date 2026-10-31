@@ -17,7 +17,7 @@ import {
   toScreen,
 } from '../src/renderer/src/world2d/iso'
 import { grid2d, memberDeskIndex, projectPlan2d, slotOfDesk, type ProjectLayout } from '../src/renderer/src/world2d/layout'
-import { agentBubble, variantOf } from '../src/renderer/src/world2d/sprites'
+import { agentBubble, LUNA_VARIANT, variantOf } from '../src/renderer/src/world2d/sprites'
 
 const LAYOUT = layoutData as unknown as ProjectLayout
 const ORIGIN: [number, number] = [320, 87]
@@ -242,13 +242,15 @@ describe('placas e sprites', () => {
     expect(lit[0]).toBeGreaterThan(shade[0])
   })
 
-  it('o mesmo visual sempre dá a mesma variante, entre as seis de agente', () => {
+  it('o penteado do visual escolhe o sprite; Luna e Emi têm o seu', () => {
     const look = { skin: '#f7d7b5', hair: '#3a3340', hairStyle: 2, shirt: '#86acd8', pants: '#4f5873', shoes: '#5a4038' }
-    expect(variantOf(look)).toBe(variantOf({ ...look }))
+    expect(variantOf(look)).toBe(variantOf({ ...look, shirt: '#000000', hair: '#ffffff' }))
     const seen = new Set<number>()
-    for (let i = 0; i < 40; i++) seen.add(variantOf({ ...look, hairStyle: i, shirt: `#${i}0a0b0` }))
-    for (const v of seen) expect(v >= 0 && v < 6).toBe(true)
-    expect(seen.size).toBeGreaterThan(3)
+    for (let i = 0; i < 12; i++) seen.add(variantOf({ ...look, hairStyle: i }))
+    expect(seen.size).toBe(6)
+    expect(seen.has(LUNA_VARIANT)).toBe(false)
+    expect([...seen].every((v) => v >= 0 && v < 8)).toBe(true)
+    expect(variantOf({ ...look, hairStyle: -1 })).toBe(variantOf({ ...look, hairStyle: 5 }))
   })
 
   it('o balão de pixel diz o que o agente faz', () => {

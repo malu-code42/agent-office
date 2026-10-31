@@ -8,6 +8,10 @@
   project.json             the project floor's layout: where each sprite goes on the
                            base canvas, its footprint for depth sorting, the rooms, seats,
                            walls, blocked tiles and spots the game walks to
+  casa-base.png            the Casa's slab, floor, back walls, rugs, wall boards and elevator
+  casa.json                the Casa's layout: furniture (the clickable pieces carry their
+                           action), Luna's table and its chairs, the user's desk and chair,
+                           the wall boards, walls, blocked tiles, tags and spots
   font5.json               the plaque font
 
 Everything is placed at its final pixel position on the native canvas (736x460), so the
@@ -22,8 +26,9 @@ from px import H
 import furn as F
 from floorkit import SW, SH, OX, OY, TS, W, D, WALL_H, PART_H, Scene, new_layer, OAK, WALNUT, draw_floor, Layer
 import scene_projeto as P
+import scene_casa2 as C
 from desks import ws_back, ws_front_x, ws_front_y
-from chars import sprite, VARIANTS
+from chars import sprite, VARIANTS, palette
 from font5 import glyph
 
 APP = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
@@ -91,6 +96,12 @@ class Capture(Scene):
         super().gx(x0, x1, yp, doors, **k)
         s.kind = kind
 
+    def wy(s, y0, y1, xp, doors=()):
+        s.walls.append({'axis': 'x', 'at': xp // TS, 'from': y0 // TS, 'to': y1 // TS, 'doors': door_tiles(doors)})
+        kind, s.kind = s.kind, 'wall'
+        super().wy(y0, y1, xp, doors)
+        s.kind = kind
+
     def gy(s, y0, y1, xp, doors=(), **k):
         s.walls.append({'axis': 'x', 'at': xp // TS, 'from': y0 // TS, 'to': y1 // TS, 'doors': door_tiles(doors)})
         kind, s.kind = s.kind, 'wall'
@@ -104,6 +115,21 @@ def door_tiles(doors):
     for a, b in doors:
         out += [i for i in range(a // TS, b // TS + 1) if min(b, (i + 1) * TS) - max(a, i * TS) >= TS // 2]
     return out
+
+
+def covered(a, b):
+    """tiles an extent covers: at least half a tile, or the one under its middle when smaller."""
+    need = min(TS // 2, (b - a) / 2)
+    return [i for i in range(int(a // TS), int((b - 1) // TS) + 1) if min(b, (i + 1) * TS) - max(a, i * TS) >= need]
+
+
+def blocked_by(footprints):
+    out = set()
+    for x0, y0, x1, y1 in footprints:
+        for tx in covered(x0, x1):
+            for ty in covered(y0, y1):
+                out.add((tx, ty))
+    return sorted([list(t) for t in out])
 
 
 def render(L, fn, size=(SW, SH)):
@@ -240,11 +266,6 @@ def main():
     lpx, lpy = L.P(282, 44, 0)
 
     # ---------- tiles: blocked by furniture (walls block edges instead) ----------
-    def covered(a, b):
-        """tiles an extent covers: at least half a tile, or the one under its middle when smaller."""
-        need = min(TS // 2, (b - a) / 2)
-        return [i for i in range(int(a // TS), int((b - 1) // TS) + 1) if min(b, (i + 1) * TS) - max(a, i * TS) >= need]
-
     blocked = set()
     furniture = [it['fp'] for it in static if not it.get('wall')]
     furniture += [room['coordinator']['desk']['green']['fp'] for room in rooms]
@@ -275,6 +296,8 @@ def main():
     with open(os.path.join(APP, 'project.json'), 'w', encoding='utf8') as f:
         json.dump(layout, f, separators=(',', ':'), ensure_ascii=False)
 
+    casa(L, place, items, seat)
+
     # ---------- characters, bubbles, shadow, floor tiles ----------
     for vi in range(len(VARIANTS)):
         for d in DIRS:
@@ -298,6 +321,7 @@ def main():
     with open(os.path.join(APP, 'atlas.json'), encoding='utf8') as f:
         data = json.load(f)
     data['anchors'] = anchors
+    data['palettes'] = [palette(vi) for vi in range(len(VARIANTS))]
     with open(os.path.join(APP, 'atlas.json'), 'w', encoding='utf8') as f:
         json.dump(data, f, separators=(',', ':'))
 
@@ -306,6 +330,77 @@ def main():
     with open(os.path.join(APP, 'font5.json'), 'w', encoding='utf8') as f:
         json.dump({c: glyph(c) for c in chars}, f, separators=(',', ':'), ensure_ascii=False)
     print('atlas:', len(atlas.frames), 'frames ->', APP)
+
+
+def casa(L, place, items, seat):
+    """casa-base.png + casa.json: the ground floor, from scene_casa2.py."""
+    base = new_layer()
+    C.shell(base)
+    base.img.save(os.path.join(APP, 'casa-base.png'), optimize=True)
+
+    sc = Capture(L)
+    C.entrance(sc)
+    C.half_wall(sc, 0)
+    C.half_wall(sc, 1)
+    C.sala(sc)
+    sc.add(C.TABLE[:2] + (C.TABLE[0] + C.TABLE[2], C.TABLE[1] + C.TABLE[3]), lambda: C.table_top(L))
+    x, y, w = C.VOCE_DESK
+    ws_front_y(sc, x, y, None, 'green', w=w)
+    sc.rec.pop()  # the user's chair is a seat below
+    C.voce_corner(sc)
+    C.media(sc, people=False)
+    static = items('casa', sc.take())
+    # what a click on a piece of furniture does
+    acts = {C.SKULL: 'skull', C.RADIO: 'radio', C.TOTEM: 'totem', C.WRITING: 'writing', C.FILMS_TV: 'films',
+            (292, 114, 306, 154): 'films', (x, y, x + w, y + 14): 'computer'}
+    acts.update({fp: 'games' for fp in C.ARCADES})
+    acts.update({fp: 'books' for fp in C.SHELVES})
+    for it in static:
+        act = acts.get(tuple(it['fp']))
+        if act:
+            it['act'] = act
+
+    def box(fn):
+        img, bx, by = render(L, fn)
+        return [bx, by, img.width, img.height]
+
+    # the boards hang on the back wall: drawn in the base, clicked by their box
+    hot = [{'act': act, 'box': box(lambda a=a, b=b: C.board(L, a, b))} for a, b, act, _n in C.BOARDS]
+    # tags (HTML) over the clickable things: art units x, y and height
+    tags = {n: [(a + b) / 2, 0, 46] for a, b, _act, n in C.BOARDS}
+    tags.update({
+        'Claude FM': [8, 47, 34], 'Caveira': [150, 24, 34], 'Rotinas de agentes': [213, 74, 40],
+        'Novo agente': [80, 270, 40], 'Livros': [306, 4, 44], 'Escrita': [314, 32, 30],
+        'Filmes': [233, 133, 34], 'Jogos': [233, 238, 38], 'Gastos': [218, 0, 54], 'Alarme': [168, 0, 54],
+    })
+    # Luna's chair first, then the residents' in the order the approved art fills them
+    seats = [seat(f'casa/table{i}', *C.TABLE_SEATS[i], wood=True) for i in C.SEAT_ORDER]
+    walls = sc.walls
+    blocked = blocked_by([it['fp'] for it in static if not it.get('wall')])
+    ex0, ex1 = C.ELEVATOR
+    # the screen of the Claude FM console (top-left, top-right, bottom-left), facing +x
+    rx, ry = C.RADIO[:2]
+    tv = [[rx + 10, ry + 26, 28], [rx + 10, ry + 8, 28], [rx + 10, ry + 26, 18]]
+    layout = {
+        'tile': TS,
+        'size': [W // TS, D // TS],
+        'canvas': [SW, SH],
+        'origin': [OX, OY],
+        'base': 'casa-base.png',
+        'static': static,
+        'walls': walls,
+        'blocked': blocked,
+        'hot': hot,
+        'tags': tags,
+        'tv': tv,
+        'table': {'center': [C.TABLE[0] + C.TABLE[2] / 2, C.TABLE[1] + C.TABLE[3] / 2], 'seats': seats},
+        'voce': {'seat': seat('casa/voce', x + w - 13, y - 12, '+y'), 'desk': [x, y, x + w, y + 14]},
+        'hang': [{'at': [hx, hy], 'look': list(look), 'kind': kind} for hx, hy, look, kind in C.HANG],
+        'zones': [{'name': n, 'rect': list(r)} for n, r in C.ZONES],
+        'elevator': {'tile': [ex0 // TS, 1], 'point': [(ex0 + ex1) / 2 / TS, 0.45], 'door': [ex0, ex1, 40]},
+    }
+    with open(os.path.join(APP, 'casa.json'), 'w', encoding='utf8') as f:
+        json.dump(layout, f, separators=(',', ':'), ensure_ascii=False)
 
 
 if __name__ == '__main__':

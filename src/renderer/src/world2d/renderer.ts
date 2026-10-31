@@ -1,4 +1,6 @@
+import type { Look } from '@shared/types'
 import type { ScreenMode } from '../world/screens'
+import type { CasaAct, CasaFlat } from './casa'
 import { Atlas } from './atlas'
 import { depthSort, type Footprint } from './depth'
 import { crtOf, type FlatFloor } from './floor'
@@ -7,7 +9,7 @@ import type { Placement, SeatArt } from './layout'
 import { plaqueLeft } from './font'
 import { makePlaque } from './plaque'
 import type { Bubble2d } from './sprites'
-import { topmost } from './hit'
+import { actAt, topmost } from './hit'
 
 /** Someone on the floor, as the game sees it this frame. */
 export interface Person2d {
@@ -15,6 +17,8 @@ export interface Person2d {
   key: string
   /** Character variant of the sprite sheet (0-7). */
   variant: number
+  /** The colours it wears; without one, the variant's own. */
+  look?: Look
   /** Position in tiles. */
   x: number
   z: number
@@ -27,9 +31,9 @@ export interface Person2d {
   bubble: Bubble2d | null
 }
 
-/** One frame of the 2D project floor. */
+/** One frame of a 2D floor: a project floor or the Casa (which has no desks, rooms or Emi). */
 export interface FlatView {
-  floor: FlatFloor
+  floor: FlatFloor | CasaFlat
   people: Person2d[]
   /** Desk screen indices with a desk on the floor (squad members, individual agents). */
   desks: ReadonlySet<number>
@@ -45,14 +49,22 @@ export interface FlatView {
   hover: { x: number; z: number; ok: boolean } | null
   /** Where the camera looks (tiles). */
   target: { x: number; z: number }
+  /** The clickable thing of the Casa under the pointer: drawn a little brighter. */
+  highlight?: CasaAct | null
 }
 
-export type Hit = { kind: 'person'; key: string } | { kind: 'room'; room: number } | { kind: 'meeting' } | { kind: 'elevator' }
+export type Hit =
+  | { kind: 'person'; key: string }
+  | { kind: 'room'; room: number }
+  | { kind: 'meeting' }
+  | { kind: 'elevator' }
+  | { kind: 'casa'; act: CasaAct }
 
 interface Sprite {
   f: string
   x: number
   y: number
+  look?: Look
 }
 
 type Rect = [number, number, number, number]
@@ -65,6 +77,8 @@ interface Item {
   box: Rect
   /** A chair: the person sitting on it replaces it. */
   seat?: SeatArt
+  /** What a click on it does (the Casa's clickable furniture). */
+  act?: CasaAct
 }
 
 /** A person as drawn this frame. */
@@ -80,6 +94,8 @@ interface PersonItem extends Item {
 
 const ZOOM_MAX = 3
 const BG = '#1f1b24'
+/** How the hovered clickable thing of the Casa stands out. */
+const LIT = 'brightness(1.22)'
 
 const hits = (a: Rect, b: Rect) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3]
 const union = (a: Rect, b: Rect): Rect => {
@@ -114,6 +130,7 @@ export class Renderer2d {
   private people: PersonItem[] = []
   private shown = new Map<string, { sig: string; area: Rect }>()
   private hoverBox: Rect | null = null
+  private highlight: CasaAct | null = null
   private screenKey = ''
   /** 0 = fit the floor to the window. */
   private zoom = 0
@@ -197,14 +214,28 @@ export class Renderer2d {
     const p = this.toFrame(clientX, clientY)
     const inside = (b: Rect) => p.x >= b[0] && p.y >= b[1] && p.x < b[0] + b[2] && p.y < b[1] + b[3]
     for (const plate of this.plates) if (plate.hit && inside(plate.box)) return plate.hit
-    const person = topmost(this.people, p, (f, u, v) => this.atlas.solid(f, u, v))
+    const solid = (f: string, u: number, v: number) => this.atlas.solid(f, u, v)
+    const person = topmost(this.people, p, solid)
     if (person) return { kind: 'person', key: person.key }
+    if (view.floor.kind === 'casa') {
+      const act = actAt(this.items, view.floor.layout.hot, p, solid)
+      if (act) return { kind: 'casa', act }
+    }
     const { origin, elevator } = view.floor.layout
     const [x0, x1, h] = elevator.door
     const a = artToScreen(origin, x0, 0, h)
     const b = artToScreen(origin, x1, 0, 0)
     if (p.x >= a.x && p.x < b.x && p.y >= a.y && p.y < b.y) return { kind: 'elevator' }
     return null
+  }
+
+  /** What the hovered clickable thing covers: its furniture and its wall board. */
+  private litBoxes(view: FlatView, act: CasaAct | null): Rect[] {
+    if (!act || view.floor.kind !== 'casa') return []
+    return [
+      ...this.items.filter((i) => i.act === act).map((i) => i.box),
+      ...view.floor.layout.hot.filter((h) => h.act === act).map((h) => h.box),
+    ]
   }
 
   /** Draws what changed on the floor since the last frame (nothing, most of the time). */
@@ -254,6 +285,7 @@ export class Renderer2d {
     }
     this.people = this.placePeople(view)
     const hoverBox = view.hover ? this.hoverRect(view) : null
+    const highlight = view.highlight ?? null
 
     // what changed: the old and the new area of each person that moved, came or left
     const rects: Rect[] = []
@@ -267,17 +299,19 @@ export class Renderer2d {
       }
       for (const [key, was] of this.shown) if (!now.has(key)) rects.push(was.area)
       if (JSON.stringify(hoverBox) !== JSON.stringify(this.hoverBox)) for (const b of [hoverBox, this.hoverBox]) if (b) rects.push(b)
+      if (highlight !== this.highlight) rects.push(...this.litBoxes(view, highlight), ...this.litBoxes(view, this.highlight))
     }
     const screenKey = `${ox},${oy},${s},${w},${h}`
     if (!full && !rects.length && screenKey === this.screenKey) return
     this.shown = new Map(this.people.map((p) => [p.key, { sig: p.sig, area: p.area }]))
     this.hoverBox = hoverBox
+    this.highlight = highlight
 
     const f = this.fctx
     if (full) {
       f.drawImage(this.cache, 0, 0)
-      // around each person, the floor again from scratch: furniture and people in depth order
-      for (const p of this.people) this.recompose(f, p.box, view, false)
+      // around each person (and the lit thing), the floor again from scratch: furniture and people in depth order
+      for (const b of [...this.people.map((p) => p.box), ...this.litBoxes(view, highlight)]) this.recompose(f, b, view, false)
       this.top(f, view, null)
     } else for (const r of rects) this.recompose(f, r, view, true)
 
@@ -301,6 +335,7 @@ export class Renderer2d {
 
   /** What the cache shows: the desks, their monitors, the rooms' lights. */
   private staticKey(view: FlatView): string {
+    if (view.floor.kind === 'casa') return 'casa'
     const { plan, crts } = view.floor
     return JSON.stringify([
       [...view.desks].sort((a, b) => a - b).map((i) => [i, crtOf(crts[i]?.mode)]),
@@ -312,11 +347,43 @@ export class Renderer2d {
 
   /** Builds the cache: base image, every fixed item in depth order, the shade over empty rooms. */
   private compose(view: FlatView, key: string): void {
-    const { layout, slots, crts } = view.floor
     const items: Item[] = []
     const place = (p: Placement): Sprite => ({ f: p.f, x: p.x, y: p.y })
-    const add = (fp: Footprint, sprites: Sprite[], seat?: SeatArt) => items.push({ fp, sprites, box: this.bounds(sprites), seat })
+    const add = (fp: Footprint, sprites: Sprite[], seat?: SeatArt, act?: CasaAct) =>
+      items.push({ fp, sprites, box: this.bounds(sprites), seat, act })
     const chair = (seat: SeatArt) => add(seat.fp, [place(seat.seat), place(seat.back)], seat)
+    if (view.floor.kind === 'casa') {
+      const { layout } = view.floor
+      for (const p of layout.static) add(p.fp, [place(p)], undefined, p.act)
+      for (const seat of layout.table.seats) chair(seat)
+      chair(layout.voce.seat)
+    } else this.composeProject(view.floor, view, add, chair, place)
+    this.items = depthSort(items)
+    this.chairs = this.items.filter((i) => i.seat)
+
+    const [cw, ch] = view.floor.layout.canvas
+    this.cache.width = cw
+    this.cache.height = ch
+    const c = this.cctx
+    c.drawImage(this.baseOf(view), 0, 0)
+    for (const item of this.items) for (const sp of item.sprites) this.atlas.draw(c, sp.f, sp.x, sp.y)
+    this.shades(c, view)
+    this.cacheKey = key
+  }
+
+  private baseOf(view: FlatView): HTMLImageElement {
+    return this.atlas.bases[view.floor.layout.base] ?? this.atlas.bases['project-base.png']
+  }
+
+  /** The desks, chairs and monitors of a project floor. */
+  private composeProject(
+    floor: FlatFloor,
+    view: FlatView,
+    add: (fp: Footprint, sprites: Sprite[]) => void,
+    chair: (seat: SeatArt) => void,
+    place: (p: Placement) => Sprite,
+  ): void {
+    const { layout, slots, crts } = floor
     for (const p of layout.static) add(p.fp, [place(p)])
     layout.rooms.forEach((room, r) => {
       const coord = room.coordinator.desk[crtOf(view.coordinators[r])]
@@ -334,21 +401,11 @@ export class Renderer2d {
     add(emi.fp, [place(emi)])
     chair(layout.emi.seat)
     for (const seat of layout.meeting.seats) chair(seat)
-    this.items = depthSort(items)
-    this.chairs = this.items.filter((i) => i.seat)
-
-    const [cw, ch] = layout.canvas
-    this.cache.width = cw
-    this.cache.height = ch
-    const c = this.cctx
-    c.drawImage(this.atlas.base, 0, 0)
-    for (const item of this.items) for (const sp of item.sprites) this.atlas.draw(c, sp.f, sp.x, sp.y)
-    this.shades(c, view)
-    this.cacheKey = key
   }
 
   /** Lights off over the empty rooms nobody works in; an amber outline over the rooms a proposal holds. */
   private shades(c: CanvasRenderingContext2D, view: FlatView): void {
+    if (view.floor.kind !== 'project') return
     const { plan, layout, slots } = view.floor
     plan.rooms.forEach((room, r) => {
       if (room.state === 'proposed') this.outline(c, view, r)
@@ -370,6 +427,7 @@ export class Renderer2d {
 
   /** A team waiting for approval: an amber outline on the room's floor. */
   private outline(c: CanvasRenderingContext2D, view: FlatView, r: number): void {
+    if (view.floor.kind !== 'project') return
     const [x0, z0, x1, z1] = view.floor.layout.rooms[r].rect
     const o = view.floor.layout.origin
     const pts = [toScreen(o, x0, z0), toScreen(o, x1, z0), toScreen(o, x1, z1), toScreen(o, x0, z1)]
@@ -424,7 +482,7 @@ export class Renderer2d {
         : undefined
       if (seat) {
         taken.add(seat)
-        const char = { f: `char/${p.variant}/${seat.dir}/${seat.pose}`, x: seat.sit[0], y: seat.sit[1] }
+        const char = { f: `char/${p.variant}/${seat.dir}/${seat.pose}`, x: seat.sit[0], y: seat.sit[1], look: p.look }
         const under = { f: seat.seat.f, x: seat.seat.x, y: seat.seat.y }
         const back = { f: seat.back.f, x: seat.back.x, y: seat.back.y }
         push(p, seat.fp, seat.front ? [under, char, back] : [under, back, char], char, bubbleAt(p.bubble, seat.head[0], seat.head[1]), seat)
@@ -434,7 +492,7 @@ export class Renderer2d {
       const px = Math.round(at.x)
       const py = Math.round(at.y)
       const frame = p.stride === null ? 'idle' : Math.sin(p.stride) > 0 ? 'walkA' : 'walkB'
-      const char = { f: `char/${p.variant}/${dirOf(p.heading)}/${frame}`, x: px - 12, y: py - 30 }
+      const char = { f: `char/${p.variant}/${dirOf(p.heading)}/${frame}`, x: px - 12, y: py - 30, look: p.look }
       const sa = this.atlas.anchors.shadow ?? [0, 0]
       const ax = p.x * TILE
       const az = p.z * TILE
@@ -464,8 +522,21 @@ export class Renderer2d {
     f.beginPath()
     f.rect(x, y, w, h)
     f.clip()
-    f.drawImage(this.atlas.base, x, y, w, h, x, y, w, h)
-    for (const item of depthSort(items)) for (const sp of item.sprites) this.atlas.draw(f, sp.f, sp.x, sp.y)
+    const base = this.baseOf(view)
+    f.drawImage(base, x, y, w, h, x, y, w, h)
+    const lit = this.highlight
+    if (lit && view.floor.kind === 'casa')
+      for (const hot of view.floor.layout.hot)
+        if (hot.act === lit && hits(hot.box, r)) {
+          f.filter = LIT
+          f.drawImage(base, ...hot.box, ...hot.box)
+          f.filter = 'none'
+        }
+    for (const item of depthSort(items)) {
+      if (lit && item.act === lit) f.filter = LIT
+      for (const sp of item.sprites) this.atlas.draw(f, sp.f, sp.x, sp.y, sp.look)
+      f.filter = 'none'
+    }
     this.shades(f, view)
     if (top) this.top(f, view, r)
     f.restore()
@@ -501,6 +572,7 @@ export class Renderer2d {
 
   /** The name plates: room names, coordinators, meeting room, diretoria, lounge; the clickable ones answer pick(). */
   private plateList(view: FlatView): { canvas: HTMLCanvasElement; box: Rect; hit?: Hit }[] {
+    if (view.floor.kind !== 'project') return []
     const { layout } = view.floor
     const out: { canvas: HTMLCanvasElement; box: Rect; hit?: Hit }[] = []
     const plate = (text: string, at: [number, number], hit?: Hit) => {

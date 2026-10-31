@@ -189,20 +189,38 @@ export abstract class GameFloors extends GameBase {
     if (notify) this.hooks.onFloor(this.player.floor)
   }
 
-  /** Project floors in 2D or 3D (Configurações → Vídeo): the floors are built again in the other one. */
+  /**
+   * The world in 2D or 3D (Configurações → Vídeo): the project floors are built again in the
+   * other one, and the Casa switches to the other plan.
+   */
   setVisual(visual: Visual): void {
     if (visual === this.visual) return
     this.visual = visual
     this.hover2d = null
+    this.casaHot = null
     this.setProjects(this.state.settings.projects, this.state.squads, this.state.squadProposals, false)
+    this.placeCasa()
     // the other floor plan has other walls: the player steps out of the elevator again
+    // (in the Casa, back to the chair)
+    this.player.stop()
     if (this.player.floor > 0) {
       const door = this.elevatorOf(this.player.floor)
-      this.player.stop()
       this.player.pose = 'stand'
       this.player.placeAt(door.point.x, door.point.z + 0.6)
       this.engine.jumpTo(door.point.x, door.point.z)
+    } else {
+      this.sitPlayer()
+      this.engine.jumpTo(this.player.position.x, this.player.position.z)
     }
+    // everyone in the Casa takes their place in the other plan (setProjects left them there)
+    for (const actor of this.actors.values()) {
+      if (actor.avatar.floor !== 0 || actor.goal === 'leave' || actor.down || actor.riding) continue
+      actor.avatar.stop()
+      actor.goal = null
+      actor.chatUntil = 0
+      this.reconcile(actor, true)
+    }
+    this.syncHelpers()
     this.wake(400)
   }
 

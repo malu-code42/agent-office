@@ -91,7 +91,7 @@ export interface ProjectLayout {
 const tileOf = (a: number) => Math.floor(a / TILE)
 
 /** The walkability of the floor: furniture tiles and the glass walls with their doors. */
-export function grid2d(layout: ProjectLayout): Grid {
+export function grid2d(layout: Pick<ProjectLayout, 'size' | 'blocked' | 'walls'>): Grid {
   const grid = new Grid(layout.size[0], layout.size[1])
   for (const [x, z] of layout.blocked) grid.block(x, z)
   for (const p of layout.walls)

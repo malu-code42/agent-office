@@ -1,5 +1,4 @@
 import type * as THREE from 'three'
-import * as L from '../world/layout'
 import { GameSkull } from './skull'
 import { tileOf } from './types'
 
@@ -12,8 +11,9 @@ export abstract class GameMovement extends GameSkull {
     const target = grid.walkable(tile[0], tile[1]) ? tile : grid.nearestWalkable(tile[0], tile[1])
     if (!target) return
     this.follow = true
-    const chair = this.player.floor === 0 && target[0] === Math.floor(L.BOSS_SEAT.x) && target[1] === Math.floor(L.BOSS_SEAT.z)
-    this.route(this.player, target, chair ? L.BOSS_SEAT : null, () => {
+    const seat = this.home.boss
+    const chair = this.player.floor === 0 && target[0] === Math.floor(seat.x) && target[1] === Math.floor(seat.z)
+    this.route(this.player, target, chair ? seat : null, () => {
       if (chair) this.sitPlayer()
     })
   }
@@ -108,7 +108,7 @@ export abstract class GameMovement extends GameSkull {
 
   goHome(): void {
     this.goFloor(0)
-    this.walkPlayerTo([Math.floor(L.BOSS_SEAT.x), Math.floor(L.BOSS_SEAT.z)])
+    this.walkPlayerTo([Math.floor(this.home.boss.x), Math.floor(this.home.boss.z)])
   }
 
   /** Points the camera at an agent and keeps it there until the agent settles, even one still on its way in. */
@@ -167,7 +167,13 @@ export abstract class GameMovement extends GameSkull {
       const [ax, az] = tileOf(p.position)
       // keep a small radius away from blocked tiles and walls
       const r = 0.22
-      for (const [ox, oz] of [[0, 0], [r, r], [r, -r], [-r, r], [-r, -r]]) {
+      for (const [ox, oz] of [
+        [0, 0],
+        [r, r],
+        [r, -r],
+        [-r, r],
+        [-r, -r],
+      ]) {
         const tx = Math.floor(nx + ox)
         const tz = Math.floor(nz + oz)
         if ((tx !== ax || tz !== az) && !grid.canStep(ax, az, tx, tz)) return false

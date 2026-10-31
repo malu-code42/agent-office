@@ -1,5 +1,4 @@
 import type { AgentSummary } from '@shared/types'
-import * as L from '../world/layout'
 import { GameActors } from './actors'
 import type { Actor } from './types'
 
@@ -14,10 +13,11 @@ export abstract class GameLounge extends GameActors {
 
   protected goHang(actor: Actor, instant: boolean): void {
     const taken = new Set([...this.actors.values()].map((x) => x.hang))
-    let idx = L.LOUNGE_SEATS.findIndex((_, i) => !taken.has(i))
-    if (idx < 0) idx = Math.floor(Math.random() * L.LOUNGE_SEATS.length)
+    const spots = this.home.hang
+    let idx = spots.findIndex((_, i) => !taken.has(i))
+    if (idx < 0) idx = Math.floor(Math.random() * spots.length)
     actor.hang = idx
-    const spot = L.LOUNGE_SEATS[idx]
+    const spot = spots[idx]
     const done = () => {
       actor.arrived = true
       const now = this.state.agents.get(actor.id)

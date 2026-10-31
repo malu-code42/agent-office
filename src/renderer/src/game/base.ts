@@ -6,18 +6,23 @@ import { Avatar, type Uniform } from '../world/avatar'
 import { Engine } from '../world/engine'
 import * as L from '../world/layout'
 import { buildHome, type HomeFloor } from '../world/home'
+import { HOME_PLAN_3D, type HomePlan } from '../world/home-layout'
 import type { Office } from '../world/office'
 import { Overlays, Tag } from '../world/overlays'
 import { Effects } from '../world/effects'
 import { FACE_CAMERA, skeleton } from '../world/skull'
 import { totem, type Totem } from '../world/totem'
 import { Renderer2d } from '../world2d/renderer'
+import { CASA_LAYOUT } from '../world2d/atlas'
+import { casaPlan, type CasaAct, type CasaFlat } from '../world2d/casa'
+import { buildCasa2d } from '../world2d/floor'
 import type { Visual } from '@shared/video'
 import { SeenFailures } from './failure-marks'
 import {
   center,
   OVERFLOW_TILES,
   SKULL_HOME,
+  TAG_LIFT,
   TOTEM_TILE,
   tileOf,
   type Actor,
@@ -94,6 +99,16 @@ export abstract class GameBase {
   readonly flat2d: Renderer2d
   /** Tile under the pointer on a 2D floor. */
   protected hover2d: { x: number; z: number; ok: boolean } | null = null
+  /** The clickable thing of the 2D Casa under the pointer (drawn brighter). */
+  protected casaHot: CasaAct | null = null
+  /** The Casa of the 2D world: its grid and spots (the 3D Casa is `office`). */
+  protected readonly casa2d: Office & { flat: CasaFlat } = buildCasa2d(CASA_LAYOUT)
+  protected readonly casaPlan2d: HomePlan = casaPlan(CASA_LAYOUT, this.casa2d.grid)
+  /**
+   * The Casa's tags (Caveira, totem, boards, Luna...) float over the 3D objects or over their
+   * 2D spots: each one keeps both anchors and takes the one of the Casa on screen.
+   */
+  protected casaAnchors: { tag: Tag; d3: THREE.Object3D; d2: THREE.Object3D; subtle: boolean }[] = []
 
   constructor(
     container: HTMLElement,
@@ -109,25 +124,10 @@ export abstract class GameBase {
     this.overlays = new Overlays(overlayRoot, this.engine)
 
     this.office.setFloors(1)
-    if (this.office.roomLabels) {
-      for (const room of this.office.roomLabels) this.overlays.label(room.label, room.x, room.z)
-    } else
-      for (const z of L.ZONES) {
-        const pos: Record<string, [number, number]> = {
-          boss: [4.5, 8.35],
-          team: [21, 5.5],
-          cafe: [4.5, 23.4],
-          lounge: [17.5, 23.4],
-        }
-        const [x, zz] = pos[z.id] ?? [(z.rect[0] + z.rect[2]) / 2, (z.rect[1] + z.rect[3]) / 2]
-        this.overlays.label(z.label, x, zz)
-      }
-
     // player
     this.player = new Avatar(state.settings.playerLook, 'player')
     this.player.speed = 3.6
     this.engine.scene.add(this.player.root)
-    this.player.placeAt(L.BOSS_SEAT.x, L.BOSS_SEAT.z)
     this.sitPlayer()
     this.playerTag = this.overlays.add(new Tag(this.player.anchor, state.settings.playerName, true))
     this.playerTag.setDot('you')
@@ -183,6 +183,11 @@ export abstract class GameBase {
 
     this.alarmTag = this.alarmTagFor(this.office.alarm)
     this.moneyTag = this.moneyTagFor(this.office.money)
+    this.pairCasaTag(this.skull.tag, 'Caveira')
+    this.pairCasaTag(this.totem.tag, 'Rotinas de agentes')
+    this.pairCasaTag(this.pcTag, 'Novo agente')
+    this.pairCasaTag(this.alarmTag, 'Alarme')
+    this.pairCasaTag(this.moneyTag, 'Gastos')
 
     for (const item of this.office.homeTags) {
       const anchor = new THREE.Object3D()
@@ -193,9 +198,41 @@ export abstract class GameBase {
       this.homeSceneTags.push(tag)
       if (item.action) tag.el.title = `Abrir ${item.label}`
       if (item.label === 'Luna') this.lunaTag = tag
+      this.pairCasaTag(tag, item.label)
     }
+    this.placeCasa()
     this.updateLunaReviewBubble()
     state.onChange(() => this.updateLunaReviewBubble())
+  }
+
+  /**
+   * Gives a Casa tag its 2D spot: the one casa.json names (art units), or Luna's chair. The
+   * 2D projection lifts every tag by TAG_LIFT (over the sprites' heads), so the spot is lowered by it.
+   */
+  private pairCasaTag(tag: Tag, name: string): void {
+    const at = CASA_LAYOUT.tags[name]
+    const luna = CASA_LAYOUT.table.seats[0]
+    const d2 = new THREE.Object3D()
+    if (at) d2.position.set(at[0] / 16, at[2] / 16 - TAG_LIFT, at[1] / 16)
+    else if (name === 'Luna') d2.position.set(luna.at[0] / 16, 0.35, luna.at[1] / 16)
+    else return
+    // the furniture's tags stay small over the pixel art; Luna and the alarms keep their size
+    this.casaAnchors.push({ tag, d3: tag.anchor, d2, subtle: !['Luna', 'Alarme', 'Gastos'].includes(name) })
+  }
+
+  /**
+   * The Casa of the Visual on screen: its tags take their 2D or 3D spots, and the room names
+   * of the 3D Casa float only there (the 2D one shows them on hover).
+   */
+  protected placeCasa(): void {
+    const flat = this.visual === '2d'
+    for (const a of this.casaAnchors) {
+      a.tag.anchor = flat ? a.d2 : a.d3
+      a.tag.el.classList.toggle('tag-mini', flat && a.subtle)
+      a.tag.changed = true
+    }
+    this.overlays.clearLabels(0)
+    if (!flat) for (const room of this.office.roomLabels ?? []) this.overlays.label(room.label, room.x, room.z)
   }
 
   private updateLunaReviewBubble(): void {
@@ -235,7 +272,17 @@ export abstract class GameBase {
   protected deskOn(floor: number, a: AgentSummary): L.DeskSlot | undefined {
     if (a.role === 'orchestrator') return undefined
     const up = this.upperOf(floor)
-    return up ? up.scene.plan.agentDesks[a.desk] : L.DESKS[a.desk]
+    return up ? up.scene.plan.agentDesks[a.desk] : this.home.desks[a.desk]
+  }
+
+  /** The spots of the Casa on screen (2D or 3D): the user's chair, Luna's table, the elevator... */
+  protected get home(): HomePlan {
+    return this.visual === '2d' ? this.casaPlan2d : HOME_PLAN_3D
+  }
+
+  /** Tiles of a floor (x, z). */
+  protected floorSize(n: number): [number, number] {
+    return this.upperOf(n)?.scene.plan.size ?? this.home.size
   }
 
   /** Floor an agent works on: its project's floor, or the ground floor. */
@@ -243,9 +290,9 @@ export abstract class GameBase {
     return a.project ? this.uppers.findIndex((u) => u.project.id === a.project) + 1 : 0
   }
 
-  /** The 2D renderer while it draws the floor on screen (a project floor, Visual 2D); null for the 3D world. */
+  /** The 2D renderer while it draws the floor on screen (Visual 2D: the Casa and the project floors); null for the 3D world. */
   protected get flat(): Renderer2d | null {
-    return this.visual === '2d' && this.player.floor > 0 ? this.flat2d : null
+    return this.visual === '2d' ? this.flat2d : null
   }
 
   protected upperOf(n: number): Upper | undefined {
@@ -264,24 +311,27 @@ export abstract class GameBase {
   }
 
   floorOf(n: number): Office {
-    return this.upperOf(n)?.scene ?? this.office
+    return this.upperOf(n)?.scene ?? (this.visual === '2d' ? this.casa2d : this.office)
   }
 
   /** The elevator of a floor: the tile its door opens on and where it drops people. */
   protected elevatorOf(floor: number): { tile: [number, number]; point: { x: number; z: number } } {
-    return this.upperOf(floor)?.scene.plan.elevator ?? L.elevatorOf(floor)
+    return this.upperOf(floor)?.scene.plan.elevator ?? (floor > 0 ? L.elevatorOf(floor) : this.home.elevator)
   }
 
   /** Where an agent stands when every desk of its floor is taken. */
   protected overflowTile(a: AgentSummary, floor: number): [number, number] {
     const plan = this.upperOf(floor)?.scene.plan
-    if (!plan) return OVERFLOW_TILES[a.desk % OVERFLOW_TILES.length]
+    if (!plan) {
+      const tiles = floor === 0 ? this.home.overflow : OVERFLOW_TILES
+      return tiles[a.desk % tiles.length]
+    }
     if (a.role === 'orchestrator') return plan.overflow[a.desk % plan.overflow.length]
     return plan.agentStand[(a.desk - plan.agentDesks.length) % plan.agentStand.length] ?? L.SPAWN_TILE
   }
 
   protected playerInBossRoom(): boolean {
-    return this.player.floor === 0 && L.inBossRoom(this.player.position.x, this.player.position.z)
+    return this.player.floor === 0 && this.home.inBossRoom(this.player.position.x, this.player.position.z)
   }
 
   protected route(av: Avatar, tile: [number, number], final: { x: number; z: number } | null, onArrive: () => void): void {
@@ -296,12 +346,14 @@ export abstract class GameBase {
   /** Player is sitting in the boss chair; visitors line up in front of the desk. */
   protected playerSeated(): boolean {
     const p = this.player.position
-    return this.player.floor === 0 && this.player.pose === 'sit' && Math.hypot(p.x - L.BOSS_SEAT.x, p.z - L.BOSS_SEAT.z) < 0.3
+    const seat = this.home.boss
+    return this.player.floor === 0 && this.player.pose === 'sit' && Math.hypot(p.x - seat.x, p.z - seat.z) < 0.3
   }
 
   protected sitPlayer(): void {
-    this.player.placeAt(L.BOSS_SEAT.x, L.BOSS_SEAT.z)
-    this.player.face(0)
+    const seat = this.home.boss
+    this.player.placeAt(seat.x, seat.z)
+    this.player.face(seat.face)
     this.player.pose = 'sit'
   }
 

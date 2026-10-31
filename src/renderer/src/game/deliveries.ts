@@ -108,16 +108,18 @@ export abstract class GameDeliveries extends GameLounge {
           }
         }
       }
-      return best ?? grid.nearestWalkable(px, pz) ?? L.SPAWN_TILE
+      return best ?? grid.nearestWalkable(px, pz) ?? this.elevatorOf(actor.avatar.floor).tile
     }
+    const home = this.home
+    const grid = this.floorOf(0).grid
     if (this.playerInBossRoom() && !this.playerSeated()) {
       const options: [number, number, number][] = []
       for (let dx = -2; dx <= 2; dx++) {
         for (let dz = -2; dz <= 2; dz++) {
           const x = px + dx
           const z = pz + dz
-          if ((!dx && !dz) || !L.inBossRoom(x + 0.5, z + 0.5) || !this.office.grid.walkable(x, z) || taken.has(`${x},${z}`)) continue
-          if (L.behindBossDesk(x, z)) continue
+          if ((!dx && !dz) || !home.inBossRoom(x + 0.5, z + 0.5) || !grid.walkable(x, z) || taken.has(`${x},${z}`)) continue
+          if (home.noVisit(x, z)) continue
           // prefer spots in front of the player (towards the camera), about one tile away
           const d = Math.hypot(dx, dz)
           options.push([x, z, Math.abs(d - 1.2) + (dz < 0 ? 0.6 : 0)])
@@ -126,7 +128,7 @@ export abstract class GameDeliveries extends GameLounge {
       options.sort((a, b) => a[2] - b[2])
       if (options.length) return [options[0][0], options[0][1]]
     }
-    return L.VISIT_SPOTS.find((s) => !taken.has(s.join(','))) ?? L.VISIT_SPOTS[0]
+    return home.visit.find((s) => !taken.has(s.join(','))) ?? home.visit[0]
   }
 
   /** Visitors follow the player around the boss office and start talking when close. */
