@@ -24,6 +24,8 @@ CORA_DESK = (104, 74, 40)
 BONNIE_DESK = (286, 50, 44)
 # Biblioteca: the nine topic shelves (five on the back wall, three in a row, one on the west wall)
 LIB_SHELVES = [(x, 0, x + 28, 8) for x in (6, 36, 66, 96, 126)] + [(x, 40, x + 28, 48) for x in (8, 38, 68)] + [(2, 58, 10, 86)]
+# Diretoria: the study trail board on the back wall, behind Bonnie (x0, x1, z0, z1)
+TRAIL = (268, 332, 14, 40)
 # Diretoria: the visitors' chairs in front of Bonnie's desk (x, y, the way the sitter looks)
 VISIT_SEATS = [(296, 72, '-y'), (316, 72, '-y')]
 # Sala dos professores: the boards on the west wall (y0, y1, z0, z1), the table, the filing cabinet
@@ -89,6 +91,10 @@ def corkboard(L):
     G.corkboard_x(L, 0, *CORKBOARD)
 
 
+def trail_board(L):
+    G.trail_board_y(L, 0, *TRAIL)
+
+
 def shell(L):
     """everything drawn straight on the layer, under every sorted item."""
     draw_floor(L, W, D, region_floor([((0, 0, 10.5, 6.5), parquet()), ((15, 0, 24, 6.5), WALNUT),
@@ -100,6 +106,7 @@ def shell(L):
     corkboard(L)
     F.frame_x(L, 0, *PICTURE)
     schedule(L)
+    trail_board(L)
     F.rug(L, 262, 160, 376, 278, H('a8505a'), H('843c46'), H('e8c0b0'))
 
 
@@ -286,6 +293,7 @@ def build():
     sc.label('Biblioteca', 84, 0, WALL_H + 2, dy=-6)
     sc.label('Cora · bibliotecária', 136, 66, 44)
     sc.label('Diretoria · Bonnie', 316, 100)
+    sc.label('Trilha de estudos', 300, 0, TRAIL[3] + 2, dy=-6)
     sc.label('Horário de aula', 0, 188, WALL_H + 2, dy=-6)
     sc.label('Sala dos professores', 52, 284)
     sc.label('Tópico atual', 126, 152, 50)

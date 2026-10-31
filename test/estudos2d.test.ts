@@ -20,7 +20,7 @@ import { pngAlpha } from './png-alpha'
 
 const EST = estudosData as unknown as EstudosLayout
 const ATLAS = atlasData as unknown as { frames: Record<string, [number, number, number, number]> }
-const ACTS: StudyAct[] = ['library', 'cycle', 'desk', 'questions', 'cards', 'schedule', 'cora', 'bonnie']
+const ACTS: StudyAct[] = ['library', 'cycle', 'desk', 'questions', 'cards', 'schedule', 'trail', 'cora', 'bonnie']
 const tileOf = (c: { x: number; z: number }): [number, number] => [Math.floor(c.x), Math.floor(c.z)]
 
 describe('layout 2D do andar de estudos', () => {

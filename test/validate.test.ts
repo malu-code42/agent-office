@@ -81,6 +81,8 @@ const settings = (): Settings => ({
   lunaEffort: '',
   emiModel: '',
   emiEffort: '',
+  bonnieModel: '',
+  bonnieEffort: '',
   lunaLook: { skin: '#f6d3b3', hair: '#2b1d16', hairStyle: 1, shirt: '#4a8fe0', pants: '#2f3b5c', shoes: '#1e1e24' },
   defaultPermissionMode: 'default',
   notifications: true,

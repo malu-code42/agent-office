@@ -1,6 +1,6 @@
 import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { dialog, ipcMain } from 'electron'
+import { dialog, ipcMain, shell } from 'electron'
 import { z } from 'zod'
 import { buildAgendaView, weekProgress } from '@shared/agenda'
 import { buildClassSchedule } from '@shared/class-schedule'
@@ -26,6 +26,7 @@ import { StudyCycleService } from '../study-cycle'
 import { StudyCycleStore } from '../study-cycle-store'
 import { claudeStudyTutor } from '../study-cycle-claude'
 import { StudyLibrary, StudyNotesWriter } from '../study-library'
+import { workerPdfExtractor } from '../study-pdf-pool'
 import { StudyCardsService } from '../study-cards'
 import { claudeStudyCardInterpreter } from '../study-cards-claude'
 import { MAIN_ACCOUNT } from '@shared/accounts'
@@ -54,6 +55,8 @@ import {
   resetStudyCycleArgsSchema,
   resumeStudyCycleArgsSchema,
   searchStudyLibraryArgsSchema,
+  recommendStudySourcesArgsSchema,
+  openStudySourceArgsSchema,
   studyLibrarySourceArgsSchema,
   studyCycleNoteArgsSchema,
   startStudyPracticeArgsSchema,
@@ -69,6 +72,7 @@ import {
   setStudyCardPhysicalArgsSchema,
 } from '../validate'
 import { lunaTools } from '../luna-tools'
+import { bonnieTools } from '../bonnie-tools'
 import type { IpcContext } from './context'
 
 export function registerTasksIpc(ctx: IpcContext): void {
@@ -81,6 +85,10 @@ export function registerTasksIpc(ctx: IpcContext): void {
   const studyLibraries = new Map<string, StudyLibrary>()
   const studyCards = new Map<string, StudyCardsService>()
   const studyCycleStore = new StudyCycleStore(ctx.store.dataDirectory)
+  // PDF pages extracted for Cora and the question scan, cached by path + mtime + size (never sent anywhere).
+  const pdfCacheDir = join(ctx.store.dataDirectory, 'study-pdf-cache')
+  // pdf.js runs in a worker thread, so a first read of a big library never freezes the window.
+  const extractPdf = workerPdfExtractor()
   const read = (vaultPath: unknown) => readTasksAt(writer, vaultPath)
   const requireVault = (): string => {
     const vaultPath = ctx.store.settings.vaultPath
@@ -91,7 +99,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const vault = requireVault()
     let service = studyServices.get(vault)
     if (!service) {
-      service = new StudyQuestionService(vault, claudeStudyQuestionProviders())
+      service = new StudyQuestionService(vault, claudeStudyQuestionProviders(), { pdfCacheDir, extractPdf })
       studyServices.set(vault, service)
     }
     return service
@@ -112,7 +120,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const vault = requireVault()
     let library = studyLibraries.get(vault)
     if (!library) {
-      library = new StudyLibrary(vault)
+      library = new StudyLibrary(vault, { cacheDir: pdfCacheDir, extract: extractPdf })
       studyLibraries.set(vault, library)
     }
     return library
@@ -210,6 +218,16 @@ export function registerTasksIpc(ctx: IpcContext): void {
   ipcMain.handle('office:searchStudyLibrary', (_e, ...args: unknown[]) => {
     const [query] = parse(searchStudyLibraryArgsSchema, args, 'Busca local da Cora inválida.')
     return studyLibrary().search(query)
+  })
+  // Cora's ranked sources for themes (typed by the user, or built from the questions the user got wrong). Local only.
+  ipcMain.handle('office:recommendStudySources', (_e, ...args: unknown[]) => {
+    const [queries] = parse(recommendStudySourcesArgsSchema, args, 'Pedido de fontes da Cora inválido.')
+    return studyLibrary().recommend(queries)
+  })
+  ipcMain.handle('office:openStudySource', async (_e, ...args: unknown[]) => {
+    const [path] = parse(openStudySourceArgsSchema, args, 'Fonte inválida.')
+    const error = await shell.openPath(studyLibrary().sourcePath(path))
+    if (error) throw new Error(`Não foi possível abrir a fonte: ${error}`)
   })
   ipcMain.handle('office:attachStudySource', (_e, ...args: unknown[]) => {
     const [questionId, token, hitId] = parse(studyLibrarySourceArgsSchema, args, 'Vínculo de fonte inválido.')
@@ -466,6 +484,24 @@ export function registerTasksIpc(ctx: IpcContext): void {
           create: (path, kind, draft) => ctx.mediaWriter.create(path, kind, draft),
         },
         routines: review.routines,
+      })
+
+  // Bonnie's study floor tools share the services of the study windows above.
+  if (ctx.manager)
+    ctx.manager.bonnieTools = () =>
+      bonnieTools({
+        trail: () => parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE)),
+        cycles: () => studyCycleStore.read(),
+        bank: () => studyService().read().questions,
+        start: (topic, ids) => studyCycleService().start(topic, ids),
+        resume: (id) => studyCycleService().resume(id),
+        setAside: () => studyCycleService().reset(),
+        schedule: () => buildClassSchedule(readOptionalFile(requireVault(), 'aulas.md'), new Date()),
+        recommend: async (theme) => (await studyLibrary().recommend([theme]))[0]!,
+        openSource: async (path) => {
+          const error = await shell.openPath(studyLibrary().sourcePath(path))
+          if (error) throw new Error(`Não foi possível abrir a fonte: ${error}`)
+        },
       })
 
   // Luna's /compromisso command: the same writer and plan as her agenda_add tool, and its undo.

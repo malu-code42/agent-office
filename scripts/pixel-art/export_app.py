@@ -31,7 +31,7 @@ from floorkit import SW, SH, OX, OY, TS, W, D, WALL_H, PART_H, Scene, new_layer,
 import scene_projeto as P
 import scene_casa2 as C
 import scene_estudos as E
-from desks import ws_back, ws_back_y, ws_front_x, ws_front_y
+from desks import ws_back, ws_front_x, ws_front_y
 from chars import sprite, VARIANTS, palette
 
 APP = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
@@ -320,8 +320,8 @@ def main():
     ex, ey, ew = P.EMI_DESK
     epx, epy = L.P(336, 282, 0)
     emi = {
-        'desk': desk('emi', lambda s, st: ws_back_y(s, ex, ey, None, st, 'papers', boss=True, w=ew)),
-        'seat': seat('emi', ex + ew // 2 - 5, ey + 16, '-y'),
+        'desk': desk('emi', lambda s, st: ws_back(s, ex, ey, None, st, 'papers', boss=True, d_=ew)),
+        'seat': seat('emi', ex + 16, ey + (ew - 26) // 2 + 3, '-x'),
         'plate': [epx, int(epy)],
     }
     mpx, mpy = L.P(232, 282, 0)
@@ -534,6 +534,8 @@ def estudos(L, place, items, seat):
 
     # the class schedule hangs on the west wall: drawn in the base, clicked by its box
     hot = [{'act': 'schedule', 'box': box(lambda: E.schedule(L))}]
+    # the study trail board hangs on the back wall of the diretoria, behind Bonnie: clicked by its box
+    hot.append({'act': 'trail', 'box': box(lambda: E.trail_board(L))})
     # half walls block the tiles they stand on, but their doors
     half = set()
     for axis, at, a, b, doors in sc.half:
@@ -565,6 +567,7 @@ def estudos(L, place, items, seat):
         'tags': {
             'Biblioteca': [72, 4, 40], 'Tópico atual': [126, 152, 46], 'Horário de aula': [0, 188, 46],
             'Questões': [163, 153, 34], 'Sua carteira': [148, 212, 26], 'Notas e cartões': [316, 212, 26],
+            'Trilha de estudos': [(E.TRAIL[0] + E.TRAIL[1]) / 2, 0, E.TRAIL[3] + 6],
         },
         'cora': seat('estudos/cora', cx + cw - 13, cy - 12, '+y'),
         'bonnie': seat('estudos/bonnie', bx + bw - 13, by - 12, '+y'),

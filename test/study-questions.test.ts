@@ -16,6 +16,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { StudyQuestionService } from '../src/main/study-questions'
+import { tinyPdf } from './helpers/tiny-pdf'
 
 const question = (overrides: Partial<StudyQuestion> = {}): StudyQuestion => ({
   id: 'q-12345678',
@@ -701,11 +702,58 @@ describe('study question bank codec', () => {
     }
   })
 
-  it('reports unsupported source formats and does not generate when WebSearch is unavailable', async () => {
+  it('reads the question lines of a local PDF source like a text source', async () => {
+    const vault = mkdtempSync(join(tmpdir(), 'study-bank-'))
+    try {
+      mkdirSync(join(vault, 'study sources'))
+      writeFileSync(
+        join(vault, 'study sources', 'simulado.pdf'),
+        tinyPdf([
+          [
+            'Título: Simulado ENEM sintético em PDF',
+            'Origem: enem',
+            'Licença: domínio público',
+            'Atribuição: material sintético',
+            'Tópico: Probabilidade',
+            'Questão: Qual a probabilidade de sair cara numa moeda justa?',
+            'Gabarito: 1/2',
+          ].join('\n'),
+        ]),
+      )
+      const result = await new StudyQuestionService(vault, { webSearch: async () => [] }, { pdfCacheDir: join(vault, '.cache') }).search(
+        'Probabilidade',
+        1,
+      )
+      expect(result.localScanComplete).toBe(true)
+      expect(result.sourceCandidates[0]).toMatchObject({
+        originKind: 'enem',
+        sourceTitle: 'Simulado ENEM sintético em PDF',
+        question: 'Qual a probabilidade de sair cara numa moeda justa?',
+        sourceReference: 'simulado.pdf',
+      })
+    } finally {
+      rmSync(vault, { recursive: true, force: true })
+    }
+  })
+
+  it('reports a PDF it cannot read as an incomplete local scan', async () => {
     const vault = mkdtempSync(join(tmpdir(), 'study-bank-'))
     try {
       mkdirSync(join(vault, 'study sources'))
       writeFileSync(join(vault, 'study sources', 'scan.pdf'), 'synthetic pdf placeholder')
+      const result = await new StudyQuestionService(vault, {}).search('Probabilidade', 1)
+      expect(result.localScanComplete).toBe(false)
+      expect(result.warning).toMatch(/PDF sem texto legível ignorado: scan\.pdf/)
+    } finally {
+      rmSync(vault, { recursive: true, force: true })
+    }
+  })
+
+  it('reports unsupported source formats and does not generate when WebSearch is unavailable', async () => {
+    const vault = mkdtempSync(join(tmpdir(), 'study-bank-'))
+    try {
+      mkdirSync(join(vault, 'study sources'))
+      writeFileSync(join(vault, 'study sources', 'scan.docx'), 'synthetic docx placeholder')
       let generated = 0
       const result = await new StudyQuestionService(vault, {
         generate: async () => {

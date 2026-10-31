@@ -11,6 +11,7 @@ import {
   type StudyQuestion,
 } from '@shared/study-questions'
 import { writeFileAtomic, writeFileAtomicChecked } from './fs-safe'
+import { PdfTextCache, type PdfExtractor } from './study-pdf'
 
 export const STUDY_BANK_FILE = 'questoes-estudo.md'
 export const STUDY_SOURCES_DIRECTORY = 'study sources'
@@ -23,7 +24,11 @@ const SOURCE_HEADER_BYTE_LIMIT = 16 * 1024
 const SOURCE_FILE_BYTE_LIMIT = 512 * 1024
 const SOURCE_TOTAL_BYTE_LIMIT = 4 * 1024 * 1024
 const SOURCE_QUESTION_LIMIT_PER_FILE = 20
-const SOURCE_EXTENSIONS = new Set(['.md', '.txt'])
+const SOURCE_EXTENSIONS = new Set(['.md', '.txt', '.pdf'])
+/** A PDF weighs images and fonts on disk; its extracted text goes through the text limits. */
+const SOURCE_PDF_BYTE_LIMIT = 64 * 1024 * 1024
+/** How long one search waits for PDFs never parsed before; the rest are read in the background. */
+const PDF_COLD_BUDGET_MS = 15_000
 // This exact-label allowlist only controls whether a short excerpt candidate can be shown.
 // It never marks a source or rights as verified; the user must still confirm before persistence.
 const RECOGNIZED_LICENSE_LABELS = new Set([
@@ -94,13 +99,15 @@ export class StudyQuestionService {
   private readonly vault: string
   private readonly snapshots = new Map<string, SearchSnapshot>()
   private readonly atomicWrite: CheckedAtomicWrite
+  private readonly pdf: PdfTextCache
 
   constructor(
     vault: string,
     private readonly providers: StudySearchProviders = {},
-    options: { atomicWrite?: CheckedAtomicWrite } = {},
+    options: { atomicWrite?: CheckedAtomicWrite; pdfCacheDir?: string; extractPdf?: PdfExtractor } = {},
   ) {
     this.vault = resolve(vault)
+    this.pdf = new PdfTextCache(options.pdfCacheDir, options.extractPdf)
     this.atomicWrite =
       options.atomicWrite ??
       ((path, contents, beforeRename) => writeFileAtomicChecked(path, contents, beforeRename, `.tmp-${randomUUID()}`))
@@ -118,7 +125,8 @@ export class StudyQuestionService {
     const text = this.readText()
     const bank = decodeStudyBank(text).questions
     const local = rankStudyQuestions(bank.filter((item) => matchesTopic(item, query))).slice(0, cap)
-    const sourceResult = local.length < cap ? this.readLocalSources(query) : { questions: [], warnings: [], complete: true }
+    const sourceResult =
+      local.length < cap ? this.readLocalSources(query, await this.readPdfSources()) : { questions: [], warnings: [], complete: true }
     const sourceCandidates = sourceResult.complete ? rankStudyQuestions(sourceResult.questions).slice(0, cap - local.length) : []
     let web: StudyQuestion[] = []
     let status: StudySearchStatus
@@ -272,7 +280,45 @@ export class StudyQuestionService {
     if (this.snapshots.size > 20) this.snapshots.delete(this.snapshots.keys().next().value!)
   }
 
-  private readLocalSources(topic: string): LocalSourceResult {
+  /**
+   * The text of the PDFs at the top of the study sources folder, extracted locally (and cached)
+   * before the synchronous scan below reads them like text files. A PDF that fails to parse is
+   * left out here and reported by the scan.
+   */
+  private async readPdfSources(): Promise<Map<string, string | 'pending'>> {
+    const texts = new Map<string, string | 'pending'>()
+    const deadline = Date.now() + PDF_COLD_BUDGET_MS
+    const dir = join(this.vault, STUDY_SOURCES_DIRECTORY)
+    let names: string[]
+    try {
+      const info = lstatSync(dir)
+      if (info.isSymbolicLink() || !info.isDirectory()) return texts
+      names = []
+      const handle = opendirSync(dir)
+      try {
+        for (let entry = handle.readSync(); entry && names.length <= SOURCE_PATH_COUNT_LIMIT; entry = handle.readSync())
+          if (entry.name.toLowerCase().endsWith('.pdf')) names.push(entry.name)
+      } finally {
+        handle.closeSync()
+      }
+    } catch {
+      return texts
+    }
+    for (const name of names.sort(compareSourcePath).slice(0, SOURCE_METADATA_SCAN_LIMIT)) {
+      const path = join(dir, name)
+      try {
+        const info = lstatSync(path)
+        if (info.isSymbolicLink() || !info.isFile() || info.size > SOURCE_PDF_BYTE_LIMIT) continue
+        const pages = await this.pdf.pagesBy(path, info, () => readBytesBounded(path, SOURCE_PDF_BYTE_LIMIT), deadline)
+        texts.set(name, pages === 'pending' ? pages : pages.join('\n\n'))
+      } catch {
+        // Unreadable or protected PDF: the scan reports it as a source it could not read.
+      }
+    }
+    return texts
+  }
+
+  private readLocalSources(topic: string, pdfTexts: Map<string, string | 'pending'> = new Map()): LocalSourceResult {
     const dir = join(this.vault, STUDY_SOURCES_DIRECTORY)
     const warnings: string[] = []
     let complete = true
@@ -315,6 +361,7 @@ export class StudyQuestionService {
     const eligible: {
       name: string
       size: number
+      pdfText?: string
       metadata: NonNullable<ReturnType<typeof sourceMetadata>>
       itemMetadataMatch: boolean
       questionTextMatch: boolean
@@ -338,20 +385,33 @@ export class StudyQuestionService {
         warnings.push(`Fonte não suportada ignorada: ${basename(name)}.`)
         continue
       }
-      if (info.size > SOURCE_FILE_BYTE_LIMIT) {
+      const pdfRead = extension === '.pdf' ? pdfTexts.get(name) : undefined
+      if (pdfRead === 'pending') {
+        complete = false
+        warnings.push(`PDF ainda sendo lido pela primeira vez: ${basename(name)}; tente de novo em alguns minutos.`)
+        continue
+      }
+      const pdfText = pdfRead
+      if (extension === '.pdf' && pdfText === undefined) {
+        complete = false
+        warnings.push(`PDF sem texto legível ignorado: ${basename(name)}.`)
+        continue
+      }
+      const size = pdfText !== undefined ? Buffer.byteLength(pdfText, 'utf8') : info.size
+      if (size > SOURCE_FILE_BYTE_LIMIT) {
         complete = false
         warnings.push(`Fonte grande demais para busca local: ${basename(name)}.`)
         continue
       }
-      if (metadataBytes + Math.min(info.size, SOURCE_HEADER_BYTE_LIMIT) > SOURCE_TOTAL_BYTE_LIMIT) {
+      if (metadataBytes + Math.min(size, SOURCE_HEADER_BYTE_LIMIT) > SOURCE_TOTAL_BYTE_LIMIT) {
         complete = false
         warnings.push(`Limite de leitura de cabeçalhos atingido; fonte ignorada: ${basename(name)}.`)
         continue
       }
-      metadataBytes += Math.min(info.size, SOURCE_HEADER_BYTE_LIMIT)
+      metadataBytes += Math.min(size, SOURCE_HEADER_BYTE_LIMIT)
       let header: string
       try {
-        header = readUtf8Prefix(path, SOURCE_HEADER_BYTE_LIMIT)
+        header = pdfText !== undefined ? pdfText.slice(0, SOURCE_HEADER_BYTE_LIMIT) : readUtf8Prefix(path, SOURCE_HEADER_BYTE_LIMIT)
       } catch {
         complete = false
         warnings.push(`Cabeçalho de fonte inválido ou alterado: ${basename(name)}.`)
@@ -366,7 +426,7 @@ export class StudyQuestionService {
       const preview = extractRelevantQuestionSnippets(header, query)
       const hasQuestion = header.split(/\r?\n/).some((line) => /^Questão:\s*\S/i.test(line))
       if (!hasQuestion) {
-        if (info.size > SOURCE_HEADER_BYTE_LIMIT) {
+        if (size > SOURCE_HEADER_BYTE_LIMIT) {
           complete = false
           warnings.push(`Busca local parcial: enunciados após o cabeçalho de ${basename(name)} não foram inspecionados.`)
         } else if (metadata.topic?.toLocaleLowerCase('pt-BR').includes(query))
@@ -374,7 +434,7 @@ export class StudyQuestionService {
         continue
       }
       if (!preview.snippets.length) {
-        if (info.size > SOURCE_HEADER_BYTE_LIMIT) {
+        if (size > SOURCE_HEADER_BYTE_LIMIT) {
           complete = false
           warnings.push(`Busca local parcial: questões após o cabeçalho de ${basename(name)} não foram inspecionadas.`)
         }
@@ -383,7 +443,8 @@ export class StudyQuestionService {
       }
       eligible.push({
         name,
-        size: info.size,
+        size,
+        pdfText,
         metadata,
         itemMetadataMatch: preview.snippets.some((record) => record.itemMetadataMatch),
         questionTextMatch: preview.snippets.some((record) => record.questionTextMatch),
@@ -422,7 +483,7 @@ export class StudyQuestionService {
       const path = join(dir, source.name)
       let text: string
       try {
-        text = readUtf8Bounded(path, SOURCE_FILE_BYTE_LIMIT)
+        text = source.pdfText ?? readUtf8Bounded(path, SOURCE_FILE_BYTE_LIMIT)
       } catch {
         complete = false
         warnings.push(`Fonte alterada ou grande demais para busca local: ${basename(source.name)}.`)
@@ -545,6 +606,25 @@ function readUtf8Bounded(path: string, maxBytes: number): string {
     const text = buffer.toString('utf8', 0, bytes)
     if (!Buffer.from(text, 'utf8').equals(buffer.subarray(0, bytes))) throw new Error('O arquivo não está codificado em UTF-8 válido.')
     return text
+  } finally {
+    closeSync(fd)
+  }
+}
+
+/** The bytes of a file, refusing one larger than `maxBytes`. */
+function readBytesBounded(path: string, maxBytes: number): Buffer {
+  const fd = openSync(path, 'r')
+  try {
+    const info = fstatSync(fd)
+    if (!info.isFile() || info.size > maxBytes) throw new Error('Arquivo excede o limite de leitura.')
+    const buffer = Buffer.allocUnsafe(info.size)
+    let bytes = 0
+    while (bytes < buffer.length) {
+      const count = readSync(fd, buffer, bytes, buffer.length - bytes, bytes)
+      if (count === 0) break
+      bytes += count
+    }
+    return buffer.subarray(0, bytes)
   } finally {
     closeSync(fd)
   }

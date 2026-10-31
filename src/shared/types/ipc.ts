@@ -28,6 +28,7 @@ import type { StudyCycleState } from '../study-cycle'
 import type { StudyTrail } from '../study-trail'
 import type { ClassScheduleView } from '../class-schedule'
 import type { StudyLibrarySearch } from '../study-library'
+import type { StudySourceRecommendations } from '../study-sources'
 import type { StudyCardDraft, StudyCardSummary, StudyCardsRead, StudyNotesRead } from '../study-cards'
 
 export interface StudyQuestionCandidates {
@@ -296,6 +297,13 @@ export interface OfficeAPI {
   readClassSchedule(): Promise<ClassScheduleView>
   /** Busca trechos apenas nos arquivos locais de estudo; nenhum conteúdo é enviado a modelos. */
   searchStudyLibrary(query: string): Promise<StudyLibrarySearch>
+  /**
+   * Fontes da Cora para cada tema, da melhor para a pior, com página (slide ou seção) de início e de fim.
+   * Só leitura local dos arquivos de "study sources"; nada é enviado a modelos.
+   */
+  recommendStudySources(queries: string[]): Promise<StudySourceRecommendations[]>
+  /** Abre no app do sistema uma fonte da pasta "study sources" (caminho relativo ao vault). */
+  openStudySource(path: string): Promise<void>
   /** Vincula ao ciclo uma fonte pertencente a uma busca local anterior. */
   attachStudySource(questionId: string, token: string, hitId: string): Promise<StudyCycleState>
   /** Salva uma nota autoral no Obsidian e a vincula à lacuna e à fonte consultada. */

@@ -41,11 +41,13 @@ export abstract class PanelHead extends PanelSearch {
         ? 'Converse com a Luna… (/ para comandos)'
         : a.builtIn === 'emi'
           ? 'Conte à Emi o que quer construir neste andar…'
-          : terminal
-            ? 'Sessão do terminal: responda por lá. Permissões chegam aqui.'
-            : a.status === 'working' || a.status === 'starting'
-              ? 'Mande uma instrução (entra na fila do agente)…'
-              : 'Mande uma nova tarefa…'
+          : a.builtIn === 'bonnie'
+            ? 'Fale com a Bonnie sobre a trilha, o ciclo ou peça fontes à Cora…'
+            : terminal
+              ? 'Sessão do terminal: responda por lá. Permissões chegam aqui.'
+              : a.status === 'working' || a.status === 'starting'
+                ? 'Mande uma instrução (entra na fila do agente)…'
+                : 'Mande uma nova tarefa…'
     const attachButton = this.composer.querySelector<HTMLButtonElement>('.composer-row > .btn-icon')
     if (attachButton) {
       attachButton.hidden = a.builtIn !== undefined && a.builtIn !== 'luna'
@@ -111,11 +113,13 @@ export abstract class PanelHead extends PanelSearch {
                   { class: 'ab-role' },
                   a.builtIn === 'emi'
                     ? 'Facilitadora do andar'
-                    : a.builtIn
-                      ? 'Secretária'
-                      : a.role === 'orchestrator'
-                        ? 'Orquestrador'
-                        : 'Agente',
+                    : a.builtIn === 'bonnie'
+                      ? 'Diretora de estudos'
+                      : a.builtIn
+                        ? 'Secretária'
+                        : a.role === 'orchestrator'
+                          ? 'Orquestrador'
+                          : 'Agente',
                   accountChip(this.state, a),
                 )
               : led(false),
@@ -225,11 +229,12 @@ export abstract class PanelHead extends PanelSearch {
   }
 
   /**
-   * Model and effort of a fixed agent (Luna, Emi), always in sight: picking one saves her
-   * preference (Luna's own, or one for every floor's Emi) and her next turn uses it.
+   * Model and effort of a fixed agent (Luna, Emi, Bonnie), always in sight: picking one saves her
+   * preference (Luna's or Bonnie's own, or one for every floor's Emi) and her next turn uses it.
    */
   protected brainPicker(a: AgentSummary): HTMLElement {
     const luna = a.builtIn === 'luna'
+    const bonnie = a.builtIn === 'bonnie'
     const s = this.state.settings
     const model = h(
       'select',
@@ -238,7 +243,7 @@ export abstract class PanelHead extends PanelSearch {
         m.value ? h('option', { value: m.value }, m.label) : h('option', { value: '', 'data-hint': 'padrão' }, 'Do Claude Code'),
       ),
     ) as HTMLSelectElement
-    const savedModel = luna ? s.lunaModel : s.emiModel
+    const savedModel = luna ? s.lunaModel : bonnie ? s.bonnieModel : s.emiModel
     model.value = MODELS.some((m) => m.value === savedModel) ? savedModel : ''
     const effort = h(
       'select',
@@ -247,10 +252,14 @@ export abstract class PanelHead extends PanelSearch {
         e.value ? h('option', { value: e.value }, e.label) : h('option', { value: '', 'data-hint': 'padrão' }, 'Do modelo'),
       ),
     ) as HTMLSelectElement
-    effort.value = (luna ? s.lunaEffort : s.emiEffort) || ''
+    effort.value = (luna ? s.lunaEffort : bonnie ? s.bonnieEffort : s.emiEffort) || ''
     const save = () => {
       const level = (EFFORTS.find((e) => e.value === effort.value)?.value ?? '') as typeof s.lunaEffort
-      const patch = luna ? { lunaModel: model.value, lunaEffort: level } : { emiModel: model.value, emiEffort: level }
+      const patch = luna
+        ? { lunaModel: model.value, lunaEffort: level }
+        : bonnie
+          ? { bonnieModel: model.value, bonnieEffort: level }
+          : { emiModel: model.value, emiEffort: level }
       window.office
         .saveSettings(patch)
         .then(() => this.actions.toast(`${a.name} usa o novo modelo e esforço a partir da próxima mensagem.`, 'ok'))
@@ -260,7 +269,10 @@ export abstract class PanelHead extends PanelSearch {
     effort.addEventListener('change', save)
     return h(
       'div',
-      { class: 'ab-brain', title: luna ? 'Preferências da Luna' : 'Vale para a Emi de todos os andares' },
+      {
+        class: 'ab-brain',
+        title: luna ? 'Preferências da Luna' : bonnie ? 'Preferências da Bonnie' : 'Vale para a Emi de todos os andares',
+      },
       h('label', { class: 'ab-brain-field' }, icon('cpu', 12), h('span', { class: 'sr-only' }, 'Modelo'), model),
       h('label', { class: 'ab-brain-field' }, icon('gauge', 12), h('span', { class: 'sr-only' }, 'Esforço'), effort),
     )

@@ -16,9 +16,10 @@ type Rect = [number, number, number, number]
 /**
  * What a click on something of the study floor does: Cora's shelves (the library), the
  * blackboard (the current topic: the study cycle), the user's desk (sit and study), the
- * question bank, notes and cards, the class schedule, Cora and Bonnie at their desks.
+ * question bank, notes and cards, the class schedule, the study trail board in Bonnie's
+ * office, Cora and Bonnie at their desks.
  */
-export type StudyAct = 'library' | 'cycle' | 'desk' | 'questions' | 'cards' | 'schedule' | 'cora' | 'bonnie'
+export type StudyAct = 'library' | 'cycle' | 'desk' | 'questions' | 'cards' | 'schedule' | 'trail' | 'cora' | 'bonnie'
 
 export interface EstudosLayout {
   tile: number
@@ -31,7 +32,7 @@ export interface EstudosLayout {
   static: (Placement & { act?: StudyAct })[]
   walls: Partition[]
   blocked: [number, number][]
-  /** Clickable things drawn in the base image (the class schedule): their box on the native canvas. */
+  /** Clickable things drawn in the base image (the class schedule, the trail board): their box on the native canvas. */
   hot: { act: StudyAct; box: Rect }[]
   /** Where the HTML tags float, by name: art units x, y and height. */
   tags: Record<string, [number, number, number]>

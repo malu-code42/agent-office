@@ -11,8 +11,10 @@ import {
 import type { StudyQuestion } from '@shared/study-questions'
 import type { StudyLibraryHit, StudyLibrarySearch } from '@shared/study-library'
 import type { StudyPracticeQuestion } from '@shared/study-cycle'
-import { trailTopicOf, type StudyTrail, type StudyTrailTopic } from '@shared/study-trail'
+import { studyTopicStart, trailTopicOf, type StudyTrail, type StudyTrailTopic } from '@shared/study-trail'
+import { questionsForTopic, studyQueryOfQuestion, type StudySourceRecommendations } from '@shared/study-sources'
 import { announce } from './a11y'
+import { studySourceList } from './study-library'
 import { h } from './dom'
 import { cleanError, modal } from './modals/common'
 
@@ -38,8 +40,29 @@ const originLabel: Record<StudyQuestion['originKind'], string> = {
   ia: 'IA',
 }
 
+/**
+ * "Começar com este tópico" (the trail board): keeps every earlier cycle. The current topic just
+ * opens; a kept cycle of the topic is pinned again where it stopped; otherwise the current cycle
+ * is set aside and the picker opens on the topic, with its bank questions already ticked.
+ */
+export async function startStudyTopic(root: HTMLElement, toast: Toast, topic: string): Promise<void> {
+  try {
+    const plan = studyTopicStart(await window.office.readStudyCycle(), topic)
+    if (plan.kind === 'resume') {
+      await window.office.resumeStudyCycle(plan.cycleId)
+      toast(`Ciclo de “${topic}” retomado de onde parou.`, 'ok')
+    } else if (plan.kind === 'new' && plan.setAside) {
+      await window.office.resetStudyCycle()
+      toast('O ciclo anterior ficou guardado; escolha as questões do novo tópico.', 'info')
+    }
+    await openStudyCycle(root, toast, plan.kind === 'new' ? { topic } : {})
+  } catch (error) {
+    toast(cleanError(error), 'err')
+  }
+}
+
 /** Bonnie's local-only diagnosis surface; every Tutor request is an explicit per-question action. */
-export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<void> {
+export async function openStudyCycle(root: HTMLElement, toast: Toast, options: { topic?: string } = {}): Promise<void> {
   let state: StudyCycleState
   let bank: StudyQuestion[]
   let trail: StudyTrail
@@ -55,8 +78,13 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
     return
   }
 
-  let topic = activeStudyCycle(state)?.topic ?? ''
-  const selected = new Set<string>()
+  let topic = activeStudyCycle(state)?.topic ?? options.topic ?? ''
+  // A topic chosen on the trail board comes with its bank questions ticked; the user can change them.
+  const selected = new Set<string>(
+    !activeStudyCycle(state) && options.topic ? questionsForTopic(bank, options.topic).map((question) => question.id) : [],
+  )
+  /** Cora's sources for each wrong question (by question id), asked once per opening. */
+  const gapSources = new Map<string, StudySourceRecommendations | 'loading' | 'error'>()
   const selectedRetest = new Set<string>()
   const gapDrafts = new Map<string, { cause: string; nextStep: string }>()
   const selectedPracticeGaps = new Map<string, string>()
@@ -218,6 +246,8 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
       ),
       ...cycle.questions.map((item) => questionForm(cycle, item)),
     ]
+    if ((cycle.stage === 'diagnosis' && evaluateStudyGate(cycle).ready) || cycle.stage === 'review-required')
+      body.push(...gapSourcesBody(cycle))
     if (cycle.stage === 'review-required') body.push(...reviewBody(cycle))
     if (cycle.stage === 'practice') body.push(...practiceBody(cycle))
     if (cycle.stage === 'retest-ready') body.push(...retestPickerBody(cycle))
@@ -320,6 +350,53 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast): Promise<v
         body.push(h('p', { class: 'field-hint', role: 'status' }, practiceGateMessage(currentRound, completed, score, cycle.notes.length)))
     }
     return body
+  }
+
+  /**
+   * The end of the diagnosis: for each question the user got wrong (or marked as a doubt), Cora's
+   * local sources for its concept, best to worst, with the pages to read. Built from the question's
+   * topic, tags and words here; nothing goes to Claude.
+   */
+  const gapSourcesBody = (cycle: StudyCycle): HTMLElement[] => {
+    const gaps = studyGaps(cycle)
+    if (!gaps.length) return []
+    const missing = gaps.filter((gap) => !gapSources.has(gap.id))
+    if (missing.length) {
+      for (const gap of missing) gapSources.set(gap.id, 'loading')
+      window.office
+        .recommendStudySources(missing.map((gap) => studyQueryOfQuestion(gap.source)))
+        .then((all) => missing.forEach((gap, i) => gapSources.set(gap.id, all[i] ?? 'error')))
+        .catch(() => missing.forEach((gap) => gapSources.set(gap.id, 'error')))
+        .finally(() => {
+          if (el.isConnected) render()
+        })
+    }
+    const sources = (result: StudySourceRecommendations | 'loading' | 'error' | undefined): HTMLElement => {
+      if (result === 'loading' || result === undefined) return h('p', { class: 'field-hint', role: 'status' }, 'Cora está procurando…')
+      if (result === 'error') return h('p', { class: 'field-hint' }, 'Cora não conseguiu ler a biblioteca local agora.')
+      return studySourceList(result, toast, true, 5)
+    }
+    return [
+      h(
+        'section',
+        { class: 'study-gap-sources', 'aria-label': 'Fontes da Cora para o que você errou' },
+        h('h3', {}, 'Fontes da Cora para o que você errou'),
+        h(
+          'p',
+          { class: 'field-hint' },
+          'Para cada erro ou dúvida, a Cora ordena as fontes locais da mais para a menos relevante, com a página de início e a de fim. A busca é local; nada vai ao Claude.',
+        ),
+        ...gaps.map((gap) =>
+          h(
+            'article',
+            { class: 'study-cycle-gap' },
+            h('h4', {}, `${gap.assessment?.kind === 'incorrect' ? 'Erro' : 'Dúvida'} · ${gap.source.topic || cycle.topic}`),
+            h('p', { class: 'study-cycle-prompt' }, gap.source.question),
+            sources(gapSources.get(gap.id)),
+          ),
+        ),
+      ),
+    ]
   }
 
   const reviewBody = (cycle: StudyCycle): HTMLElement[] => {

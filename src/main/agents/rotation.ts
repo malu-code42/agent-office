@@ -127,11 +127,20 @@ export abstract class AgentRotation extends AgentSdk {
    * live and takes the effort on her next process.
    */
   setEmiPreferences(settings: Pick<Settings, 'emiModel' | 'emiEffort'>): void {
-    const model = settings.emiModel || undefined
-    const effort = settings.emiEffort || undefined
+    this.setBuiltInPreferences('emi', settings.emiModel, settings.emiEffort)
+  }
+
+  /** Bonnie's model and effort, applied as Emi's are. */
+  setBonniePreferences(settings: Pick<Settings, 'bonnieModel' | 'bonnieEffort'>): void {
+    this.setBuiltInPreferences('bonnie', settings.bonnieModel, settings.bonnieEffort)
+  }
+
+  private setBuiltInPreferences(kind: 'emi' | 'bonnie', savedModel: string, savedEffort: Settings['emiEffort']): void {
+    const model = savedModel || undefined
+    const effort = savedEffort || undefined
     for (const agent of this.agents.values()) {
       const s = agent.summary
-      if (s.builtIn !== 'emi') continue
+      if (s.builtIn !== kind) continue
       s.model = model
       s.effort = effort
       if (agent.query && s.status !== 'working' && s.status !== 'starting') this.closeProcess(agent)

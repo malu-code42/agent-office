@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseStudyTrail, trailTopicOf } from '../src/shared/study-trail'
+import { parseStudyTrail, studyTopicStart, studyTrailBoard, trailTopicOf } from '../src/shared/study-trail'
 import {
   activeStudyCycle,
   createStudyCycleState,
@@ -109,5 +109,43 @@ describe('trocar tópico guarda o trabalho', () => {
     expect(() => resumeStudyCycle(state, 'sc-0-nada')).toThrow(/histórico/)
     const done = { ...state, cycles: state.cycles.map((c) => ({ ...c, stage: 'completed' as const })) }
     expect(() => resumeStudyCycle(done, id)).toThrow(/concluído/)
+  })
+})
+
+describe('quadro "Trilha de estudos" na sala da Bonnie', () => {
+  const cycle = (id: string, topic: string, stage: string, updatedAt = 1) => ({ id, topic, stage, updatedAt })
+
+  it('groups the topics by discipline, in file order, with the state of each one', () => {
+    const trail = parseStudyTrail(TRAIL)
+    const state = {
+      activeId: 'c2',
+      cycles: [
+        cycle('c1', '[P2-ED-01] Listas', 'practice'),
+        cycle('c2', '[P2-ED-03] Árvores', 'diagnosis'),
+        cycle('c3', 'Filas sem identificador', 'completed'),
+      ],
+    }
+    const lists = studyTrailBoard(trail, state)
+    expect(lists.map((l) => [l.discipline, l.period, l.cards.length, l.open, l.current])).toEqual([
+      ['Lógica e Matemática Discreta', '1º período', 2, 1, false],
+      ['Estrutura de Dados', '2º período', 3, 2, true],
+    ])
+    expect(lists[0]!.cards.map((c) => c.state)).toEqual(['checked', 'new'])
+    expect(lists[1]!.cards.map((c) => [c.state, c.cycleId])).toEqual([
+      ['kept', 'c1'],
+      ['completed', 'c3'],
+      ['current', 'c2'],
+    ])
+  })
+
+  it('"Começar com este tópico" opens the current one, resumes a kept one, or sets the current aside', () => {
+    const state = { activeId: 'c2', cycles: [cycle('c1', '[P2-ED-01] Listas', 'practice'), cycle('c2', '[P2-ED-03] Árvores', 'diagnosis')] }
+    expect(studyTopicStart(state, '[P2-ED-03] Árvores binárias de busca')).toEqual({ kind: 'open' })
+    expect(studyTopicStart(state, '[P2-ED-01] Listas')).toEqual({ kind: 'resume', cycleId: 'c1' })
+    expect(studyTopicStart(state, '[P1-LMD-02] Tabelas-verdade')).toEqual({ kind: 'new', setAside: true })
+    expect(studyTopicStart({ activeId: null, cycles: [cycle('c9', 'Filas', 'completed')] }, 'Filas')).toEqual({
+      kind: 'new',
+      setAside: false,
+    })
   })
 })

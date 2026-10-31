@@ -29,8 +29,9 @@ const STUDY_TITLES: Record<StudyAct, string> = {
   questions: 'Banco de questões',
   cards: 'Notas e cartões',
   schedule: 'Horário de aula',
+  trail: 'Trilha de estudos: escolher o tópico',
   cora: 'Cora · bibliotecária',
-  bonnie: 'Bonnie · ciclo de estudo',
+  bonnie: 'Bonnie · conversar sobre os estudos',
 }
 
 /** Camera and input: keys, drag to pan, wheel to zoom, clicks and the hover outline. */

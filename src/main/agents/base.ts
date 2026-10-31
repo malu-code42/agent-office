@@ -1,5 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { randomUUID } from 'node:crypto'
+import { mkdirSync } from 'node:fs'
+import { join } from 'node:path'
 import {
   type McpSdkServerConfigWithInstance,
   type PermissionResult,
@@ -21,6 +23,7 @@ import type {
 import { pickAgentName } from '@shared/describe'
 import { EMI_LOOK, emiAgentId, emiAgentSummary } from '@shared/emi'
 import { lunaAgentSummary } from '@shared/luna'
+import { BONNIE_AGENT_ID, BONNIE_LOOK, bonnieAgentSummary } from '@shared/bonnie'
 import { projectFor } from '@shared/projects'
 import { type Accounts } from '../accounts'
 import type { CostBook } from '../ledger'
@@ -42,6 +45,8 @@ export abstract class AgentBase extends EventEmitter {
   lunaTools?: () => McpSdkServerConfigWithInstance
   /** The tools of a floor's Emi (plan and squads of that floor); set where the squad writers live. */
   emiTools?: (projectId: string) => McpSdkServerConfigWithInstance
+  /** Bonnie's study floor tools (trail, cycle, schedule, Cora's sources); set where the study services live. */
+  bonnieTools?: () => McpSdkServerConfigWithInstance
   /** Picks the Claude account of each run; missing = the app's own login. */
   accounts?: Accounts
   /** The cost book: every SDK result is booked there. */
@@ -75,6 +80,19 @@ export abstract class AgentBase extends EventEmitter {
               effort: store.settings.lunaEffort || undefined,
             }
           : {}),
+        ...(p.summary.builtIn === 'bonnie'
+          ? {
+              id: BONNIE_AGENT_ID,
+              name: 'Bonnie',
+              builtIn: 'bonnie' as const,
+              engine: 'claude' as const,
+              permissionMode: 'default' as const,
+              cwd: '',
+              look: BONNIE_LOOK,
+              model: store.settings.bonnieModel || undefined,
+              effort: store.settings.bonnieEffort || undefined,
+            }
+          : {}),
         ...(emiFloor
           ? {
               name: 'Emi',
@@ -103,12 +121,18 @@ export abstract class AgentBase extends EventEmitter {
       const freshLuna = summary.builtIn === 'luna' && !summary.sessionId
       if (freshLuna) summary.sessionId = randomUUID()
       // An Emi nobody talked to yet has no Claude session to resume.
-      const agent: Agent = { summary, log: p.log, started: emiFloor ? p.log.length > 0 : !freshLuna }
+      const agent: Agent = { summary, log: p.log, started: emiFloor || summary.builtIn === 'bonnie' ? p.log.length > 0 : !freshLuna }
       this.agents.set(summary.id, agent)
       if (summary.role === 'orchestrator') this.watchSquad(agent)
     }
     if (![...this.agents.values()].some((agent) => agent.summary.builtIn === 'luna')) {
       const summary = { ...lunaAgentSummary(Date.now(), store.settings), sessionId: randomUUID() }
+      this.agents.set(summary.id, { summary, log: [], started: false })
+      this.persist()
+    }
+    // Bonnie lives on the study floor from the start, like Luna in the house.
+    if (!this.agents.has(BONNIE_AGENT_ID)) {
+      const summary = { ...bonnieAgentSummary(Date.now(), store.settings), sessionId: randomUUID() }
       this.agents.set(summary.id, { summary, log: [], started: false })
       this.persist()
     }
@@ -164,6 +188,13 @@ export abstract class AgentBase extends EventEmitter {
   /** Folders Luna reads without asking (#101): her home and every project floor. */
   protected lunaRoots(): string[] {
     return [...new Set([this.lunaHome(), ...this.store.settings.projects.map((p) => p.cwd)])]
+  }
+
+  /** Bonnie's working folder: an empty folder of the office data, so no study file sits where she runs (#75, #90). */
+  protected bonnieHome(): string {
+    const dir = join(this.store.dataDirectory, 'bonnie')
+    mkdirSync(dir, { recursive: true })
+    return dir
   }
 
   /** Picks agent names; tests replace it to make the pick deterministic. */

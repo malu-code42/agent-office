@@ -10,6 +10,7 @@ import { decide } from '../permissions/policy'
 import { permissionFromTool } from './permissions'
 import { LUNA_CONFIRM_TOOLS, LUNA_SERVER } from '../luna-tools'
 import { EMI_CONFIRM_TOOLS, EMI_SERVER } from '../emi-tools'
+import { BONNIE_SERVER } from '../bonnie-tools'
 
 const LUNA_READ_TOOLS = new Set(['Read', 'Grep', 'Glob'])
 import { type Agent } from './types'
@@ -61,6 +62,15 @@ export abstract class AgentDecisions extends AgentSubagents {
     // Emi reads her floor's plan and squads freely; approving the plan and creating a squad come to the card.
     if (emi && tool.startsWith(`mcp__${EMI_SERVER}__`) && !EMI_CONFIRM_TOOLS.has(tool))
       return Promise.resolve({ behavior: 'allow', updatedInput: input })
+    // #75/#90: Bonnie works only through her study tools, which hand Claude the minimal material
+    // (topic, stage, ranked source names and page ranges, never a file's content). Anything else is refused.
+    if (agent.summary.builtIn === 'bonnie') {
+      if (tool.startsWith(`mcp__${BONNIE_SERVER}__`)) return Promise.resolve({ behavior: 'allow', updatedInput: input })
+      return Promise.resolve({
+        behavior: 'deny',
+        message: 'A Bonnie conversa só pelas ferramentas do andar de estudos (mcp__estudos__); arquivos, terminal e web não são dela.',
+      })
+    }
     // Built-in confirm tools always reach the card, whatever the mode, and never become an "always allow" rule.
     const confirm = (luna && LUNA_CONFIRM_TOOLS.has(tool)) || (emi && EMI_CONFIRM_TOOLS.has(tool))
     const squad = agent.squad
