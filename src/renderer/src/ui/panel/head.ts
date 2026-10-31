@@ -220,14 +220,18 @@ export abstract class PanelHead extends PanelSearch {
     const model = h(
       'select',
       { class: 'input input-small', 'aria-label': `Modelo da ${a.name}` },
-      ...MODELS.map((m) => (m.value ? h('option', { value: m.value }, m.label) : h('option', { value: '', 'data-hint': 'padrão' }, 'Do Claude Code'))),
+      ...MODELS.map((m) =>
+        m.value ? h('option', { value: m.value }, m.label) : h('option', { value: '', 'data-hint': 'padrão' }, 'Do Claude Code'),
+      ),
     ) as HTMLSelectElement
     const savedModel = luna ? s.lunaModel : s.emiModel
     model.value = MODELS.some((m) => m.value === savedModel) ? savedModel : ''
     const effort = h(
       'select',
       { class: 'input input-small', 'aria-label': `Esforço da ${a.name}` },
-      ...EFFORTS.map((e) => (e.value ? h('option', { value: e.value }, e.label) : h('option', { value: '', 'data-hint': 'padrão' }, 'Do modelo'))),
+      ...EFFORTS.map((e) =>
+        e.value ? h('option', { value: e.value }, e.label) : h('option', { value: '', 'data-hint': 'padrão' }, 'Do modelo'),
+      ),
     ) as HTMLSelectElement
     effort.value = (luna ? s.lunaEffort : s.emiEffort) || ''
     const save = () => {
@@ -251,12 +255,7 @@ export abstract class PanelHead extends PanelSearch {
   /** The open half of the badge: status, stamps, memory blocks and the rarer actions. */
   protected badgeDetails(a: AgentSummary, led: HTMLElement, busy: boolean): HTMLElement {
     const office = a.source === 'office'
-    if (a.builtIn === 'luna')
-      return h(
-        'div',
-        { class: 'ab-more' },
-        led,
-      )
+    if (a.builtIn === 'luna') return h('div', { class: 'ab-more' }, led)
     const effort = a.effort ? (EFFORTS.find((e) => e.value === a.effort)?.label.toLowerCase() ?? a.effort) : null
     return h(
       'div',

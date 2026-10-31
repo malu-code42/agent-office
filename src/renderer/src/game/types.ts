@@ -51,8 +51,6 @@ export interface Upper {
   alarm: boolean
   /** Over the alarm, while an account of this floor is at its limit. */
   alarmTag: Tag
-  /** Over the spending board: the exact total. */
-  moneyTag: Tag
   /** What does not fit on this floor (more squads than rooms); null when everything fits. */
   issueTag: Tag | null
   /** Over the elevator, while a squad proposal waits for the approval. */
