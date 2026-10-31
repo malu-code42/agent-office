@@ -308,3 +308,30 @@ export const routineOccurrenceId = (routine: string, day: string): string => `${
 
 /** Stable focus target for the accessible status replacing the weekly-distribution action. */
 export const routineDistributionStatusFocusKey = (routine: string): string => `routine-distribution-status-${routine}`
+
+/**
+ * Every occurrence of the overview's routines on the days of `week` (AAAA-MM-DD, Monday first), with whether it
+ * was marked done. A daily routine is planned on each day; a weekly one on its fixed or distributed days. A
+ * completed occurrence on a day that was not planned (a target routine without distribution) still counts.
+ */
+export function routineWeekMarks(
+  rows: PersonalRoutineWeekRow[],
+  occurrences: { id: string; routineId: string; day: string; status: 'pending' | 'completed'; taskId?: string }[],
+  week: string[],
+): { day: string; done: boolean; taskId?: string }[] {
+  const byId = new Map(occurrences.map((row) => [row.id, row]))
+  const marks: { day: string; done: boolean; taskId?: string }[] = []
+  for (const row of rows) {
+    const planned = new Set(
+      row.cadence === 'diária' ? week : row.occurrenceIds.map((id) => id.slice(-10)).filter((day) => week.includes(day)),
+    )
+    for (const occurrence of occurrences)
+      if (occurrence.routineId === row.routineId && occurrence.status === 'completed' && week.includes(occurrence.day))
+        planned.add(occurrence.day)
+    for (const day of [...planned].sort()) {
+      const occurrence = byId.get(routineOccurrenceId(row.routineId, day))
+      marks.push({ day, done: occurrence?.status === 'completed', ...(occurrence?.taskId ? { taskId: occurrence.taskId } : {}) })
+    }
+  }
+  return marks
+}

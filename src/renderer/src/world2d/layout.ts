@@ -144,9 +144,9 @@ function emptyRoom(art: RoomArt, index: number): SquadRoom {
       rot: headingOf(seat.dir),
       seat: { x: sx, z: sz },
       approach: [Math.floor(sx), Math.floor(sz)],
-      // beside the coordinator, between the desk and the bookshelf
-      side: { x: Math.floor(sx) + 0.5, z: z0 + 4.5 },
-      sideApproach: [Math.floor(sx), z0 + 4],
+      // beside the coordinator, in front of the bookshelf (row 4 is the chair of member 6, against the far wall)
+      side: { x: Math.floor(sx) + 0.5, z: z0 + 2.5 },
+      sideApproach: [Math.floor(sx), z0 + 2],
       // the aisle in front of the coordinator's desk, middle first
       deliver: [2, 3, 1, 4, 0, 5].map((dz): [number, number] => [3, z0 + dz]),
     },

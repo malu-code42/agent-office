@@ -16,7 +16,6 @@
   estudos.json             the study floor's layout: furniture (the clickable pieces carry their
                            action), the chairs of Cora, Bonnie, the teachers and the user,
                            where the teacher of the turn stands, walls, blocked tiles, tags, zones
-  font5.json               the plaque font
 
 Everything is placed at its final pixel position on the native canvas (736x460), so the
 app only blits: no half-pixel rounding differs from the approved scene-projeto.png.
@@ -32,9 +31,8 @@ from floorkit import SW, SH, OX, OY, TS, W, D, WALL_H, PART_H, Scene, new_layer,
 import scene_projeto as P
 import scene_casa2 as C
 import scene_estudos as E
-from desks import ws_back, ws_front_x, ws_front_y
+from desks import ws_back, ws_back_y, ws_front_x, ws_front_y
 from chars import sprite, VARIANTS, palette
-from font5 import glyph
 
 APP = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
                    'src', 'renderer', 'src', 'assets', 'pixel')
@@ -322,8 +320,8 @@ def main():
     ex, ey, ew = P.EMI_DESK
     epx, epy = L.P(336, 282, 0)
     emi = {
-        'desk': desk('emi', lambda s, st: ws_front_y(s, ex, ey, None, st, boss=True, w=ew)),
-        'seat': seat('emi', ex + ew - 13, ey - 12, '+y'),
+        'desk': desk('emi', lambda s, st: ws_back_y(s, ex, ey, None, st, 'papers', boss=True, w=ew)),
+        'seat': seat('emi', ex + ew // 2 - 5, ey + 16, '-y'),
         'plate': [epx, int(epy)],
     }
     mpx, mpy = L.P(232, 282, 0)
@@ -339,8 +337,8 @@ def main():
     blocked = set()
     furniture = [it['fp'] for it in static if not it.get('wall')]
     furniture += [room['coordinator']['desk']['green']['fp'] for room in rooms]
-    # the four desks of the approved art; the middle row (members 5 and 6) stays the aisle between them
-    furniture += [slot['desk']['green']['fp'] for room in rooms for slot in room['slots'][:4]]
+    # all six member desks: 5 and 6 stand against the far wall, so the middle rows stay the aisle
+    furniture += [slot['desk']['green']['fp'] for room in rooms for slot in room['slots']]
     furniture.append(emi['desk']['green']['fp'])
     for x0, y0, x1, y1 in furniture:
         for tx in covered(x0, x1):
@@ -402,10 +400,6 @@ def main():
     with open(os.path.join(APP, 'atlas.json'), 'w', encoding='utf8') as f:
         json.dump(data, f, separators=(',', ':'))
 
-    # ---------- plaque font ----------
-    chars = ''.join(chr(c) for c in range(32, 127)) + 'áéíóúâêôãõçÁÉÍÓÚÂÊÔÃÕÇ·'
-    with open(os.path.join(APP, 'font5.json'), 'w', encoding='utf8') as f:
-        json.dump({c: glyph(c) for c in chars}, f, separators=(',', ':'), ensure_ascii=False)
     print('atlas:', len(atlas.frames), 'frames ->', APP)
 
 
@@ -446,7 +440,7 @@ def casa(L, place, items, seat):
     # tags (HTML) over the clickable things: art units x, y and height
     tags = {n: [(a + b) / 2, 0, 46] for a, b, _act, n in C.BOARDS}
     tags.update({
-        'Claude FM': [8, 47, 34], 'Caveira': [150, 24, 34], 'Rotinas de agentes': [213, 74, 40],
+        'Claude FM': [8, 47, 34], 'Caveira': [150, 24, 34], 'Rotinas de agentes': [149, 104, 40],
         'Novo agente': [80, 270, 40], 'Livros': [306, 4, 44], 'Escrita': [314, 32, 30],
         'Filmes': [233, 133, 34], 'Jogos': [233, 238, 38], 'Gastos': [218, 0, 54], 'Alarme': [168, 0, 54],
     })

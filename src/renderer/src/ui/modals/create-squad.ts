@@ -298,7 +298,9 @@ function openCreateSquadReady(root: HTMLElement, state: State, opts: CreateSquad
         const model = h(
           'select',
           { class: 'input' },
-          ...SQUAD_MODELS.map((value) => h('option', { value }, value || 'Padrão Claude Code')),
+          ...SQUAD_MODELS.map((value) =>
+            value ? h('option', { value }, value) : h('option', { value, 'data-hint': 'padrão' }, 'Do Claude Code'),
+          ),
         ) as HTMLSelectElement
         model.value = member.model
         const account = h(

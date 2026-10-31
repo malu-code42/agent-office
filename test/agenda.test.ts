@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildAgendaView, parseAgenda, parseClasses } from '../src/shared/agenda'
+import { buildAgendaView, parseAgenda, parseClasses, weekProgress } from '../src/shared/agenda'
+import { routineWeekMarks, type PersonalRoutineWeekRow } from '../src/shared/routine-personal'
 import { mediaAgendaLinks } from '../src/shared/media'
 
 const agenda = [
@@ -253,5 +254,95 @@ describe('agenda view', () => {
     expect(view.today).toEqual({ date: '2026-10-17', entries: [] })
     expect(view.week).toHaveLength(7)
     expect(view.undated).toEqual([])
+  })
+})
+
+describe('weekProgress', () => {
+  // Week of Monday 2026-10-26; "now" is Wednesday 28 at 12:00.
+  const now = new Date(2026, 9, 28, 12, 0)
+  const agendaText = [
+    '## 2026-10-26',
+    '- 09:00 Dentista',
+    '- 10:00 ↦ ^tabc123',
+    '## 2026-10-28',
+    '- 08:00 Reunião',
+    '- 15:00 Revisar contrato',
+    '## 2026-10-30',
+    '- 10:00 Banco',
+  ].join('\n')
+  const tasksText = [
+    '## Hoje',
+    '- [x] Pagar boleto ✅ 2026-10-26 ^tabc123',
+    '- [x] Ligar para a Ana ✅ 27.10.2026',
+    '- [x] Tarefa da rotina ✅ 2026-10-27 ^trot001',
+    '- [x] Fora da semana ✅ 2026-10-19',
+    '- [-] Desistiu ❌ 28.10.2026 — descartada: sem tempo',
+    '- [ ] Aberta',
+  ].join('\n')
+
+  it('soma concluídos e previstos por dia com tarefas, compromissos passados e rotinas', () => {
+    const view = buildAgendaView(agendaText, tasksText, now)
+    const routines = [
+      { day: '2026-10-26', done: true },
+      { day: '2026-10-27', done: true, taskId: 'trot001' },
+      { day: '2026-10-28', done: false },
+      { day: '2026-10-29', done: false },
+    ]
+    const progress = weekProgress(view.week, tasksText, routines, now)
+    expect(progress.days.map((d) => `${d.done}/${d.planned}`)).toEqual(['3/3', '2/2', '1/3', '0/1', '0/1', '0/0', '0/0'])
+    expect(progress.tasksDone).toBe(2)
+    expect(progress.tasksDiscarded).toBe(1)
+    expect(progress.routinesDone).toBe(2)
+    expect(progress.routinesPlanned).toBe(4)
+  })
+
+  it('não mostra mais concluídos que previstos num dia', () => {
+    const tasks = ['## Hoje', '- [x] A ✅ 2026-10-27', '- [x] B ✅ 2026-10-27'].join('\n')
+    expect(weekProgress(buildAgendaView(null, tasks, now).week, tasks, [], now).days[1]).toEqual({
+      date: '2026-10-27',
+      done: 2,
+      planned: 2,
+    })
+  })
+})
+
+describe('routineWeekMarks', () => {
+  const week = ['2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', '2026-10-31', '2026-11-01']
+  const row = (over: Partial<PersonalRoutineWeekRow>): PersonalRoutineWeekRow => ({
+    routineId: 'r',
+    line: 1,
+    title: 'R',
+    cadence: 'diária',
+    confirmed: true,
+    occurrenceIds: [],
+    completed: 0,
+    ...over,
+  })
+
+  it('põe a rotina diária em todos os dias e a semanal só nos dias dela', () => {
+    const marks = routineWeekMarks(
+      [
+        row({ routineId: 'agua' }),
+        row({ routineId: 'violao', cadence: 'semanal', occurrenceIds: ['violao:2026-10-27', 'violao:2026-10-29'] }),
+      ],
+      [
+        { id: 'agua:2026-10-26', routineId: 'agua', day: '2026-10-26', status: 'completed' },
+        { id: 'violao:2026-10-27', routineId: 'violao', day: '2026-10-27', status: 'completed', taskId: 'tvio001' },
+      ],
+      week,
+    )
+    expect(marks.filter((m) => m.day === '2026-10-26')).toEqual([{ day: '2026-10-26', done: true }])
+    expect(marks).toHaveLength(9)
+    expect(marks).toContainEqual({ day: '2026-10-27', done: true, taskId: 'tvio001' })
+    expect(marks).toContainEqual({ day: '2026-10-29', done: false })
+  })
+
+  it('conta a ocorrência feita fora dos dias distribuídos', () => {
+    const marks = routineWeekMarks(
+      [row({ routineId: 'meta', cadence: 'semanal', target: 3 })],
+      [{ id: 'meta:2026-10-30', routineId: 'meta', day: '2026-10-30', status: 'completed' }],
+      week,
+    )
+    expect(marks).toEqual([{ day: '2026-10-30', done: true }])
   })
 })

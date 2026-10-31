@@ -116,7 +116,7 @@ export function tourSteps(platform: string): TourStep[] {
     {
       id: 'routines',
       title: 'Rotinas de agentes',
-      text: 'O totem do hall é exclusivo das rotinas agendadas para agentes. Rotinas pessoais ficam no quadro do escritório.',
+      text: 'O totem no canto da mesa da Luna é exclusivo das rotinas agendadas para agentes. Rotinas pessoais ficam no quadro do escritório.',
       targets: [{ world: 'routines' }],
       place: 'right',
     },

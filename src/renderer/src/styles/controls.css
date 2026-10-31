@@ -12,7 +12,9 @@
   box-shadow: var(--shadow-sm);
   font-weight: 600;
   white-space: nowrap;
-  transition: background 0.15s, transform 0.1s;
+  transition:
+    background 0.15s,
+    transform 0.1s;
 }
 
 .btn:hover {
@@ -213,4 +215,12 @@
   display: inline-flex;
   width: 16px;
   color: var(--accent-hi);
+}
+
+/* data-hint of an <option>: a muted note next to its label ("padrão") */
+.dd-hint {
+  margin-left: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
 }

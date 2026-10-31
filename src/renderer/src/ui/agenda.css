@@ -711,3 +711,14 @@
     font-size: 20px;
   }
 }
+
+/* Concluídos por dia: the green done bar stands over the dashed planned one. */
+.tl-bar-col i.plan {
+  border: 2px dashed var(--ctl-line);
+  background: var(--sunken);
+}
+
+.tl-tl-legend i.tl-bar-done {
+  background: var(--green);
+  border: 2px solid var(--outline);
+}

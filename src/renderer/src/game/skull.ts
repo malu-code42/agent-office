@@ -1,6 +1,7 @@
 import { sfx } from './sfx'
 import { GameSquads } from './squads'
-import { STRIKE_AFTER_S, type Actor } from './types'
+import { strikeSpot } from './strike-spot'
+import { STRIKE_AFTER_S, tileOf, type Actor } from './types'
 import type { Fx } from './base'
 
 /** Strike timing, in seconds: drop in, cackle in the air, dive; and the height it hovers at (tiles). */
@@ -69,6 +70,10 @@ export abstract class GameSkull extends GameSquads {
     actor.chatUntil = 0
     const av = actor.avatar
     av.stop()
+    // Off the sofa first: the agent falls on the floor beside it, not over the furniture.
+    const others = [...this.actors.values()].filter((o) => o !== actor && o.avatar.floor === av.floor).map((o) => tileOf(o.avatar.position))
+    const floorSpot = strikeSpot(this.floorOf(av.floor).grid, av.position, av.pose, (x, z) => others.some(([i, j]) => i === x && j === z))
+    if (floorSpot) av.placeAt(floorSpot.x, floorSpot.z)
     av.pose = 'stand'
     av.setProp('none')
     actor.tag.setBubble('!?', 'error')

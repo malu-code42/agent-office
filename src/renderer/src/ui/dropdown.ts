@@ -9,6 +9,20 @@ import { type DropdownOption, dropdownMatch, dropdownMove } from './dropdown-key
  */
 
 let nextId = 0
+
+/**
+ * The inside of one row of the list: the check, the label and, when the <option> has `data-hint`, a muted note
+ * next to the label (capture 22: "Equilibrada  padrão"). The hint is not part of the option's text, so the
+ * button and the type-ahead read the label alone.
+ */
+export function optionBody(opt: Pick<HTMLOptionElement, 'selected' | 'textContent' | 'dataset'>): HTMLElement[] {
+  const hint = opt.dataset.hint
+  return [
+    h('span', { class: 'dd-check', 'aria-hidden': 'true' }, opt.selected ? icon('check', 14) : null),
+    h('span', { class: hint ? 'dd-label' : 'grow' }, opt.textContent ?? ''),
+    ...(hint ? [h('span', { class: 'dd-hint grow' }, hint)] : []),
+  ]
+}
 const enhanced = new WeakSet<HTMLSelectElement>()
 
 /** Turns one <select> into the app's dropdown. A <select multiple> or a sized list stays native. */
@@ -128,8 +142,7 @@ export function enhanceSelect(select: HTMLSelectElement): void {
               paintActive()
             },
           },
-          h('span', { class: 'dd-check', 'aria-hidden': 'true' }, opt.selected ? icon('check', 14) : null),
-          h('span', { class: 'grow' }, opt.textContent ?? ''),
+          ...optionBody(opt),
         ),
       ),
     )

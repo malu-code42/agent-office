@@ -23,7 +23,13 @@ const pos = (hm: string) => ((mins(hm) - T_FROM * 60) / ((T_TO - T_FROM) * 60)) 
 type ViewKind = 'resumo' | 'dia' | 'semana'
 type DayEv = { at: string; t: string; kind: string; note?: string; conflict?: boolean }
 
-const KIND_LABEL: Record<string, string> = { evento: 'Compromisso', aula: 'Aula', tarefa: 'Tarefa', feita: 'Rotina feita', rotina: 'Rotina prevista' }
+const KIND_LABEL: Record<string, string> = {
+  evento: 'Compromisso',
+  aula: 'Aula',
+  tarefa: 'Tarefa',
+  feita: 'Rotina feita',
+  rotina: 'Rotina prevista',
+}
 
 function entryToEv(entry: AgendaEntry): DayEv | null {
   if (entry.kind === 'unknown') return null
@@ -87,12 +93,19 @@ function dayLine(day: AgendaDay, now: string): HTMLElement {
       'div',
       { class: 'tl-day-stage' },
       h('div', { class: 'tl-day-axis' }),
-      ...hours.map((hh) => h('span', { class: 'tl-day-tick', style: `left:${pos(`${hh}:00`)}%`, 'aria-hidden': 'true' }, `${String(hh).padStart(2, '0')}h`)),
+      ...hours.map((hh) =>
+        h('span', { class: 'tl-day-tick', style: `left:${pos(`${hh}:00`)}%`, 'aria-hidden': 'true' }, `${String(hh).padStart(2, '0')}h`),
+      ),
       dayHasNow ? h('span', { class: 'tl-day-now', style: `left:${pos(now)}%` }, h('b', {}, `agora · ${now}`)) : null,
       ...evs.map((ev, i) => balloon(ev, places[i])),
     ),
     untimed.length
-      ? h('div', { class: 'tl-tl-untimed tl-day-untimed' }, h('span', {}, 'Sem hora:'), ...untimed.map((u) => h('span', { class: 'tl-tl-chip' }, u)))
+      ? h(
+          'div',
+          { class: 'tl-tl-untimed tl-day-untimed' },
+          h('span', {}, 'Sem hora:'),
+          ...untimed.map((u) => h('span', { class: 'tl-tl-chip' }, u)),
+        )
       : null,
   )
 }
@@ -103,11 +116,18 @@ function weekBand(day: AgendaDay, now: string): HTMLElement {
   return h(
     'div',
     { class: `tl-tl-row${today ? ' today' : ''}`, role: 'row' },
-    h('span', { class: 'tl-tl-day', role: 'rowheader' }, `${weekdayShortOf(day.date)} ${day.date.slice(8, 10)}/${day.date.slice(5, 7)}`, today ? h('small', {}, 'hoje') : null),
+    h(
+      'span',
+      { class: 'tl-tl-day', role: 'rowheader' },
+      `${weekdayShortOf(day.date)} ${day.date.slice(8, 10)}/${day.date.slice(5, 7)}`,
+      today ? h('small', {}, 'hoje') : null,
+    ),
     h(
       'div',
       { class: 'tl-tl-track', role: 'cell' },
-      ...Array.from({ length: T_TO - T_FROM + 1 }, (_, i) => T_FROM + i).map((hh) => h('i', { class: 'tl-tl-grid', style: `left:${pos(`${hh}:00`)}%` })),
+      ...Array.from({ length: T_TO - T_FROM + 1 }, (_, i) => T_FROM + i).map((hh) =>
+        h('i', { class: 'tl-tl-grid', style: `left:${pos(`${hh}:00`)}%` }),
+      ),
       today ? h('span', { class: 'tl-tl-now', style: `left:${pos(now)}%`, title: `Agora, ${now}` }) : null,
       ...evs.map((ev, i) => {
         const end = `${Math.floor((mins(ev.at) + 50) / 60)}:${String((mins(ev.at) + 50) % 60).padStart(2, '0')}`
@@ -165,10 +185,17 @@ function resumo(view: AgendaView, routines: PersonalRoutineOverview | null): HTM
     )
   const rows = routines?.rows ?? []
   const plannedOf = (row: PersonalRoutineWeekRow) => row.target ?? row.occurrenceIds.length
-  const routinesDone = rows.reduce((n, row) => n + Math.min(row.completed, plannedOf(row)), 0)
-  const routinesPlanned = rows.reduce((n, row) => n + plannedOf(row), 0)
-  const max = Math.max(1, ...view.week.map((day) => day.entries.length))
-  const bars = view.week.map((day, i) => [weekdayShortOf(day.date), day.entries.length, i === todayIndex, i > todayIndex] as const)
+  // The dated read counts every occurrence of the week (a daily routine is 7); the overview only knows today's.
+  const routinesDone = view.progress?.routinesDone ?? rows.reduce((n, row) => n + Math.min(row.completed, plannedOf(row)), 0)
+  const routinesPlanned = view.progress?.routinesPlanned ?? rows.reduce((n, row) => n + plannedOf(row), 0)
+  // Without completion data (an older read), every item counts as planned and none as done.
+  const progress =
+    view.progress?.days ??
+    view.week.map((day) => ({ date: day.date, done: 0, planned: day.entries.filter((e) => e.kind !== 'unknown').length }))
+  const doneWeek = progress.reduce((n, day) => n + day.done, 0)
+  const plannedWeek = progress.reduce((n, day) => n + day.planned, 0)
+  const max = Math.max(1, ...progress.map((day) => day.planned))
+  const bars = progress.map((day, i) => ({ label: weekdayShortOf(day.date), ...day, today: i === todayIndex, future: i > todayIndex }))
   const next: { when: string; ev: DayEv }[] = []
   view.week.forEach((day, i) => {
     if (i < todayIndex) return
@@ -182,11 +209,18 @@ function resumo(view: AgendaView, routines: PersonalRoutineOverview | null): HTM
     h(
       'div',
       { class: 'tl-stats' },
-      stat(String(weekEntries.length), 'itens previstos', `${commitments.length} compromissos, ${classes.length} aulas, ${tasks.length} tarefas`),
+      stat(String(doneWeek), 'itens concluídos', `de ${plannedWeek} previstos na semana`),
       stat(String(commitments.length), 'compromissos', `${passed('commitment')} já passaram`),
       stat(String(classes.length), 'aulas', `${passed('class')} já aconteceram`),
       rows.length ? stat(String(routinesDone), 'rotinas concluídas', `de ${routinesPlanned} previstas`, ' ok') : null,
-      stat(String(tasks.length), 'tarefas agendadas', 'na semana'),
+      view.progress
+        ? stat(
+            String(view.progress.tasksDone),
+            'tarefas concluídas',
+            `${view.progress.tasksDiscarded} ${view.progress.tasksDiscarded === 1 ? 'descartada' : 'descartadas'}`,
+            ' ok',
+          )
+        : stat(String(tasks.length), 'tarefas agendadas', 'na semana'),
     ),
     h(
       'div',
@@ -194,21 +228,35 @@ function resumo(view: AgendaView, routines: PersonalRoutineOverview | null): HTM
       h(
         'section',
         { class: 'tl-dash-card' },
-        h('h3', { class: 'agenda-title' }, 'Itens por dia'),
+        h('h3', { class: 'agenda-title' }, 'Concluídos por dia'),
         h(
           'div',
-          { class: 'tl-bars', role: 'img', 'aria-label': `Itens previstos por dia: ${bars.map(([d, n]) => `${d} ${n}`).join(', ')}` },
-          ...bars.map(([label, total, today, future]) =>
+          {
+            class: 'tl-bars',
+            role: 'img',
+            'aria-label': `Concluídos por dia: ${bars.map((bar) => `${bar.label} ${bar.done} de ${bar.planned}`).join(', ')}`,
+          },
+          ...bars.map((bar) =>
             h(
               'div',
-              { class: `tl-bar${today ? ' today' : ''}${future ? ' future' : ''}` },
-              h('div', { class: 'tl-bar-col' }, h('i', { class: total ? 'done' : 'none', style: `height:${total ? (total / max) * 100 : 12}%` })),
-              h('b', {}, total ? String(total) : '—'),
-              h('span', {}, label),
+              { class: `tl-bar${bar.today ? ' today' : ''}${bar.future ? ' future' : ''}` },
+              h(
+                'div',
+                { class: 'tl-bar-col' },
+                h('i', { class: 'plan', style: `height:${bar.planned ? (bar.planned / max) * 100 : 12}%` }),
+                bar.done ? h('i', { class: 'done', style: `height:${(bar.done / max) * 100}%` }) : null,
+              ),
+              h('b', {}, bar.planned ? `${bar.done}/${bar.planned}` : '—'),
+              h('span', {}, bar.label),
             ),
           ),
         ),
-        h('div', { class: 'tl-tl-legend' }, h('span', {}, h('i', { class: 'tl-ev-feita' }), 'Itens do dia'), h('span', {}, h('i', { class: 'tl-bar-of' }), 'Dia sem itens')),
+        h(
+          'div',
+          { class: 'tl-tl-legend' },
+          h('span', {}, h('i', { class: 'tl-bar-done' }), 'Concluídos'),
+          h('span', {}, h('i', { class: 'tl-bar-of' }), 'Previstos'),
+        ),
       ),
       rows.length
         ? h(
@@ -254,7 +302,13 @@ function resumo(view: AgendaView, routines: PersonalRoutineOverview | null): HTM
               ...next
                 .slice(0, 6)
                 .map(({ when, ev }) =>
-                  h('li', {}, h('b', {}, when), h('span', {}, ev.t), ev.conflict ? h('span', { class: 'tl-state late' }, 'conflito') : null),
+                  h(
+                    'li',
+                    {},
+                    h('b', {}, when),
+                    h('span', {}, ev.t),
+                    ev.conflict ? h('span', { class: 'tl-state late' }, 'conflito') : null,
+                  ),
                 ),
             )
           : h('span', { class: 'tl-sub' }, 'Nada mais nesta semana.'),
@@ -262,14 +316,7 @@ function resumo(view: AgendaView, routines: PersonalRoutineOverview | null): HTM
     ),
   ]
   if (view.warnings.length) {
-    sections.push(
-      h(
-        'div',
-        { class: 'tl-warn' },
-        h('b', {}, 'Revise aulas.md:'),
-        ...view.warnings.map((warning) => h('p', {}, warning)),
-      ),
-    )
+    sections.push(h('div', { class: 'tl-warn' }, h('b', {}, 'Revise aulas.md:'), ...view.warnings.map((warning) => h('p', {}, warning))))
   }
   return sections
 }
@@ -293,16 +340,57 @@ function weekLabel(iso: string): string {
   return `${dm(start)} a ${dm(addDays(start, 6))}`
 }
 
-function agendaHead(kind: ViewKind, selected: string, onView: (k: ViewKind) => void, onPrev: () => void, onNext: () => void, onToday: () => void): HTMLElement {
-  const tabs = [['resumo', 'Resumo da semana'], ['dia', 'Dia'], ['semana', '7 dias']] as const
-  const dayPick = kind !== 'resumo' ? h('div', { class: 'tl-daypick' }, h('button', { class: 'icon-btn', 'aria-label': kind === 'dia' ? 'Dia anterior' : 'Semana anterior', onclick: onPrev }, h('span', { class: 'tl-flip' }, icon('chevron', 15))), h('b', {}, kind === 'dia' ? `${weekdayShortOf(selected)} ${selected.slice(8, 10)}/${selected.slice(5, 7)}${selected === isoDay(new Date()) ? ' · hoje' : ''}` : weekLabel(selected)), h('button', { class: 'icon-btn', 'aria-label': kind === 'dia' ? 'Próximo dia' : 'Próxima semana', onclick: onNext }, icon('chevron', 15)), h('button', { class: 'btn btn-small', onclick: onToday }, 'Hoje')) : null
+function agendaHead(
+  kind: ViewKind,
+  selected: string,
+  onView: (k: ViewKind) => void,
+  onPrev: () => void,
+  onNext: () => void,
+  onToday: () => void,
+): HTMLElement {
+  const tabs = [
+    ['resumo', 'Resumo da semana'],
+    ['dia', 'Dia'],
+    ['semana', '7 dias'],
+  ] as const
+  const dayPick =
+    kind !== 'resumo'
+      ? h(
+          'div',
+          { class: 'tl-daypick' },
+          h(
+            'button',
+            { class: 'icon-btn', 'aria-label': kind === 'dia' ? 'Dia anterior' : 'Semana anterior', onclick: onPrev },
+            h('span', { class: 'tl-flip' }, icon('chevron', 15)),
+          ),
+          h(
+            'b',
+            {},
+            kind === 'dia'
+              ? `${weekdayShortOf(selected)} ${selected.slice(8, 10)}/${selected.slice(5, 7)}${selected === isoDay(new Date()) ? ' · hoje' : ''}`
+              : weekLabel(selected),
+          ),
+          h(
+            'button',
+            { class: 'icon-btn', 'aria-label': kind === 'dia' ? 'Próximo dia' : 'Próxima semana', onclick: onNext },
+            icon('chevron', 15),
+          ),
+          h('button', { class: 'btn btn-small', onclick: onToday }, 'Hoje'),
+        )
+      : null
   return h(
     'div',
     { class: 'tl-ahead' },
     h(
       'div',
       { class: 'tl-seg', role: 'tablist', 'aria-label': 'Visualização da agenda' },
-      ...tabs.map(([k, t]) => h('button', { class: kind === k ? 'on' : '', role: 'tab', 'aria-selected': String(kind === k), type: 'button', onclick: () => onView(k) }, t)),
+      ...tabs.map(([k, t]) =>
+        h(
+          'button',
+          { class: kind === k ? 'on' : '', role: 'tab', 'aria-selected': String(kind === k), type: 'button', onclick: () => onView(k) },
+          t,
+        ),
+      ),
     ),
     dayPick,
   )
@@ -320,7 +408,11 @@ export function openAgenda(root: HTMLElement): void {
   const content = h('div', { class: 'agenda' }, h('p', { class: 'hint' }, 'Lendo a agenda…'))
   const close = () => backdrop.remove()
   const closeButton = h('button', { class: 'btn', type: 'button', onclick: close }, 'Fechar')
-  const closeX = h('button', { class: 'icon-btn', type: 'button', title: 'Fechar (Esc)', 'aria-label': 'Fechar a agenda', onclick: close }, icon('x', 18))
+  const closeX = h(
+    'button',
+    { class: 'icon-btn', type: 'button', title: 'Fechar (Esc)', 'aria-label': 'Fechar a agenda', onclick: close },
+    icon('x', 18),
+  )
   const footHint = h('span', { class: 'hint grow tl-foot-hint' }, 'Somente leitura. Mudanças na agenda são feitas pela Luna, no chat.')
   const backdrop = modal('Agenda', [content], [footHint, closeButton], close, true)
   root.append(backdrop)
@@ -351,7 +443,20 @@ export function openAgenda(root: HTMLElement): void {
     const modalBox = backdrop.querySelector<HTMLElement>('.modal.card')!
     modalHead.replaceChildren(
       h('div', { class: 'modal-title', id: 'agenda-modal-title' }, 'Agenda'),
-      agendaHead(kind, selected, (k) => { kind = k; void render() }, () => moveDate(-1), () => moveDate(1), () => { selected = isoDay(new Date()); void render(selected) }),
+      agendaHead(
+        kind,
+        selected,
+        (k) => {
+          kind = k
+          void render()
+        },
+        () => moveDate(-1),
+        () => moveDate(1),
+        () => {
+          selected = isoDay(new Date())
+          void render(selected)
+        },
+      ),
       closeX,
     )
     modalBox.setAttribute('aria-labelledby', 'agenda-modal-title')
@@ -361,7 +466,13 @@ export function openAgenda(root: HTMLElement): void {
     // Sem arquivo nem aulas: estado vazio. Se há aulas.md, as aulas aparecem nas visualizações.
     if (!view.found && !view.classesFound) {
       content.replaceChildren(
-        h('div', { class: 'tl-empty' }, icon('calendar', 28), h('b', {}, 'Nenhum compromisso'), h('span', {}, 'A agenda vem de agenda.md e das aulas de aulas.md no vault. Peça à Luna para marcar um compromisso.')),
+        h(
+          'div',
+          { class: 'tl-empty' },
+          icon('calendar', 28),
+          h('b', {}, 'Nenhum compromisso'),
+          h('span', {}, 'A agenda vem de agenda.md e das aulas de aulas.md no vault. Peça à Luna para marcar um compromisso.'),
+        ),
       )
       return
     }
@@ -373,21 +484,61 @@ export function openAgenda(root: HTMLElement): void {
       const weekDay = view.week.find((day) => day.date === selected) ?? view.today
       const untimed = weekDay.entries.filter((entry) => entry.kind === 'unknown').map((entry) => entry.text)
       if (weekDay.entries.length === 0 && !untimed.length) {
-        body.push(h('div', { class: 'tl-empty' }, icon('calendar', 28), h('b', {}, 'Nenhum compromisso para hoje.'), h('span', {}, 'Nada marcado para este dia.')))
+        body.push(
+          h(
+            'div',
+            { class: 'tl-empty' },
+            icon('calendar', 28),
+            h('b', {}, 'Nenhum compromisso para hoje.'),
+            h('span', {}, 'Nada marcado para este dia.'),
+          ),
+        )
       } else {
-        body.push(h('div', { class: 'tl-tl-head' }, h('span', { class: 'grow' }), h('div', { class: 'tl-tl-legend' }, ...legendItems().slice(0, 4))), dayLine(weekDay, now))
+        body.push(
+          h(
+            'div',
+            { class: 'tl-tl-head' },
+            h('span', { class: 'grow' }),
+            h('div', { class: 'tl-tl-legend' }, ...legendItems().slice(0, 4)),
+          ),
+          dayLine(weekDay, now),
+        )
       }
     } else {
       const anyEntries = view.week.some((day) => day.entries.length > 0)
       if (!anyEntries) {
-        body.push(h('div', { class: 'tl-empty' }, icon('calendar', 28), h('b', {}, 'Sem itens nesta semana.'), h('span', {}, 'Não há compromissos, aulas ou tarefas agendadas neste período.')))
+        body.push(
+          h(
+            'div',
+            { class: 'tl-empty' },
+            icon('calendar', 28),
+            h('b', {}, 'Sem itens nesta semana.'),
+            h('span', {}, 'Não há compromissos, aulas ou tarefas agendadas neste período.'),
+          ),
+        )
       } else {
         body.push(
-          h('div', { class: 'tl-tl-head' }, h('span', { class: 'grow' }), h('div', { class: 'tl-tl-legend' }, ...legendItems().slice(0, 4))),
+          h(
+            'div',
+            { class: 'tl-tl-head' },
+            h('span', { class: 'grow' }),
+            h('div', { class: 'tl-tl-legend' }, ...legendItems().slice(0, 4)),
+          ),
           h(
             'div',
             { class: 'tl-tl', role: 'table', 'aria-label': 'Linha do tempo da semana' },
-            h('div', { class: 'tl-tl-row tl-tl-axis', role: 'row', 'aria-hidden': 'true' }, h('span', { class: 'tl-tl-day' }), h('div', { class: 'tl-tl-track' }, ...Array.from({ length: T_TO - T_FROM + 1 }, (_, i) => T_FROM + i).map((hh) => h('span', { class: 'tl-tl-hour', style: `left:${pos(`${hh}:00`)}%` }, `${String(hh).padStart(2, '0')}h`)))),
+            h(
+              'div',
+              { class: 'tl-tl-row tl-tl-axis', role: 'row', 'aria-hidden': 'true' },
+              h('span', { class: 'tl-tl-day' }),
+              h(
+                'div',
+                { class: 'tl-tl-track' },
+                ...Array.from({ length: T_TO - T_FROM + 1 }, (_, i) => T_FROM + i).map((hh) =>
+                  h('span', { class: 'tl-tl-hour', style: `left:${pos(`${hh}:00`)}%` }, `${String(hh).padStart(2, '0')}h`),
+                ),
+              ),
+            ),
             ...view.week.map((day) => weekBand(day, now)),
           ),
         )

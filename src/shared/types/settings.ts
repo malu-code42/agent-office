@@ -23,6 +23,9 @@ export interface Settings {
   lunaModel: string
   lunaEffort: EffortLevel | ''
   lunaLook: Look
+  /** Emi's model and effort, the same on every project floor; empty = Claude's default. */
+  emiModel: string
+  emiEffort: EffortLevel | ''
   defaultPermissionMode: OfficePermissionMode
   notifications: boolean
   bridgePort: number

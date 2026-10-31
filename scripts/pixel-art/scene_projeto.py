@@ -10,7 +10,7 @@ import furn2 as G
 from furn import T
 from floorkit import (GRAPHITE, W, D, new_layer, save2, Scene, region_floor, OAK, WALNUT, carpet_tiles, back_walls,
                       PROJECT_WALL, PART_H, WALL_H, draw_floor)
-from desks import ws_back, ws_front_x, ws_front_y
+from desks import ws_back, ws_back_y, ws_front_x
 from chars import sprite
 
 SLATE = carpet_tiles(H('93a3b6'), H('8696aa'), H('76869a'))
@@ -25,15 +25,19 @@ ROOMS = [  # ry0, h, carpet, name, screen, coordinator, members (None = individu
 ]
 # the elevator door on the back wall (x0, x1) and the Emi desk (x, y, width)
 ELEVATOR = (268, 292)
-EMI_DESK = (306, 190, 44)
+# turned twice to the right: Emi sits south of her desk facing the back wall (-y), the visitors north of it,
+# clear of the doors to the meeting room (west wall, rows 15-16) and to the lounge (back wall, x 320-336)
+EMI_DESK = (316, 196, 44)
+EMI_VISITORS = [(324, 180), (346, 180)]
 # meeting chairs: (x, y, the way the sitter looks)
 MEETING_SEATS = [(200, cy, '+x') for cy in (170, 196, 222)] + [(242, cy, '-x') for cy in (170, 196, 222)]
 
 
 def slots(ry0, h):
     """member desks of a squad room, in creation order: near column first, top then bottom.
-    The approved art shows the first four; 5 and 6 fill the middle row of each column."""
-    return [(64, ry0 + 8), (64, ry0 + h - 34), (104, ry0 + 8), (104, ry0 + h - 34), (64, ry0 + 35), (104, ry0 + 35)]
+    The approved art shows the first four; 5 and 6 stand against the far wall, behind the coordinator,
+    so the middle rows stay the aisle from the door to the coordinator's desk."""
+    return [(64, ry0 + 8), (64, ry0 + h - 34), (104, ry0 + 8), (104, ry0 + h - 34), (2, ry0 + 8), (2, ry0 + h - 34)]
 
 
 def coordinator_at(ry0, h):
@@ -126,8 +130,8 @@ def diretoria_back(sc):
 
 def diretoria_front(sc):
     L, add = sc.L, sc.add
-    add((312, 222, 320, 230), lambda: F.wood_chair(L, 312, 222, '-y'))
-    add((334, 222, 342, 230), lambda: F.wood_chair(L, 334, 222, '-y'))
+    for vx, vy in EMI_VISITORS:
+        add((vx, vy, vx + 8, vy + 8), lambda vx=vx, vy=vy: F.wood_chair(L, vx, vy, '+y'))
     add((366, 268, 376, 278), lambda: F.plant(L, 366, 268, seed=6), True)
     add((372, 150, 378, 156), lambda: F.lamp(L, 372, 150), True)
 
@@ -136,7 +140,7 @@ def diretoria(sc, people=True, state='green'):
     diretoria_walls(sc)
     diretoria_back(sc)
     x, y, w = EMI_DESK
-    ws_front_y(sc, x, y, 7 if people else None, state, boss=True, w=w, head='emi')
+    ws_back_y(sc, x, y, 7 if people else None, state, 'papers', head='emi', boss=True, w=w)
     diretoria_front(sc)
     sc.label('Diretoria · Emi', 336, 282)
 
@@ -150,7 +154,9 @@ def room_walls(sc, ry0, h):
 
 def room_shelf(sc, ry0, h):
     L = sc.L
-    sc.add((2, ry0 + h - 26, 10, ry0 + h - 4), lambda: G.bookshelf_x(L, 2, ry0 + h - 26, 22, seed=ry0), True)
+    # behind the coordinator, between the far-wall desks of members 5 and 6
+    y = ry0 + h // 2 - 13
+    sc.add((2, y, 10, y + 22), lambda: G.bookshelf_x(L, 2, y, 22, seed=ry0), True)
 
 
 def build():

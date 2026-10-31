@@ -2,9 +2,11 @@ import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { dialog, ipcMain } from 'electron'
 import { z } from 'zod'
-import { buildAgendaView } from '@shared/agenda'
+import { buildAgendaView, weekProgress } from '@shared/agenda'
 import { buildClassSchedule } from '@shared/class-schedule'
 import { parseStudyTrail, STUDY_TRAIL_FILE } from '@shared/study-trail'
+import { routineWeekMarks } from '@shared/routine-personal'
+import { personalRoutineOverview } from '../routines-personal'
 import { focusItems, focusKey } from '@shared/planning'
 import { ARCHIVE_LIST, parseTasksFile, type TaskList, type TaskRef } from '@shared/tasks'
 import type { Proposal } from '@shared/proposals'
@@ -539,12 +541,17 @@ export function registerTasksIpc(ctx: IpcContext): void {
       'Dia inválido.',
     )
     const path = requireVault()
-    return buildAgendaView(
+    const tasks = readOptionalFile(path, 'tarefas.md') ?? ''
+    const view = buildAgendaView(
       readOptionalFile(path, 'agenda.md'),
-      readOptionalFile(path, 'tarefas.md') ?? '',
+      tasks,
       new Date(`${date}T12:00:00`),
       readOptionalFile(path, 'aulas.md'),
     )
+    // The week dashboard compares done with planned: ✅ dates of tarefas.md, routine occurrences and past items.
+    const weekDays = view.week.map((day) => day.date)
+    const routines = routineWeekMarks(personalRoutineOverview(path, date, personalRoutines).rows, personalRoutines.list(), weekDays)
+    return { ...view, progress: weekProgress(view.week, tasks, routines, new Date()) }
   })
 
   ipcMain.handle('office:focusTask', async (_e, line: unknown) => {

@@ -4,8 +4,8 @@ import { renderInstruction, TEMPLATE_LIMITS, TEMPLATE_VARS, templatesFor, ticket
 import type { AgentSummary, AgentTemplate, Look, OfficePermissionMode, ProjectFloor, Ticket } from '@shared/types'
 import type { State } from '../state'
 import { h, icon } from './dom'
-import { brainFields, cleanError, confirmDialog, EFFORTS, field, MODELS, modal, MODES } from './modals'
-import { portrait } from './portrait'
+import { brainFields, cleanError, confirmDialog, EFFORTS, field, MODELS, modal, modeOptions, MODES } from './modals'
+import { lookPreview, portrait } from './portrait'
 import './templates.css'
 
 type Toast = (t: string, k?: 'info' | 'ok' | 'err') => void
@@ -27,7 +27,7 @@ export function lookEditor(initial: Look): { el: HTMLElement; value(): Look } {
   const preview = h('div', { class: 'look-preview' })
   const rows: (() => void)[] = []
   const repaint = () => {
-    preview.replaceChildren(portrait(look, 72))
+    preview.replaceChildren(lookPreview(look, 3))
     rows.forEach((r) => r())
   }
   const swatches = (key: 'skin' | 'hair' | 'shirt' | 'pants', colors: string[]) => {
@@ -96,7 +96,7 @@ export function openTemplateEditor(
     })
     const look = lookEditor(initial.look ?? lookFromSeed(initial.name || String(Math.random())))
     const brain = brainFields({ model: initial.model ?? '', effort: initial.effort ?? '' }, true)
-    const mode = h('select', { class: 'input' }, ...MODES.map((m) => h('option', { value: m.value }, m.label)))
+    const mode = h('select', { class: 'input' }, ...modeOptions(MODES, state.settings.defaultPermissionMode))
     mode.value = initial.permissionMode ?? state.settings.defaultPermissionMode
     const modeHint = h('span', {})
     const syncMode = () => {
