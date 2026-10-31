@@ -5,11 +5,12 @@ import type { StudyCycleState } from '@shared/study-cycle'
 import type { State } from '../state'
 import type { Avatar } from '../world2d/avatar'
 import { headingOf } from '../world2d/iso'
+import { Point3 } from '../world2d/overlays'
 import type { Decal, FlatView, Person2d } from '../world2d/renderer'
 import { agentBubble, EMI_VARIANT, LUNA_VARIANT, variantOf } from '../world2d/sprites'
 import { studyCycleView } from '../world2d/estudos'
 import { GameInput } from './input'
-import { LOUNGE_AFTER_MS, screenMode, type GameHooks, type Upper } from './types'
+import { LOUNGE_AFTER_MS, screenMode, sitterTagY, type GameHooks, type Upper } from './types'
 
 export type { GameHooks } from './types'
 
@@ -219,6 +220,9 @@ export class Game extends GameInput {
       seated: true,
       bubble: luna ? agentBubble(luna.status, this.state.itemsFor(luna.id).permissions.length > 0, null) : null,
     })
+    // Her tag climbs over the pixel bubble while one shows, so the name never covers it.
+    const lunaAnchor = this.lunaTag.anchor
+    if (lunaAnchor instanceof Point3) lunaAnchor.y = sitterTagY(people[people.length - 1]!.bubble)
     return {
       ...this.common(),
       floor: this.casa2d.flat,
