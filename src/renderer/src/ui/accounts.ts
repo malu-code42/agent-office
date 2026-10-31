@@ -108,7 +108,12 @@ export function openAccounts(root: HTMLElement, state: State, toast: Toast): voi
       else toast(r.message ?? 'Não consegui abrir o terminal.', 'err')
     })
     const folder = a.configDir ?? '~/.claude'
-    const cmd = a.configDir ? `CLAUDE_CONFIG_DIR=${a.configDir} claude` : 'claude'
+    // PowerShell on Windows, POSIX shells elsewhere.
+    const cmd = !a.configDir
+      ? 'claude'
+      : navigator.userAgent.includes('Windows')
+        ? `$env:CLAUDE_CONFIG_DIR='${a.configDir}'; claude`
+        : `CLAUDE_CONFIG_DIR=${a.configDir} claude`
     const copy = h(
       'button',
       { class: 'icon-btn', type: 'button', title: `Copiar o comando para usar esta conta no terminal:\n${cmd}` },
