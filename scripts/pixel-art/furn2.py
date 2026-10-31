@@ -171,6 +171,26 @@ def schedule_x(L, xp, y0, y1, z0, z1):
                 L.qx(xp, cy, cy + 4, rz, rz + 3, H(rnd.choice(cols)))
 
 
+def trail_board_y(L, yp, x0, x1, z0, z1):
+    """'Trilha de estudos' board on a back wall: a header strip, three lists of topic cards
+    (done in green, current in yellow, the rest in paper) joined by a dotted trail."""
+    L.begin(); L.qy(yp, x0 - 1, x1 + 1, z0 - 1, z1 + 1, H('6b4a32')); L.end()
+    L.qy(yp, x0, x1, z0, z1, H('fbf6ea'))
+    L.qy(yp, x0, x1, z1 - 4, z1, H('5f7fb4'))
+    cw = (x1 - x0 - 4) // 3
+    cards = [('b9e0a8', 'b9e0a8', 'b9e0a8'), ('b9e0a8', 'f6e27a', 'fbe9c8'), ('fbe9c8', 'fbe9c8', 'fbe9c8')]
+    for i, column in enumerate(cards):
+        cx = x0 + 2 + i * cw
+        L.qy(yp, cx, cx + cw - 2, z1 - 7, z1 - 5, H('a8b8d0'))
+        for j, c in enumerate(column):
+            rz = z1 - 12 - j * 6
+            if rz > z0:
+                L.qy(yp, cx + 1, cx + cw - 3, rz, rz + 4, H(c))
+    # the trail: a dotted line from the first card to the current one
+    for k in range(0, cw + 4, 3):
+        L.qy(yp, x0 + 4 + k, x0 + 5 + k, z0 + 2, z0 + 3, H('d65a5a'))
+
+
 def corkboard_x(L, xp, y0, y1, z0, z1):
     L.begin(); L.qx(xp, y0 - 1, y1 + 1, z0 - 1, z1 + 1, H('8a6448')); L.end()
     L.qx(xp, y0, y1, z0, z1, H('d4a36e'))

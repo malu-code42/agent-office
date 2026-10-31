@@ -10,7 +10,7 @@ import furn2 as G
 from furn import T
 from floorkit import (GRAPHITE, W, D, new_layer, save2, Scene, region_floor, OAK, WALNUT, carpet_tiles, back_walls,
                       PROJECT_WALL, PART_H, WALL_H, draw_floor)
-from desks import ws_back, ws_back_y, ws_front_x
+from desks import ws_back, ws_front_x
 from chars import sprite
 
 SLATE = carpet_tiles(H('93a3b6'), H('8696aa'), H('76869a'))
@@ -25,10 +25,10 @@ ROOMS = [  # ry0, h, carpet, name, screen, coordinator, members (None = individu
 ]
 # the elevator door on the back wall (x0, x1) and the Emi desk (x, y, width)
 ELEVATOR = (268, 292)
-# turned twice to the right: Emi sits south of her desk facing the back wall (-y), the visitors north of it,
-# clear of the doors to the meeting room (west wall, rows 15-16) and to the lounge (back wall, x 320-336)
-EMI_DESK = (316, 196, 44)
-EMI_VISITORS = [(324, 180), (346, 180)]
+# turned once more, to the left: Emi sits east of her desk facing the west wall (-x) and her monitor, the
+# visitors west of it, clear of the doors to the meeting room (west wall, rows 15-16) and to the lounge (back wall, x 318-336)
+EMI_DESK = (322, 176, 44)
+EMI_VISITORS = [(304, 186), (304, 206)]
 # meeting chairs: (x, y, the way the sitter looks)
 MEETING_SEATS = [(200, cy, '+x') for cy in (170, 196, 222)] + [(242, cy, '-x') for cy in (170, 196, 222)]
 
@@ -131,7 +131,7 @@ def diretoria_back(sc):
 def diretoria_front(sc):
     L, add = sc.L, sc.add
     for vx, vy in EMI_VISITORS:
-        add((vx, vy, vx + 8, vy + 8), lambda vx=vx, vy=vy: F.wood_chair(L, vx, vy, '+y'))
+        add((vx, vy, vx + 8, vy + 8), lambda vx=vx, vy=vy: F.wood_chair(L, vx, vy, '+x'))
     add((366, 268, 376, 278), lambda: F.plant(L, 366, 268, seed=6), True)
     add((372, 150, 378, 156), lambda: F.lamp(L, 372, 150), True)
 
@@ -140,7 +140,7 @@ def diretoria(sc, people=True, state='green'):
     diretoria_walls(sc)
     diretoria_back(sc)
     x, y, w = EMI_DESK
-    ws_back_y(sc, x, y, 7 if people else None, state, 'papers', head='emi', boss=True, w=w)
+    ws_back(sc, x, y, 7 if people else None, state, 'papers', head='emi', boss=True, d_=w)
     diretoria_front(sc)
     sc.label('Diretoria · Emi', 336, 282)
 
