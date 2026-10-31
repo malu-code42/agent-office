@@ -360,3 +360,150 @@
 .composer.disabled .btn {
   pointer-events: none;
 }
+
+/* Luna's "/" commands: the list above the message box, and the local lines and forms in the feed. */
+.slash-menu {
+  position: absolute;
+  right: 12px;
+  bottom: calc(100% - 4px);
+  left: 12px;
+  z-index: 5;
+  max-height: 300px;
+  overflow-y: auto;
+  border: 3px solid var(--outline);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.slash-opt {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas:
+    'name args tag'
+    'hint hint tag';
+  align-items: center;
+  gap: 2px 8px;
+  padding: 6px 10px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.slash-opt[aria-selected='true'] {
+  background: var(--hover);
+}
+
+.slash-name {
+  grid-area: name;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.slash-args {
+  grid-area: args;
+  overflow: hidden;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slash-hint {
+  grid-area: hint;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.slash-tag {
+  grid-area: tag;
+  padding: 1px 6px;
+  border: 2px solid var(--outline);
+  color: var(--on-accent);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.slash-tag-direct {
+  background: var(--green);
+}
+
+.slash-tag-luna {
+  background: var(--pink);
+}
+
+.slash-note,
+.slash-form {
+  margin: 6px 0;
+  padding: 8px 10px;
+  border: 2px solid var(--outline);
+  border-left: 4px solid var(--green);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12.5px;
+}
+
+.slash-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.slash-note .slash-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.slash-note-err {
+  border-left-color: var(--red);
+  color: var(--red-text);
+}
+
+.slash-note-undone {
+  border-left-color: var(--muted);
+  color: var(--muted);
+}
+
+.slash-cmd {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.slash-form {
+  display: grid;
+  gap: 8px;
+  border-left-color: var(--pink);
+}
+
+.slash-form-title {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-weight: 600;
+}
+
+.slash-field {
+  display: grid;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.slash-form-err:empty {
+  display: none;
+}
+
+.slash-form-err {
+  color: var(--red-text);
+  font-size: 12px;
+}
+
+.slash-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { parseTasksFile } from '../src/shared/tasks'
 import { createAgendaWriter } from '../src/main/agenda-write'
 import { createTaskWriter } from '../src/main/tasks-write'
+import { createGoalsWriter } from '../src/main/goals-write'
+import { createMediaWriter } from '../src/main/media-write'
 import { LUNA_CONFIRM_TOOLS, lunaToolDefs, type LunaToolDeps } from '../src/main/luna-tools'
 
 const TASKS = ['## Casa', '- [ ] Lavar louça ^tabc123', '- [ ] 05.11.2026 | Casa | Pagar conta ^tpag001', ''].join('\n')
@@ -40,6 +42,30 @@ beforeEach(() => {
       postpone: vi.fn(() => '2026-11-02'),
     },
     callAgent: vi.fn(async () => ({ name: 'Grace' })),
+    goals: createGoalsWriter({ now: () => new Date(2026, 9, 30, 10), newId: () => 'gnovo0001' }),
+    media: createMediaWriter({ now: () => new Date(2026, 9, 30, 10), newId: () => 'mnovo0001' }),
+    routines: {
+      overview: () => ({
+        today: '2026-10-30',
+        weekStart: '2026-10-25',
+        weekEnd: '2026-10-31',
+        rows: [
+          {
+            routineId: 'rcorre',
+            line: 3,
+            title: 'Correr',
+            target: 2,
+            cadence: 'semanal',
+            confirmed: false,
+            occurrenceIds: [],
+            completed: 0,
+          },
+        ],
+        candidates: [],
+        pending: [],
+      }),
+      distribute: vi.fn(),
+    },
   }
 })
 
@@ -101,6 +127,23 @@ describe('ferramentas da Luna (#101)', () => {
     expect(deps.review.postpone).toHaveBeenCalledWith(3)
     expect(LUNA_CONFIRM_TOOLS.has('mcp__casa__review_done')).toBe(false)
     expect(LUNA_CONFIRM_TOOLS.has('mcp__casa__review_postpone')).toBe(false)
+  })
+
+  it('objetivos: cria, lista e marca um marco pelo writer da janela Objetivos (#112)', async () => {
+    expect(
+      (await call('goal_create', { title: 'Correr 5 km', target: '5 km', deadline: '2026-12-31', milestones: ['2 km', '3 km'] })).text,
+    ).toBe('Objetivo “Correr 5 km” criado (gnovo0001).')
+    expect((await call('goals_list')).text).toContain('- marco 2 [ ] 3 km')
+    expect((await call('goal_milestone', { goal: 'gnovo0001', milestone: 2, done: true })).isError).toBe(false)
+    expect(readFileSync(join(vault, 'objetivos.md'), 'utf8')).toContain('- Marco: [x] 3 km')
+  })
+
+  it('mídias e rotinas: adiciona um livro, lê a semana e distribui (#112)', async () => {
+    expect((await call('media_add', { kind: 'livro', title: 'Duna' })).text).toBe('Livro “Duna” adicionado (mnovo0001).')
+    expect((await call('media_list', { kind: 'livro' })).text).toBe('- mnovo0001 · planejado · Duna')
+    expect((await call('routines_week')).text).toContain('- rcorre · Correr · 2x/semana · sem dias · a distribuir · feitas 0')
+    expect((await call('routine_distribute', { routine: 'rcorre', days: [1, 4] })).text).toBe('Rotina rcorre distribuída: seg, qui.')
+    expect(deps.routines.distribute).toHaveBeenCalledWith('rcorre', [1, 4])
   })
 
   it('falha vira mensagem para a Luna, sem gravar', async () => {

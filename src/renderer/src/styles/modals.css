@@ -142,8 +142,6 @@
   align-items: flex-start;
 }
 
-
-
 .look-fields {
   flex: 1;
   display: flex;
@@ -269,37 +267,4 @@
   align-self: center;
   color: var(--muted);
   font-size: 12px;
-}
-.luna-plan-sources {
-  display: grid;
-  gap: 8px;
-  margin: 8px 0 14px;
-  padding: 0;
-  list-style: none;
-}
-
-.luna-plan-source {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  border-left: 3px solid var(--muted);
-  padding: 7px 10px;
-  background: var(--card-solid);
-  color: var(--text);
-  font-size: 12px;
-}
-
-.luna-plan-source-ready {
-  border-left-color: var(--green);
-}
-.luna-plan-source-empty,
-.luna-plan-source-missing {
-  border-left-color: var(--muted);
-}
-.luna-plan-source-error {
-  border-left-color: var(--red);
-}
-.luna-plan-request {
-  width: 100%;
-  resize: vertical;
 }

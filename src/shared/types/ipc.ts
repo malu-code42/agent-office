@@ -229,7 +229,6 @@ export type OfficeEvent =
   | { type: 'luna:profile-task'; profile: ProfileId; task: string }
   | { type: 'luna:media-draft'; draft: Extract<IrisResult, { kind: 'media-draft' }>['draft'] }
   | { type: 'luna:transcript'; text: string }
-  | { type: 'luna:open-chat' }
 
 /** A reopen either put the task back (`list` is where it went) or waits for the user to choose one of `lists`. */
 export type ReopenResult = { status: 'done'; list: string; board: ParsedBoard; focus: FocusItem[] } | { status: 'choose'; lists: string[] }
@@ -371,9 +370,6 @@ export interface OfficeAPI {
   routineCandidates(): Promise<RoutineCandidate[]>
   /** Projeta agenda e pendências pessoais da semana local; não altera o estado das ocorrências. */
   personalRoutineOverview(): Promise<PersonalRoutineOverview>
-  /** Horários locais do planejamento matinal e da revisão noturna (AO-84). */
-  dailyWorkflowTimes(): Promise<{ morning: string; evening: string }>
-  setDailyWorkflowTimes(times: { morning: string; evening: string }): Promise<void>
   /** Confirma a distribuição semanal escolhida e materializa as ocorrências selecionadas. */
   confirmPersonalRoutineDistribution(routineId: string, days: number[]): Promise<PersonalRoutineOverview>
   /** Reserva e cria tarefa idempotente para uma ocorrência selecionada; renderer não envia caminho nem ID. */
@@ -386,6 +382,10 @@ export interface OfficeAPI {
   readAgenda(): Promise<AgendaView>
   /** Lê a agenda da semana que contém `date` (AAAA-MM-DD), para navegação entre semanas. Só lê. */
   readAgendaForDate(date: string): Promise<AgendaView>
+  /** Marca um compromisso num dia que já existe em agenda.md (comando /compromisso da Luna). */
+  addCommitment(c: { day: string; time: string; title: string }): Promise<void>
+  /** Tira um compromisso de agenda.md: o Desfazer do /compromisso. */
+  removeCommitment(c: { day: string; time: string; title: string }): Promise<void>
   /** Põe em foco a tarefa da linha dada (ganha um id no tarefas.md se não tiver) e devolve o quadro e o foco. */
   focusTask(line: number): Promise<{ board: ParsedBoard; focus: FocusItem[] }>
   /** Tira do foco a tarefa com esse id. Não escreve no tarefas.md e devolve o foco. */

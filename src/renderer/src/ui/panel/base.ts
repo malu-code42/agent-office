@@ -68,6 +68,8 @@ export abstract class PanelBase {
       'aria-label': 'Mensagem para o agente (Enter envia, Esc vai ao cartão aberto)',
     })
     this.input.addEventListener('keydown', (e) => {
+      // Luna's "/" list takes the arrows, Enter, Tab and Esc while it is open.
+      if (this.composerKey(e)) return e.stopPropagation()
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
         e.preventDefault()
         this.send()
@@ -78,6 +80,7 @@ export abstract class PanelBase {
       }
       e.stopPropagation()
     })
+    this.input.addEventListener('input', () => this.composerInput())
     this.input.addEventListener('paste', (e) => {
       const files = [...(e.clipboardData?.files ?? [])]
       if (!files.length) return
@@ -210,5 +213,7 @@ export abstract class PanelBase {
   protected abstract step(d: 1 | -1): void
   protected abstract attach(list: File[]): void
   protected abstract send(): Promise<void>
+  protected abstract composerKey(e: KeyboardEvent): boolean
+  protected abstract composerInput(): void
   protected abstract append(e: LogEntry, scroll?: boolean): void
 }

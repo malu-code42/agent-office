@@ -38,7 +38,7 @@ export abstract class PanelHead extends PanelSearch {
     this.input.disabled = terminal
     this.input.placeholder =
       a.builtIn === 'luna'
-        ? 'Converse com a Luna…'
+        ? 'Converse com a Luna… (/ para comandos)'
         : a.builtIn === 'emi'
           ? 'Conte à Emi o que quer construir neste andar…'
           : terminal
@@ -227,17 +227,6 @@ export abstract class PanelHead extends PanelSearch {
             a.model ? modelLabel(a.model) : 'modelo padrão',
           ),
           h('span', { class: 'ab-stamp', title: 'Esforço' }, icon('gauge', 12), a.effort ?? 'esforço padrão'),
-        ),
-        h(
-          'div',
-          { class: 'ab-foot' },
-          h(
-            'button',
-            { class: 'btn btn-small btn-primary', type: 'button', onclick: () => this.actions.openLunaReview() },
-            'Revisão do dia',
-          ),
-          h('button', { class: 'btn btn-small', type: 'button', onclick: () => this.actions.openLunaPlan() }, 'Planejar amanhã'),
-          h('button', { class: 'btn btn-small', type: 'button', onclick: () => this.actions.openLunaSettings() }, 'Preferências'),
         ),
       )
     const effort = a.effort ? (EFFORTS.find((e) => e.value === a.effort)?.label.toLowerCase() ?? a.effort) : null

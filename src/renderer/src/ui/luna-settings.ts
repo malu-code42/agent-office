@@ -1,6 +1,7 @@
 import type { Settings } from '@shared/types'
 import { h } from './dom'
-import { brainFields, cleanError, field, modal } from './modals'
+import { brainFields } from './modals/brain'
+import { cleanError, field, modal } from './modals/common'
 import { lookEditor } from './templates'
 import type { Toast } from './tasks-complete'
 

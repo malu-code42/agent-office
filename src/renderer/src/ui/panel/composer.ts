@@ -6,9 +6,55 @@ import { entryCategory, entryView } from './entries'
 import { toBase64 } from './helpers'
 import { PanelHead } from './head'
 import { AUDIO_MAX_BYTES, isAudioFile } from '@shared/audio'
+import { runSlash, type SlashCommand } from '../luna-commands'
+import { SlashMenu, slashError, slashOutcome } from './slash'
 
 /** The message box: attachments, sending, and new log entries in the feed. */
 export abstract class PanelComposer extends PanelHead {
+  private slash = this.makeSlash()
+
+  private makeSlash(): SlashMenu {
+    const menu = new SlashMenu(this.input, (cmd) => this.pickCommand(cmd))
+    this.composer.style.position = 'relative'
+    this.composer.prepend(menu.el)
+    return menu
+  }
+
+  private get lunaOpen(): boolean {
+    return !this.helper && !!this.agentId && this.state.agents.get(this.agentId)?.builtIn === 'luna'
+  }
+
+  protected composerInput(): void {
+    this.slash.update(this.lunaOpen)
+  }
+
+  protected composerKey(e: KeyboardEvent): boolean {
+    return this.slash.key(e)
+  }
+
+  /** A command picked in the list: one without arguments runs; the others wait for them in the box. */
+  private pickCommand(cmd: SlashCommand): void {
+    this.input.value = `/${cmd.name}${cmd.args ? ' ' : ''}`
+    this.input.focus()
+    if (!cmd.args) void this.send()
+  }
+
+  /** Luna's slash commands: direct ones run here, Luna ones send her prepared message. False = not a command. */
+  private async command(agentId: string, text: string): Promise<boolean> {
+    const cmd = text.split(/\s+/)[0]!
+    try {
+      const out = await runSlash(text, window.office)
+      if (!out) return false
+      if (this.input.value.trim() === text) this.input.value = ''
+      if (out.kind === 'luna') await window.office.send(agentId, out.prompt)
+      else slashOutcome(this.feed, cmd, out, () => this.input.focus())
+    } catch (err) {
+      if (this.input.value.trim() === text) this.input.value = ''
+      slashError(this.feed, cmd, err)
+    }
+    return true
+  }
+
   protected attach(list: File[]): void {
     if (this.terminal) return
     const luna = this.agentId && this.state.agents.get(this.agentId)?.builtIn === 'luna'
@@ -109,8 +155,10 @@ export abstract class PanelComposer extends PanelHead {
     const agentId = this.agentId
     const lunaAudio = this.state.agents.get(agentId)?.builtIn === 'luna'
     const files = this.files
+    this.slash.close()
     this.sending = true
     try {
+      if (this.lunaOpen && !files.length && text.startsWith('/') && (await this.command(agentId, text))) return
       const attachments: AttachmentInput[] = await Promise.all(
         files.map(async (f) => {
           return f.path && !lunaAudio
