@@ -151,7 +151,9 @@ describe('ferramentas da Bonnie (mcp__estudos__)', () => {
     expect(cora.text).not.toContain('TRECHO LOCAL')
     expect((await call(deps, 'schedule_read')).text).toMatch(/Seg 26\/10 \(hoje\) 19:00 · Estrutura de Dados · Aula sobre filas/)
     await call(deps, 'open_source', { path: 'study sources/ED/livro.pdf' })
-    expect(deps.openSource).toHaveBeenCalledWith('study sources/ED/livro.pdf')
+    expect(deps.openSource).toHaveBeenCalledWith('study sources/ED/livro.pdf', undefined)
+    await call(deps, 'open_source', { path: 'study sources/ED/livro.pdf', page: 12 })
+    expect(deps.openSource).toHaveBeenLastCalledWith('study sources/ED/livro.pdf', 12)
   })
 })
 

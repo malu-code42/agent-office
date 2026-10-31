@@ -55,7 +55,7 @@ export interface BonnieToolDeps {
   /** Cora's local ranking for a theme. */
   recommend(theme: string): Promise<StudySourceRecommendations>
   /** Opens a source of the study sources folder in the system's app. */
-  openSource(path: string): Promise<void>
+  openSource(path: string, page?: number): Promise<void>
 }
 
 const STAGE: Record<StudyCycle['stage'], string> = {
@@ -242,12 +242,12 @@ export function bonnieToolDefs(deps: BonnieToolDeps) {
     ),
     tool(
       'open_source',
-      'Abre no computador da usuária uma fonte que a Cora recomendou (caminho relativo ao vault, como ask_cora mostra).',
-      { path: z.string().trim().min(1).max(1000) },
+      'Abre no computador da usuária uma fonte que a Cora recomendou (caminho relativo ao vault, como ask_cora mostra). Em PDF, passe a página de início para abrir nela.',
+      { path: z.string().trim().min(1).max(1000), page: z.number().int().min(1).max(100000).optional() },
       (args) =>
         run(async () => {
-          await deps.openSource(args.path)
-          return `Abri ${args.path}.`
+          await deps.openSource(args.path, args.page)
+          return args.page ? `Abri ${args.path} na página ${args.page}.` : `Abri ${args.path}.`
         })(),
     ),
   ]

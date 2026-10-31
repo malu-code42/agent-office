@@ -251,6 +251,7 @@ export const openStudySourceArgsSchema = z.tuple([
     .min(1)
     .max(1000)
     .regex(/^[^\0\r\n]+$/),
+  z.number().int().min(1).max(100000).optional(),
 ])
 export const studyLibrarySourceArgsSchema = z.tuple([
   z.string().regex(/^q-[a-z0-9-]{8,72}$/i),
