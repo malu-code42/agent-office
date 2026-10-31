@@ -54,6 +54,8 @@ export interface Agent {
   query?: Query
   /** Session already exists on disk, so the next start must resume it. */
   started: boolean
+  /** Last prompt sent: re-sent once on a fresh session when the saved one is gone. */
+  lastPrompt?: Prompt
   /** Running /compact: its result is housekeeping, not a report for the player. */
   compacting?: boolean
   /** The account ran out of plan during this turn; resetsAt in ms when known. */
