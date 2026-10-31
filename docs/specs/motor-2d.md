@@ -71,7 +71,11 @@ sala, placa da reunião, Emi, móveis clicáveis da Casa e do andar de estudos, 
   (Economia na bateria ou `prefers-reduced-motion`), sem animação.
 - **Portas do elevador**: cada `ding` abre as portas daquele andar (meio aberta 0,12 s, aberta até 1,5 s, meio
   aberta, fechada); quadros `elevator.open` em cada layout, desenhados por cima da base.
-- **Descanso no sofá**: quem descansa (`relax`) num canto `sit` da Casa aparece sentado de costas no sofá.
+- **Descanso no sofá**: quem descansa (`relax`) num canto `sit` da Casa aparece sentado de costas no sofá. Atingido
+  pela Caveira ali, vai antes para o piso livre mais perto (`game/strike-spot.ts`) e cai no chão, não no sofá.
+- **Placas**: um canvas por texto, num LRU de 32 (`world2d/lru.ts`), então textos que mudam não acumulam.
+- **Mesas 5 e 6** de cada sala de squad ficam na parede do fundo, atrás do coordenador (a estante foi para o meio
+  dessa parede): as seis mesas bloqueiam o tile delas e as fileiras do meio ficam livres da porta até o coordenador.
 - **Caveira**: como era no 3D: a caveira cai sobre o agente, ri parada no ar, mergulha; fumaça roxa, o agente cai
   (`char/<v>/down`), "x_x", e um fantasma sobe e some. Tudo dirigido pelo `update(dt)` (`game/skull.ts`, `fx`),
   com os sons de `game/sfx.ts`.
@@ -125,10 +129,7 @@ máximo 96 (o cache é limpo ao chegar nisso), então agentes, caveira e roupa s
 
 - No andar de estudos: os professores são fixos (não são agentes); o da vez fica de pé, sem gesto; a etapa só é
   relida a cada 4 s; as 9 estantes abrem a mesma busca; Cora e Bonnie não conversam nem andam.
-- Na Casa: agentes sem projeto e sem casa esperam no hall (sem mesa); quem é derrubado no sofá cai por cima dele.
+- Na Casa: agentes sem projeto e sem casa esperam no hall (sem mesa).
 - Só os quatro balões em pixel art (`... ! ? ok`); o diamante da conta e a aura de esforço do 3D não existem no 2D
   (a conta segue no chip da tag quando há mais de uma).
-- O cache de placas (`plaques`) guarda um canvas por texto já visto (ex.: "Sala de reunião · N em reunião");
-  pequeno, mas sem teto.
-- As mesas 5 e 6 de uma sala ficam no corredor do meio e não bloqueiam a passagem.
 - Agentes individuais sentam nas mesas livres das salas de squad, até 10; os demais ficam de pé no lounge.

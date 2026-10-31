@@ -32,8 +32,9 @@ MEETING_SEATS = [(200, cy, '+x') for cy in (170, 196, 222)] + [(242, cy, '-x') f
 
 def slots(ry0, h):
     """member desks of a squad room, in creation order: near column first, top then bottom.
-    The approved art shows the first four; 5 and 6 fill the middle row of each column."""
-    return [(64, ry0 + 8), (64, ry0 + h - 34), (104, ry0 + 8), (104, ry0 + h - 34), (64, ry0 + 35), (104, ry0 + 35)]
+    The approved art shows the first four; 5 and 6 stand against the far wall, behind the coordinator,
+    so the middle rows stay the aisle from the door to the coordinator's desk."""
+    return [(64, ry0 + 8), (64, ry0 + h - 34), (104, ry0 + 8), (104, ry0 + h - 34), (2, ry0 + 8), (2, ry0 + h - 34)]
 
 
 def coordinator_at(ry0, h):
@@ -150,7 +151,9 @@ def room_walls(sc, ry0, h):
 
 def room_shelf(sc, ry0, h):
     L = sc.L
-    sc.add((2, ry0 + h - 26, 10, ry0 + h - 4), lambda: G.bookshelf_x(L, 2, ry0 + h - 26, 22, seed=ry0), True)
+    # behind the coordinator, between the far-wall desks of members 5 and 6
+    y = ry0 + h // 2 - 13
+    sc.add((2, y, 10, y + 22), lambda: G.bookshelf_x(L, 2, y, 22, seed=ry0), True)
 
 
 def build():

@@ -165,6 +165,27 @@ describe('layout 2D do andar de projeto', () => {
     }
   })
 
+  it('as seis mesas de cada sala bloqueiam o próprio tile e deixam livre o corredor da porta até o coordenador', () => {
+    const grid = grid2d(LAYOUT)
+    const plan = projectPlan2d(LAYOUT, [squad('sala-1', 6), squad('sala-2', 6), squad('sala-3', 6)])
+    for (const room of plan.rooms) {
+      const z0 = room.rect[1]
+      expect(room.desks).toHaveLength(6)
+      // every desk is furniture now, members 5 and 6 included
+      for (const desk of room.desks)
+        expect(grid.walkable(Math.floor(desk.center!.x), Math.floor(desk.center!.z)), `mesa ${desk.index}`).toBe(false)
+      // the middle rows, from the door (x 8) to the delivery column (x 3), stay free
+      for (let x = 3; x <= 8; x++) for (const z of [z0 + 2, z0 + 3]) expect(grid.walkable(x, z), `${x},${z}`).toBe(true)
+      // no two sitters share a tile: members, coordinator and the inline member beside it
+      const spots = [...room.desks.map((d) => d.approach), room.coordinator.approach, room.coordinator.sideApproach].map(
+        ([x, z]) => `${x},${z}`,
+      )
+      expect(new Set(spots).size).toBe(spots.length)
+      // nobody's chair stands in the aisle
+      for (const desk of room.desks) expect([z0 + 2, z0 + 3]).not.toContain(desk.approach[1])
+    }
+  })
+
   it('não atravessa as paredes de vidro fora das portas', () => {
     const grid = grid2d(LAYOUT)
     // squad room 1 east wall: closed at row 0, a door at rows 2 and 3
