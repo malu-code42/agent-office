@@ -18,6 +18,9 @@ import {
 } from '../src/renderer/src/world2d/iso'
 import { grid2d, memberDeskIndex, projectPlan2d, slotOfDesk, type ProjectLayout } from '../src/renderer/src/world2d/layout'
 import { agentBubble, variantOf } from '../src/renderer/src/world2d/sprites'
+import charsData from '../src/renderer/src/assets/pixel/chars.json'
+import refs from './fixtures/pixel-chars-ref.json'
+import { CUTS, cutOf, paletteFromHex, paletteOf, recolor, rgb } from '../src/renderer/src/world2d/recolor'
 
 const LAYOUT = layoutData as unknown as ProjectLayout
 const ORIGIN: [number, number] = [320, 87]
@@ -257,5 +260,67 @@ describe('placas e sprites', () => {
     expect(agentBubble('idle', false, 'error')).toBe('bang')
     expect(agentBubble('idle', false, 'ok')).toBe('ok')
     expect(agentBubble('idle', false, null)).toBeNull()
+  })
+})
+
+describe('visual do agente nos sprites 2D (troca de paleta)', () => {
+  const chars = charsData as unknown as { frames: string[]; grids: Record<string, string[][]> }
+  const look = { skin: '#d9a066', hair: '#b33a3a', hairStyle: 3, shirt: '#f0a23b', pants: '#24496b', shoes: '#1e1e24' }
+
+  it('pinta pixel por pixel o mesmo que o gerador, contorno incluído', () => {
+    for (const ref of refs) {
+      const grid = chars.grids[ref.cut][chars.frames.indexOf(ref.frame)]
+      expect(grid, ref.cut + ' ' + ref.frame).toBeDefined()
+      const px = recolor(grid, paletteFromHex(ref.palette))
+      const hex = Array.from({ length: px.length / 4 }, (_, i) =>
+        [0, 1, 2, 3].map((k) => px[i * 4 + k].toString(16).padStart(2, '0')).join(''),
+      )
+      // transparent pixels may carry any colour in the PNG export; compare colour only where painted
+      const norm = (h: string) => (h.endsWith('00') ? '00000000' : h)
+      expect(hex.map(norm), ref.cut + ' ' + ref.frame).toEqual(ref.pixels.map(norm))
+    }
+  })
+
+  it('a pele, o cabelo, a camiseta, a calça e o sapato vêm do visual', () => {
+    const pal = paletteOf(look)
+    expect(pal.S).toEqual(rgb(look.skin))
+    expect(pal.H).toEqual(rgb(look.hair))
+    expect(pal.C).toEqual(rgb(look.shirt))
+    expect(pal.P).toEqual(rgb(look.pants))
+    expect(pal.B).toEqual(rgb(look.shoes))
+    // shades are darker than their base, the hair's light is lighter
+    for (const [base, shade] of [
+      ['S', 's'],
+      ['H', 'h'],
+      ['C', 'c'],
+      ['P', 'p'],
+    ])
+      expect(pal[shade].reduce((a, b) => a + b)).toBeLessThan(pal[base].reduce((a, b) => a + b))
+    expect(pal.L.reduce((a, b) => a + b)).toBeGreaterThan(pal.H.reduce((a, b) => a + b))
+    // the face and the outline do not change with the look
+    expect(paletteOf({ ...look, skin: '#5e3a24' }).E).toEqual(pal.E)
+  })
+
+  it('cada corte (1 a 6) é um penteado diferente, e todos existem no sprite', () => {
+    const cuts = [0, 1, 2, 3, 4, 5].map((i) => cutOf({ ...look, hairStyle: i }))
+    expect(new Set(cuts).size).toBe(6)
+    expect(cuts).toEqual([...CUTS])
+    expect(cutOf({ ...look, hairStyle: 7 })).toBe(CUTS[1])
+    const front = chars.frames.indexOf('FL/idle')
+    const heads = cuts.map((c) => chars.grids[c][front].slice(0, 14).join(''))
+    expect(new Set(heads).size).toBe(6)
+  })
+
+  it('a camiseta pinta só os pixels da camiseta', () => {
+    const grid = chars.grids[cutOf(look)][chars.frames.indexOf('FL/idle')]
+    const a = recolor(grid, paletteOf(look))
+    const b = recolor(grid, paletteOf({ ...look, shirt: '#3b4a8f' }))
+    for (let y = 0; y < grid.length; y++)
+      for (let x = 0; x < grid[0].length; x++) {
+        const i = (y * grid[0].length + x) * 4
+        const same = a[i] === b[i] && a[i + 1] === b[i + 1] && a[i + 2] === b[i + 2]
+        if (grid[y][x] === 'S' || grid[y][x] === 'H' || grid[y][x] === 'P') expect(same).toBe(true)
+        if (grid[y][x] === 'C') expect(same).toBe(false)
+      }
   })
 })

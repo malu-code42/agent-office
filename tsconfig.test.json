@@ -17,6 +17,7 @@
     "src/renderer/src/world2d/hit.ts",
     "src/renderer/src/world2d/iso.ts",
     "src/renderer/src/world2d/layout.ts",
+    "src/renderer/src/world2d/recolor.ts",
     "src/renderer/src/world2d/sprites.ts",
     "src/renderer/src/game/floor-key.ts",
     "src/renderer/src/game/helper-slots.ts",

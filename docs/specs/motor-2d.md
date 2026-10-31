@@ -57,7 +57,15 @@ dela), porta do elevador (o jogador anda até lá e o painel Elevador ganha o fo
 | `home.ts`, `home-layout.ts` (Casa) | — | 2 |
 | andar de estudos | — | 3 |
 
-Arquivos novos da fase 1: `world2d/{atlas,depth,floor,font,hit,iso,layout,plaque,renderer,sprites}.ts`,
+O visual do agente (`Look`) vale no 2D: o gerador exporta cada quadro do personagem como letras de
+paleta (`assets/pixel/chars.json`, 6 cortes × 16 quadros) e `world2d/recolor.ts` pinta com pele,
+cabelo, camiseta, calça e sapato do agente, com o contorno do gerador (teste compara pixel a pixel com
+o gerador). Cada visual é pintado uma vez e guardado (`world2d/looks.ts`). Corte 1–6 = curto,
+espetado, longo, coque, maria-chiquinha, rabo de cavalo. O retrato do editor (frente e costas, 4×) e
+os ícones de pessoa do app (`ui/portrait.ts`: lista de agentes, painel, dock, quadro, relatórios)
+usam o mesmo sprite.
+
+Arquivos novos da fase 1: `world2d/{atlas,depth,floor,font,hit,iso,layout,looks,plaque,recolor,renderer,sprites}.ts`,
 `assets/pixel/*`, `scripts/pixel-art/*`, `test/world2d.test.ts`.
 
 Mudanças no jogo: `ProjectPlan` ganhou `size`, `elevator`, `meeting` (sala, mesa, cadeiras) e `overflow`,
@@ -107,12 +115,12 @@ Medida direta, 120 frames de `update(1/60)` + `draw(1/60)` seguidos no mesmo cen
 
 - A Casa e o andar de estudos ainda são 3D; o 3D inteiro (three.js) segue carregado.
 - Os avatares ainda são objetos three.js atualizados a cada frame (só não são desenhados no 2D).
-- O visual do agente (`Look`) escolhe uma das 6 variantes da folha; ainda não pinta pele, cabelo e
-  roupa com as cores escolhidas.
 - Ajudantes (subagentes) aparecem no tamanho normal; o cordão e as marcas de falha não são desenhados.
 - Sem animação de digitar (o sprite sentado é um quadro só) nem portas do elevador abrindo.
 - As mesas 5 e 6 de uma sala ficam no corredor do meio e não bloqueiam a passagem (alguém pode cruzar
   uma delas). Com até 4 membros a sala é igual à arte aprovada.
 - Agentes individuais sentam nas mesas livres das salas de squad (como na arte), até 10; os demais
   ficam de pé no lounge.
+- Configurações → Vídeo: Pixel art, Sombras e Efeitos só mudam o 3D (Casa e estudos); com Visual 2D o
+  rótulo diz isso. Limite de fps e Economia na bateria valem nos dois.
 - O quadro de gastos e o giroflex do andar existem só como tags HTML.

@@ -324,6 +324,12 @@ def _autoshade(g):
 def make(vi, view, frame, mirror=False):
     """view: 'F' front, 'B' back. Built facing left; mirror=True flips geometry then re-shades."""
     name, style, skin, hair, shirt, pants, shoes, acc, glasses, headset = VARIANTS[vi]
+    g2 = letters(style, view, frame, mirror, glasses, headset)
+    return paint(g2, palette(vi))
+
+
+def letters(style, view, frame, mirror=False, glasses=False, headset=False):
+    """the sprite as palette letters by (row, col): the app recolours these with each agent's look."""
     st = STYLES[style]
     hdy = HEAD_DY[frame]
     g = {}
@@ -352,7 +358,12 @@ def make(vi, view, frame, mirror=False):
     if mirror:
         g = {(r, W - 1 - c): v for (r, c), v in g.items()}
     g = _autoshade(g)
-    g2 = _detail(g, view == 'F', False)
+    return _detail(g, view == 'F', False)
+
+
+def palette(vi):
+    """letter -> colour of a variant."""
+    name, style, skin, hair, shirt, pants, shoes, acc, glasses, headset = VARIANTS[vi]
     sk = SKINS[skin]
     base = {
         'S': H(sk[0]), 's': H(sk[1]), 'E': H('2e2635'), 'M': H('a8525a'), 'b': H('f4b0aa'),
@@ -369,6 +380,11 @@ def make(vi, view, frame, mirror=False):
     pal['y'] = mix(base['p'], OUT, .35)
     pal['z'] = mix(base['h'], OUT, .3)    # hair deep
     pal['B2'] = mix(base['B'], (255, 255, 255, 255), .2)
+    return pal
+
+
+def paint(g2, pal):
+    """letters + palette -> outlined sprite."""
     img = Image.new('RGBA', (SW2, SH2), (0, 0, 0, 0))
     px = img.load()
     for (r, c), ch in g2.items():

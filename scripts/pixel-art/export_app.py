@@ -23,7 +23,7 @@ import furn as F
 from floorkit import SW, SH, OX, OY, TS, W, D, WALL_H, PART_H, Scene, new_layer, OAK, WALNUT, draw_floor, Layer
 import scene_projeto as P
 from desks import ws_back, ws_front_x, ws_front_y
-from chars import sprite, VARIANTS
+from chars import sprite, VARIANTS, letters, palette, SW2, SH2
 from font5 import glyph
 
 APP = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
@@ -32,6 +32,10 @@ STATES = ('green', 'amber', 'red', 'off')
 DIRS = ('FL', 'FR', 'BL', 'BR')
 # the way a sitter looks -> sprite direction and seated frame
 SIT = {'+x': ('FR', 'sitF'), '-x': ('BL', 'sitB'), '+y': ('FL', 'sitF'), '-y': ('BR', 'sitB')}
+# the app's hair cuts ("Corte 1".."Corte 6" in the look editor) -> chars.py styles
+CUTS = ['short', 'spiky', 'long', 'bun', 'twin', 'pony']
+CHAR_FRAMES = [(d, f) for d in DIRS for f in ('idle', 'walkA', 'walkB')] + [('BL', 'sitB'), ('BR', 'sitB'), ('FL', 'sitF'), ('FR', 'sitF')]
+TESTS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'test', 'fixtures')
 
 
 class Atlas:
@@ -300,6 +304,31 @@ def main():
     data['anchors'] = anchors
     with open(os.path.join(APP, 'atlas.json'), 'w', encoding='utf8') as f:
         json.dump(data, f, separators=(',', ':'))
+
+    # ---------- characters as palette letters, recoloured by the app with each look ----------
+    known = set(palette(0))
+
+    def rows(style, d, fr):
+        g = letters(style, d[0], fr, mirror=d[1] == 'R')
+        cell = lambda r, c: '2' if g.get((r, c)) == 'B2' else g[(r, c)] if g.get((r, c)) in known else '.'
+        return [''.join(cell(r, c) for c in range(SW2)) for r in range(SH2)]
+
+    chars = {'w': SW2, 'h': SH2, 'cuts': CUTS, 'frames': [f'{d}/{f}' for d, f in CHAR_FRAMES],
+             'grids': {cut: [rows(cut, d, f) for d, f in CHAR_FRAMES] for cut in CUTS}}
+    with open(os.path.join(APP, 'chars.json'), 'w', encoding='utf8') as f:
+        json.dump(chars, f, separators=(',', ':'))
+    # what the generator paints for a few variants, so the tests check the app's recolouring pixel by pixel
+    hexa = lambda c: '%02x%02x%02x%02x' % tuple(c)
+    refs = []
+    for vi, d, fr in ((0, 'FL', 'idle'), (0, 'BR', 'walkA'), (2, 'FR', 'sitF'), (3, 'BL', 'sitB')):
+        pal = palette(vi)
+        img = sprite(vi, d, fr)
+        refs.append({'cut': VARIANTS[vi][1], 'frame': f'{d}/{fr}',
+                     'palette': {('2' if k == 'B2' else k): hexa(v)[:6] for k, v in pal.items()},
+                     'pixels': [hexa(img.getpixel((x, y))) for y in range(SH2) for x in range(SW2)]})
+    os.makedirs(TESTS, exist_ok=True)
+    with open(os.path.join(TESTS, 'pixel-chars-ref.json'), 'w', encoding='utf8') as f:
+        json.dump(refs, f, separators=(',', ':'))
 
     # ---------- plaque font ----------
     chars = ''.join(chr(c) for c in range(32, 127)) + 'áéíóúâêôãõçÁÉÍÓÚÂÊÔÃÕÇ·'

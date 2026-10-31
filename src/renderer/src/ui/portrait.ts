@@ -1,64 +1,41 @@
 import type { Look } from '@shared/types'
+import { CHAR_H, CHAR_W, drawLook } from '../world2d/looks'
 
-/** 16x16 pixel-art bust of an avatar, scaled up with nearest-neighbour. */
+/** The head of the 2D sprite (front, standing): x, y, w, h inside its frame. */
+const BUST: [number, number, number, number] = [4, 3, 16, 16]
+
+/**
+ * Bust of an avatar: the same recoloured pixel-art sprite the 2D floors draw, at the
+ * biggest whole-number scale that fits `size` CSS pixels (crisp at any device ratio).
+ */
 export function portrait(look: Look, size = 32): HTMLCanvasElement {
+  const dpr = Math.max(1, window.devicePixelRatio || 1)
+  const px = Math.max(1, Math.round(size * dpr))
   const c = document.createElement('canvas')
-  c.width = 16
-  c.height = 16
+  c.width = px
+  c.height = px
   c.className = 'portrait'
   c.style.width = `${size}px`
   c.style.height = `${size}px`
   c.style.background = look.shirt + '55'
-  const ctx = c.getContext('2d')!
-  const px = (x: number, y: number, w: number, h: number, color: string) => {
-    ctx.fillStyle = color
-    ctx.fillRect(x, y, w, h)
-  }
-  // shoulders
-  px(2, 13, 12, 3, look.shirt)
-  px(6, 12, 4, 1, look.skin)
-  // head
-  px(4, 3, 8, 9, look.skin)
-  px(3, 6, 1, 2, look.skin)
-  px(12, 6, 1, 2, look.skin)
-  // hair
-  const hc = look.hair
-  switch (look.hairStyle % 6) {
-    case 2: // long
-      px(3, 2, 10, 3, hc)
-      px(3, 5, 1, 8, hc)
-      px(12, 5, 1, 8, hc)
-      break
-    case 3: // bun
-      px(3, 2, 10, 3, hc)
-      px(6, 0, 4, 2, hc)
-      break
-    case 4: // pigtails
-      px(3, 2, 10, 3, hc)
-      px(1, 6, 2, 4, hc)
-      px(13, 6, 2, 4, hc)
-      break
-    case 5: // afro
-      px(2, 0, 12, 5, hc)
-      px(2, 5, 2, 3, hc)
-      px(12, 5, 2, 3, hc)
-      break
-    case 1: // spiky
-      px(3, 2, 10, 3, hc)
-      px(4, 1, 1, 1, hc)
-      px(7, 0, 2, 2, hc)
-      px(11, 1, 1, 1, hc)
-      break
-    default:
-      px(3, 2, 10, 3, hc)
-      px(3, 5, 1, 2, hc)
-      px(12, 5, 1, 2, hc)
-  }
-  // face
-  px(6, 7, 1, 2, '#1d1b26')
-  px(9, 7, 1, 2, '#1d1b26')
-  px(7, 10, 2, 1, 'rgba(0,0,0,0.35)')
-  px(5, 9, 1, 1, '#f4a6a6')
-  px(10, 9, 1, 1, '#f4a6a6')
+  const k = Math.max(1, Math.floor(px / BUST[2]))
+  drawLook(c.getContext('2d')!, look, 'FL/idle', Math.floor((px - BUST[2] * k) / 2), px - BUST[3] * k, k, BUST)
   return c
+}
+
+/** The look editor's preview: the whole sprite from the front and from the back, at a whole-number scale. */
+export function lookPreview(look: Look, scale = 4): HTMLElement {
+  const box = document.createElement('div')
+  box.className = 'look-sprite'
+  box.setAttribute('role', 'img')
+  box.setAttribute('aria-label', 'Prévia do personagem, de frente e de costas')
+  for (const frame of ['FL/idle', 'BR/idle']) {
+    const c = document.createElement('canvas')
+    c.width = CHAR_W * scale
+    c.height = CHAR_H * scale
+    c.className = 'look-sprite-frame'
+    drawLook(c.getContext('2d')!, look, frame, 0, 0, scale)
+    box.append(c)
+  }
+  return box
 }

@@ -146,6 +146,7 @@ export class Game extends GameInput {
       people.push({
         key,
         variant,
+        look: av.look,
         x: av.position.x,
         z: av.position.z,
         heading: av.heading,

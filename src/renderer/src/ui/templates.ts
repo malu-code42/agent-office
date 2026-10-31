@@ -5,7 +5,7 @@ import type { AgentSummary, AgentTemplate, Look, OfficePermissionMode, ProjectFl
 import type { State } from '../state'
 import { h, icon } from './dom'
 import { brainFields, cleanError, confirmDialog, EFFORTS, field, MODELS, modal, MODES } from './modals'
-import { portrait } from './portrait'
+import { lookPreview, portrait } from './portrait'
 import './templates.css'
 
 type Toast = (t: string, k?: 'info' | 'ok' | 'err') => void
@@ -27,7 +27,7 @@ export function lookEditor(initial: Look): { el: HTMLElement; value(): Look } {
   const preview = h('div', { class: 'look-preview' })
   const rows: (() => void)[] = []
   const repaint = () => {
-    preview.replaceChildren(portrait(look, 72))
+    preview.replaceChildren(lookPreview(look, 3))
     rows.forEach((r) => r())
   }
   const swatches = (key: 'skin' | 'hair' | 'shirt' | 'pants', colors: string[]) => {

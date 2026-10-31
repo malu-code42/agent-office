@@ -3,6 +3,7 @@ import atlasData from '../assets/pixel/atlas.json'
 import projectBaseUrl from '../assets/pixel/project-base.png'
 import projectData from '../assets/pixel/project.json'
 import type { ProjectLayout } from './layout'
+import { CHAR_H, CHAR_W, lookFrameAt } from './looks'
 
 /** The project floor exported by scripts/pixel-art/export_app.py. */
 export const PROJECT_LAYOUT = projectData as unknown as ProjectLayout
@@ -46,14 +47,28 @@ export class Atlas {
     this.alpha = ctx.getImageData(0, 0, c.width, c.height).data
   }
 
+  /** Width and height of a frame (atlas frames, or `lookN/<dir>/<frame>` of a recoloured look). */
+  size(name: string): [number, number] | null {
+    const f = this.frames[name]
+    if (f) return [f[2], f[3]]
+    return lookFrameAt(name) ? [CHAR_W, CHAR_H] : null
+  }
+
   /** Draws a frame with its top-left corner at (x, y) on a native-size canvas. */
   draw(ctx: CanvasRenderingContext2D, name: string, x: number, y: number): void {
     const f = this.frames[name]
-    if (f) ctx.drawImage(this.image, f[0], f[1], f[2], f[3], x, y, f[2], f[3])
+    if (f) return ctx.drawImage(this.image, f[0], f[1], f[2], f[3], x, y, f[2], f[3])
+    const look = lookFrameAt(name)
+    if (look) ctx.drawImage(look.sheet.canvas, look.x, 0, CHAR_W, CHAR_H, x, y, CHAR_W, CHAR_H)
   }
 
   /** True when the pixel (u, v) of a frame is painted (hit-tests ignore the transparent corners). */
   solid(name: string, u: number, v: number): boolean {
+    const look = this.frames[name] ? null : lookFrameAt(name)
+    if (look) {
+      if (u < 0 || v < 0 || u >= CHAR_W || v >= CHAR_H) return false
+      return look.sheet.alpha[Math.floor(v) * look.sheet.canvas.width + look.x + Math.floor(u)] > 0
+    }
     const f = this.frames[name]
     if (!f || u < 0 || v < 0 || u >= f[2] || v >= f[3]) return false
     if (!this.alpha) return true

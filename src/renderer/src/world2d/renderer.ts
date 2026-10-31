@@ -1,4 +1,6 @@
+import type { Look } from '@shared/types'
 import type { ScreenMode } from '../world/screens'
+import { lookSheet } from './looks'
 import { Atlas } from './atlas'
 import { depthSort, type Footprint } from './depth'
 import { crtOf, type FlatFloor } from './floor'
@@ -13,8 +15,10 @@ import { topmost } from './hit'
 export interface Person2d {
   /** What a click on it answers (agent id, `member:<id>`, `helper:<id>`, `emi`). */
   key: string
-  /** Character variant of the sprite sheet (0-7). */
+  /** Character variant of the sprite sheet (0-7), used when there is no look. */
   variant: number
+  /** The agent's look: the sprite wears its colours and hair cut. */
+  look?: Look
   /** Position in tiles. */
   x: number
   z: number
@@ -391,12 +395,12 @@ export class Renderer2d {
     let x1 = -Infinity
     let y1 = -Infinity
     for (const sp of sprites) {
-      const f = this.atlas.frames[sp.f]
+      const f = this.atlas.size(sp.f)
       if (!f) continue
       x0 = Math.min(x0, sp.x)
       y0 = Math.min(y0, sp.y)
-      x1 = Math.max(x1, sp.x + f[2])
-      y1 = Math.max(y1, sp.y + f[3])
+      x1 = Math.max(x1, sp.x + f[0])
+      y1 = Math.max(y1, sp.y + f[1])
     }
     return x0 === Infinity ? [0, 0, 0, 0] : [x0, y0, x1 - x0, y1 - y0]
   }
@@ -424,7 +428,7 @@ export class Renderer2d {
         : undefined
       if (seat) {
         taken.add(seat)
-        const char = { f: `char/${p.variant}/${seat.dir}/${seat.pose}`, x: seat.sit[0], y: seat.sit[1] }
+        const char = { f: `${this.charOf(p)}/${seat.dir}/${seat.pose}`, x: seat.sit[0], y: seat.sit[1] }
         const under = { f: seat.seat.f, x: seat.seat.x, y: seat.seat.y }
         const back = { f: seat.back.f, x: seat.back.x, y: seat.back.y }
         push(p, seat.fp, seat.front ? [under, char, back] : [under, back, char], char, bubbleAt(p.bubble, seat.head[0], seat.head[1]), seat)
@@ -434,7 +438,7 @@ export class Renderer2d {
       const px = Math.round(at.x)
       const py = Math.round(at.y)
       const frame = p.stride === null ? 'idle' : Math.sin(p.stride) > 0 ? 'walkA' : 'walkB'
-      const char = { f: `char/${p.variant}/${dirOf(p.heading)}/${frame}`, x: px - 12, y: py - 30 }
+      const char = { f: `${this.charOf(p)}/${dirOf(p.heading)}/${frame}`, x: px - 12, y: py - 30 }
       const sa = this.atlas.anchors.shadow ?? [0, 0]
       const ax = p.x * TILE
       const az = p.z * TILE
@@ -447,6 +451,11 @@ export class Renderer2d {
       )
     }
     return depthSort(out)
+  }
+
+  /** Frame prefix of a person: its look's recoloured sheet, or a variant of the atlas. */
+  private charOf(p: Person2d): string {
+    return p.look ? lookSheet(p.look).id : `char/${p.variant}`
   }
 
   /**

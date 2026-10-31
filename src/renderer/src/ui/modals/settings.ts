@@ -16,7 +16,7 @@ import {
 import { openAccounts } from '../accounts'
 import { dataSection } from '../data'
 import { h, icon } from '../dom'
-import { portrait } from '../portrait'
+import { lookPreview } from '../portrait'
 import { updateSettingsBox } from '../updates'
 import { cleanError, field, modal } from './common'
 import { brainFields, meterField, MODES } from './brain'
@@ -36,7 +36,7 @@ export function openSettings(
   const look: Look = { ...s.playerLook }
   const name = h('input', { class: 'input', value: s.playerName, maxlength: 24 })
   const preview = h('div', { class: 'look-preview' })
-  const renderPreview = () => preview.replaceChildren(portrait(look, 96))
+  const renderPreview = () => preview.replaceChildren(lookPreview(look, 4))
   renderPreview()
 
   const swatches = (key: keyof Look, colors: string[]) => {
@@ -105,7 +105,7 @@ export function openSettings(
     placeholder: 'systematic-debugging, test-driven-development',
   }) as HTMLInputElement
   const updates = updateSettingsBox(root, s.updateChannel)
-  const video = videoFields(state)
+  const video = videoFields(state, pixel)
   const vaultPath = h('input', {
     class: 'input',
     type: 'text',
@@ -456,7 +456,7 @@ export function openSettings(
           field('Calça', swatches('pants', PANTS_COLORS)),
         ),
       ),
-      h('div', { class: 'field-row' }, field('Pixel art', pixel), field('Modelo padrão', brain.model), field('Permissão padrão', mode)),
+      h('div', { class: 'field-row' }, field('Modelo padrão', brain.model), field('Permissão padrão', mode)),
       meterField('Esforço padrão', brain.meter),
       h('label', { class: 'check' }, notify, 'Notificar quando um agente precisar de mim ou terminar'),
       video.el,
@@ -467,7 +467,7 @@ export function openSettings(
         h('div', { class: 'field-hint' }, 'A pasta é escolhida no diálogo do sistema; o Office valida tarefas.md e guarda essa seleção.'),
         field('Pasta do vault', vaultPath),
         vaultStatus,
-        h('div', { class: 'bridge-row' }, chooseVault, verifyVault, openTasks),
+        h('div', { class: 'bridge-row bridge-row-start' }, chooseVault, verifyVault, openTasks),
       ),
       h(
         'div',
@@ -631,7 +631,7 @@ export function openSettings(
  * Configurações → Vídeo (AO-29, AO-32). Picking a quality fills the other fields; changing one
  * by hand shows "Personalizada". Everything applies on Salvar, without restarting.
  */
-function videoFields(state: State): { el: HTMLElement; value: () => VideoSettings } {
+function videoFields(state: State, pixel: HTMLElement): { el: HTMLElement; value: () => VideoSettings } {
   const v: VideoSettings = { ...DEFAULT_VIDEO, ...state.settings.video }
   const quality = h(
     'select',
@@ -691,6 +691,18 @@ function videoFields(state: State): { el: HTMLElement; value: () => VideoSetting
   })
   for (const sel of [fps, shadows, effects]) sel.addEventListener('change', syncQuality)
 
+  // pixel size, shadows and effects only change the 3D world (Casa and study floors in this phase):
+  // with Visual 2D their labels say so, live as the Visual choice changes
+  const only3d = [field('Pixel art', pixel), field('Sombras', shadows), field('Efeitos', effects)]
+  const names = ['Pixel art', 'Sombras', 'Efeitos']
+  const relabel = () =>
+    only3d.forEach((f, i) => {
+      const label = f.querySelector('.field-label')
+      if (label) label.textContent = visual.value === '3d' ? names[i] : `${names[i]} (só no 3D: Casa e estudos)`
+    })
+  visual.addEventListener('change', relabel)
+  relabel()
+
   const now: string[] = []
   if (state.onBattery && v.batterySaver) now.push('Na bateria agora: o modo Economia está valendo até ligar na tomada.')
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) now.push('O sistema pede menos movimento: os efeitos ficam reduzidos.')
@@ -705,7 +717,7 @@ function videoFields(state: State): { el: HTMLElement; value: () => VideoSetting
     ),
     field('Visual', visual, 'Os andares de projeto em pixel art 2D, mais leve. A Casa continua em 3D por enquanto.'),
     h('div', { class: 'field-row' }, field('Qualidade', quality), field('Limite de fps', fps)),
-    h('div', { class: 'field-row' }, field('Sombras', shadows), field('Efeitos', effects)),
+    h('div', { class: 'field-row' }, only3d[0], only3d[1], only3d[2]),
     h('label', { class: 'check' }, battery, 'Economia automática na bateria'),
     ...(now.length ? [h('div', { class: 'field-hint' }, now.join(' '))] : []),
   )
