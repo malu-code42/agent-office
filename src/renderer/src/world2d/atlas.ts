@@ -28,6 +28,14 @@ const DATA = atlasData as unknown as {
 /** Painted sheets kept at once (one per variant and Look on screen). */
 const SKINS_MAX = 96
 
+let shared: Atlas | null = null
+
+/** The one sprite sheet of the app: the floors and the portraits paint from it, so it loads once. */
+export function sharedAtlas(): Atlas {
+  shared ??= new Atlas()
+  return shared
+}
+
 /** The sprite sheet of the 2D world: frames by name, their anchors, and the pixels for hit-tests. */
 export class Atlas {
   readonly image = new Image()

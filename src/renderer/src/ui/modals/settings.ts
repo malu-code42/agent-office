@@ -8,7 +8,7 @@ import { openAccounts } from '../accounts'
 import { openLunaSettings } from '../luna-settings'
 import { dataSection } from '../data'
 import { h, icon } from '../dom'
-import { portrait } from '../portrait'
+import { lookPreview } from '../portrait'
 import { updateSettingsBox } from '../updates'
 import { cleanError, field, modal } from './common'
 import { brainFields, meterField, modeOptions, MODES } from './brain'
@@ -28,7 +28,7 @@ export function openSettings(
   const look: Look = { ...s.playerLook }
   const name = h('input', { class: 'input', value: s.playerName, maxlength: 24 })
   const preview = h('div', { class: 'look-preview' })
-  const renderPreview = () => preview.replaceChildren(portrait(look, 96))
+  const renderPreview = () => preview.replaceChildren(lookPreview(look, 4))
   renderPreview()
 
   const swatches = (key: keyof Look, colors: string[]) => {
@@ -452,7 +452,7 @@ export function openSettings(
         h('div', { class: 'field-hint' }, 'A pasta é escolhida no diálogo do sistema; o Office valida tarefas.md e guarda essa seleção.'),
         field('Pasta do vault', vaultPath),
         vaultStatus,
-        h('div', { class: 'bridge-row' }, chooseVault, verifyVault, openTasks),
+        h('div', { class: 'bridge-row bridge-row-start' }, chooseVault, verifyVault, openTasks),
       ),
       h(
         'div',

@@ -3,7 +3,7 @@ import type { TotemView } from '@shared/routines'
 import type { ScreenMode } from './floor'
 import type { CasaAct, CasaFlat } from './casa'
 import type { EstudosFlat, StudyAct } from './estudos'
-import { Atlas } from './atlas'
+import { sharedAtlas } from './atlas'
 import { depthSort, type Footprint } from './depth'
 import { crtOf, type FlatFloor } from './floor'
 import { artToScreen, clampCenter, onWestWall, deviceScale, dirOf, fitZoom, floorBounds, TILE, toFloor, toScreen, type Px } from './iso'
@@ -217,7 +217,7 @@ export class Renderer2d {
 
   constructor(
     container: HTMLElement,
-    readonly atlas = new Atlas(),
+    readonly atlas = sharedAtlas(),
   ) {
     this.canvas.className = 'world-canvas world-canvas-2d hidden'
     container.appendChild(this.canvas)
