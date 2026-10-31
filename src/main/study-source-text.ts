@@ -1,8 +1,9 @@
 import { inflateRawSync } from 'node:zlib'
+import type { StudySourceUnit } from '@shared/study-sources'
 
-// Local text extraction for Cora's library: formats that Node reads without a new dependency.
-// PowerPoint (.pptx) is a zip of XML slides; zlib inflates its entries. PDF needs a real parser
-// (fonts, encodings, compressed object streams), so it is searched by file name only for now.
+// Local text extraction for Cora's library. PowerPoint (.pptx) is a zip of XML slides; zlib
+// inflates its entries. PDF goes through unpdf (study-pdf.ts), page by page, cached on disk.
+// Everything stays on this computer: nothing read here is sent to Claude.
 
 /** Hard cap on the text taken out of one file, so a zip bomb cannot exhaust memory. */
 const MAX_ENTRY_BYTES = 8 * 1024 * 1024
@@ -94,4 +95,63 @@ export function pptxText(buf: Buffer): string {
     out.push(`## Slide ${slideNumber(slide.name)}`, '', ...lines.map((line) => line.trim()).filter(Boolean), '')
   }
   return out.join('\n')
+}
+
+// ---------- documents as units (pages, slides, sections), for Cora's recommendations ----------
+
+export { PdfTextCache, pdfPages } from './study-pdf'
+
+/** One unit per PDF page, numbered as the PDF numbers them. */
+export function pdfUnits(pages: string[]): StudySourceUnit[] {
+  return pages.map((text, i) => ({ n: i + 1, text }))
+}
+
+/** A PDF as searchable text: one `## Página N` heading per page, so a passage names its page. */
+export function pdfSearchText(pages: string[]): string {
+  return pages.map((text, i) => `## Página ${i + 1}\n\n${text.trim()}`).join('\n\n')
+}
+
+/** One unit per slide of pptxText's output (`## Slide N`). */
+export function slideUnits(deck: string): StudySourceUnit[] {
+  const units: StudySourceUnit[] = []
+  for (const part of deck.split(/^## Slide (?=\d+\s*$)/m).slice(1)) {
+    const newline = part.indexOf('\n')
+    const n = Number(part.slice(0, newline < 0 ? undefined : newline).trim())
+    if (Number.isFinite(n)) units.push({ n, text: newline < 0 ? '' : part.slice(newline + 1).trim() })
+  }
+  return units
+}
+
+/** One unit per section of a note (a heading and what follows it), numbered in order; text before the first heading is section 1. */
+export function markdownUnits(text: string): StudySourceUnit[] {
+  const units: StudySourceUnit[] = []
+  let heading: string | undefined
+  let lines: string[] = []
+  const flush = () => {
+    const body = lines.join('\n').trim()
+    if (body || heading) units.push({ n: units.length + 1, ...(heading ? { heading } : {}), text: body })
+  }
+  for (const line of text.split(/\r?\n/)) {
+    const match = /^#{1,6}\s+(.+?)\s*#*\s*$/.exec(line)
+    if (!match) {
+      lines.push(line)
+      continue
+    }
+    flush()
+    heading = match[1]!.slice(0, 160)
+    lines = []
+  }
+  flush()
+  return units
+}
+
+/** Plain text in blocks of `size` lines (numbered by their first and last line). */
+export function textUnits(text: string, size = 40): StudySourceUnit[] {
+  const lines = text.split(/\r?\n/)
+  const units: StudySourceUnit[] = []
+  for (let at = 0; at < lines.length; at += size) {
+    const block = lines.slice(at, at + size)
+    if (block.some((line) => line.trim())) units.push({ n: at + 1, end: at + block.length, text: block.join('\n') })
+  }
+  return units
 }

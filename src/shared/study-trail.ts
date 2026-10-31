@@ -75,3 +75,99 @@ export function trailTopicOf(trail: StudyTrail, topic: string): StudyTrailTopic 
   const id = /^\[([^\]]+)\]/.exec(clean)?.[1]
   return trail.topics.find((t) => t.label === clean || (id !== undefined && t.id === id))
 }
+
+// ---------- the "Trilha de estudos" board (Bonnie's office) ----------
+
+/**
+ * Where a trail topic stands for the user: the cycle open now, a cycle kept from a topic
+ * switch, a cycle concluded with the retest, ticked in the trail by hand, or not started.
+ */
+export type StudyTrailTopicState = 'current' | 'kept' | 'completed' | 'checked' | 'new'
+
+/** The cycles the board looks at; a subset of StudyCycleState, so this file stays free of the cycle module. */
+export interface StudyTrailCycles {
+  activeId: string | null
+  cycles: { id: string; topic: string; stage: string; updatedAt: number }[]
+}
+
+export interface StudyTrailCard {
+  topic: StudyTrailTopic
+  state: StudyTrailTopicState
+  /** The cycle that gives the state (current, kept or completed), if any. */
+  cycleId?: string
+  cycleStage?: string
+}
+
+/** A list of the board: one discipline of a period, as the trail file groups them. */
+export interface StudyTrailList {
+  key: string
+  discipline: string
+  period: string
+  cards: StudyTrailCard[]
+  /** Topics neither completed nor ticked. */
+  open: number
+  current: boolean
+}
+
+/** The board of the trail: one list per discipline (in file order) with each topic's state. */
+export function studyTrailBoard(trail: StudyTrail, state: StudyTrailCycles): StudyTrailList[] {
+  const lists = new Map<string, StudyTrailList>()
+  for (const topic of trail.topics) {
+    const key = `${topic.period}\n${topic.discipline}`
+    let list = lists.get(key)
+    if (!list) {
+      list = { key, discipline: topic.discipline, period: topic.period, cards: [], open: 0, current: false }
+      lists.set(key, list)
+    }
+    const card = trailCard(topic, state)
+    if (card.state === 'current') list.current = true
+    if (card.state !== 'completed' && card.state !== 'checked') list.open++
+    list.cards.push(card)
+  }
+  return [...lists.values()]
+}
+
+const sameTopic = (topic: StudyTrailTopic, label: string): boolean => {
+  const clean = label.trim()
+  const id = /^\[([^\]]+)\]/.exec(clean)?.[1]
+  return clean === topic.label || (id !== undefined && id === topic.id)
+}
+
+function trailCard(topic: StudyTrailTopic, state: StudyTrailCycles): StudyTrailCard {
+  const mine = state.cycles.filter((cycle) => sameTopic(topic, cycle.topic)).sort((a, b) => b.updatedAt - a.updatedAt)
+  const active = mine.find((cycle) => cycle.id === state.activeId)
+  if (active) return { topic, state: 'current', cycleId: active.id, cycleStage: active.stage }
+  const kept = mine.find((cycle) => cycle.stage !== 'completed')
+  if (kept) return { topic, state: 'kept', cycleId: kept.id, cycleStage: kept.stage }
+  const completed = mine.find((cycle) => cycle.stage === 'completed')
+  if (completed) return { topic, state: 'completed', cycleId: completed.id, cycleStage: completed.stage }
+  return { topic, state: topic.done ? 'checked' : 'new' }
+}
+
+/**
+ * What "Começar com este tópico" does, keeping every earlier cycle: open the cycle when the
+ * topic is already the current one, pin a kept cycle of the topic again, or set the current
+ * cycle aside (it stays in the history) and start the topic from the question picker.
+ */
+export type StudyTopicStart = { kind: 'open' } | { kind: 'resume'; cycleId: string } | { kind: 'new'; setAside: boolean }
+
+export function studyTopicStart(state: StudyTrailCycles, label: string): StudyTopicStart {
+  const active = state.cycles.find((cycle) => cycle.id === state.activeId)
+  const clean = label.trim()
+  const id = /^\[([^\]]+)\]/.exec(clean)?.[1]
+  const matches = (topic: string) => topic.trim() === clean || (id !== undefined && /^\[([^\]]+)\]/.exec(topic.trim())?.[1] === id)
+  if (active && matches(active.topic)) return { kind: 'open' }
+  const kept = state.cycles
+    .filter((cycle) => cycle.id !== state.activeId && cycle.stage !== 'completed' && matches(cycle.topic))
+    .sort((a, b) => b.updatedAt - a.updatedAt)[0]
+  if (kept) return { kind: 'resume', cycleId: kept.id }
+  return { kind: 'new', setAside: !!active }
+}
+
+export const STUDY_TRAIL_STATE_LABEL: Record<StudyTrailTopicState, string> = {
+  current: 'Ciclo atual',
+  kept: 'Ciclo guardado',
+  completed: 'Concluído',
+  checked: 'Marcado na trilha',
+  new: 'Não iniciado',
+}

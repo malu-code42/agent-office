@@ -41,6 +41,8 @@ const DEFAULT_SETTINGS: Settings = {
   lunaLook: lookFromSeed('agent-office:luna'),
   emiModel: '',
   emiEffort: '',
+  bonnieModel: '',
+  bonnieEffort: '',
   defaultPermissionMode: 'default',
   notifications: true,
   bridgePort: 47821,

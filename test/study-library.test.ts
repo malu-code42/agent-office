@@ -1,10 +1,11 @@
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { deflateRawSync } from 'node:zlib'
 import { StudyLibrary, StudyNotesWriter } from '../src/main/study-library'
 import { scoreStudyText, studySnippet, tokenizeStudyQuery } from '../src/shared/study-library'
+import { tinyPdf } from './helpers/tiny-pdf'
 
 const roots: string[] = []
 const fixture = (): string => {
@@ -52,15 +53,15 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
-describe('Cora: biblioteca somente local', () => {
-  it('reports an empty local library without trying a remote fallback', () => {
-    const result = new StudyLibrary(fixture()).search('probabilidade')
+describe('Cora: biblioteca somente local', async () => {
+  it('reports an empty local library without trying a remote fallback', async () => {
+    const result = await new StudyLibrary(fixture()).search('probabilidade')
     expect(result.complete).toBe(true)
     expect(result.hits).toEqual([])
     expect(result.warning).toMatch(/ainda não existe/i)
   })
 
-  it('busca conteúdo em arquivos Markdown locais e devolve uma referência citável', () => {
+  it('busca conteúdo em arquivos Markdown locais e devolve uma referência citável', async () => {
     const vault = fixture()
     const sources = join(vault, 'study sources', 'matemática')
     mkdirSync(sources, { recursive: true })
@@ -68,8 +69,8 @@ describe('Cora: biblioteca somente local', () => {
       join(sources, 'probabilidade.md'),
       '# Eventos independentes\n\nA probabilidade conjunta de eventos independentes é o produto das probabilidades.\n',
     )
-    const library = new StudyLibrary(vault)
-    const result = library.search('probabilidade conjunta')
+    const library = await new StudyLibrary(vault)
+    const result = await library.search('probabilidade conjunta')
     expect(result.complete).toBe(true)
     expect(result.hits[0]).toMatchObject({
       sourceRef: 'study sources/matemática/probabilidade.md#Eventos independentes:3',
@@ -80,34 +81,34 @@ describe('Cora: biblioteca somente local', () => {
     expect(() => library.source(result.token, 'missing-hit-id-00000')).toThrow(/busca local/i)
   })
 
-  it('lê o que cabe e busca pelo nome o que passa do limite, avisando', () => {
+  it('lê o que cabe e busca pelo nome o que passa do limite, avisando', async () => {
     const vault = fixture()
     const sources = join(vault, 'study sources')
     mkdirSync(sources)
     writeFileSync(join(sources, 'probabilidade grande.txt'), `Probabilidade ${'conteúdo '.repeat(140_000)}`)
     writeFileSync(join(sources, 'eventos.md'), 'A probabilidade de eventos independentes.\n')
-    const result = new StudyLibrary(vault).search('probabilidade')
+    const result = await new StudyLibrary(vault).search('probabilidade')
     expect(result.complete).toBe(false)
     expect(result.hits.map((hit) => hit.sourceRef)).toEqual(['study sources/eventos.md:1', 'study sources/probabilidade grande.txt'])
     expect(result.warning).toMatch(/limite de leitura/i)
   })
 
-  it('busca PDFs pelo nome e pela pasta, avisando que o conteúdo não é lido', () => {
+  it('busca pelo nome e pela pasta os PDFs que não consegue ler, avisando', async () => {
     const vault = fixture()
     const sources = join(vault, 'study sources', 'Estrutura de Dados')
     mkdirSync(sources, { recursive: true })
     writeFileSync(join(sources, 'Aula 06 Filas.pdf'), 'fixture binária')
     writeFileSync(join(sources, 'Aula 02 Listas.pdf'), 'fixture binária')
     writeFileSync(join(vault, 'study sources', 'Cálculo.pdf'), 'fixture binária')
-    const result = new StudyLibrary(vault).search('fila, estrutura de dados')
+    const result = await new StudyLibrary(vault).search('fila, estrutura de dados')
     expect(result.complete).toBe(false)
     expect(result.hits.map((hit) => hit.title)).toEqual(['Aula 06 Filas.pdf', 'Aula 02 Listas.pdf'])
     expect(result.hits[0]).toMatchObject({ sourceRef: 'study sources/Estrutura de Dados/Aula 06 Filas.pdf', line: 0 })
     expect(result.hits[0]!.excerpt).toMatch(/pelo nome/)
-    expect(result.warning).toMatch(/3 PDF/)
+    expect(result.warning).toMatch(/3 arquivo\(s\) não puderam ser lidos/)
   })
 
-  it('busca sem acento e sem diferenciar maiúsculas, ranqueando por termos e mostrando o trecho', () => {
+  it('busca sem acento e sem diferenciar maiúsculas, ranqueando por termos e mostrando o trecho', async () => {
     const vault = fixture()
     const sources = join(vault, 'study sources')
     mkdirSync(sources)
@@ -123,7 +124,7 @@ describe('Cora: biblioteca somente local', () => {
         `${'Texto de abertura. '.repeat(40)}A FILA é uma Estrutura de Dados FIFO.`,
       ].join('\n'),
     )
-    const result = new StudyLibrary(vault).search('filas, estrutura de dados')
+    const result = await new StudyLibrary(vault).search('filas, estrutura de dados')
     expect(result.complete).toBe(true)
     expect(result.hits[0]).toMatchObject({ title: 'Filas', line: 7 })
     expect(result.hits[0]!.excerpt.startsWith('…')).toBe(true)
@@ -132,7 +133,7 @@ describe('Cora: biblioteca somente local', () => {
     expect(result.hits[0]!.score).toBeGreaterThan(result.hits[1]!.score)
   })
 
-  it('lê o texto dos slides de uma apresentação .pptx', () => {
+  it('lê o texto dos slides de uma apresentação .pptx', async () => {
     const vault = fixture()
     const sources = join(vault, 'study sources')
     mkdirSync(sources)
@@ -143,7 +144,7 @@ describe('Cora: biblioteca somente local', () => {
         'ppt/slides/slide1.xml': '<p:sld><a:p><a:t>Introdução</a:t></a:p></p:sld>',
       }),
     )
-    const result = new StudyLibrary(vault).search('heap')
+    const result = await new StudyLibrary(vault).search('heap')
     expect(result.complete).toBe(true)
     expect(result.hits).toHaveLength(1)
     expect(result.hits[0]).toMatchObject({
@@ -204,5 +205,60 @@ describe('notas de estudo Obsidian', () => {
     expect(saved).toContain(entry.sourceRef)
     expect(saved).toContain(entry.text)
     expect(readFileSync(`${noteFile}.bak`, 'utf8')).toBe(old)
+  })
+})
+
+describe('Cora: PDFs e fontes recomendadas', () => {
+  it('lê o texto de um PDF e cita a página do trecho', async () => {
+    const vault = fixture()
+    const sources = join(vault, 'study sources')
+    mkdirSync(sources)
+    writeFileSync(
+      join(sources, 'apostila.pdf'),
+      tinyPdf(['Introdução ao curso', 'Pilhas guardam em ordem LIFO', 'A fila circular usa FIFO']),
+    )
+    const cache = join(vault, 'cache')
+    const result = await new StudyLibrary(vault, { cacheDir: cache }).search('fila circular')
+    expect(result.complete).toBe(true)
+    expect(result.hits[0]).toMatchObject({ title: 'Página 3', sourceRef: 'study sources/apostila.pdf#Página 3', line: 0 })
+    expect(readdirSync(cache)).toHaveLength(1)
+  })
+
+  it('recomenda fontes da melhor para a pior, com páginas, slides e seções de início e fim', async () => {
+    const vault = fixture()
+    const sources = join(vault, 'study sources', 'Estrutura de Dados')
+    mkdirSync(sources, { recursive: true })
+    writeFileSync(
+      join(sources, 'Filas.pdf'),
+      tinyPdf([
+        'Sumario do livro',
+        'Pilhas e recursao',
+        'Fila: estrutura de dados FIFO. Fila com vetor.',
+        'Fila circular e fila de prioridade. Fila com lista ligada.',
+        'Fila em estrutura de dados: exercicios de fila.',
+        'Arvores binarias',
+      ]),
+    )
+    writeFileSync(join(sources, 'resumo.md'), '# Pilhas\n\nLIFO.\n\n# Filas\n\nUma fila atende por ordem de chegada.\n')
+    writeFileSync(join(sources, 'outra.md'), '# Grafos\n\nVértices e arestas.\n')
+    const [result] = await new StudyLibrary(vault).recommend(['fila, estrutura de dados'])
+    const [best, second] = result!.recommendations
+    expect(best).toMatchObject({ title: 'Filas.pdf', kind: 'pdf', start: 3, end: 5, range: 'p. 3–5' })
+    expect(second).toMatchObject({ title: 'resumo.md', kind: 'md', start: 2, end: 2, range: 'seção 2', startHeading: 'Filas' })
+    expect(best!.score).toBeGreaterThan(second!.score)
+    // Found only by its folder (Estrutura de Dados): last, at the bottom of the scale.
+    expect(result!.recommendations.at(-1)).toMatchObject({ title: 'outra.md', level: 1, label: 'Pouco relevante' })
+    expect(result!.recommendations.every((r) => r.path.startsWith('study sources/'))).toBe(true)
+  })
+
+  it('só abre fontes de dentro da pasta de estudos', async () => {
+    const vault = fixture()
+    mkdirSync(join(vault, 'study sources'))
+    writeFileSync(join(vault, 'study sources', 'a.md'), 'x')
+    writeFileSync(join(vault, 'segredo.md'), 'x')
+    const library = new StudyLibrary(vault)
+    expect(library.sourcePath('study sources/a.md')).toBe(join(realpathSync(vault), 'study sources', 'a.md'))
+    expect(() => library.sourcePath('segredo.md')).toThrow(/pasta local de estudos/)
+    expect(() => library.sourcePath('study sources/../segredo.md')).toThrow(/pasta local de estudos/)
   })
 })

@@ -1,0 +1,145 @@
+/* Cora's ranked sources (Pedir fontes, end of the diagnosis) and the study trail board in Bonnie's office. */
+
+.study-library-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.study-library-tab {
+  padding: 5px 10px;
+  border: 2px solid var(--ctl-line);
+  background: var(--surface-3);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.study-library-tab[aria-selected='true'] {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent-hi);
+}
+
+.study-sources-list {
+  margin: 0;
+  padding: 0 0 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.study-source {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--sunken);
+  border-left: 3px solid var(--ctl-line);
+}
+
+.study-source-5 {
+  border-left-color: var(--accent);
+}
+
+.study-source-4 {
+  border-left-color: var(--blue);
+}
+
+.study-source-line {
+  line-height: 1.6;
+}
+
+.study-source-line .study-source-level {
+  display: inline-block;
+  margin-left: 6px;
+}
+
+.study-source-range {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.study-source-snippet {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.study-source-level,
+.trail-state-current,
+.trail-state-kept,
+.trail-state-completed,
+.trail-state-new {
+  padding: 1px 7px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Never color alone: every level and state carries its name. */
+.study-source-level-5,
+.tk-state.trail-state-current {
+  background: var(--accent-bg);
+  color: var(--accent-hi);
+}
+
+.study-source-level-4,
+.tk-state.trail-state-completed {
+  background: var(--info-bg);
+  color: var(--blue);
+}
+
+.study-source-level-3 {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.study-source-level-2,
+.tk-state.trail-state-kept {
+  background: var(--warn-bg);
+  color: var(--amber-text);
+}
+
+.study-source-level-1,
+.tk-state.trail-state-new {
+  background: transparent;
+  border: 1px dashed var(--ctl-line);
+  color: var(--muted);
+}
+
+.study-gap-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tcard.tk-card.trail-current {
+  box-shadow:
+    inset 4px 0 0 var(--accent),
+    var(--shadow-sm);
+}
+
+.trail-completed .tk-title,
+.trail-checked .tk-title {
+  color: var(--muted);
+}
+
+.trail-lname {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.trail-detail {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.trail-id {
+  font-family: var(--mono);
+}

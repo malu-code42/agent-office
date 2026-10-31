@@ -12,6 +12,8 @@ import { LUNA_PROMPT } from '../luna-prompt'
 import { LUNA_SERVER } from '../luna-tools'
 import { emiPrompt } from '../emi-prompt'
 import { EMI_SERVER } from '../emi-tools'
+import { BONNIE_PROMPT } from '../bonnie-prompt'
+import { BONNIE_BLOCKED_TOOLS, BONNIE_SERVER } from '../bonnie-tools'
 import { claudeNotFoundMessage } from '../claude-messages'
 import { findClaude } from '../claude-path'
 import { findSquad, memberAgents, orchestratorPrompt, teamGuard, validateSquad, type SquadDefinition } from '../squads'
@@ -91,7 +93,7 @@ export abstract class AgentSdk extends AgentOffice {
     if (this.overBudget(agent)) return
     const wt = s.worktree
     const luna = s.builtIn === 'luna'
-    const workDir = luna ? this.lunaHome() : (wt?.path ?? s.cwd)
+    const workDir = luna ? this.lunaHome() : s.builtIn === 'bonnie' ? this.bonnieHome() : (wt?.path ?? s.cwd)
     if (wt && !existsSync(workDir)) {
       this.deliver(agent, {
         text: `A cópia isolada (worktree) deste agente não existe mais: \`${wt.root}\`.\n\nDispense o agente e contrate outro; o branch \`${wt.branch}\` continua no repositório se tiver commits.`,
@@ -132,6 +134,7 @@ export abstract class AgentSdk extends AgentOffice {
     const wt = s.worktree
     const luna = s.builtIn === 'luna'
     const emiFloor = s.builtIn === 'emi' ? this.store.settings.projects.find((p) => p.id === s.project) : undefined
+    const bonnie = s.builtIn === 'bonnie'
     const before = s.account
     const paused = s.quotaPaused
     let account: ReturnType<NonNullable<typeof this.accounts>['get']>
@@ -191,12 +194,15 @@ export abstract class AgentSdk extends AgentOffice {
         // salva de fora não executa antes do canUseTool — quem decide aqui é o Office.
         settingSources: [],
         // Plugins (caveman, context-mode…) and the chosen skills come in explicitly instead (#106).
-        plugins: agentPlugins(
-          join(homedir(), '.claude'),
-          join(this.store.dataDirectory, 'agent-skills'),
-          limits.agentPluginsOff ?? [],
-          limits.agentSkills ?? [],
-        ),
+        // Bonnie gets none: a plugin's tools (context-mode reads files) would reach past her study tools.
+        plugins: bonnie
+          ? []
+          : agentPlugins(
+              join(homedir(), '.claude'),
+              join(this.store.dataDirectory, 'agent-skills'),
+              limits.agentPluginsOff ?? [],
+              limits.agentSkills ?? [],
+            ),
         // Subagent text comes too (not only tools), for the helper's own log (AO-46).
         forwardSubagentText: true,
         allowDangerouslySkipPermissions: s.permissionMode === 'bypassPermissions',
@@ -204,26 +210,31 @@ export abstract class AgentSdk extends AgentOffice {
         ...(budget !== undefined ? { maxBudgetUsd: budget } : {}),
         ...(agent.started ? { resume: s.sessionId } : { sessionId: s.sessionId }),
         ...(luna ? { additionalDirectories: this.lunaRoots().filter((dir) => dir !== workDir) } : {}),
+        // #75/#90: Bonnie talks through her study tools only; file, shell and web tools are not hers.
+        ...(bonnie ? { disallowedTools: [...BONNIE_BLOCKED_TOOLS] } : {}),
         systemPrompt: {
           type: 'preset',
           preset: 'claude_code',
           append: luna
             ? LUNA_PROMPT
-            : emiFloor
-              ? emiPrompt(emiFloor)
-              : `Your name in this office is ${s.name}. Your final message for each task is handed to the user in person as a report: ` +
-                'open with the outcome in one or two sentences, then list the key details. Reply in the language the user wrote in. ' +
-                'The office has a kanban board of tickets (keys like AO-12); use the mcp__office__ tools to read, open, comment on and move tickets when asked or when you are working on one.' +
-                (wt
-                  ? `\n\nYou work in your own git worktree at ${wt.root} on branch ${wt.branch}, so other agents never touch your files. ` +
-                    `Make every change here; do not edit the main checkout at ${wt.repo}. The user reviews, commits and opens the pull request from the office.`
-                  : '') +
-                (squad ? `\n\n${orchestratorPrompt(squad)}` : ''),
+            : bonnie
+              ? BONNIE_PROMPT
+              : emiFloor
+                ? emiPrompt(emiFloor)
+                : `Your name in this office is ${s.name}. Your final message for each task is handed to the user in person as a report: ` +
+                  'open with the outcome in one or two sentences, then list the key details. Reply in the language the user wrote in. ' +
+                  'The office has a kanban board of tickets (keys like AO-12); use the mcp__office__ tools to read, open, comment on and move tickets when asked or when you are working on one.' +
+                  (wt
+                    ? `\n\nYou work in your own git worktree at ${wt.root} on branch ${wt.branch}, so other agents never touch your files. ` +
+                      `Make every change here; do not edit the main checkout at ${wt.repo}. The user reviews, commits and opens the pull request from the office.`
+                    : '') +
+                  (squad ? `\n\n${orchestratorPrompt(squad)}` : ''),
         },
         ...(squad ? { agents: memberAgents(squad) } : {}),
         hooks: { PreToolUse: [...(squad ? teamGuard(squad) : []), this.helperCapHook(agent, helperMax)] },
         mcpServers: {
-          ...(this.officeTools ? { office: this.officeTools(s) } : {}),
+          ...(this.officeTools && !bonnie ? { office: this.officeTools(s) } : {}),
+          ...(bonnie && this.bonnieTools ? { [BONNIE_SERVER]: this.bonnieTools() } : {}),
           ...(luna && this.lunaTools ? { [LUNA_SERVER]: this.lunaTools() } : {}),
           ...(emiFloor && this.emiTools ? { [EMI_SERVER]: this.emiTools(emiFloor.id) } : {}),
         },

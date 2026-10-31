@@ -340,8 +340,11 @@ export class Hud {
       return rosterRank(a, items.permissions.length + items.results.length > 0)
     }
     // Each floor has its Emi: the roster shows only the one of the floor you are on (or one waiting on you).
+    // Bonnie lives on the study floor (the one over the project floors) and shows there, or when she waits on you.
+    const studyFloor = this.state.settings.projects.length + 1
     const agents = [...this.state.agents.values()]
       .filter((a) => a.builtIn !== 'emi' || this.state.floorOf(a) === this.floor || rank(a) === 0)
+      .filter((a) => a.builtIn !== 'bonnie' || this.floor === studyFloor || rank(a) === 0)
       .sort((a, b) => rank(a) - rank(b) || a.desk - b.desk)
     const working = agents.filter((a) => a.status === 'working' || a.status === 'starting').length
     const waiting = this.state.inboxCount
@@ -564,6 +567,7 @@ export class Hud {
           h('span', { class: 'name' }, a.name),
           a.builtIn === 'luna' ? h('span', { class: 'chip' }, 'Secretária') : null,
           a.builtIn === 'emi' ? h('span', { class: 'chip' }, 'Squads') : null,
+          a.builtIn === 'bonnie' ? h('span', { class: 'chip' }, 'Estudos') : null,
           a.builtIn === 'luna' && this.state.reviewDue ? h('span', { class: 'dot dot-waiting', 'aria-hidden': 'true' }) : null,
           a.source === 'terminal' ? h('span', { class: 'chip chip-term' }, 'terminal') : null,
           helpersChip(a, true),

@@ -106,7 +106,7 @@ describe('cap central de hires e summons (AO-42)', () => {
     ])
     expect(outcomes.filter((x) => x.status === 'fulfilled')).toHaveLength(1)
     expect(outcomes.filter((x) => x.status === 'rejected')).toHaveLength(1)
-    expect(manager.list()).toHaveLength(6) // Four regular agents, one temporary and the built-in Luna.
+    expect(manager.list()).toHaveLength(7) // Four regular agents, one temporary and the built-in Luna and Bonnie.
     expect(manager.list().filter((agent) => !agent.builtIn)).toHaveLength(5)
     expect(manager.list().find((agent) => agent.id === LUNA_AGENT_ID)?.name).toBe('Luna')
     expect(manager.list().filter((agent) => agent.temporary)).toHaveLength(1)

@@ -18,7 +18,9 @@ import { openGoals } from './ui/goals'
 import { openMediaLibrary } from './ui/media-library'
 import { openPersonalRoutinesPanel } from './ui/personal-routines'
 import { openWritingLibrary } from './ui/writing'
-import { openStudyCycle } from './ui/study-cycle'
+import { openStudyCycle, startStudyTopic } from './ui/study-cycle'
+import { openStudyTrailBoard } from './ui/study-trail-board'
+import { BONNIE_AGENT_ID } from '@shared/bonnie'
 import { openStudyCards } from './ui/study-cards'
 import { openStudyQuestions } from './ui/study-questions'
 import { openStudyLibrary } from './ui/study-library'
@@ -273,12 +275,15 @@ async function boot(): Promise<void> {
       }
       openCreateSquad(ui, state, { project, room, proposal: waiting, toast })
     },
-    // The study floor: Bonnie, a teacher, the blackboard and the user's desk open the study cycle; Cora and
-    // the shelves the library; the cabinet and the easel the question bank; the notes desk the cards; the
-    // schedule board its own week grid of aulas.md ("Ver na agenda" goes on to the agenda).
+    // The study floor: Bonnie opens her chat; a teacher, the blackboard and the user's desk the study cycle;
+    // the trail board in her office the trail by discipline; Cora and the shelves the library; the cabinet and
+    // the easel the question bank; the notes desk the cards; the schedule board its own week grid of aulas.md
+    // ("Ver na agenda" goes on to the agenda).
     onStudy: (act, teacher) => {
       if (teacher) toast(`${teacher.name}: cuida de ${teacher.role} no ciclo da Bonnie.`, 'info')
-      if (act === 'cycle' || act === 'bonnie' || act === 'desk') void openStudyCycle(ui, toast)
+      if (act === 'bonnie') void showAgent(BONNIE_AGENT_ID)
+      else if (act === 'trail') void openStudyTrailBoard(ui, toast, (topic) => void startStudyTopic(ui, toast, topic).then(refreshStudy))
+      else if (act === 'cycle' || act === 'desk') void openStudyCycle(ui, toast)
       else if (act === 'library' || act === 'cora') openStudyLibrary(ui, toast, studyTopic)
       else if (act === 'questions') openStudyQuestions(ui, toast)
       else if (act === 'cards') void openStudyCards(ui, toast)

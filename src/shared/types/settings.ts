@@ -26,6 +26,9 @@ export interface Settings {
   /** Emi's model and effort, the same on every project floor; empty = Claude's default. */
   emiModel: string
   emiEffort: EffortLevel | ''
+  /** Bonnie's model and effort (the study floor's director); empty = Claude's default. */
+  bonnieModel: string
+  bonnieEffort: EffortLevel | ''
   defaultPermissionMode: OfficePermissionMode
   notifications: boolean
   bridgePort: number

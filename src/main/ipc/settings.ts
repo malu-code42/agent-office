@@ -107,9 +107,11 @@ export function registerSettingsIpc(ctx: IpcContext): void {
       throw new Error('Configurações não salvas.')
     // Templates change only through saveTemplate/deleteTemplate; a removed floor turns its templates global.
     const emiBefore = `${store.settings.emiModel}|${store.settings.emiEffort}`
+    const bonnieBefore = `${store.settings.bonnieModel}|${store.settings.bonnieEffort}`
     store.settings = { ...cleaned, templates: loadTemplates(store.settings.templates, cleaned.projects) }
     manager.setLunaPreferences(store.settings)
     if (`${store.settings.emiModel}|${store.settings.emiEffort}` !== emiBefore) manager.setEmiPreferences(store.settings)
+    if (`${store.settings.bonnieModel}|${store.settings.bonnieEffort}` !== bonnieBefore) manager.setBonniePreferences(store.settings)
     const { projects, ticketAutoCloseDays } = store.settings
     broadcast({ type: 'settings', settings: store.settings })
     if (ticketAutoCloseDays !== days) board.autoClose(ticketAutoCloseDays)

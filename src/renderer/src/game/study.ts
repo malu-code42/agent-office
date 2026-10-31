@@ -29,6 +29,7 @@ const OBJECT_TAGS: [string, StudyAct][] = [
   ['Questões', 'questions'],
   ['Sua carteira', 'desk'],
   ['Notas e cartões', 'cards'],
+  ['Trilha de estudos', 'trail'],
 ]
 
 /**
@@ -68,10 +69,14 @@ export class StudyFloor {
     // a sitter's tag sits as low as Luna's (the 2D projection lifts every tag by TAG_LIFT)
     person(at(this.plan.cora.x, 0.35, this.plan.cora.z), 'Cora · bibliotecária', () => onAct('cora'))
     person(at(this.plan.bonnie.x, 0.35, this.plan.bonnie.z), 'Bonnie · diretora de estudos', () => onAct('bonnie'))
+    // Every teacher wears a tag with its role name (Tutor, Curador, Verificador, the cards pair);
+    // the role it plays in the cycle shows on hover.
     for (const t of TEACHERS) {
       const w = this.walkers.get(t.id)!
-      const tag = overlays.add(new Tag(at(w.x, 0.35, w.z), `${t.name} · ${t.role}`, false, () => onAct('cycle', t)))
-      tag.setDot('working')
+      const tag = overlays.add(new Tag(at(w.x, 0.35, w.z), t.name, false, () => onAct('cycle', t)))
+      tag.setDot('idle')
+      tag.el.classList.add('tag-mini')
+      tag.el.title = `${t.name} · ${t.role}`
       this.teacherTags.set(t.id, tag)
     }
     for (const [name, act] of OBJECT_TAGS) {
@@ -86,14 +91,14 @@ export class StudyFloor {
     this.show(false)
   }
 
-  /**
-   * The tags show only while the study floor is on screen; of the teachers, only the one
-   * giving the class (the others sit together in their room, named on hover).
-   */
+  /** The tags show only while the study floor is on screen; the teacher giving the class has a working dot. */
   show(on: boolean): void {
     this.shown = on
     for (const t of this.tags) t.hidden = !on
-    for (const [id, t] of this.teacherTags) t.hidden = !on || id !== this.inClass
+    for (const [id, t] of this.teacherTags) {
+      t.hidden = !on
+      t.setDot(id === this.inClass ? 'working' : 'idle')
+    }
   }
 
   /**

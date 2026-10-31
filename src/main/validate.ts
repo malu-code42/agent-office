@@ -241,6 +241,17 @@ export const reviewStudyGapArgsSchema = z.tuple([
   z.string().trim().min(1).max(2000),
 ])
 export const searchStudyLibraryArgsSchema = z.tuple([z.string().trim().min(1).max(200)])
+/** Cora's recommendations: one theme per request (a wrong question each, at the cycle's end). */
+export const recommendStudySourcesArgsSchema = z.tuple([z.array(z.string().trim().min(1).max(200)).min(1).max(30)])
+/** A source of a recommendation: a vault-relative path, no control characters. */
+export const openStudySourceArgsSchema = z.tuple([
+  z
+    .string()
+    .trim()
+    .min(1)
+    .max(1000)
+    .regex(/^[^\0\r\n]+$/),
+])
 export const studyLibrarySourceArgsSchema = z.tuple([
   z.string().regex(/^q-[a-z0-9-]{8,72}$/i),
   z.string().uuid(),
@@ -941,6 +952,8 @@ const settingsFields = {
   lunaLook: lookSchema,
   emiModel: z.union([z.literal(''), z.string().regex(MODEL_RE)]),
   emiEffort: z.union([z.literal(''), z.enum(EFFORT_LEVELS as [EffortLevel, ...EffortLevel[]])]),
+  bonnieModel: z.union([z.literal(''), z.string().regex(MODEL_RE)]),
+  bonnieEffort: z.union([z.literal(''), z.enum(EFFORT_LEVELS as [EffortLevel, ...EffortLevel[]])]),
   defaultPermissionMode: permissionModeSchema,
   notifications: z.boolean(),
   ticketAutoCloseDays: numberField.pipe(z.number().int().min(0).max(365)),
