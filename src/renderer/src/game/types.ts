@@ -7,6 +7,7 @@ import type { UpperFloor } from '../world/upper-floor'
 import type { ScreenMode } from '../world/screens'
 import type { HelperReturn } from './helper-return'
 import type { HomeAction } from '../world/home-layout'
+import type { StudyAct, Teacher } from '../world2d/estudos'
 
 export type Goal = 'desk' | 'boss' | 'meeting' | 'hang' | 'home' | 'leave' | 'chat'
 
@@ -156,6 +157,8 @@ export interface GameHooks {
   onMeetingRoomClick?(project: ProjectFloor): void
   /** The player clicked the elevator door on a 2D floor. */
   onElevator?(): void
+  /** The player clicked something of the study floor (a teacher opens the cycle, with who it is). */
+  onStudy?(act: StudyAct, teacher?: Teacher): void
 }
 
 /** Entry-hall tile reserved for the existing agent-routine scheduler totem, west of the hall runner. */

@@ -9,7 +9,9 @@ import { headingOf } from '../world2d/iso'
 import type { FlatFloor } from '../world2d/floor'
 import type { FlatView, Person2d } from '../world2d/renderer'
 import { agentBubble, EMI_VARIANT, LUNA_VARIANT, variantOf } from '../world2d/sprites'
+import type { StudyCycleState } from '@shared/study-cycle'
 import { GameInput } from './input'
+import { studyCycleView } from '../world2d/estudos'
 import { LOUNGE_AFTER_MS, screenMode, TAG_LIFT, type GameHooks, type Upper } from './types'
 
 export type { GameHooks } from './types'
@@ -44,6 +46,7 @@ export class Game extends GameInput {
     const view = this.player.floor
     const moving = (av: Avatar) => av.floor === view && av.isMoving
     if (moving(this.player)) return true
+    if (view === this.studyFloor && [...this.study.walkers.values()].some((w) => w.walking)) return true
     for (const a of this.actors.values()) if (moving(a.avatar)) return true
     for (const h of this.helpers.values()) if (moving(h.avatar)) return true
     for (const m of this.members.values()) if (moving(m.avatar)) return true
@@ -76,6 +79,7 @@ export class Game extends GameInput {
     // the 3D Casa (Luna's animation, the elevator doors) only moves while it is the one drawn
     if (this.visual !== '2d') this.office.update(dt)
     for (const u of this.uppers) u.scene.update(dt)
+    this.study.update(dt)
     this.boardsIn -= dt
     if (this.boardsIn <= 0) this.syncBoards()
     this.showFloor()
@@ -127,7 +131,15 @@ export class Game extends GameInput {
     const floor = up && (up.scene as UpperFloor & { flat?: FlatFloor }).flat
     this.flat2d.show(!!flat)
     this.engine.renderer.domElement.classList.toggle('hidden', !!flat)
-    const view = flat && (up && floor ? this.flatView(up, floor) : this.player.floor === 0 ? this.casaView() : null)
+    const view =
+      flat &&
+      (up && floor
+        ? this.flatView(up, floor)
+        : this.player.floor === 0
+          ? this.casaView()
+          : this.player.floor === this.studyFloor
+            ? this.studyView()
+            : null)
     if (flat && view) {
       flat.draw(view, dt)
       // tags float a little higher than in 3D: the sprite's pixel bubble sits over the head
@@ -203,6 +215,33 @@ export class Game extends GameInput {
       target: { x: this.engine.target.x, z: this.engine.target.z },
       highlight: this.casaHot,
     }
+  }
+
+  /** The study floor this frame: whoever came up, Cora, Bonnie and the teachers. */
+  private studyView(): FlatView {
+    return {
+      floor: this.study.scene.flat,
+      people: [...this.flatPeople(), ...this.study.people()],
+      desks: new Set(),
+      coordinators: [],
+      emi: null,
+      rooms: [],
+      meeting: 0,
+      hover: this.hover2d,
+      target: { x: this.engine.target.x, z: this.engine.target.z },
+      highlight: this.studyHot,
+    }
+  }
+
+  /**
+   * The study cycle changed (or was read again): the topic on the blackboard and the teacher
+   * of the turn. Off the study floor the teachers just take their places.
+   */
+  setStudyCycle(state: StudyCycleState): void {
+    const here = this.player.floor === this.studyFloor
+    const before = this.study.inClass
+    this.study.setCycle(studyCycleView(state), !here || this.reducedEffects)
+    if (here && this.study.inClass !== before) this.wake(400)
   }
 
   /** What the 2D renderer draws this frame: the people of the floor on screen and the state of its desks. */

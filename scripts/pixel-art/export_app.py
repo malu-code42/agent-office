@@ -12,6 +12,10 @@
   casa.json                the Casa's layout: furniture (the clickable pieces carry their
                            action), Luna's table and its chairs, the user's desk and chair,
                            the wall boards, walls, blocked tiles, tags and spots
+  estudos-base.png         the study floor's slab, floor, back walls, rugs, wall boards and elevator
+  estudos.json             the study floor's layout: furniture (the clickable pieces carry their
+                           action), the chairs of Cora, Bonnie, the teachers and the user,
+                           where the teacher of the turn stands, walls, blocked tiles, tags, zones
   font5.json               the plaque font
 
 Everything is placed at its final pixel position on the native canvas (736x460), so the
@@ -27,6 +31,7 @@ import furn as F
 from floorkit import SW, SH, OX, OY, TS, W, D, WALL_H, PART_H, Scene, new_layer, OAK, WALNUT, draw_floor, Layer
 import scene_projeto as P
 import scene_casa2 as C
+import scene_estudos as E
 from desks import ws_back, ws_front_x, ws_front_y
 from chars import sprite, VARIANTS, palette
 from font5 import glyph
@@ -81,6 +86,8 @@ class Capture(Scene):
     def __init__(s, L):
         super().__init__(L)
         s.rec, s.kind, s.walls = [], 'furniture', []
+        # glass walls that stand in the middle of a row or column of tiles: they block those tiles
+        s.half = []
 
     def add(s, fp, fn, shadow=False):
         super().add(fp, fn, shadow)
@@ -91,7 +98,10 @@ class Capture(Scene):
         return out
 
     def gx(s, x0, x1, yp, doors=(), **k):
-        s.walls.append({'axis': 'z', 'at': yp // TS, 'from': x0 // TS, 'to': x1 // TS, 'doors': door_tiles(doors)})
+        if yp % TS:
+            s.half.append(('z', yp // TS, x0, x1, door_tiles(doors)))
+        else:
+            s.walls.append({'axis': 'z', 'at': yp // TS, 'from': x0 // TS, 'to': x1 // TS, 'doors': door_tiles(doors)})
         kind, s.kind = s.kind, 'wall'
         super().gx(x0, x1, yp, doors, **k)
         s.kind = kind
@@ -103,7 +113,10 @@ class Capture(Scene):
         s.kind = kind
 
     def gy(s, y0, y1, xp, doors=(), **k):
-        s.walls.append({'axis': 'x', 'at': xp // TS, 'from': y0 // TS, 'to': y1 // TS, 'doors': door_tiles(doors)})
+        if xp % TS:
+            s.half.append(('x', xp // TS, y0, y1, door_tiles(doors)))
+        else:
+            s.walls.append({'axis': 'x', 'at': xp // TS, 'from': y0 // TS, 'to': y1 // TS, 'doors': door_tiles(doors)})
         kind, s.kind = s.kind, 'wall'
         super().gy(y0, y1, xp, doors, **k)
         s.kind = kind
@@ -297,6 +310,7 @@ def main():
         json.dump(layout, f, separators=(',', ':'), ensure_ascii=False)
 
     casa(L, place, items, seat)
+    estudos(L, place, items, seat)
 
     # ---------- characters, bubbles, shadow, floor tiles ----------
     for vi in range(len(VARIANTS)):
@@ -400,6 +414,95 @@ def casa(L, place, items, seat):
         'elevator': {'tile': [ex0 // TS, 1], 'point': [(ex0 + ex1) / 2 / TS, 0.45], 'door': [ex0, ex1, 40]},
     }
     with open(os.path.join(APP, 'casa.json'), 'w', encoding='utf8') as f:
+        json.dump(layout, f, separators=(',', ':'), ensure_ascii=False)
+
+
+def estudos(L, place, items, seat):
+    """estudos-base.png + estudos.json: the study floor, from scene_estudos.py."""
+    base = new_layer()
+    E.shell(base)
+    base.img.save(os.path.join(APP, 'estudos-base.png'), optimize=True)
+
+    sc = Capture(L)
+    E.hall(sc)
+    E.library_walls(sc)
+    E.library(sc)
+    for name, (x, y, w) in (('cora', E.CORA_DESK), ('bonnie', E.BONNIE_DESK)):
+        ws_front_y(sc, x, y, None, 'green', boss=True, w=w)
+        sc.rec.pop()  # the chair is a seat below
+    E.library_plant(sc)
+    E.diretoria_walls(sc)
+    E.diretoria(sc)
+    E.diretoria_front(sc, chairs=False)
+    E.teachers_walls(sc)
+    E.teachers_room(sc)
+    E.teachers_plants(sc)
+    E.classroom_front(sc)
+    E.classroom(sc, people=False)
+    E.notes_walls(sc)
+    E.notes(sc, people=False)
+    static = items('estudos', sc.take())
+    # what a click on a piece of furniture does
+    acts = {fp: 'library' for fp in E.LIB_SHELVES + [E.CLASS_SHELF, E.NOTE_SHELF]}
+    acts.update({E.BOARD: 'cycle', E.STUDENT_DESK: 'desk', E.POSTER: 'questions', E.PROF_CABINET: 'questions',
+                 E.NOTES_DESK: 'cards', E.CARDS_TABLE: 'cards'})
+    acts.update({fp: 'cards' for fp in E.NOTE_CABINETS})
+    for name, (x, y, w) in (('cora', E.CORA_DESK), ('bonnie', E.BONNIE_DESK)):
+        acts[(x, y, x + w, y + 14)] = name
+    for it in static:
+        act = acts.get(tuple(it['fp']))
+        if act:
+            it['act'] = act
+
+    def box(fn):
+        img, bx, by = render(L, fn)
+        return [bx, by, img.width, img.height]
+
+    # the class schedule hangs on the west wall: drawn in the base, clicked by its box
+    hot = [{'act': 'schedule', 'box': box(lambda: E.schedule(L))}]
+    # half walls block the tiles they stand on, but their doors
+    half = set()
+    for axis, at, a, b, doors in sc.half:
+        for i in range(a // TS, -(-b // TS)):
+            if i not in doors:
+                half.add((at, i) if axis == 'x' else (i, at))
+    blocked = sorted(set(map(tuple, blocked_by([it['fp'] for it in static if not it.get('wall')]))) | half)
+
+    def wood(name, spots):
+        return [seat(f'estudos/{name}{i}', x, y, face, wood=True) for i, (x, y, face) in enumerate(spots)]
+
+    cx, cy, cw = E.CORA_DESK
+    bx, by, bw = E.BONNIE_DESK
+    sx, sy, sface = E.STUDENT_SEAT
+    tx, ty = E.TUTOR_AT
+    d0 = E.STUDENT_DESK
+    ex0, ex1 = E.ELEVATOR
+    layout = {
+        'tile': TS,
+        'size': [W // TS, D // TS],
+        'canvas': [SW, SH],
+        'origin': [OX, OY],
+        'base': 'estudos-base.png',
+        'static': static,
+        'walls': sc.walls,
+        'blocked': [list(t) for t in blocked],
+        'hot': hot,
+        # HTML tags over the clickable things: art units x, y and height
+        'tags': {
+            'Biblioteca': [72, 4, 40], 'Tópico atual': [126, 152, 46], 'Horário de aula': [0, 188, 46],
+            'Questões': [163, 153, 34], 'Sua carteira': [148, 212, 26], 'Notas e cartões': [316, 212, 26],
+        },
+        'cora': seat('estudos/cora', cx + cw - 13, cy - 12, '+y'),
+        'bonnie': seat('estudos/bonnie', bx + bw - 13, by - 12, '+y'),
+        'visitors': wood('visit', E.VISIT_SEATS),
+        'teachers': wood('teacher', E.TEACHER_SEATS),
+        'student': {'seat': seat('estudos/student', sx, sy, sface), 'desk': list(d0)},
+        'notes': wood('notes', [E.NOTE_SEAT])[0],
+        'class': {'at': [tx, ty], 'look': [(d0[0] + d0[2]) / 2, (d0[1] + d0[3]) / 2]},
+        'zones': [{'name': n, 'rect': list(r)} for n, r in E.ZONES],
+        'elevator': {'tile': [ex0 // TS, 1], 'point': [(ex0 + ex1) / 2 / TS, 0.45], 'door': [ex0, ex1, 40]},
+    }
+    with open(os.path.join(APP, 'estudos.json'), 'w', encoding='utf8') as f:
         json.dump(layout, f, separators=(',', ':'), ensure_ascii=False)
 
 

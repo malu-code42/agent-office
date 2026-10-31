@@ -479,7 +479,8 @@ export class Hud {
       })
       .reverse()
     const add =
-      names.length - 1 < MAX_PROJECT_FLOORS
+      // the study floor (2D) is not a project floor
+      this.state.settings.projects.length < MAX_PROJECT_FLOORS
         ? h(
             'button',
             {

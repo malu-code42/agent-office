@@ -7,6 +7,7 @@ import type { UpperFloor } from '../world/upper-floor'
 import type { Office } from '../world/office'
 import { PROJECT_LAYOUT } from './atlas'
 import type { CasaFlat, CasaLayout } from './casa'
+import type { EstudosFlat, EstudosLayout } from './estudos'
 import { grid2d, slotOfDesk, type CrtState, type ProjectLayout } from './layout'
 
 /** The monitor colour of a desk in the 2D art for what its agent is doing. */
@@ -106,5 +107,26 @@ export function buildCasa2d(layout: CasaLayout): Office & { flat: CasaFlat } {
     ding() {},
     setFloors() {},
     flat: { kind: 'casa', layout },
+  }
+}
+
+/**
+ * The study floor of the 2D world, shaped like a floor so the game logic runs unchanged: the
+ * grid comes from the pixel-art layout; it has no desks of agents, spending board or alarm.
+ */
+export function buildEstudos2d(layout: EstudosLayout): Office & { flat: EstudosFlat } {
+  const inert = { group: new THREE.Group(), anchor: new THREE.Object3D(), set() {}, update() {} }
+  return {
+    group: new THREE.Group(),
+    grid: grid2d(layout),
+    floor: new THREE.Mesh(),
+    deskScreens: [],
+    money: inert,
+    alarm: { ...inert, on: false, setOn() {} },
+    reducedMotion: false,
+    update() {},
+    ding() {},
+    setFloors() {},
+    flat: { kind: 'estudos', layout },
   }
 }

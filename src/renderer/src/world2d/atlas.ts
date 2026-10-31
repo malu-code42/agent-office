@@ -5,7 +5,10 @@ import projectBaseUrl from '../assets/pixel/project-base.png'
 import projectData from '../assets/pixel/project.json'
 import casaBaseUrl from '../assets/pixel/casa-base.png'
 import casaData from '../assets/pixel/casa.json'
+import estudosBaseUrl from '../assets/pixel/estudos-base.png'
+import estudosData from '../assets/pixel/estudos.json'
 import type { CasaLayout } from './casa'
+import type { EstudosLayout } from './estudos'
 import type { ProjectLayout } from './layout'
 import { recolour, recolourMap, skinKey, type Palette } from './skins'
 
@@ -13,6 +16,8 @@ import { recolour, recolourMap, skinKey, type Palette } from './skins'
 export const PROJECT_LAYOUT = projectData as unknown as ProjectLayout
 /** The Casa (ground floor) exported by scripts/pixel-art/export_app.py. */
 export const CASA_LAYOUT = casaData as unknown as CasaLayout
+/** The study floor exported by scripts/pixel-art/export_app.py. */
+export const ESTUDOS_LAYOUT = estudosData as unknown as EstudosLayout
 
 const DATA = atlasData as unknown as {
   frames: Record<string, [number, number, number, number]>
@@ -27,7 +32,11 @@ const SKINS_MAX = 96
 export class Atlas {
   readonly image = new Image()
   /** The base image of each floor, by the name its layout gives. */
-  readonly bases: Record<string, HTMLImageElement> = { 'project-base.png': new Image(), 'casa-base.png': new Image() }
+  readonly bases: Record<string, HTMLImageElement> = {
+    'project-base.png': new Image(),
+    'casa-base.png': new Image(),
+    'estudos-base.png': new Image(),
+  }
   readonly frames = DATA.frames
   /** Where a bubble's tail tip or the shadow's centre is, inside its frame. */
   readonly anchors = DATA.anchors
@@ -49,6 +58,7 @@ export class Atlas {
       load(this.image, atlasUrl),
       load(this.bases['project-base.png'], projectBaseUrl),
       load(this.bases['casa-base.png'], casaBaseUrl),
+      load(this.bases['estudos-base.png'], estudosBaseUrl),
     ]).then(() => this.readPixels())
   }
 

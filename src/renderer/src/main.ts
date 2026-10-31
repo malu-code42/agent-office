@@ -18,6 +18,10 @@ import { openGoals } from './ui/goals'
 import { openMediaLibrary } from './ui/media-library'
 import { openPersonalRoutinesPanel } from './ui/personal-routines'
 import { openWritingLibrary } from './ui/writing'
+import { openStudyCycle } from './ui/study-cycle'
+import { openStudyCards } from './ui/study-cards'
+import { openStudyQuestions } from './ui/study-questions'
+import { openStudyLibrary } from './ui/study-library'
 import { openTasksBoard } from './ui/tasks-board'
 import { openFocusPopup } from './ui/focus-popup'
 import { openTimerPopup } from './ui/timer-popup'
@@ -217,7 +221,10 @@ async function boot(): Promise<void> {
     },
     onSkull: () => openSkull(ui, state, dismiss),
     onComputer: () => void newAgent('summon'),
-    onFloor: (n) => hud.setFloors(game.floors, n),
+    onFloor: (n) => {
+      hud.setFloors(game.floors, n)
+      if (n === game.studyFloor) refreshStudy()
+    },
     // the elevator door of a 2D floor: the elevator panel takes the keyboard
     onElevator: () => document.querySelector<HTMLElement>('[data-tour="floors"] button')?.focus(),
     onTv: () => void radio.toggle(),
@@ -264,6 +271,16 @@ async function boot(): Promise<void> {
         return
       }
       openCreateSquad(ui, state, { project, room, proposal: waiting, toast })
+    },
+    // The study floor: Bonnie, a teacher, the blackboard and the user's desk open the study cycle; Cora and
+    // the shelves the library; the cabinet and the easel the question bank; the notes desk the cards.
+    onStudy: (act, teacher) => {
+      if (teacher) toast(`${teacher.name}: cuida de ${teacher.role} no ciclo da Bonnie.`, 'info')
+      if (act === 'cycle' || act === 'bonnie' || act === 'desk') void openStudyCycle(ui, toast)
+      else if (act === 'library' || act === 'cora') openStudyLibrary(ui, toast, studyTopic)
+      else if (act === 'questions') openStudyQuestions(ui, toast)
+      else if (act === 'cards') void openStudyCards(ui, toast)
+      else if (act === 'schedule') openAgenda(ui)
     },
     onMeetingRoomClick: (project) => {
       const pending = latestProjectResult(project.id, state.agents.values(), state.results.values())
@@ -451,6 +468,25 @@ async function boot(): Promise<void> {
   }
 
   hud.setFloors(game.floors, game.currentFloor)
+
+  /**
+   * The study floor follows the study cycle (the teacher of the turn, the topic on the board):
+   * read at start, when the player gets there and every few seconds while they are there.
+   */
+  let studyTopic = ''
+  function refreshStudy(): void {
+    window.office
+      .readStudyCycle()
+      .then((s) => {
+        studyTopic = s.cycles.find((c) => c.id === s.activeId)?.topic ?? ''
+        game.setStudyCycle(s)
+      })
+      .catch(() => undefined)
+  }
+  refreshStudy()
+  setInterval(() => {
+    if (game.currentFloor === game.studyFloor) refreshStudy()
+  }, 4000)
   mountUpdateNotice(ui)
 
   // Configurações → Vídeo (AO-32): shadows and effects apply live; on battery, Economia if asked.
