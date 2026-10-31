@@ -24,7 +24,8 @@ export class AgentPanel extends PanelComposer {
       this.feed.replaceChildren()
       this.lastTool = null
       this.log = log
-      this.from = Math.max(0, log.length - FEED_MAX)
+      this.from = Math.max(this.floor, log.length - FEED_MAX)
+      this.lastEntry = undefined
       for (const e of log.slice(this.from)) this.append(e, false)
       this.feed.scrollTop = this.feed.scrollHeight
       this.stickToBottom = true

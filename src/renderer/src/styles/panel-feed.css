@@ -68,6 +68,7 @@
   transform: rotate(90deg);
 }
 
+.panel-feed > .entry-dup,
 .panel-feed[data-filter='msg'] > .entry:not([data-cat~='msg']),
 .panel-feed[data-filter='tool'] > .entry:not([data-cat~='tool']),
 .panel-feed[data-filter='err'] > .entry:not([data-cat~='err']) {
