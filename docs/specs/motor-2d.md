@@ -38,8 +38,8 @@ andar, Look, uniforme, tamanho e "caído". Nada de three.js.
 ### Entrada
 
 `game/input.ts` pergunta ao renderer: arrastar move a câmera (presa ao andar), roda/zoom do HUD troca 1×/2×/3×,
-clique acerta pessoa (pixel pintado do sprite, a da frente primeiro, escala dos ajudantes considerada), placa de
-sala, placa da reunião, Emi, móveis clicáveis da Casa e do andar de estudos, porta do elevador ou o chão.
+clique acerta pessoa (pixel pintado do sprite, a da frente primeiro, escala dos ajudantes considerada), parede do
+fundo de uma sala de squad, mesa da reunião, Emi, móveis clicáveis da Casa e do andar de estudos, porta do elevador ou o chão.
 
 ## A Casa (fase 2)
 
@@ -71,7 +71,14 @@ sala, placa da reunião, Emi, móveis clicáveis da Casa e do andar de estudos, 
   (Economia na bateria ou `prefers-reduced-motion`), sem animação.
 - **Portas do elevador**: cada `ding` abre as portas daquele andar (meio aberta 0,12 s, aberta até 1,5 s, meio
   aberta, fechada); quadros `elevator.open` em cada layout, desenhados por cima da base.
-- **Descanso no sofá**: quem descansa (`relax`) num canto `sit` da Casa aparece sentado de costas no sofá.
+- **Descanso no sofá**: quem descansa (`relax`) num canto `sit` da Casa aparece sentado de costas no sofá. Atingido
+  pela Caveira ali, vai antes para o piso livre mais perto (`game/strike-spot.ts`) e cai no chão, não no sofá.
+- **Sem placas no chão**: o nome da sala, da reunião, da diretoria e do lounge aparece como dica ao passar o mouse;
+  a sala de squad abre pela parede do fundo e a reunião pela mesa.
+- **Emi**: mesa virada para a parede do fundo (ela de costas, ao sul da mesa; visitas ao norte), tag de nome e
+  status como a de qualquer agente (clique abre o chat) e visual fixo `EMI_LOOK`.
+- **Mesas 5 e 6** de cada sala de squad ficam na parede do fundo, atrás do coordenador (a estante foi para o meio
+  dessa parede): as seis mesas bloqueiam o tile delas e as fileiras do meio ficam livres da porta até o coordenador.
 - **Caveira**: como era no 3D: a caveira cai sobre o agente, ri parada no ar, mergulha; fumaça roxa, o agente cai
   (`char/<v>/down`), "x_x", e um fantasma sobe e some. Tudo dirigido pelo `update(dt)` (`game/skull.ts`, `fx`),
   com os sons de `game/sfx.ts`.
@@ -125,10 +132,7 @@ máximo 96 (o cache é limpo ao chegar nisso), então agentes, caveira e roupa s
 
 - No andar de estudos: os professores são fixos (não são agentes); o da vez fica de pé, sem gesto; a etapa só é
   relida a cada 4 s; as 9 estantes abrem a mesma busca; Cora e Bonnie não conversam nem andam.
-- Na Casa: agentes sem projeto e sem casa esperam no hall (sem mesa); quem é derrubado no sofá cai por cima dele.
+- Na Casa: agentes sem projeto e sem casa esperam no hall (sem mesa).
 - Só os quatro balões em pixel art (`... ! ? ok`); o diamante da conta e a aura de esforço do 3D não existem no 2D
   (a conta segue no chip da tag quando há mais de uma).
-- O cache de placas (`plaques`) guarda um canvas por texto já visto (ex.: "Sala de reunião · N em reunião");
-  pequeno, mas sem teto.
-- As mesas 5 e 6 de uma sala ficam no corredor do meio e não bloqueiam a passagem.
 - Agentes individuais sentam nas mesas livres das salas de squad, até 10; os demais ficam de pé no lounge.

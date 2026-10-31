@@ -3,7 +3,6 @@ import { SQUAD_MAX_MEMBERS } from '@shared/types'
 import { AGENT_DESK_COUNT } from '../src/renderer/src/world2d/plan'
 import layoutData from '../src/renderer/src/assets/pixel/project.json'
 import { behind, depthSort, type Footprint } from '../src/renderer/src/world2d/depth'
-import { plaqueLeft, plaqueSize, ringColors, textWidth } from '../src/renderer/src/world2d/font'
 import { topmost } from '../src/renderer/src/world2d/hit'
 import {
   artToScreen,
@@ -13,6 +12,7 @@ import {
   fitZoom,
   floorBounds,
   headingOf,
+  onWestWall,
   toFloor,
   toScreen,
 } from '../src/renderer/src/world2d/iso'
@@ -73,6 +73,14 @@ describe('iso', () => {
     expect(fitZoom(b, { w: 1424, h: 835 }, 1)).toBe(2)
     expect(fitZoom(b, { w: 800, h: 600 }, 1)).toBe(1)
     expect(fitZoom(b, { w: 2200, h: 1300 }, 1)).toBe(3)
+  })
+
+  it('acha a parede do fundo de uma sala (onde ela é clicável)', () => {
+    // the west wall at y = 40 art units, 20 up
+    const p = { x: ORIGIN[0] - 40, y: ORIGIN[1] + 20 - 20 }
+    expect(onWestWall(ORIGIN, p, 0, 96, 56)).toBe(true)
+    expect(onWestWall(ORIGIN, p, 96, 192, 56)).toBe(false)
+    expect(onWestWall(ORIGIN, { x: p.x, y: p.y - 60 }, 0, 96, 56)).toBe(false)
   })
 
   it('a câmera fica no andar e centraliza quando ele cabe', () => {
@@ -163,6 +171,27 @@ describe('layout 2D do andar de projeto', () => {
     }
   })
 
+  it('as seis mesas de cada sala bloqueiam o próprio tile e deixam livre o corredor da porta até o coordenador', () => {
+    const grid = grid2d(LAYOUT)
+    const plan = projectPlan2d(LAYOUT, [squad('sala-1', 6), squad('sala-2', 6), squad('sala-3', 6)])
+    for (const room of plan.rooms) {
+      const z0 = room.rect[1]
+      expect(room.desks).toHaveLength(6)
+      // every desk is furniture now, members 5 and 6 included
+      for (const desk of room.desks)
+        expect(grid.walkable(Math.floor(desk.center!.x), Math.floor(desk.center!.z)), `mesa ${desk.index}`).toBe(false)
+      // the middle rows, from the door (x 8) to the delivery column (x 3), stay free
+      for (let x = 3; x <= 8; x++) for (const z of [z0 + 2, z0 + 3]) expect(grid.walkable(x, z), `${x},${z}`).toBe(true)
+      // no two sitters share a tile: members, coordinator and the inline member beside it
+      const spots = [...room.desks.map((d) => d.approach), room.coordinator.approach, room.coordinator.sideApproach].map(
+        ([x, z]) => `${x},${z}`,
+      )
+      expect(new Set(spots).size).toBe(spots.length)
+      // nobody's chair stands in the aisle
+      for (const desk of room.desks) expect([z0 + 2, z0 + 3]).not.toContain(desk.approach[1])
+    }
+  })
+
   it('não atravessa as paredes de vidro fora das portas', () => {
     const grid = grid2d(LAYOUT)
     // squad room 1 east wall: closed at row 0, a door at rows 2 and 3
@@ -229,19 +258,7 @@ describe('projectPlan2d', () => {
   })
 })
 
-describe('placas e sprites', () => {
-  it('mede o texto como a fonte do gerador', () => {
-    expect(textWidth('II')).toBe(2 * textWidth('I') + 1)
-    expect(plaqueSize('Sala 1').h).toBe(11)
-    expect(plaqueSize('Coordenação').h).toBe(13) // ç hangs below the line
-    expect(plaqueLeft(100, 'Sala 1')).toBe(Math.trunc(100 - plaqueSize('Sala 1').w / 2))
-  })
-
-  it('o anel da placa é mais claro em cima e à esquerda', () => {
-    const { lit, shade } = ringColors()
-    expect(lit[0]).toBeGreaterThan(shade[0])
-  })
-
+describe('sprites', () => {
   it('o penteado do visual escolhe o sprite; Luna e Emi têm o seu', () => {
     const look = { skin: '#f7d7b5', hair: '#3a3340', hairStyle: 2, shirt: '#86acd8', pants: '#4f5873', shoes: '#5a4038' }
     expect(variantOf(look)).toBe(variantOf({ ...look, shirt: '#000000', hair: '#ffffff' }))

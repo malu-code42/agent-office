@@ -10,20 +10,25 @@ def _led(L, x, y, z, state):
     L.dot(*[int(v) for v in L.P(x, y, z)], G.LED[state])
 
 
-def ws_back(sc, x, y, vi, state, extra='mug', head=None):
-    """desk long along y at (x,y) 14x26; agent east of it, facing -x (BL)."""
+def ws_back(sc, x, y, vi, state, extra='mug', head=None, boss=False, d_=26):
+    """desk long along y at (x,y) 14 x d_; agent east of it, facing -x (BL), at the middle of the desk."""
     L = sc.L
+    o = (d_ - 26) // 2
+    z = 13 if boss else 12
 
     def d():
-        F.desk(L, x, y, 14, 26)
-        F.crt(L, x + 1, y + 1, 12, '+x', state)
-        F.keyboard(L, x + 10, y + 3, 12, 'y')
+        if boss:
+            G.boss_desk(L, x, y, 14, d_)
+        else:
+            F.desk(L, x, y, 14, d_)
+        F.crt(L, x + 1, y + o + 1, z, '+x', state)
+        F.keyboard(L, x + 10, y + o + 3, z, 'y')
         if extra == 'mug':
-            F.mug(L, x + 4, y + 19, 12)
+            F.mug(L, x + 4, y + o + 19, z)
         elif extra == 'papers':
-            F.papers(L, x + 4, y + 18, 12)
-    sc.add((x, y, x + 14, y + 26), d, True)
-    cx, cy = x + 16, y + 3
+            F.papers(L, x + 4, y + o + 18, z)
+    sc.add((x, y, x + 14, y + d_), d, True)
+    cx, cy = x + 16, y + o + 3
 
     def c():
         F.chair(L, cx, cy, '-x', 'seat')
@@ -86,3 +91,34 @@ def ws_front_x(sc, x, y, vi, state, boss=True, d_=34, head=None):
     sc.add((cx, cy, cx + 10, cy + 10), c)
     if head:
         px, py = L.P(cx + 5, cy + 5, 7); sc.heads[head] = (int(px) + 3 * L.S, int(py) - 24 * L.S)
+
+
+def ws_back_y(sc, x, y, vi, state, extra='papers', head=None, boss=False, w=34):
+    """desk long along x at (x,y) w x 14; agent south of it facing -y (BR), at its middle; the CRT faces the agent."""
+    L = sc.L
+    z = 13 if boss else 12
+    m = x + w // 2
+
+    def d():
+        if boss:
+            G.boss_desk_y(L, x, y, w, 14)
+        else:
+            F.desk(L, x, y, w, 14)
+        F.crt(L, m - 7, y + 1, z, '+y', state)
+        F.keyboard(L, m - 5, y + 10, z)
+        if extra == 'mug':
+            F.mug(L, x + 4, y + 4, z)
+        elif extra == 'papers':
+            F.papers(L, x + 3, y + 5, z)
+    sc.add((x, y, x + w, y + 14), d, True)
+    cx, cy = m - 5, y + 16
+
+    def c():
+        F.chair(L, cx, cy, '-y', 'seat')
+        if vi is not None:
+            F.seated(L, sprite(vi, 'BR', 'sitB'), cx, cy)
+        F.chair(L, cx, cy, '-y', 'back')
+    sc.add((cx, cy, cx + 10, cy + 10), c)
+    if head:
+        px, py = L.P(cx + 5, cy + 5, 7); sc.heads[head] = (int(px) + 3 * L.S, int(py) - 24 * L.S)
+    return cx, cy

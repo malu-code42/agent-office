@@ -243,7 +243,7 @@ export abstract class GameInput extends GameMovement {
     const tz = p ? Math.floor(p.z) : -1
     this.hover2d = !over && grid.inside(tx, tz) ? { x: tx, z: tz, ok: grid.walkable(tx, tz) } : null
     document.body.style.cursor = over ? 'pointer' : ''
-    let title = ''
+    let title: string
     // the Casa has no plates on the floor: the name of the place (or what a click does) on hover
     if (this.player.floor === 0) {
       this.casaHot = over?.kind === 'casa' ? over.act : null
@@ -271,6 +271,9 @@ export abstract class GameInput extends GameMovement {
               : over || !grid.inside(tx, tz)
                 ? ''
                 : (studyZoneAt(this.study.layout, tx, tz) ?? '')
+    } else {
+      // a project floor has no plates either: the room under the pointer names itself
+      title = over?.kind === 'person' ? '' : (flat.roomAt(x, y) ?? '')
     }
     if (flat.canvas.title !== title) flat.canvas.title = title
   }

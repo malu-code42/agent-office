@@ -78,3 +78,10 @@ export function clampCenter(c: Px, bounds: readonly [number, number, number, num
     b - a <= view ? (a + b) / 2 : Math.min(b - view / 2, Math.max(a + view / 2, v))
   return { x: axis(c.x, bounds[0], bounds[2], viewArt.w), y: axis(c.y, bounds[1], bounds[3], viewArt.h) }
 }
+
+/** True when an art pixel falls on the west back wall (x = 0) between y0 and y1 (art units). */
+export function onWestWall(origin: readonly [number, number], p: Px, y0: number, y1: number, h: number): boolean {
+  const y = origin[0] - p.x
+  const z = origin[1] + y / 2 - p.y
+  return y >= y0 && y < y1 && z >= 0 && z <= h
+}

@@ -3,7 +3,7 @@ import type { State } from '../../state'
 import { unresolvedBlockerIds } from '@shared/ticket-blockers'
 import { h } from '../dom'
 import { cleanError, field, modal } from './common'
-import { MODES } from './brain'
+import { modeOptions, MODES } from './brain'
 
 // "Contratar squad": start a squad cycle on a project floor.
 
@@ -123,9 +123,13 @@ export function openRunSquad(
   })
   const invalidCards = unavailable.map(recoveryCard)
 
-  const mode = h('select', { class: 'input' }, ...RUN_MODES.map((m) => h('option', { value: m.value }, m.label)))
   const saved = localStorage.getItem(LAST_RUN_MODE)
   const inheritedMode = project.permissionMode ?? state.settings.defaultPermissionMode
+  const mode = h(
+    'select',
+    { class: 'input' },
+    ...modeOptions(RUN_MODES, RUN_MODES.some((m) => m.value === inheritedMode) ? inheritedMode : 'default'),
+  )
   mode.value = RUN_MODES.some((m) => m.value === saved)
     ? saved!
     : RUN_MODES.some((m) => m.value === inheritedMode)
@@ -155,7 +159,13 @@ export function openRunSquad(
       'div',
       { class: 'squad-queue-ticket' },
       h('span', {}, h('b', {}, `${t.key} · `), t.title),
-      blockers.length ? h('span', { class: 'squad-queue-blocked' }, `Bloqueado por ${blockers.map((blockerId) => state.tickets.get(blockerId)?.key ?? blockerId).join(', ')}`) : null,
+      blockers.length
+        ? h(
+            'span',
+            { class: 'squad-queue-blocked' },
+            `Bloqueado por ${blockers.map((blockerId) => state.tickets.get(blockerId)?.key ?? blockerId).join(', ')}`,
+          )
+        : null,
     )
   }
   const paintQueue = async () => {
@@ -187,12 +197,15 @@ export function openRunSquad(
               const retry = h('button', { class: 'btn btn-primary', type: 'button' }, 'Tentar publicar novamente')
               retry.addEventListener('click', () => {
                 retry.disabled = true
-                void window.office.retrySquadPublication(codeAtRequest).catch((err: unknown) => {
-                  window.office.reportError({ kind: 'rejection', message: err instanceof Error ? err.message : String(err) })
-                }).finally(() => {
-                  retry.disabled = false
-                  void paintQueue()
-                })
+                void window.office
+                  .retrySquadPublication(codeAtRequest)
+                  .catch((err: unknown) => {
+                    window.office.reportError({ kind: 'rejection', message: err instanceof Error ? err.message : String(err) })
+                  })
+                  .finally(() => {
+                    retry.disabled = false
+                    void paintQueue()
+                  })
               })
               return retry
             })(),
@@ -205,28 +218,38 @@ export function openRunSquad(
               const retryStart = h('button', { class: 'btn btn-primary', type: 'button' }, 'Tentar iniciar novamente')
               retryStart.addEventListener('click', () => {
                 retryStart.disabled = true
-                void window.office.retrySquadStart(codeAtRequest).catch((err: unknown) => {
-                  window.office.reportError({ kind: 'rejection', message: err instanceof Error ? err.message : String(err) })
-                }).finally(() => {
-                  retryStart.disabled = false
-                  void paintQueue()
-                })
+                void window.office
+                  .retrySquadStart(codeAtRequest)
+                  .catch((err: unknown) => {
+                    window.office.reportError({ kind: 'rejection', message: err instanceof Error ? err.message : String(err) })
+                  })
+                  .finally(() => {
+                    retryStart.disabled = false
+                    void paintQueue()
+                  })
               })
               return retryStart
             })(),
           ]
         : []),
     )
-     if (!queue || (!queue.active && !queue.queue.length)) {
+    if (!queue || (!queue.active && !queue.queue.length)) {
       queueBox.replaceChildren(h('div', { class: 'sec-title' }, 'Fila do squad'), h('div', { class: 'hint' }, 'Sem ticket na fila.'))
       return
     }
-     queueBox.replaceChildren(
-       h('div', { class: 'sec-title' }, 'Fila do squad'),
-       h('div', { class: 'hint' }, 'Um ticket ativo por squad.'),
-       ...(!queue.active && queue.queue.length
-         ? [h('div', { class: 'panelbox amber', role: 'status' }, h('b', {}, 'Squad aguardando bloqueios'), h('span', {}, 'Nenhum ticket da fila está liberado. A execução não começa até algum bloqueador ter PR confirmado.'))]
-         : []),
+    queueBox.replaceChildren(
+      h('div', { class: 'sec-title' }, 'Fila do squad'),
+      h('div', { class: 'hint' }, 'Um ticket ativo por squad.'),
+      ...(!queue.active && queue.queue.length
+        ? [
+            h(
+              'div',
+              { class: 'panelbox amber', role: 'status' },
+              h('b', {}, 'Squad aguardando bloqueios'),
+              h('span', {}, 'Nenhum ticket da fila está liberado. A execução não começa até algum bloqueador ter PR confirmado.'),
+            ),
+          ]
+        : []),
       ...(queue.active
         ? [
             h(

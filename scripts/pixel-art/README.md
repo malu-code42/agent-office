@@ -28,7 +28,6 @@ As prévias vão para `out/pixel-art/` (ignorado pelo git). Depois de `export_ap
 | `project.json` | O layout do andar: cada sprite na posição final do canvas nativo (736×460) com sua pegada para ordenar a profundidade, as salas (retângulo em tiles, placa, sombra de luz apagada), as mesas de cada sala com o lugar da cadeira, a mesa da Emi, as cadeiras da sala de reunião, as paredes com portas, os tiles ocupados por móveis e o elevador. |
 | `casa-base.png` + `casa.json` | A Casa: o que não se ordena (piso, paredes, tapetes, elevador, quadros de cortiça) e o layout (móveis com a ação do clique, quadros da parede, cadeiras da mesa da Luna e do Você, meias-paredes, tiles ocupados, cantos de lazer, zonas, tags, tela da Claude FM). |
 | `estudos-base.png` + `estudos.json` | O andar de estudos: o que não se ordena (piso, paredes, tapetes, elevador, horário de aula, mural) e o layout (móveis com a ação do clique, cadeiras da Cora, da Bonnie, dos professores, das visitas, da carteira e da mesa de notas, onde o professor da vez fica, tiles ocupados, zonas, tags). |
-| `font5.json` | A fonte das placas (9 linhas por letra, acentos do português). |
 
 ## Regras
 
@@ -36,4 +35,4 @@ As prévias vão para `out/pixel-art/` (ignorado pelo git). Depois de `export_ap
 - Um tile tem 32×16 pixels (16 unidades do gerador). x cresce para baixo à direita, y (o z do jogo) para baixo à esquerda.
 - Os sprites são exportados já na posição final, então o app só copia pixels: nada de meio pixel arredondado diferente da arte aprovada.
 - `scene_projeto.py`, `scene_casa2.py` e `scene_estudos.py` são a fonte da verdade dos andares. Mudou a geometria lá, rode `export_app.py` de novo; a prévia e o app usam as mesmas funções.
-- As salas de squad têm seis mesas: as quatro da arte aprovada e uma fileira do meio para o 5º e o 6º membro (essas duas não bloqueiam o corredor do meio).
+- As salas de squad têm seis mesas: as quatro da arte aprovada e, para o 5º e o 6º membro, duas na parede do fundo, atrás do coordenador. Todas bloqueiam o tile delas; as fileiras do meio são o corredor da porta até o coordenador.

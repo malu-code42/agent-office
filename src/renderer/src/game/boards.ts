@@ -30,14 +30,10 @@ export abstract class GameBoards extends GameFloors {
   protected syncBoards(): void {
     this.boardsIn = 5
     const limited = this.limitedAccounts()
-    const floors: [(on: boolean) => void, Tag, Tag, ProjectFloor | null][] = [
+    // only the Casa shows the day's spending on the floor; project floors keep just the limit alarm
+    const floors: [(on: boolean) => void, Tag, Tag | null, ProjectFloor | null][] = [
       [(on) => (this.alarm = on), this.alarmTag, this.moneyTag, null],
-      ...this.uppers.map((u): [(on: boolean) => void, Tag, Tag, ProjectFloor] => [
-        (on) => (u.alarm = on),
-        u.alarmTag,
-        u.moneyTag,
-        u.project,
-      ]),
+      ...this.uppers.map((u): [(on: boolean) => void, Tag, null, ProjectFloor] => [(on) => (u.alarm = on), u.alarmTag, null, u.project]),
     ]
     // Today's spend from the cost book: dismissing an agent keeps it, midnight zeroes it.
     const today = this.state.ledgerToday
@@ -49,18 +45,20 @@ export abstract class GameBoards extends GameFloors {
       Object.entries(today.costUnknownByCwd ?? {}).some(([cwd, unknown]) => unknown && (n === 0 || floorOfCwd(cwd) === n))
     const spenders = Object.values(today.agents)
     floors.forEach(([setAlarm, tag, moneyTag, project], n) => {
-      const total = Object.entries(today.costByCwd).reduce((sum, [cwd, usd]) => (n === 0 || floorOfCwd(cwd) === n ? sum + usd : sum), 0)
-      const costUnknown = costUnknownOnFloor(n)
-      const top = spenders
-        .filter((a) => n === 0 || floorOfCwd(a.cwd) === n)
-        .sort((a, b) => b.usd - a.usd)
-        .slice(0, 8)
-      moneyTag.setName(costUnknown ? (total > 0 ? `≥ ${money(total)} hoje` : 's/ preço hoje') : `${money(total)} hoje`)
-      const spendersText = top
-        .filter((a) => a.usd >= 0.005 || a.costUnknown)
-        .map((a) => `${a.name}: ${a.costUnknown ? 'sem preço confiável' : money(a.usd)}`)
-      if (costUnknown) spendersText.push('O provedor não informou preço confiável para parte do uso.')
-      moneyTag.el.title = spendersText.join('\n') || 'Ninguém gastou nada hoje'
+      if (moneyTag) {
+        const total = Object.entries(today.costByCwd).reduce((sum, [cwd, usd]) => (n === 0 || floorOfCwd(cwd) === n ? sum + usd : sum), 0)
+        const costUnknown = costUnknownOnFloor(n)
+        const top = spenders
+          .filter((a) => n === 0 || floorOfCwd(a.cwd) === n)
+          .sort((a, b) => b.usd - a.usd)
+          .slice(0, 8)
+        moneyTag.setName(costUnknown ? (total > 0 ? `≥ ${money(total)} hoje` : 's/ preço hoje') : `${money(total)} hoje`)
+        const spendersText = top
+          .filter((a) => a.usd >= 0.005 || a.costUnknown)
+          .map((a) => `${a.name}: ${a.costUnknown ? 'sem preço confiável' : money(a.usd)}`)
+        if (costUnknown) spendersText.push('O provedor não informou preço confiável para parte do uso.')
+        moneyTag.el.title = spendersText.join('\n') || 'Ninguém gastou nada hoje'
+      }
       const pool = project ? accountPool(this.state.settings, project.cwd) : [...limited.keys()]
       const hit = pool.filter((id) => limited.has(id))
       setAlarm(hit.length > 0)

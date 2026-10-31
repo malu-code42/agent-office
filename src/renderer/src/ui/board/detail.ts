@@ -5,7 +5,7 @@ import type { AgentSummary, OfficePermissionMode, Ticket, TicketPatch, TicketPri
 import { h, icon, timeAgo } from '../dom'
 import { STATUS_LABEL } from '../hud'
 import { renderMarkdown } from '../markdown'
-import { brainFields, cleanError, field, LAST_CWD, MODES, worktreeToggle } from '../modals'
+import { brainFields, cleanError, field, LAST_CWD, modeOptions, MODES, worktreeToggle } from '../modals'
 import { isBusy, select } from './helpers'
 import { BoardColumns } from './columns'
 
@@ -252,9 +252,9 @@ export abstract class BoardDetail extends BoardColumns {
       ...free.map((a) => h('option', { value: a.id }, `${a.name} · ${STATUS_LABEL[a.status].toLowerCase()}`)),
     )
     if (current && free.includes(current)) who.value = current.id
-    const mode = h('select', { class: 'input' }, ...MODES.map((m) => h('option', { value: m.value }, m.label)))
     const inheritedMode =
       (t.cwd ? projectFor(this.state.settings.projects, t.cwd)?.permissionMode : undefined) ?? this.state.settings.defaultPermissionMode
+    const mode = h('select', { class: 'input' }, ...modeOptions(MODES, inheritedMode))
     mode.value = inheritedMode
     const brain = brainFields({ model: this.state.settings.defaultModel, effort: this.state.settings.defaultEffort }, true)
     brain.model.title = 'Modelo do agente novo'

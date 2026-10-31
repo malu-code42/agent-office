@@ -3,13 +3,11 @@ import type { TotemView } from '@shared/routines'
 import type { ScreenMode } from './floor'
 import type { CasaAct, CasaFlat } from './casa'
 import type { EstudosFlat, StudyAct } from './estudos'
-import { Atlas } from './atlas'
+import { sharedAtlas } from './atlas'
 import { depthSort, type Footprint } from './depth'
 import { crtOf, type FlatFloor } from './floor'
-import { artToScreen, clampCenter, deviceScale, dirOf, fitZoom, floorBounds, TILE, toFloor, toScreen, type Px } from './iso'
+import { artToScreen, clampCenter, onWestWall, deviceScale, dirOf, fitZoom, floorBounds, TILE, toFloor, toScreen, type Px } from './iso'
 import type { Placement, SeatArt } from './layout'
-import { plaqueLeft } from './font'
-import { makePlaque } from './plaque'
 import type { Bubble2d } from './sprites'
 import { actAt, topmost } from './hit'
 
@@ -65,7 +63,7 @@ export interface FlatView {
   coordinators: (ScreenMode | null)[]
   /** Emi's monitor, null without an Emi on this floor. */
   emi: ScreenMode | null
-  /** The plate of each squad room. */
+  /** The name of each squad room (the tooltip over it). */
   rooms: string[]
   /** How many sit in the meeting room. */
   meeting: number
@@ -165,6 +163,10 @@ const GLYPHS: Record<string, string> = {
   '+': '000010111010000',
   '-': '000000111000000',
 }
+/** Height of the back walls and of the meeting table top, in art units. */
+const WALL_H = 56
+const TABLE_H = 12
+
 const BG = '#1f1b24'
 /** How the hovered clickable thing of the Casa stands out. */
 const LIT = 'brightness(1.22)'
@@ -182,7 +184,7 @@ const union = (a: Rect, b: Rect): Rect => {
  * Three layers: the cache (base image, furniture, shades) is composed only when the floor
  * changes (a desk appears, a monitor changes colour); the native-size frame keeps the last
  * picture, and each draw repaints only the rectangles of the people that moved or changed
- * (from the base up, furniture and people in depth order, then bubbles and plates); the
+ * (from the base up, furniture and people in depth order, then the bubbles); the
  * screen gets only those rectangles, scaled. A frame where nothing changed draws nothing.
  */
 export class Renderer2d {
@@ -196,9 +198,6 @@ export class Renderer2d {
   /** Fixed items in depth order, and the chairs among them. */
   private items: Item[] = []
   private chairs: Item[] = []
-  private plaques = new Map<string, HTMLCanvasElement>()
-  private plates: { canvas: HTMLCanvasElement; box: Rect; hit?: Hit }[] = []
-  private platesKey = ''
   private people: PersonItem[] = []
   private extras: Extra[] = []
   private shown = new Map<string, { sig: string; area: Rect }>()
@@ -218,7 +217,7 @@ export class Renderer2d {
 
   constructor(
     container: HTMLElement,
-    readonly atlas = new Atlas(),
+    readonly atlas = sharedAtlas(),
   ) {
     this.canvas.className = 'world-canvas world-canvas-2d hidden'
     container.appendChild(this.canvas)
@@ -248,7 +247,7 @@ export class Renderer2d {
 
   /** The canvases the renderer keeps (screen, frame, cache, plates, painted characters): the leak test reads them. */
   get memory(): { canvases: number; bytes: number; skins: number } {
-    const all = [this.canvas, this.frame, this.cache, this.totemCanvas, ...this.plaques.values()]
+    const all = [this.canvas, this.frame, this.cache, this.totemCanvas, ]
     const skins = this.atlas.skinBytes
     return {
       canvases: all.length + skins.count,
@@ -299,13 +298,29 @@ export class Renderer2d {
     return toFloor([0, 0], -dx * k, -dy * k)
   }
 
-  /** What is under a point of the page: a plate, a person (front first) or the elevator door. */
+  /** The name of the place under a point of a project floor, for the tooltip; null elsewhere. */
+  roomAt(clientX: number, clientY: number): string | null {
+    const view = this.last
+    const at = this.floorAt(clientX, clientY)
+    if (!view || !at || view.floor.kind !== 'project') return null
+    const { layout } = view.floor
+    const inRect = (r: readonly number[]) => at.x >= r[0] && at.z >= r[1] && at.x < r[2] && at.z < r[3]
+    const room = layout.rooms.findIndex((r) => inRect(r.rect))
+    if (room >= 0) return view.rooms[room] ?? null
+    if (inRect(layout.meeting.rect)) return view.meeting ? `Sala de reunião · ${view.meeting} em reunião` : 'Sala de reunião'
+    if (inRect(layout.director.rect)) return view.emi === null ? 'Diretoria' : 'Diretoria · Emi'
+    if (inRect(layout.lounge.rect)) return 'Descanso e lazer'
+    return null
+  }
+
+  /**
+   * What is under a point of the page: a person (front first), a clickable thing of the Casa or the
+   * study floor, a squad room's back wall or the meeting table (project floors have no plates), or the elevator door.
+   */
   pick(clientX: number, clientY: number): Hit | null {
     const view = this.last
     if (!view) return null
     const p = this.toFrame(clientX, clientY)
-    const inside = (b: Rect) => p.x >= b[0] && p.y >= b[1] && p.x < b[0] + b[2] && p.y < b[1] + b[3]
-    for (const plate of this.plates) if (plate.hit && inside(plate.box)) return plate.hit
     const solid = (f: string, u: number, v: number) => this.atlas.solid(f, u, v)
     const person = topmost(this.people, p, solid)
     if (person) return { kind: 'person', key: person.key }
@@ -315,6 +330,14 @@ export class Renderer2d {
     } else if (view.floor.kind === 'estudos') {
       const act = actAt(this.items as { sprites: Sprite[]; act?: StudyAct }[], view.floor.layout.hot, p, solid)
       if (act) return { kind: 'study', act }
+    } else {
+      const { origin, rooms, meeting } = view.floor.layout
+      // a squad room answers on its back wall (the whiteboard side), the meeting room on its table
+      const room = rooms.findIndex((room) => onWestWall(origin, p, room.rect[1] * TILE, room.rect[3] * TILE, WALL_H))
+      if (room >= 0) return { kind: 'room', room }
+      const fl = toFloor(origin, p.x, p.y + TABLE_H)
+      const [tx, tz] = meeting.table
+      if (Math.abs(fl.x * TILE - tx) < 18 && Math.abs(fl.z * TILE - tz) < 46) return { kind: 'meeting' }
     }
     const { origin, elevator } = view.floor.layout
     const [x0, x1, h] = elevator.door
@@ -368,12 +391,6 @@ export class Renderer2d {
     let full = this.dirty
     if (key !== this.cacheKey) {
       this.compose(view, key)
-      full = true
-    }
-    const platesKey = JSON.stringify([view.rooms, view.coordinators.map((c) => c !== null), view.meeting, view.emi !== null])
-    if (platesKey !== this.platesKey) {
-      this.platesKey = platesKey
-      this.plates = this.plateList(view)
       full = true
     }
     this.people = this.placePeople(view)
@@ -636,7 +653,7 @@ export class Renderer2d {
 
   /**
    * Paints one rectangle of the frame again from the base up: the fixed items and the people
-   * that touch it, back to front, the shades, and (`top`) the bubbles, hover and plates.
+   * that touch it, back to front, the shades, and (`top`) the bubbles and the hovered tile.
    */
   private recompose(f: CanvasRenderingContext2D, r: Rect, view: FlatView, top: boolean): void {
     const [x, y, w, h] = r
@@ -670,12 +687,11 @@ export class Renderer2d {
     f.restore()
   }
 
-  /** Over everything, like the generator: the bubbles, the hovered tile and the plates (only those touching `r`). */
+  /** Over everything, like the generator: the bubbles and the hovered tile (only those touching `r`). */
   private top(f: CanvasRenderingContext2D, view: FlatView, r: Rect | null): void {
     for (const p of this.people) if (p.bubble && (!r || hits(this.bounds([p.bubble]), r))) this.put(f, p.bubble)
     for (const e of this.extras) if (!e.under && (!r || hits(e.area, r))) e.draw(f)
     if (view.hover && (!r || (this.hoverBox && hits(this.hoverBox, r)))) this.hoverTile(f, view)
-    for (const plate of this.plates) if (!r || hits(plate.box, r)) f.drawImage(plate.canvas, plate.box[0], plate.box[1])
   }
 
   /** Draws a sprite: from the atlas (painted in its Look, at its size) or from its own canvas. */
@@ -823,26 +839,4 @@ export class Renderer2d {
     f.restore()
   }
 
-  /** The name plates: room names, coordinators, meeting room, diretoria, lounge; the clickable ones answer pick(). */
-  private plateList(view: FlatView): { canvas: HTMLCanvasElement; box: Rect; hit?: Hit }[] {
-    if (view.floor.kind !== 'project') return []
-    const { layout } = view.floor
-    const out: { canvas: HTMLCanvasElement; box: Rect; hit?: Hit }[] = []
-    const plate = (text: string, at: [number, number], hit?: Hit) => {
-      let c = this.plaques.get(text)
-      if (!c) {
-        c = makePlaque(text)
-        this.plaques.set(text, c)
-      }
-      out.push({ canvas: c, box: [plaqueLeft(at[0], text) - 1, at[1] - 1, c.width, c.height], hit })
-    }
-    layout.rooms.forEach((room, r) => {
-      plate(view.rooms[r] ?? '', room.plate, { kind: 'room', room: r })
-      if (view.coordinators[r] !== null) plate('Coordenação', room.coordinator.plate)
-    })
-    plate(view.meeting ? `Sala de reunião · ${view.meeting} em reunião` : 'Sala de reunião', layout.meeting.plate, { kind: 'meeting' })
-    plate(view.emi === null ? 'Diretoria' : 'Diretoria · Emi', layout.director.plate)
-    plate('Descanso e lazer', layout.lounge.plate)
-    return out
-  }
 }

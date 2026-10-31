@@ -3,6 +3,7 @@ import * as L from '../world2d/plan'
 import { PROJECT_LAYOUT } from '../world2d/atlas'
 import { buildFloor2d } from '../world2d/floor'
 import { projectPlan2d } from '../world2d/layout'
+import { emiAgentId } from '@shared/emi'
 import { Point3, Tag } from '../world2d/overlays'
 import { GameBase } from './base'
 import { floorsKey, issuesToken } from './floor-key'
@@ -70,7 +71,7 @@ export abstract class GameFloors extends GameBase {
 
     for (const m of this.members.values()) this.memberGone(m)
     for (const u of this.uppers)
-      for (const t of [u.issueTag, u.alarmTag, u.moneyTag, u.proposalTag, ...u.stepTags]) if (t) this.overlays.remove(t)
+      for (const t of [u.issueTag, u.alarmTag, u.proposalTag, u.emiTag, ...u.stepTags]) if (t) this.overlays.remove(t)
     this.uppers = projects.map((project, i) => {
       const plan = plans[i]
       // the floor draws its own plates (and answers their clicks)
@@ -97,16 +98,21 @@ export abstract class GameFloors extends GameBase {
         proposalTag = this.overlays.add(new Tag(anchor, 'Equipe proposta', false, () => this.hooks.onRoomClick?.(project, waiting)))
         proposalTag.setDot('waiting')
       }
+      // Emi sits at her desk: her name and status tag opens her conversation, like any agent's
+      const seat = PROJECT_LAYOUT.emi.seat
+      const emiTag = this.overlays.add(
+        new Tag(new Point3(seat.at[0] / 16, 1.55, seat.at[1] / 16), 'Emi', false, () => this.hooks.onAgentClick(emiAgentId(project.id))),
+      )
       return {
         project,
         scene,
+        emiTag,
         stepTags,
         issueTag,
         proposalTag,
         alarm: false,
-        // the spending total and the limit alarm hang on the back wall, as HTML tags
+        // the limit alarm hangs on the back wall, as an HTML tag; the day's spending stays in Relatórios and the panels
         alarmTag: this.alarmTagFor(new Point3(15.5, 3.4, 0.2)),
-        moneyTag: this.moneyTagFor(new Point3(20.5, 3.1, 0.2)),
       }
     })
 
@@ -244,10 +250,10 @@ export abstract class GameFloors extends GameBase {
       const here = view === i + 1
       if (u.issueTag) u.issueTag.hidden = !here
       if (u.proposalTag) u.proposalTag.hidden = !here
+      if (u.emiTag) u.emiTag.hidden = !here || !this.state.agents.has(emiAgentId(u.project.id))
       const seated = here ? this.orchestratorsOn(i + 1) : null
       u.stepTags.forEach((t, room) => (t.hidden = !seated?.has(room)))
       u.alarmTag.hidden = !here || !u.alarm
-      u.moneyTag.hidden = !here
     })
     this.study.show(view === this.studyFloor)
     this.alarmTag.hidden = view !== 0 || !this.alarm
