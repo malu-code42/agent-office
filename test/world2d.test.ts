@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { SQUAD_MAX_MEMBERS } from '@shared/types'
+import { Lru } from '../src/renderer/src/world2d/lru'
+import { PLAQUE_CACHE_CAP } from '../src/renderer/src/world2d/plaque'
 import { AGENT_DESK_COUNT } from '../src/renderer/src/world2d/plan'
 import layoutData from '../src/renderer/src/assets/pixel/project.json'
 import { behind, depthSort, type Footprint } from '../src/renderer/src/world2d/depth'
@@ -259,5 +261,24 @@ describe('placas e sprites', () => {
     expect(agentBubble('idle', false, 'error')).toBe('bang')
     expect(agentBubble('idle', false, 'ok')).toBe('ok')
     expect(agentBubble('idle', false, null)).toBeNull()
+  })
+})
+
+describe('Lru (cache de placas)', () => {
+  it('guarda no máximo `cap` itens e solta o usado há mais tempo', () => {
+    const cache = new Lru<string, number>(PLAQUE_CACHE_CAP)
+    for (let i = 0; i < 100; i++) cache.set(`Sala de reunião · ${i} em reunião`, i)
+    expect(cache.size).toBe(32)
+    expect(cache.get('Sala de reunião · 0 em reunião')).toBeUndefined()
+    expect(cache.get('Sala de reunião · 99 em reunião')).toBe(99)
+  })
+
+  it('ler um item o torna o mais novo', () => {
+    const cache = new Lru<string, number>(2)
+    cache.set('a', 1)
+    cache.set('b', 2)
+    expect(cache.get('a')).toBe(1)
+    cache.set('c', 3)
+    expect([...cache.values()]).toEqual([1, 3])
   })
 })

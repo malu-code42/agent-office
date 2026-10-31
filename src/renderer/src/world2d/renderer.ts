@@ -9,7 +9,8 @@ import { crtOf, type FlatFloor } from './floor'
 import { artToScreen, clampCenter, deviceScale, dirOf, fitZoom, floorBounds, TILE, toFloor, toScreen, type Px } from './iso'
 import type { Placement, SeatArt } from './layout'
 import { plaqueLeft } from './font'
-import { makePlaque } from './plaque'
+import { makePlaque, PLAQUE_CACHE_CAP } from './plaque'
+import { Lru } from './lru'
 import type { Bubble2d } from './sprites'
 import { actAt, topmost } from './hit'
 
@@ -196,7 +197,8 @@ export class Renderer2d {
   /** Fixed items in depth order, and the chairs among them. */
   private items: Item[] = []
   private chairs: Item[] = []
-  private plaques = new Map<string, HTMLCanvasElement>()
+  // One canvas per plate text; capped so changing texts (meeting counts, renamed rooms) do not grow it forever.
+  private plaques = new Lru<string, HTMLCanvasElement>(PLAQUE_CACHE_CAP)
   private plates: { canvas: HTMLCanvasElement; box: Rect; hit?: Hit }[] = []
   private platesKey = ''
   private people: PersonItem[] = []

@@ -3,6 +3,9 @@
 
 import { BG, FG, glyph, plaqueSize, ringColors, type Rgb } from './font'
 
+/** How many plate canvases the renderer keeps: a floor shows about a dozen plates, so all fit with room to spare. */
+export const PLAQUE_CACHE_CAP = 32
+
 const css = (c: Rgb, a = 255) => `rgba(${c[0]},${c[1]},${c[2]},${a / 255})`
 
 /** A plate drawn once at native size, its ring included (one pixel around the plate). */
