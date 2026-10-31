@@ -11,18 +11,25 @@ import {
   readSync,
   realpathSync,
 } from 'node:fs'
-import { basename, extname, join, relative, resolve, sep } from 'node:path'
+import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path'
 import { writeFileAtomicChecked } from './fs-safe'
 import type { StudyNoteWriter } from './study-cycle'
-import type { StudyLibraryHit, StudyLibrarySearch } from '@shared/study-library'
+import { scoreStudyText, studySnippet, tokenizeStudyQuery, type StudyLibraryHit, type StudyLibrarySearch } from '@shared/study-library'
+import { pptxText } from './study-source-text'
 
 const SOURCE_DIR = 'study sources'
 const NOTE_FILE = 'notas-estudo.md'
 const MAX_PATHS = 2000
 const MAX_DEPTH = 12
 const MAX_FILE_BYTES = 1024 * 1024
-const MAX_TOTAL_BYTES = 32 * 1024 * 1024
+const MAX_TOTAL_BYTES = 128 * 1024 * 1024
 const MAX_HITS = 30
+const MAX_HITS_PER_FILE = 4
+/** A deck is a zip of slides: it can be large on disk (images) for little text. */
+const MAX_DECK_BYTES = 64 * 1024 * 1024
+const TEXT_EXTENSIONS = new Set(['.md', '.markdown', '.txt'])
+const IGNORED_FILES = new Set(['.DS_Store', 'Thumbs.db', 'desktop.ini'])
+const TOO_BIG = 'Fonte local grande demais.'
 const MAX_SNIPPET = 1400
 
 interface Snapshot {
@@ -49,120 +56,102 @@ export class StudyLibrary {
   }
 
   search(query: string): StudyLibrarySearch {
-    const terms = tokenize(query)
-    if (!terms.length || query.length > 200) throw new Error('Informe um tópico de até 200 caracteres.')
+    const parsed = tokenizeStudyQuery(query)
+    if (!parsed.terms.length || query.length > 200) throw new Error('Informe um tópico de até 200 caracteres.')
     const root = this.checkedSourceRoot()
     if (!root) return { token: randomUUID(), query, complete: true, hits: [], warning: 'A pasta local de estudos ainda não existe.' }
-    const paths: string[] = []
-    const stack: { dir: string; depth: number }[] = [{ dir: root, depth: 0 }]
-    let complete = true
-    let unsupported = false
-    while (stack.length) {
-      const current = stack.pop()!
-      let dir
-      try {
-        dir = opendirSync(current.dir)
-      } catch {
-        complete = false
-        continue
-      }
-      try {
-        for (;;) {
-          const entry = dir.readSync()
-          if (!entry) break
-          const path = join(current.dir, entry.name)
-          let info
-          try {
-            info = lstatSync(path)
-          } catch {
-            complete = false
-            continue
-          }
-          if (info.isSymbolicLink()) {
-            complete = false
-            continue
-          }
-          if (info.isDirectory()) {
-            if (current.depth >= MAX_DEPTH) complete = false
-            else stack.push({ dir: path, depth: current.depth + 1 })
-            continue
-          }
-          if (!info.isFile()) continue
-          if (!['.md', '.txt'].includes(extname(entry.name).toLowerCase())) {
-            if (!['.DS_Store', 'Thumbs.db'].includes(entry.name)) {
-              complete = false
-              unsupported = true
-            }
-            continue
-          }
-          if (!inside(root, resolve(path)) || !inside(root, realpathSync(path))) {
-            complete = false
-            continue
-          }
-          paths.push(path)
-          if (paths.length > MAX_PATHS) {
-            complete = false
-            break
-          }
-        }
-      } finally {
-        dir.closeSync()
-      }
-      if (paths.length > MAX_PATHS) break
-    }
-    if (!complete)
-      return this.remember(
-        [],
-        false,
-        query,
-        unsupported
-          ? 'Há arquivos locais em formato não compatível com a busca de Cora (.md e .txt); converta ou organize as fontes antes de continuar.'
-          : 'A busca local não conseguiu percorrer todas as fontes; organize a pasta e tente novamente.',
-      )
-
+    const { paths, complete: walked } = walkSources(root)
     paths.sort((a, b) => relative(root, a).localeCompare(relative(root, b), 'pt-BR'))
+
     let totalBytes = 0
+    let overBudget = false
+    const byName = new Map<string, number>()
+    const tooBig: string[] = []
+    let unreadable = 0
     const hits: StudyLibraryHit[] = []
+    const add = (path: string, heading: string, line: number, excerpt: string, score: number) => {
+      const relativePath = relative(this.vault, path).split(sep).join('/')
+      const sourceRef = line ? `${relativePath}${heading ? `#${heading}` : ''}:${line}` : `${relativePath}${heading ? `#${heading}` : ''}`
+      hits.push({
+        id: createHash('sha256').update(sourceRef).digest('hex').slice(0, 20),
+        sourceRef,
+        title: heading || basename(path),
+        excerpt: excerpt.slice(0, MAX_SNIPPET),
+        line,
+        score,
+      })
+    }
     for (const path of paths) {
-      let content: { text: string; size: number }
-      try {
-        content = readLocalStudyFile(path, root)
-      } catch {
-        complete = false
-        break
+      const ext = extname(path).toLowerCase()
+      const kind = TEXT_EXTENSIONS.has(ext) ? 'text' : ext === '.pptx' ? 'pptx' : null
+      // Every file is found by its name and folders ("Estrutura de Dados/Aula 05 Filas.pdf").
+      const nameScore = scoreStudyText(relative(root, path), parsed)
+      let text: string | null = null
+      if (!kind) byName.set(ext || 'sem extensão', (byName.get(ext || 'sem extensão') ?? 0) + 1)
+      else if (overBudget) tooBig.push(basename(path))
+      else {
+        try {
+          const content = readLocalStudyFile(path, root, kind === 'text' ? MAX_FILE_BYTES : MAX_DECK_BYTES)
+          if (content.size + totalBytes > MAX_TOTAL_BYTES) {
+            overBudget = true
+            tooBig.push(basename(path))
+          } else {
+            totalBytes += content.size
+            text = kind === 'text' ? content.buffer.toString('utf8') : pptxText(content.buffer)
+          }
+        } catch (error) {
+          if (error instanceof Error && error.message === TOO_BIG) tooBig.push(basename(path))
+          else unreadable++
+        }
       }
-      const size = content.size
-      if (size > MAX_FILE_BYTES || totalBytes + size > MAX_TOTAL_BYTES) {
-        complete = false
-        break
+      let fileHits = 0
+      if (text !== null) {
+        const lines = text.split(/\r?\n/)
+        const found: { heading: string; line: number; excerpt: string; score: number }[] = []
+        let heading = ''
+        for (let index = 0; index < lines.length; index++) {
+          const line = lines[index]!
+          // A heading is not a passage: it names (and scores with) the paragraphs under it.
+          if (/^#{1,6}\s/.test(line)) {
+            heading = line.replace(/^#{1,6}\s*/, '').trim()
+            continue
+          }
+          if (!line.trim()) continue
+          const paragraph = paragraphAt(lines, index)
+          const score = scoreStudyText(`${heading} ${paragraph}`, parsed)
+          if (score) found.push({ heading, line: index + 1, excerpt: studySnippet(paragraph, parsed), score: score + nameScore / 10 })
+          index = Math.max(index, paragraphEnd(lines, index))
+        }
+        // The best passages of each file, so one long file does not push the others out.
+        for (const f of found.sort((a, b) => b.score - a.score).slice(0, MAX_HITS_PER_FILE))
+          // A slide is cited by its number; the line of the extracted text means nothing in the deck.
+          add(path, f.heading, kind === 'pptx' ? 0 : f.line, f.excerpt, f.score)
+        fileHits = Math.min(found.length, MAX_HITS_PER_FILE)
       }
-      totalBytes += size
-      const lines = content.text.split(/\r?\n/)
-      let heading = ''
-      for (let index = 0; index < lines.length; index++) {
-        const line = lines[index]!
-        if (/^#{1,6}\s/.test(line)) heading = line.replace(/^#{1,6}\s*/, '').trim()
-        if (!line.trim()) continue
-        const excerpt = paragraphAt(lines, index)
-        const score = relevance(excerpt, terms)
-        if (!score) continue
-        const relativePath = relative(this.vault, path).split(sep).join('/')
-        const sourceRef = `${relativePath}${heading ? `#${heading}` : ''}:${index + 1}`
-        hits.push({
-          id: createHash('sha256').update(sourceRef).digest('hex').slice(0, 20),
-          sourceRef,
-          title: heading || basename(path),
-          excerpt: excerpt.slice(0, MAX_SNIPPET),
-          line: index + 1,
-          score,
-        })
-        index = Math.max(index, paragraphEnd(lines, index))
+      if (!fileHits && nameScore) {
+        const folder = relative(root, dirname(path)).split(sep).join(' / ')
+        const note =
+          text !== null
+            ? 'O nome corresponde; o conteúdo não cita os termos.'
+            : 'Encontrado pelo nome; Cora não lê o conteúdo deste formato.'
+        add(path, '', 0, `${folder ? `${folder} · ` : ''}${note}`, nameScore)
       }
     }
-    if (!complete)
-      return this.remember([], false, query, 'A busca local excedeu o limite de leitura; organize ou divida as fontes e tente novamente.')
     hits.sort((a, b) => b.score - a.score || a.sourceRef.localeCompare(b.sourceRef, 'pt-BR'))
-    return this.remember(hits.slice(0, MAX_HITS), true, query)
+    const warnings: string[] = []
+    if (byName.size) {
+      const formats = [...byName].map(([ext, n]) => `${n} ${ext.replace(/^\./, '').toUpperCase()}`).join(', ')
+      warnings.push(`Arquivos buscados só pelo nome (${formats}): Cora lê o conteúdo de .md, .txt e .pptx.`)
+    }
+    if (tooBig.length) warnings.push(`${tooBig.length} arquivo(s) passaram do limite de leitura e foram buscados só pelo nome.`)
+    if (unreadable) warnings.push(`${unreadable} arquivo(s) não puderam ser lidos.`)
+    if (!walked) warnings.push('Algumas pastas ou atalhos não foram percorridos.')
+    return this.remember(
+      hits.slice(0, MAX_HITS),
+      walked && !byName.size && !tooBig.length && !unreadable,
+      query,
+      warnings.join(' ') || undefined,
+    )
   }
 
   source(token: string, hitId: string): StudyLibraryHit {
@@ -265,20 +254,58 @@ function paragraphEnd(lines: string[], index: number): number {
   return end
 }
 
-function tokenize(value: string): string[] {
-  return [...new Set(value.toLocaleLowerCase('pt-BR').match(/[\p{L}\p{N}]{3,}/gu) ?? [])].slice(0, 12)
-}
-
-function relevance(text: string, terms: string[]): number {
-  const normalized = text.toLocaleLowerCase('pt-BR')
-  return terms.reduce((score, term) => score + (normalized.includes(term) ? 1 : 0), 0)
+/**
+ * The files under the study sources folder (no symlinks, at most MAX_DEPTH deep and
+ * MAX_PATHS files). `complete` is false when a folder, link or file had to be skipped.
+ */
+function walkSources(root: string): { paths: string[]; complete: boolean } {
+  const paths: string[] = []
+  const stack: { dir: string; depth: number }[] = [{ dir: root, depth: 0 }]
+  let complete = true
+  while (stack.length && paths.length < MAX_PATHS) {
+    const current = stack.pop()!
+    let dir
+    try {
+      dir = opendirSync(current.dir)
+    } catch {
+      complete = false
+      continue
+    }
+    try {
+      for (let entry = dir.readSync(); entry; entry = dir.readSync()) {
+        const path = join(current.dir, entry.name)
+        let info
+        try {
+          info = lstatSync(path)
+        } catch {
+          complete = false
+          continue
+        }
+        if (info.isSymbolicLink()) complete = false
+        else if (info.isDirectory()) {
+          if (current.depth >= MAX_DEPTH) complete = false
+          else stack.push({ dir: path, depth: current.depth + 1 })
+        } else if (info.isFile() && !IGNORED_FILES.has(entry.name)) {
+          if (!inside(root, resolve(path)) || !inside(root, realpathSync(path))) complete = false
+          else if (paths.length >= MAX_PATHS) {
+            complete = false
+            break
+          } else paths.push(path)
+        }
+      }
+    } finally {
+      dir.closeSync()
+    }
+  }
+  if (stack.length) complete = false
+  return { paths, complete }
 }
 
 function hash(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex')
 }
 
-function readLocalStudyFile(path: string, root: string): { text: string; size: number } {
+function readLocalStudyFile(path: string, root: string, maxBytes: number): { buffer: Buffer; size: number } {
   let fd: number | undefined
   try {
     const noFollow = (constants as typeof constants & { O_NOFOLLOW?: number }).O_NOFOLLOW ?? 0
@@ -291,10 +318,10 @@ function readLocalStudyFile(path: string, root: string): { text: string; size: n
       !linked.isFile() ||
       opened.dev !== linked.dev ||
       opened.ino !== linked.ino ||
-      !inside(root, realpathSync(path)) ||
-      opened.size > MAX_FILE_BYTES
+      !inside(root, realpathSync(path))
     )
-      throw new Error('Fonte local insegura ou grande demais.')
+      throw new Error('Fonte local insegura.')
+    if (opened.size > maxBytes) throw new Error(TOO_BIG)
     const buffer = Buffer.allocUnsafe(opened.size)
     let offset = 0
     while (offset < buffer.length) {
@@ -304,7 +331,7 @@ function readLocalStudyFile(path: string, root: string): { text: string; size: n
     }
     const after = fstatSync(fd)
     if (after.size !== opened.size || after.mtimeMs !== opened.mtimeMs) throw new Error('Fonte local mudou durante a leitura.')
-    return { text: buffer.toString('utf8'), size: opened.size }
+    return { buffer, size: opened.size }
   } finally {
     if (fd !== undefined) closeSync(fd)
   }

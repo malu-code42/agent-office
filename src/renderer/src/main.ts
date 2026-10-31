@@ -22,6 +22,7 @@ import { openStudyCycle } from './ui/study-cycle'
 import { openStudyCards } from './ui/study-cards'
 import { openStudyQuestions } from './ui/study-questions'
 import { openStudyLibrary } from './ui/study-library'
+import { openStudySchedule } from './ui/study-schedule'
 import { openTasksBoard } from './ui/tasks-board'
 import { openFocusPopup } from './ui/focus-popup'
 import { openTimerPopup } from './ui/timer-popup'
@@ -273,14 +274,15 @@ async function boot(): Promise<void> {
       openCreateSquad(ui, state, { project, room, proposal: waiting, toast })
     },
     // The study floor: Bonnie, a teacher, the blackboard and the user's desk open the study cycle; Cora and
-    // the shelves the library; the cabinet and the easel the question bank; the notes desk the cards.
+    // the shelves the library; the cabinet and the easel the question bank; the notes desk the cards; the
+    // schedule board its own week grid of aulas.md ("Ver na agenda" goes on to the agenda).
     onStudy: (act, teacher) => {
       if (teacher) toast(`${teacher.name}: cuida de ${teacher.role} no ciclo da Bonnie.`, 'info')
       if (act === 'cycle' || act === 'bonnie' || act === 'desk') void openStudyCycle(ui, toast)
       else if (act === 'library' || act === 'cora') openStudyLibrary(ui, toast, studyTopic)
       else if (act === 'questions') openStudyQuestions(ui, toast)
       else if (act === 'cards') void openStudyCards(ui, toast)
-      else if (act === 'schedule') openAgenda(ui)
+      else if (act === 'schedule') void openStudySchedule(ui, toast, () => openAgenda(ui))
     },
     onMeetingRoomClick: (project) => {
       const pending = latestProjectResult(project.id, state.agents.values(), state.results.values())

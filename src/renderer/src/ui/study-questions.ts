@@ -29,8 +29,20 @@ export function openStudyQuestions(root: HTMLElement, toast: Toast): void {
       { class: 'field-hint' },
       'O banco local vem primeiro. WebSearch e IA não verificam procedência, licença ou direitos. Questões ficam como candidatas até revisão e salvamento explícitos.',
     ),
-    h('label', { class: 'field-label' }, 'Tópico', topic),
+    h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Tópico'), topic),
     results,
+    // The consent goes with what it is about (the candidates), inside the body: in the footer it
+    // was squeezed out of the modal, over the scene.
+    h(
+      'label',
+      { class: 'study-questions-consent' },
+      reviewConsent,
+      h(
+        'span',
+        {},
+        'Revisei procedência/licença e selecionei apenas conteúdo que posso guardar. Para licença incerta, escolha somente metadados/URL, sem enunciado.',
+      ),
+    ),
   )
   let token = ''
   let candidates: StudyQuestion[] = []
@@ -44,19 +56,7 @@ export function openStudyQuestions(root: HTMLElement, toast: Toast): void {
   const el = modal(
     'Buscar questões',
     [body],
-    [
-      h(
-        'label',
-        { class: 'field-hint' },
-        reviewConsent,
-        ' Revisei procedência/licença e selecionei apenas conteúdo que posso guardar. Para licença incerta, escolha somente metadados/URL, sem enunciado.',
-      ),
-      h('button', { class: 'btn', type: 'button', onclick: close }, 'Fechar'),
-      h('div', { class: 'grow' }),
-      search,
-      generate,
-      save,
-    ],
+    [h('button', { class: 'btn', type: 'button', onclick: close }, 'Fechar'), h('div', { class: 'grow' }), search, generate, save],
     close,
   )
   const renderCandidates = (groups: { label: string; rows: StudyQuestion[]; selectable: boolean }[]) => {
@@ -214,6 +214,7 @@ export function openStudyQuestions(root: HTMLElement, toast: Toast): void {
       results.replaceChildren(h('p', { role: 'alert' }, cleanError(error)))
     }
   }
+  el.querySelector('.modal-foot')?.classList.add('study-modal-foot')
   root.append(el)
   topic.focus()
 }

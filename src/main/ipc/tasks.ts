@@ -3,6 +3,8 @@ import { join } from 'node:path'
 import { dialog, ipcMain } from 'electron'
 import { z } from 'zod'
 import { buildAgendaView, weekProgress } from '@shared/agenda'
+import { buildClassSchedule } from '@shared/class-schedule'
+import { parseStudyTrail, STUDY_TRAIL_FILE } from '@shared/study-trail'
 import { routineWeekMarks } from '@shared/routine-personal'
 import { personalRoutineOverview } from '../routines-personal'
 import { focusItems, focusKey } from '@shared/planning'
@@ -50,6 +52,7 @@ import {
   evaluateStudyAnswerArgsSchema,
   advanceStudyCycleArgsSchema,
   resetStudyCycleArgsSchema,
+  resumeStudyCycleArgsSchema,
   searchStudyLibraryArgsSchema,
   studyLibrarySourceArgsSchema,
   studyCycleNoteArgsSchema,
@@ -192,6 +195,14 @@ export function registerTasksIpc(ctx: IpcContext): void {
     parse(resetStudyCycleArgsSchema, args, 'Encerramento do ciclo inválido.')
     return studyCycleService().reset()
   })
+  // Switching topics keeps every cycle; this pins a kept one again.
+  ipcMain.handle('office:resumeStudyCycle', (_e, ...args: unknown[]) => {
+    const [cycleId] = parse(resumeStudyCycleArgsSchema, args, 'Ciclo de estudo inválido.')
+    return studyCycleService().resume(cycleId)
+  })
+  // Read on every call, like the agenda: the trail and the class grid are the user's files, never written here.
+  ipcMain.handle('office:readStudyTrail', async () => parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE)))
+  ipcMain.handle('office:readClassSchedule', async () => buildClassSchedule(readOptionalFile(requireVault(), 'aulas.md'), new Date()))
   ipcMain.handle('office:reviewStudyGap', (_e, ...args: unknown[]) => {
     const [questionId, cause, nextStep] = parse(reviewStudyGapArgsSchema, args, 'Revisão da lacuna inválida.')
     return studyCycleService().reviewGap(questionId, cause, nextStep)
