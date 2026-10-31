@@ -14,7 +14,8 @@ export function lunaAgentSummary(now = Date.now(), settings?: Pick<Settings, 'lu
     engine: 'claude',
     cwd: '',
     // #101: an ordinary session; the office's permission policy and cards decide each tool.
-    permissionMode: 'default',
+    // Automatic mode: edits and proven-safe commands in her folders run; risk still comes to the card.
+    permissionMode: 'auto',
     status: 'idle',
     activity: 'Pronta para ajudar',
     desk: -1,

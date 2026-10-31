@@ -46,13 +46,17 @@ describe('permissões da Luna (#101)', () => {
     manager.shutdown()
   })
 
-  it('lê o vault e os andares de projeto sem perguntar; fora deles e escrita vão ao cartão', async () => {
+  it('modo automático: lê e edita no vault e nos andares sem perguntar; fora deles e risco vão ao cartão', async () => {
     const { manager, vault, project, outside, allowedNow } = await setup()
     expect(await allowedNow('Read', { file_path: join(vault, 'nota.md') })).toBe(true)
     expect(await allowedNow('Read', { file_path: join(project, 'nota.md') })).toBe(true)
     expect(await allowedNow('Grep', { pattern: 'x', path: join(project, 'src'), glob: '*.ts' })).toBe(true)
     expect(await allowedNow('Read', { file_path: join(outside, 'nota.md') })).toBe(false)
-    expect(await allowedNow('Write', { file_path: join(project, 'novo.md'), content: 'x' })).toBe(false)
+    expect(await allowedNow('Write', { file_path: join(project, 'novo.md'), content: 'x' })).toBe(true)
+    expect(await allowedNow('Write', { file_path: join(vault, 'novo.md'), content: 'x' })).toBe(true)
+    expect(await allowedNow('Write', { file_path: join(outside, 'novo.md'), content: 'x' })).toBe(false)
+    expect(await allowedNow('Bash', { command: `rm -rf ${join(project, 'src')}` })).toBe(false)
+    expect(await allowedNow('WebFetch', { url: 'https://example.com' })).toBe(false)
     manager.shutdown()
   })
 })
