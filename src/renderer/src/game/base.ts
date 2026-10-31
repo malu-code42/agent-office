@@ -12,7 +12,7 @@ import { buildCasa2d, type Floor2d } from '../world2d/floor'
 import type { StudyAct } from '../world2d/estudos'
 import { StudyFloor } from './study'
 import { SeenFailures } from './failure-marks'
-import { center, TAG_LIFT, tileOf, type Actor, type FailureMark, type GameHooks, type Helper, type Member, type Upper } from './types'
+import { center, sitterTagY, TAG_LIFT, tileOf, type Actor, type FailureMark, type GameHooks, type Helper, type Member, type Upper } from './types'
 
 /** Something drawn in the air for a moment: the skull of a strike, its puff, the ghost. */
 export interface Fx {
@@ -148,7 +148,7 @@ export abstract class GameBase {
     for (const [name, action] of CASA_TAGS) this.casaTag(name, () => hooks.onHomeAction(action)).el.title = `Abrir ${name}`
     // Luna sits at her chair: her tag as low as a sitter's
     const luna = CASA_LAYOUT.table.seats[0]
-    this.lunaTag = this.overlays.add(new Tag(new Point3(luna.at[0] / 16, 0.35, luna.at[1] / 16), 'Luna', false, () => hooks.onLunaReview()))
+    this.lunaTag = this.overlays.add(new Tag(new Point3(luna.at[0] / 16, sitterTagY(null), luna.at[1] / 16), 'Luna', false, () => hooks.onLunaReview()))
     this.homeSceneTags.push(this.lunaTag)
     this.updateLunaReviewBubble()
     state.onChange(() => this.updateLunaReviewBubble())

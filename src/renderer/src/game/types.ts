@@ -160,6 +160,8 @@ export interface GameHooks {
 
 /** How much higher (tiles) the HTML tags float than their anchors: over the sprites' pixel bubbles. */
 export const TAG_LIFT = 1.2
+/** Height (tiles) of a sitter's tag: low over the head, above the pixel bubble while one shows. */
+export const sitterTagY = (bubble: unknown): number => (bubble ? 1.7 : 0.35)
 /** Seconds the camera gets to reach a dismissed agent before the skull drops. */
 export const STRIKE_AFTER_S = 0.6
 /** An idle agent waits at its desk this long before wandering off to the lounge. */

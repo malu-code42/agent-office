@@ -16,7 +16,7 @@ import {
 import { buildEstudos2d, type Floor2d } from '../world2d/floor'
 import type { Person2d } from '../world2d/renderer'
 import { Walker } from '../world2d/walker'
-import { TAG_LIFT } from './types'
+import { sitterTagY, TAG_LIFT } from './types'
 
 /** Height (tiles) of a standing teacher's tag anchor, as an Avatar's. */
 const STAND_TAG_Y = 1.55
@@ -48,6 +48,7 @@ export class StudyFloor {
   cycle: StudyCycleView | null = null
   private tags: Tag[] = []
   private teacherTags = new Map<Teacher['id'], Tag>()
+  private bonnieTag: Tag | null = null
   private topicTag: Tag | null = null
   private shown = false
 
@@ -68,7 +69,7 @@ export class StudyFloor {
     }
     // a sitter's tag sits as low as Luna's (the 2D projection lifts every tag by TAG_LIFT)
     person(at(this.plan.cora.x, 0.35, this.plan.cora.z), 'Cora · bibliotecária', () => onAct('cora'))
-    person(at(this.plan.bonnie.x, 0.35, this.plan.bonnie.z), 'Bonnie · diretora de estudos', () => onAct('bonnie'))
+    this.bonnieTag = person(at(this.plan.bonnie.x, sitterTagY(null), this.plan.bonnie.z), 'Bonnie · diretora de estudos', () => onAct('bonnie'))
     // Every teacher wears a tag with its role name (Tutor, Curador, Verificador, the cards pair);
     // the role it plays in the cycle shows on hover.
     for (const t of TEACHERS) {
@@ -179,6 +180,9 @@ export class StudyFloor {
       sitter('cora', CORA_VARIANT, this.plan.cora),
       sitter('bonnie', BONNIE_VARIANT, this.plan.bonnie, this.cycle?.ready ? 'ok' : null),
     ]
+    // Bonnie's tag climbs over her "ok" bubble while it shows.
+    const bonnie = this.bonnieTag?.anchor
+    if (bonnie instanceof Point3) bonnie.y = sitterTagY(out[1]!.bubble)
     for (const t of TEACHERS) {
       const w = this.walkers.get(t.id)!
       out.push({
