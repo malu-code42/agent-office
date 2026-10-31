@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { query, type HookCallbackMatcher, type Query, type SDKMessage } from '@anthropic-ai/claude-agent-sdk'
@@ -25,6 +26,7 @@ export abstract class AgentSdk extends AgentOffice {
 
   protected run(agent: Agent, prompt: Prompt): void {
     const s = agent.summary
+    agent.lastPrompt = prompt
     if (s.engine === 'opencode') {
       this.setStatus(agent, 'stopped', 'Registro histórico OpenCode · somente leitura')
       return
@@ -307,6 +309,18 @@ export abstract class AgentSdk extends AgentOffice {
       if (this.replaced.has(q) || (agent.query && agent.query !== q)) return
       const text = err instanceof Error ? err.message : String(err)
       this.addLog(agent, 'error', text)
+      // The saved conversation is gone (other account folder, moved cwd, cleared ~/.claude):
+      // start a fresh session once and re-send the message instead of failing every turn.
+      if (isLostSession(text) && agent.lastPrompt && this.agents.has(agent.summary.id)) {
+        const prompt = agent.lastPrompt
+        agent.lastPrompt = undefined
+        agent.started = false
+        agent.summary.sessionId = randomUUID()
+        agent.query = undefined
+        this.addLog(agent, 'system', 'A conversa anterior não foi encontrada; comecei uma nova.')
+        this.run(agent, prompt)
+        return
+      }
       if (this.agents.has(agent.summary.id)) {
         this.deliver(agent, {
           text: `Tive um problema e parei:\n\n${text}`,
@@ -436,4 +450,9 @@ export abstract class AgentSdk extends AgentOffice {
         return
     }
   }
+}
+
+/** Claude Code could not find the session it was asked to resume. */
+export function isLostSession(message: string): boolean {
+  return /No conversation found with session ID/i.test(message)
 }
