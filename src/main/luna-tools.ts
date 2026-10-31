@@ -6,6 +6,9 @@ import { createSdkMcpServer, tool, type McpSdkServerConfigWithInstance } from '@
 import { z } from 'zod'
 import { REVIEW_STALE_DAYS, type ReviewFocusRow, type ReviewPostpone } from '@shared/review'
 import type { ParsedBoard } from '@shared/tasks'
+import type { Goal } from '@shared/goals'
+import { MEDIA_STATUSES, type MediaKind, type MediaStatus } from '@shared/media'
+import type { PersonalRoutineOverview } from '@shared/routine-personal'
 import { allCommitments, planAddCommitment, planRemoveCommitment } from './agenda-write'
 
 export const LUNA_SERVER = 'casa'
@@ -36,8 +39,29 @@ export interface LunaToolDeps {
   }
   /** Calls an agent to the house for a task; it stays around after it until the user sends it away. */
   callAgent(req: { task: string; cwd?: string; name?: string }): Promise<{ name: string }>
+  /** objetivos.md, through the writer of the Objetivos window: `read` is what the next write checks against. */
+  goals: {
+    read(vault: string): { goals: Goal[] }
+    create(
+      vault: string,
+      draft: { title: string; target: string; deadline: string; milestones: Goal['milestones']; taskIds: string[] },
+    ): string
+    setMilestone(vault: string, id: string, index: number, done: boolean): void
+  }
+  /** The media libraries (livros, filmes, jogos), through the writer of the library window. */
+  media: {
+    read(vault: string, kind: MediaKind): { id: string; title: string; status: MediaStatus }[]
+    create(vault: string, kind: MediaKind, draft: { title: string; status: MediaStatus }): string
+  }
+  /** The personal routines of this week and their weekly distribution, as the routines panel does it. */
+  routines: {
+    overview(): PersonalRoutineOverview
+    distribute(routineId: string, days: number[]): void
+  }
 }
 
+const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
+const mediaKind = z.enum(['livro', 'filme', 'jogo'])
 const target = z.union([z.number().int().min(1), z.string().regex(/^t[a-z0-9]{6}$/i)])
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 const time = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
@@ -60,7 +84,7 @@ export function lunaTools(deps: LunaToolDeps): McpSdkServerConfigWithInstance {
     instructions:
       'Registros pessoais da casa, no vault da usuária: tarefas (tarefas.md) e agenda (agenda.md). ' +
       'Leia com tasks_list antes de mudar uma tarefa: as linhas valem para essa leitura. ' +
-      'Objetivos (objetivos.md), rotinas e mídias ficam no mesmo vault: leia os arquivos com Read.',
+      'Objetivos (objetivos.md), rotinas pessoais e mídias (livros, filmes, jogos) também têm ferramentas aqui.',
     tools: lunaToolDefs(deps),
   })
 }
@@ -198,6 +222,113 @@ export function lunaToolDefs(deps: LunaToolDeps) {
       'Adia a revisão do dia por 1, 2, 3 ou 7 dias, quando a usuária pedir.',
       { days: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(7)]) },
       (args) => run(() => `Revisão adiada; volta em ${deps.review.postpone(args.days)}.`)(),
+    ),
+    tool(
+      'goals_list',
+      'Lista os objetivos de objetivos.md com id, prazo e marcos numerados.',
+      {},
+      () =>
+        run(() => {
+          const { goals } = deps.goals.read(deps.vault())
+          if (!goals.length) return 'Nenhum objetivo em objetivos.md.'
+          return goals
+            .map((g) =>
+              [
+                `## ${g.title} · ${g.id} · prazo ${g.deadline}${g.achieved ? ' · alcançado' : ''}`,
+                ...g.milestones.map((m, i) => `- marco ${i + 1} [${m.done ? 'x' : ' '}] ${m.text}`),
+              ].join('\n'),
+            )
+            .join('\n\n')
+        })(),
+      { annotations: { readOnlyHint: true } },
+    ),
+    tool(
+      'goal_create',
+      'Cria um objetivo em objetivos.md, com alvo, prazo e marcos.',
+      {
+        title: z.string().trim().min(1).max(200),
+        target: z.string().trim().min(1).max(500),
+        deadline: day,
+        milestones: z.array(z.string().trim().min(1).max(500)).max(100).default([]),
+      },
+      (args) =>
+        run(() => {
+          const vault = deps.vault()
+          deps.goals.read(vault)
+          const id = deps.goals.create(vault, {
+            title: args.title,
+            target: args.target,
+            deadline: args.deadline,
+            milestones: args.milestones.map((text) => ({ text, done: false })),
+            taskIds: [],
+          })
+          return `Objetivo “${args.title}” criado (${id}).`
+        })(),
+    ),
+    tool(
+      'goal_milestone',
+      'Marca (ou desmarca) um marco de um objetivo: número do marco da última goals_list. Só quando a usuária pedir.',
+      { goal: z.string().regex(/^g[a-z0-9]{8}$/), milestone: z.number().int().min(1).max(100), done: z.boolean() },
+      (args) =>
+        run(() => {
+          const vault = deps.vault()
+          deps.goals.read(vault)
+          deps.goals.setMilestone(vault, args.goal, args.milestone - 1, args.done)
+          return `Marco ${args.milestone} de ${args.goal} ${args.done ? 'feito' : 'reaberto'}.`
+        })(),
+    ),
+    tool(
+      'media_list',
+      'Lista os itens de uma biblioteca de mídia (livro, filme ou jogo) com estado.',
+      { kind: mediaKind },
+      (args) =>
+        run(() => {
+          const items = deps.media.read(deps.vault(), args.kind)
+          return items.length ? items.map((m) => `- ${m.id} · ${m.status} · ${m.title}`).join('\n') : 'Biblioteca vazia.'
+        })(),
+      { annotations: { readOnlyHint: true } },
+    ),
+    tool(
+      'media_add',
+      'Adiciona um livro, filme ou jogo à biblioteca da casa.',
+      { kind: mediaKind, title: z.string().trim().min(1).max(300), status: z.enum(MEDIA_STATUSES).default('planejado') },
+      (args) =>
+        run(() => {
+          const vault = deps.vault()
+          deps.media.read(vault, args.kind)
+          const id = deps.media.create(vault, args.kind, { title: args.title, status: args.status })
+          return `${args.kind[0]!.toUpperCase()}${args.kind.slice(1)} “${args.title}” adicionado (${id}).`
+        })(),
+    ),
+    tool(
+      'routines_week',
+      'Lista as rotinas pessoais da semana: meta, dias distribuídos e quantas foram feitas.',
+      {},
+      () =>
+        run(() => {
+          const week = deps.routines.overview()
+          if (!week.rows.length) return 'Nenhuma rotina pessoal em rotinas-pessoais.md.'
+          return [
+            `Semana ${week.weekStart} a ${week.weekEnd}`,
+            ...week.rows.map((r) => {
+              const days = r.days?.length ? r.days.map((d) => WEEKDAYS[d]).join(', ') : 'sem dias'
+              const meta = r.cadence === 'semanal' && r.target ? `${r.target}x/semana` : r.cadence
+              const state = r.fixedSchedule ? 'dias fixos na nota' : r.confirmed ? 'distribuída' : 'a distribuir'
+              return `- ${r.routineId} · ${r.title} · ${meta} · ${days} · ${state} · feitas ${r.completed}`
+            }),
+          ].join('\n')
+        })(),
+      { annotations: { readOnlyHint: true } },
+    ),
+    tool(
+      'routine_distribute',
+      'Distribui uma rotina semanal nos dias desta semana (0 = domingo … 6 = sábado). O número de dias é a meta da rotina.',
+      { routine: z.string().regex(/^r[a-z0-9]{1,8}$/), days: z.array(z.number().int().min(0).max(6)).min(1).max(7) },
+      (args) =>
+        run(() => {
+          deps.routines.distribute(args.routine, args.days)
+          return `Rotina ${args.routine} distribuída: ${args.days.map((d) => WEEKDAYS[d]).join(', ')}.`
+        })(),
     ),
     tool(
       'agent_call',

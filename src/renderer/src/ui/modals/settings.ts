@@ -14,6 +14,7 @@ import {
   type VideoSettings,
 } from '@shared/video'
 import { openAccounts } from '../accounts'
+import { openLunaSettings } from '../luna-settings'
 import { dataSection } from '../data'
 import { h, icon } from '../dom'
 import { portrait } from '../portrait'
@@ -528,6 +529,22 @@ export function openSettings(
           'div',
           { class: 'bridge-row' },
           h('button', { class: 'btn', type: 'button', onclick: () => openAccounts(root, state, toast) }, 'Gerenciar contas'),
+        ),
+      ),
+      // Luna's own model, effort and look (it was the "Preferências" button of her panel).
+      h(
+        'div',
+        { class: 'bridge-box' },
+        h('div', { class: 'bridge-title' }, icon('spark', 16), 'Luna'),
+        h('div', { class: 'field-hint' }, 'Modelo, esforço e aparência só da Luna; os padrões dos outros agentes não mudam.'),
+        h(
+          'div',
+          { class: 'bridge-row' },
+          h(
+            'button',
+            { class: 'btn', type: 'button', onclick: () => openLunaSettings(root, state.settings, toast) },
+            'Preferências da Luna',
+          ),
         ),
       ),
       // AO-43: the memory of the profiles — Luna reads it, tasks never receive it.

@@ -23,6 +23,7 @@ export interface PersonalRoutineOccurrence {
 interface PersonalRoutineData {
   distributions: Record<string, number[]>
   occurrences: Record<string, PersonalRoutineOccurrence>
+  // Left by the removed daily reminders (morning/evening workflow): still accepted, so older files load.
   dailyTimes?: { morning: string; evening: string }
   processedDays?: string[]
   workflowDay?: string
@@ -120,52 +121,6 @@ export class PersonalRoutineStore {
     this.data = loaded.status === 'ok' || loaded.status === 'restored' ? loaded.data : empty()
   }
 
-  /** Configurable local times; legacy files keep the original 08:00 planning default. */
-  dailyTimes(): { morning: string; evening: string } {
-    return { morning: this.data.dailyTimes?.morning ?? '08:00', evening: this.data.dailyTimes?.evening ?? '20:00' }
-  }
-
-  setDailyTimes(times: { morning: string; evening: string }): void {
-    if (!timePattern.test(times.morning) || !timePattern.test(times.evening)) throw new Error('Escolha horários válidos no formato HH:MM.')
-    this.data.dailyTimes = { ...times }
-    this.save()
-  }
-
-  dayProcessHandled(key: string): boolean {
-    return (this.data.processedDays ?? []).includes(key)
-  }
-
-  markDayProcessHandled(key: string): boolean {
-    if (!/^(morning|evening):\d{4}-\d{2}-\d{2}$/.test(key)) throw new Error('Processo diário inválido.')
-    if (this.dayProcessHandled(key)) return false
-    this.data.processedDays = [...(this.data.processedDays ?? []), key]
-    this.save()
-    return true
-  }
-
-  workflowDay(): string | undefined {
-    return this.data.workflowDay
-  }
-
-  markWorkflowDay(day: string): void {
-    if (!dayPattern.test(day)) throw new Error('Data local do workflow inválida.')
-    if (this.data.workflowDay === day) return
-    this.data.workflowDay = day
-    this.save()
-  }
-
-  saveDailyPriorities(day: string, priorities: string[]): void {
-    if (!dayPattern.test(day) || priorities.some((priority) => typeof priority !== 'string'))
-      throw new Error('Prioridades diárias inválidas.')
-    this.data.dailyPriorities ??= {}
-    this.data.dailyPriorities[day] = [...new Set(priorities)]
-    this.save()
-  }
-
-  dailyPriorities(day: string): string[] {
-    return [...(this.data.dailyPriorities?.[day] ?? [])]
-  }
-
   distribution(key: string): number[] | undefined {
     return this.data.distributions[key] ? [...this.data.distributions[key]!] : undefined
   }
@@ -199,43 +154,6 @@ export class PersonalRoutineStore {
     this.data.occurrences[id] = occurrence
     this.save()
     return { ...occurrence }
-  }
-
-  /** Marks a reminder before displaying it, making duplicate timer wakes/restarts idempotent. */
-  markReminderAsked(id: string, now: number): boolean {
-    const row = this.data.occurrences[id]
-    if (!row || row.status === 'completed' || row.response) return false
-    const attempts = row.reminderAttempts ?? 0
-    if (attempts === 0) {
-      row.reminderAttempts = 1
-      row.reminderAskedAt = now
-    } else if (attempts === 1 && row.reminderAskedAt !== undefined && now >= row.reminderAskedAt + 30 * 60_000) {
-      row.reminderAttempts = 2
-      row.reminderAskedAt = now
-    } else return false
-    this.save()
-    return true
-  }
-
-  reminderAttempts(id: string): number {
-    return this.data.occurrences[id]?.reminderAttempts ?? 0
-  }
-
-  /** Only an explicit answer changes the local occurrence; deferral/non-completion stay pending. */
-  answerReminder(id: string, response: 'completed' | 'deferred' | 'not-completed', at: number): boolean {
-    const row = this.data.occurrences[id]
-    if (!row || row.status === 'completed' || row.response) return false
-    row.response = response
-    row.responseAt = at
-    if (response === 'completed') {
-      row.status = 'completed'
-      row.completedAt = row.day
-    } else {
-      row.status = 'pending'
-      delete row.completedAt
-    }
-    this.save()
-    return true
   }
 
   /** Reserve the occurrence's task id before writing tarefas.md; retries after a crash reuse it. */

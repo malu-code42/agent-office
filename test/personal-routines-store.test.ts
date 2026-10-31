@@ -13,37 +13,6 @@ const dir = () => {
 afterEach(() => dirs.splice(0).forEach((path) => rmSync(path, { recursive: true, force: true })))
 
 describe('estado local de rotinas pessoais', () => {
-  it('persists configurable local workflow times and explicit routine reminder responses', () => {
-    const data = dir()
-    const store = new PersonalRoutineStore(data)
-    expect(store.dailyTimes()).toEqual({ morning: '08:00', evening: '20:00' })
-    store.setDailyTimes({ morning: '07:30', evening: '21:15' })
-    store.ensureOccurrence('rabc:2026-10-19', 'rabc', '2026-10-19')
-
-    expect(store.markReminderAsked('rabc:2026-10-19', 1000)).toBe(true)
-    expect(store.markReminderAsked('rabc:2026-10-19', 1000)).toBe(false)
-    expect(store.markReminderAsked('rabc:2026-10-19', 1000 + 30 * 60_000 - 1)).toBe(false)
-    expect(store.markReminderAsked('rabc:2026-10-19', 1000 + 30 * 60_000)).toBe(true)
-    expect(store.markReminderAsked('rabc:2026-10-19', 1000 + 60 * 60_000)).toBe(false)
-
-    const restarted = new PersonalRoutineStore(data)
-    expect(restarted.dailyTimes()).toEqual({ morning: '07:30', evening: '21:15' })
-    expect(restarted.reminderAttempts('rabc:2026-10-19')).toBe(2)
-    expect(restarted.answerReminder('rabc:2026-10-19', 'completed', 99)).toBe(true)
-    expect(restarted.answerReminder('rabc:2026-10-19', 'deferred', 100)).toBe(false)
-    expect(new PersonalRoutineStore(data).occurrence('rabc:2026-10-19')).toMatchObject({
-      status: 'completed',
-      response: 'completed',
-      responseAt: 99,
-    })
-  })
-
-  it('refuses invalid workflow times and never records a response for an unknown occurrence', () => {
-    const store = new PersonalRoutineStore(dir())
-    expect(() => store.setDailyTimes({ morning: '24:00', evening: '20:00' })).toThrow(/horário/i)
-    expect(store.answerReminder('rabc:2026-10-19', 'completed', 100)).toBe(false)
-  })
-
   it('mantém a distribuição e uma reserva idempotente após reiniciar, sem copiar texto da rotina', () => {
     const data = dir()
     const store = new PersonalRoutineStore(data, () => 'tabc123')

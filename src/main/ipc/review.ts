@@ -50,7 +50,8 @@ export function registerReviewIpc(
     const path = files.vault()
     return personalRoutineOverview(path, dayKey(), personalRoutines)
   })
-  ipcMain.handle('office:confirmPersonalRoutineDistribution', async (_e, rawId: unknown, rawDays: unknown) => {
+  // Shared by the routines panel and Luna's routine_distribute.
+  const distribute = (rawId: unknown, rawDays: unknown) => {
     const [id, days] = parse(confirmPersonalRoutineDistributionSchema, [rawId, rawDays], 'Distribuição semanal inválida.')
     const path = files.vault()
     const routine = personalRoutineOverview(path, dayKey(), personalRoutines).rows.find((row) => row.routineId === id)
@@ -60,7 +61,8 @@ export function registerReviewIpc(
     personalRoutines.confirmDistribution(`${localWeek(today).start}:${id}`, days)
     for (const date of weeklyOccurrenceDates(today, days)) personalRoutines.ensureOccurrence(routineOccurrenceId(id, date), id, date)
     return personalRoutineOverview(path, dayKey(), personalRoutines)
-  })
+  }
+  ipcMain.handle('office:confirmPersonalRoutineDistribution', async (_e, rawId: unknown, rawDays: unknown) => distribute(rawId, rawDays))
   const resumeOccurrence = (occurrenceId: string) => {
     const occurrence = personalRoutines.occurrence(occurrenceId)
     if (!occurrence?.taskId) throw new Error('Esta ocorrência ainda não tem tarefa para retomar.')
@@ -183,6 +185,10 @@ export function registerReviewIpc(
   })
 
   return {
+    routines: {
+      overview: () => personalRoutineOverview(files.vault(), dayKey(), personalRoutines),
+      distribute: (id: string, days: number[]) => void distribute(id, days),
+    },
     focus: () => openReview(files.vault(), deps()).focus,
     done: () => {
       finishReview(ctx.planning, dayKey())
