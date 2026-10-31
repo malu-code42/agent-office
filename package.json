@@ -50,5 +50,11 @@
     "vite": "^7.3.7",
     "vitest": "^5.0.4"
   },
-  "type": "module"
+  "type": "module",
+  "allowScripts": {
+    "electron@44.5.1": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true,
+    "electron-winstaller@5.4.0": true
+  }
 }
