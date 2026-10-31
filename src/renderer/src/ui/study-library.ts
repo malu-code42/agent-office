@@ -10,14 +10,16 @@ const UNIT: Record<StudySourceRecommendation['kind'], string> = { pdf: 'página'
 
 /**
  * One of Cora's sources: where to start and where to stop (page, slide, section or line), the
- * relevance scale and, unless `compact`, a short local piece of it. "Abrir" opens the file in
- * the system's app (at its start: page anchors depend on the viewer).
+ * relevance scale and, unless `compact`, a short local piece of it. Clicking the title or
+ * "Abrir" opens it: a PDF at its start page in the app's viewer, anything else in the system's app.
  */
 export function studySourceItem(r: StudySourceRecommendation, toast: Toast, compact = false): HTMLElement {
   const unit = UNIT[r.kind]
   const sections = r.startHeading
     ? ` (${r.startHeading}${r.endHeading && r.endHeading !== r.startHeading ? ` → ${r.endHeading}` : ''})`
     : ''
+  const page = r.kind === 'pdf' ? r.start : undefined
+  const open = (): void => void window.office.openStudySource(r.path, page).catch((err: unknown) => toast(cleanError(err), 'err'))
   return h(
     'li',
     { class: `study-source study-source-${r.level}` },
@@ -25,7 +27,7 @@ export function studySourceItem(r: StudySourceRecommendation, toast: Toast, comp
       'div',
       { class: 'study-source-line' },
       h('span', {}, 'Estude: '),
-      h('b', {}, r.title),
+      h('button', { class: 'study-source-title', type: 'button', title: page ? `Abrir na página ${page}` : 'Abrir', onclick: open }, r.title),
       h('span', {}, `, ${r.range}${sections}`),
       h('span', { class: `study-source-level study-source-level-${r.level}`, title: `Pontuação local ${r.score}/100` }, r.label),
     ),
@@ -44,9 +46,9 @@ export function studySourceItem(r: StudySourceRecommendation, toast: Toast, comp
       {
         class: 'btn btn-small',
         type: 'button',
-        onclick: () => void window.office.openStudySource(r.path).catch((err: unknown) => toast(cleanError(err), 'err')),
+        onclick: open,
       },
-      'Abrir',
+      page ? `Abrir na p. ${page}` : 'Abrir',
     ),
   )
 }

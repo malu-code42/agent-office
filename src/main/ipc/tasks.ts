@@ -7,6 +7,7 @@ import { buildClassSchedule } from '@shared/class-schedule'
 import { parseStudyTrail, STUDY_TRAIL_FILE } from '@shared/study-trail'
 import { routineWeekMarks } from '@shared/routine-personal'
 import { personalRoutineOverview } from '../routines-personal'
+import { openPdfAtPage } from '../pdf-viewer'
 import { focusItems, focusKey } from '@shared/planning'
 import { ARCHIVE_LIST, parseTasksFile, type TaskList, type TaskRef } from '@shared/tasks'
 import type { Proposal } from '@shared/proposals'
@@ -225,9 +226,8 @@ export function registerTasksIpc(ctx: IpcContext): void {
     return studyLibrary().recommend(queries)
   })
   ipcMain.handle('office:openStudySource', async (_e, ...args: unknown[]) => {
-    const [path] = parse(openStudySourceArgsSchema, args, 'Fonte inválida.')
-    const error = await shell.openPath(studyLibrary().sourcePath(path))
-    if (error) throw new Error(`Não foi possível abrir a fonte: ${error}`)
+    const [path, page] = parse(openStudySourceArgsSchema, args, 'Fonte inválida.')
+    await openStudySource(studyLibrary().sourcePath(path), page)
   })
   ipcMain.handle('office:attachStudySource', (_e, ...args: unknown[]) => {
     const [questionId, token, hitId] = parse(studyLibrarySourceArgsSchema, args, 'Vínculo de fonte inválido.')
@@ -498,10 +498,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
         setAside: () => studyCycleService().reset(),
         schedule: () => buildClassSchedule(readOptionalFile(requireVault(), 'aulas.md'), new Date()),
         recommend: async (theme) => (await studyLibrary().recommend([theme]))[0]!,
-        openSource: async (path) => {
-          const error = await shell.openPath(studyLibrary().sourcePath(path))
-          if (error) throw new Error(`Não foi possível abrir a fonte: ${error}`)
-        },
+        openSource: (path, page) => openStudySource(studyLibrary().sourcePath(path), page),
       })
 
   // Luna's /compromisso command: the same writer and plan as her agenda_add tool, and its undo.
@@ -701,4 +698,11 @@ function readTasksAt(writer: TaskWriter, rawPath: unknown) {
   writer.remember(path, content)
   const parsed = parseTasksFile(content)
   return { lists: parsed.lists, warnings: parsed.warnings }
+}
+
+/** A PDF with a page opens at that page in the app's own viewer; anything else in the system's app. */
+async function openStudySource(path: string, page?: number): Promise<void> {
+  if (page && /\.pdf$/i.test(path)) return openPdfAtPage(path, page)
+  const error = await shell.openPath(path)
+  if (error) throw new Error(`Não foi possível abrir a fonte: ${error}`)
 }

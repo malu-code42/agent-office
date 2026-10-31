@@ -303,7 +303,8 @@ export interface OfficeAPI {
    */
   recommendStudySources(queries: string[]): Promise<StudySourceRecommendations[]>
   /** Abre no app do sistema uma fonte da pasta "study sources" (caminho relativo ao vault). */
-  openStudySource(path: string): Promise<void>
+  /** A PDF with `page` opens at that page. */
+  openStudySource(path: string, page?: number): Promise<void>
   /** Vincula ao ciclo uma fonte pertencente a uma busca local anterior. */
   attachStudySource(questionId: string, token: string, hitId: string): Promise<StudyCycleState>
   /** Salva uma nota autoral no Obsidian e a vincula à lacuna e à fonte consultada. */
