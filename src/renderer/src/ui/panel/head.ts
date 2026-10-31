@@ -427,10 +427,8 @@ export abstract class PanelHead extends PanelSearch {
       this.actions.toast(cleanError(err), 'err')
       return
     }
-    // The stored log stays; the view restarts at the "Contexto limpo" line.
+    // The stored log stays; the view restarts at the cut (summary.clearedAt).
     if (this.agentId !== a.id || this.helper) return
-    const cut = this.log.findLastIndex((e) => e.kind === 'system' && e.text.startsWith('Contexto limpo'))
-    this.cleared.set(a.id, cut < 0 ? this.log.length : cut)
     this.feed.replaceChildren()
     this.lastTool = null
     this.lastEntry = undefined

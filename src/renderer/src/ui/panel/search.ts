@@ -7,14 +7,16 @@ import { PanelBase } from './base'
 
 /** Log filters, search (CSS Highlight API) and the export buttons. */
 export abstract class PanelSearch extends PanelBase {
-  /** Per agent: log index where a "Limpar conversa" cut the view. Older entries stay stored, not shown. */
-  protected cleared = new Map<string, number>()
   /** The last entry appended and its view, to hide a bubble the final result repeats. */
   protected lastEntry?: LogEntry
   protected lastView?: HTMLElement
 
+  /** First log index shown: entries before the agent's last "Limpar conversa" stay stored but hidden. */
   protected get floor(): number {
-    return (this.agentId && this.cleared.get(this.agentId)) || 0
+    const at = this.agentId ? this.state.agents.get(this.agentId)?.clearedAt : undefined
+    if (!at) return 0
+    const i = this.log.findIndex((e) => e.t >= at)
+    return i < 0 ? this.log.length : i
   }
 
   // ---------- filtros, busca e exportação (AO-36) ----------
