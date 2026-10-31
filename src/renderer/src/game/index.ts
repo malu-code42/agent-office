@@ -189,9 +189,16 @@ export class Game extends GameInput {
     const emi = this.state.agents.get(emiAgentId(up.project.id))
     if (emi) {
       const seat = floor.layout.emi.seat
+      const items = this.state.itemsFor(emi.id)
+      up.emiTag?.setDot(emi.status)
+      up.emiTag?.setBubble(
+        items.permissions.length ? '? Tenho uma pergunta' : emi.status === 'working' || emi.status === 'starting' ? emi.activity : null,
+        items.permissions.length ? 'wait' : 'work',
+      )
       people.push({
         key: 'emi',
         variant: EMI_VARIANT,
+        look: emi.look,
         x: seat.at[0] / 16,
         z: seat.at[1] / 16,
         heading: 0,

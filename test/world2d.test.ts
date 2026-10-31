@@ -3,7 +3,6 @@ import { SQUAD_MAX_MEMBERS } from '@shared/types'
 import { AGENT_DESK_COUNT } from '../src/renderer/src/world/layout'
 import layoutData from '../src/renderer/src/assets/pixel/project.json'
 import { behind, depthSort, type Footprint } from '../src/renderer/src/world2d/depth'
-import { plaqueLeft, plaqueSize, ringColors, textWidth } from '../src/renderer/src/world2d/font'
 import { topmost } from '../src/renderer/src/world2d/hit'
 import {
   artToScreen,
@@ -13,6 +12,7 @@ import {
   fitZoom,
   floorBounds,
   headingOf,
+  onWestWall,
   toFloor,
   toScreen,
 } from '../src/renderer/src/world2d/iso'
@@ -76,6 +76,14 @@ describe('iso', () => {
     expect(fitZoom(b, { w: 1424, h: 835 }, 1)).toBe(2)
     expect(fitZoom(b, { w: 800, h: 600 }, 1)).toBe(1)
     expect(fitZoom(b, { w: 2200, h: 1300 }, 1)).toBe(3)
+  })
+
+  it('acha a parede do fundo de uma sala (onde ela é clicável)', () => {
+    // the west wall at y = 40 art units, 20 up
+    const p = { x: ORIGIN[0] - 40, y: ORIGIN[1] + 20 - 20 }
+    expect(onWestWall(ORIGIN, p, 0, 96, 56)).toBe(true)
+    expect(onWestWall(ORIGIN, p, 96, 192, 56)).toBe(false)
+    expect(onWestWall(ORIGIN, { x: p.x, y: p.y - 60 }, 0, 96, 56)).toBe(false)
   })
 
   it('a câmera fica no andar e centraliza quando ele cabe', () => {
@@ -232,19 +240,7 @@ describe('projectPlan2d', () => {
   })
 })
 
-describe('placas e sprites', () => {
-  it('mede o texto como a fonte do gerador', () => {
-    expect(textWidth('II')).toBe(2 * textWidth('I') + 1)
-    expect(plaqueSize('Sala 1').h).toBe(11)
-    expect(plaqueSize('Coordenação').h).toBe(13) // ç hangs below the line
-    expect(plaqueLeft(100, 'Sala 1')).toBe(Math.trunc(100 - plaqueSize('Sala 1').w / 2))
-  })
-
-  it('o anel da placa é mais claro em cima e à esquerda', () => {
-    const { lit, shade } = ringColors()
-    expect(lit[0]).toBeGreaterThan(shade[0])
-  })
-
+describe('sprites', () => {
   it('o mesmo visual sempre dá a mesma variante, entre as seis de agente', () => {
     const look = { skin: '#f7d7b5', hair: '#3a3340', hairStyle: 2, shirt: '#86acd8', pants: '#4f5873', shoes: '#5a4038' }
     expect(variantOf(look)).toBe(variantOf({ ...look }))

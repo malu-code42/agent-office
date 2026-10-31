@@ -26,7 +26,7 @@ As prévias vão para `out/pixel-art/` (ignorado pelo git). Depois de `export_ap
 | `atlas.png` + `atlas.json` | Todos os sprites: móveis (um quadro por cor de monitor: verde, âmbar, vermelho, desligado), paredes de vidro, cadeiras (assento e encosto separados, para o personagem sentar entre eles), personagens (8 variantes × 4 direções × parado/passo A/passo B + sentado de costas e de frente), balões, sombra e um losango por piso. `anchors` diz onde fica a ponta de cada balão e o centro da sombra. |
 | `project-base.png` | O que nunca se ordena no andar de projeto: laje, piso, paredes do fundo, tapetes, elevador, quadros brancos. |
 | `project.json` | O layout do andar: cada sprite na posição final do canvas nativo (736×460) com sua pegada para ordenar a profundidade, as salas (retângulo em tiles, placa, sombra de luz apagada), as mesas de cada sala com o lugar da cadeira, a mesa da Emi, as cadeiras da sala de reunião, as paredes com portas, os tiles ocupados por móveis e o elevador. |
-| `font5.json` | A fonte das placas (9 linhas por letra, acentos do português). |
+| `chars.json` | Cada quadro do personagem como letras de paleta, por corte (1–6); o app pinta com o visual de cada agente. |
 
 ## Regras
 

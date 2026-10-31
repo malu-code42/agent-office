@@ -2,7 +2,7 @@ import type { AgentSummary } from '@shared/types'
 import { accountChip } from '../accounts'
 import { formatCost, h, icon } from '../dom'
 import { STATUS_LABEL } from '../hud'
-import { EFFORTS } from '../modals'
+import { EFFORTS, MODELS } from '../modals'
 import { renderHelpers } from '../panel-helpers'
 import { osText } from '../os-text'
 import { portrait } from '../portrait'
@@ -130,6 +130,7 @@ export abstract class PanelHead extends PanelSearch {
           ),
           h('button', { class: 'icon-btn', title: 'Fechar (Esc)', onclick: () => this.close() }, icon('x', 16)),
         ),
+        a.builtIn ? this.brainPicker(a) : null,
         open ? this.badgeDetails(a, led(true), busy) : null,
       ),
       ...(this.memMenuOpen && ctx ? [this.memMenu(a, busy)] : []),
@@ -209,6 +210,44 @@ export abstract class PanelHead extends PanelSearch {
     )
   }
 
+  /**
+   * Model and effort of a fixed agent (Luna, Emi), always in sight: picking one saves her
+   * preference (Luna's own, or one for every floor's Emi) and her next turn uses it.
+   */
+  protected brainPicker(a: AgentSummary): HTMLElement {
+    const luna = a.builtIn === 'luna'
+    const s = this.state.settings
+    const model = h(
+      'select',
+      { class: 'input input-small', 'aria-label': `Modelo da ${a.name}` },
+      ...MODELS.map((m) => h('option', { value: m.value }, m.label)),
+    ) as HTMLSelectElement
+    const savedModel = luna ? s.lunaModel : s.emiModel
+    model.value = MODELS.some((m) => m.value === savedModel) ? savedModel : ''
+    const effort = h(
+      'select',
+      { class: 'input input-small', 'aria-label': `Esforço da ${a.name}` },
+      ...EFFORTS.map((e) => h('option', { value: e.value }, e.label)),
+    ) as HTMLSelectElement
+    effort.value = (luna ? s.lunaEffort : s.emiEffort) || ''
+    const save = () => {
+      const level = (EFFORTS.find((e) => e.value === effort.value)?.value ?? '') as typeof s.lunaEffort
+      const patch = luna ? { lunaModel: model.value, lunaEffort: level } : { emiModel: model.value, emiEffort: level }
+      window.office
+        .saveSettings(patch)
+        .then(() => this.actions.toast(`${a.name} usa o novo modelo e esforço a partir da próxima mensagem.`, 'ok'))
+        .catch((err) => this.actions.toast(err instanceof Error ? err.message : String(err), 'err'))
+    }
+    model.addEventListener('change', save)
+    effort.addEventListener('change', save)
+    return h(
+      'div',
+      { class: 'ab-brain', title: luna ? 'Preferências da Luna' : 'Vale para a Emi de todos os andares' },
+      h('label', { class: 'ab-brain-field' }, icon('cpu', 12), h('span', { class: 'sr-only' }, 'Modelo'), model),
+      h('label', { class: 'ab-brain-field' }, icon('gauge', 12), h('span', { class: 'sr-only' }, 'Esforço'), effort),
+    )
+  }
+
   /** The open half of the badge: status, stamps, memory blocks and the rarer actions. */
   protected badgeDetails(a: AgentSummary, led: HTMLElement, busy: boolean): HTMLElement {
     const office = a.source === 'office'
@@ -218,17 +257,6 @@ export abstract class PanelHead extends PanelSearch {
         { class: 'ab-more' },
         led,
         h('p', { class: 'field-hint' }, 'Coordenadora local. O contexto é preparado no dispositivo e enviado ao Claude para responder.'),
-        h(
-          'div',
-          { class: 'ab-stamps' },
-          h(
-            'span',
-            { class: 'ab-stamp', title: a.model ?? 'Modelo padrão do Claude' },
-            icon('cpu', 12),
-            a.model ? modelLabel(a.model) : 'modelo padrão',
-          ),
-          h('span', { class: 'ab-stamp', title: 'Esforço' }, icon('gauge', 12), a.effort ?? 'esforço padrão'),
-        ),
         h(
           'div',
           { class: 'ab-foot' },
@@ -271,7 +299,7 @@ export abstract class PanelHead extends PanelSearch {
               a.worktree.branch,
             )
           : null,
-        a.model ? h('span', { class: 'ab-stamp', title: a.model }, icon('cpu', 12), modelLabel(a.model)) : null,
+        a.model && !a.builtIn ? h('span', { class: 'ab-stamp', title: a.model }, icon('cpu', 12), modelLabel(a.model)) : null,
         a.opencodeUsage
           ? h(
               'span',
@@ -279,7 +307,7 @@ export abstract class PanelHead extends PanelSearch {
               `${(a.opencodeUsage.inputTokens + a.opencodeUsage.outputTokens).toLocaleString()} tokens`,
             )
           : null,
-        effort ? h('span', { class: 'ab-stamp', title: 'Esforço' }, icon('gauge', 12), effort) : null,
+        effort && !a.builtIn ? h('span', { class: 'ab-stamp', title: 'Esforço' }, icon('gauge', 12), effort) : null,
         a.costUnknown
           ? h('span', { class: 'ab-stamp', title: 'O provedor não informou preço confiável' }, icon('coin', 12), 's/ preço')
           : a.costUsd

@@ -8,6 +8,7 @@ import { PROJECT_LAYOUT } from '../world2d/atlas'
 import { buildFloor2d } from '../world2d/floor'
 import { projectPlan2d } from '../world2d/layout'
 import type { Visual } from '@shared/video'
+import { emiAgentId } from '@shared/emi'
 import { Tag } from '../world/overlays'
 import { GameBase } from './base'
 import { floorsKey, issuesToken } from './floor-key'
@@ -87,6 +88,7 @@ export abstract class GameFloors extends GameBase {
       this.overlays.remove(u.alarmTag)
       this.overlays.remove(u.moneyTag)
       if (u.proposalTag) this.overlays.remove(u.proposalTag)
+      if (u.emiTag) this.overlays.remove(u.emiTag)
       for (const t of u.stepTags) this.overlays.remove(t)
     })
     this.uppers = projects.map((project, i) => {
@@ -138,9 +140,19 @@ export abstract class GameFloors extends GameBase {
         proposalTag = this.overlays.add(new Tag(anchor, 'Equipe proposta', false, () => this.hooks.onRoomClick?.(project, waiting)))
         proposalTag.setDot('waiting')
       }
+      // Emi sits at her desk on a 2D floor: her tag opens her conversation, like any agent's
+      let emiTag: Tag | null = null
+      if (flat) {
+        const seat = (scene as ReturnType<typeof buildFloor2d>).flat.layout.emi.seat
+        const anchor = new THREE.Object3D()
+        anchor.position.set(seat.at[0] / 16, 1.55, seat.at[1] / 16)
+        scene.group.add(anchor)
+        emiTag = this.overlays.add(new Tag(anchor, 'Emi', false, () => this.hooks.onAgentClick(emiAgentId(project.id))))
+      }
       return {
         project,
         scene,
+        emiTag,
         stepTags,
         issueTag,
         proposalTag,
@@ -308,6 +320,7 @@ export abstract class GameFloors extends GameBase {
       u.scene.group.visible = here
       if (u.issueTag) u.issueTag.hidden = !here
       if (u.proposalTag) u.proposalTag.hidden = !here
+      if (u.emiTag) u.emiTag.hidden = !here || !this.state.agents.has(emiAgentId(u.project.id))
       const seated = here ? this.orchestratorsOn(i + 1) : null
       u.stepTags.forEach((t, room) => (t.hidden = !seated?.has(room)))
     })

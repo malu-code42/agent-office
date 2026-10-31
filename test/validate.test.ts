@@ -79,6 +79,8 @@ const settings = (): Settings => ({
   defaultEffort: '',
   lunaModel: '',
   lunaEffort: '',
+  emiModel: '',
+  emiEffort: '',
   lunaLook: { skin: '#f6d3b3', hair: '#2b1d16', hairStyle: 1, shirt: '#4a8fe0', pants: '#2f3b5c', shoes: '#1e1e24' },
   defaultPermissionMode: 'default',
   notifications: true,
@@ -583,6 +585,16 @@ describe('cleanSettings', () => {
     const out = cleanSettings({ lunaModel: 'sonnet', lunaEffort: 'low', lunaLook }, cur)
     expect(out).toMatchObject({ defaultModel: 'opus', defaultEffort: 'high', lunaModel: 'sonnet', lunaEffort: 'low', lunaLook })
     expect(cleanSettings({ lunaModel: 'invalid model', lunaEffort: 'bogus' }, cur)).toMatchObject({ lunaModel: '', lunaEffort: '' })
+  })
+  it('modelo e esforço da Emi são validados e não modificam os padrões nem a Luna', () => {
+    const cur = { ...settings(), defaultModel: 'opus', lunaModel: 'haiku' }
+    expect(cleanSettings({ emiModel: 'sonnet', emiEffort: 'max' }, cur)).toMatchObject({
+      defaultModel: 'opus',
+      lunaModel: 'haiku',
+      emiModel: 'sonnet',
+      emiEffort: 'max',
+    })
+    expect(cleanSettings({ emiModel: 'rm -rf /', emiEffort: 'turbo' }, cur)).toMatchObject({ emiModel: '', emiEffort: '' })
   })
   it('contas, contas padrão e andares passam pelos limpadores', () => {
     const out = cleanSettings(

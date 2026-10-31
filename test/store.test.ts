@@ -24,6 +24,8 @@ describe('Store: carga e migração das configurações', () => {
     expect(s.settings.projects).toEqual([])
     expect(s.settings.lunaModel).toBe('')
     expect(s.settings.lunaEffort).toBe('')
+    expect(s.settings.emiModel).toBe('')
+    expect(s.settings.emiEffort).toBe('')
     expect(s.settings.lunaLook).toEqual(expect.objectContaining({ skin: expect.any(String), shirt: expect.any(String) }))
     expect(s.agents).toEqual([])
     expect(s.results).toEqual([])

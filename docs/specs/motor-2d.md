@@ -35,11 +35,24 @@ indo ao elevador como antes, com caminhos no `Grid` do andar. O que muda é o **
 - Ordem de profundidade: a mesma regra do gerador (`room.py draw_sorted`), em `world2d/depth.ts`.
 - Quem senta (pose `sit`/`type`/`relax` perto de uma cadeira) é desenhado entre o assento e o encosto.
 
+### Placas, nomes e a Emi
+
+- O chão 2D não tem placas de sala: o nome aparece como dica ao passar o mouse sobre a sala. A sala de
+  squad abre clicando na parede do fundo dela (lado do quadro branco); a sala de reunião, na mesa.
+- Todo agente tem a tag HTML com nome, ponto de status e balão, como no 3D; a Emi ganha a dela na mesa.
+- A Emi usa um visual fixo (`EMI_LOOK`, o da arte aprovada) no chão, na lista e no chat: uma fonte só.
+- A mesa da Emi está virada para a parede oeste: ela senta a leste da mesa (de costas para quem olha),
+  as duas cadeiras de visita ficam do outro lado; a porta para a reunião fica livre.
+- Luna e Emi mostram modelo e esforço no topo do painel, com dropdowns. Luna grava em `lunaModel` /
+  `lunaEffort`; a Emi em `emiModel` / `emiEffort` (um ajuste para a Emi de todos os andares). Vale na
+  próxima mensagem: a Luna lê a preferência a cada turno; a Emi parada fecha o processo e retoma a mesma
+  sessão com as novas opções; a Emi trabalhando troca o modelo na hora e o esforço no próximo processo.
+
 ### Entrada
 
 `game/input.ts` pergunta ao renderizador 2D quando ele está na tela: arrastar move a câmera (presa ao
 andar), roda/zoom do HUD troca 1×/2×/3×, clique acerta pessoa (pixel pintado do sprite, a da frente
-primeiro), placa de sala (`onRoomClick`), placa da reunião (`onMeetingRoomClick`), Emi (abre a conversa
+primeiro), parede do fundo de uma sala (`onRoomClick`), mesa da reunião (`onMeetingRoomClick`), Emi (abre a conversa
 dela), porta do elevador (o jogador anda até lá e o painel Elevador ganha o foco) ou o chão (anda).
 
 ## Mapa 3D → 2D
@@ -65,7 +78,7 @@ espetado, longo, coque, maria-chiquinha, rabo de cavalo. O retrato do editor (fr
 os ícones de pessoa do app (`ui/portrait.ts`: lista de agentes, painel, dock, quadro, relatórios)
 usam o mesmo sprite.
 
-Arquivos novos da fase 1: `world2d/{atlas,depth,floor,font,hit,iso,layout,looks,plaque,recolor,renderer,sprites}.ts`,
+Arquivos novos da fase 1: `world2d/{atlas,depth,floor,hit,iso,layout,looks,recolor,renderer,sprites}.ts`,
 `assets/pixel/*`, `scripts/pixel-art/*`, `test/world2d.test.ts`.
 
 Mudanças no jogo: `ProjectPlan` ganhou `size`, `elevator`, `meeting` (sala, mesa, cadeiras) e `overflow`,

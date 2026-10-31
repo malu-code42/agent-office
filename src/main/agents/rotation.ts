@@ -1,3 +1,4 @@
+import type { Settings } from '@shared/types'
 import { CONTINUE_PROMPT, clock, usd, type Agent } from './types'
 import { AgentSdk } from './sdk'
 
@@ -118,6 +119,26 @@ export abstract class AgentRotation extends AgentSdk {
     agent.summary.quotaEnded = true
     this.addLog(agent, 'system', 'Você encerrou esta tarefa pausada pela cota. Ela não será retomada; limpe o contexto para começar outra.')
     this.setStatus(agent, 'error', 'Tarefa encerrada após pausa por cota')
+  }
+
+  /**
+   * Emi's model and effort (one setting for every floor). An idle Emi's process closes, so her
+   * next turn resumes the same session with the new options; a working one switches model
+   * live and takes the effort on her next process.
+   */
+  setEmiPreferences(settings: Pick<Settings, 'emiModel' | 'emiEffort'>): void {
+    const model = settings.emiModel || undefined
+    const effort = settings.emiEffort || undefined
+    for (const agent of this.agents.values()) {
+      const s = agent.summary
+      if (s.builtIn !== 'emi') continue
+      s.model = model
+      s.effort = effort
+      if (agent.query && s.status !== 'working' && s.status !== 'starting') this.closeProcess(agent)
+      // a turn in flight keeps going; the model switches for its next message
+      else void agent.query?.setModel(model).catch(() => undefined)
+      this.upsert(agent)
+    }
   }
 
   /** A CLI process is tied to one login: close it so the next run starts on another account. */

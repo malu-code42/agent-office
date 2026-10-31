@@ -8,7 +8,6 @@
   project.json             the project floor's layout: where each sprite goes on the
                            base canvas, its footprint for depth sorting, the rooms, seats,
                            walls, blocked tiles and spots the game walks to
-  font5.json               the plaque font
 
 Everything is placed at its final pixel position on the native canvas (736x460), so the
 app only blits: no half-pixel rounding differs from the approved scene-projeto.png.
@@ -22,9 +21,8 @@ from px import H
 import furn as F
 from floorkit import SW, SH, OX, OY, TS, W, D, WALL_H, PART_H, Scene, new_layer, OAK, WALNUT, draw_floor, Layer
 import scene_projeto as P
-from desks import ws_back, ws_front_x, ws_front_y
+from desks import ws_back, ws_front_x
 from chars import sprite, VARIANTS, letters, palette, SW2, SH2
-from font5 import glyph
 
 APP = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
                    'src', 'renderer', 'src', 'assets', 'pixel')
@@ -230,8 +228,8 @@ def main():
     ex, ey, ew = P.EMI_DESK
     epx, epy = L.P(336, 282, 0)
     emi = {
-        'desk': desk('emi', lambda s, st: ws_front_y(s, ex, ey, None, st, boss=True, w=ew)),
-        'seat': seat('emi', ex + ew - 13, ey - 12, '+y'),
+        'desk': desk('emi', lambda s, st: ws_back(s, ex, ey, None, st, 'papers', boss=True, d_=ew)),
+        'seat': seat('emi', ex + 16, ey + (ew - 26) // 2 + 3, '-x'),
         'plate': [epx, int(epy)],
     }
     mpx, mpy = L.P(232, 282, 0)
@@ -330,10 +328,6 @@ def main():
     with open(os.path.join(TESTS, 'pixel-chars-ref.json'), 'w', encoding='utf8') as f:
         json.dump(refs, f, separators=(',', ':'))
 
-    # ---------- plaque font ----------
-    chars = ''.join(chr(c) for c in range(32, 127)) + 'áéíóúâêôãõçÁÉÍÓÚÂÊÔÃÕÇ·'
-    with open(os.path.join(APP, 'font5.json'), 'w', encoding='utf8') as f:
-        json.dump({c: glyph(c) for c in chars}, f, separators=(',', ':'), ensure_ascii=False)
     print('atlas:', len(atlas.frames), 'frames ->', APP)
 
 

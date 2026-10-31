@@ -227,6 +227,9 @@ export abstract class GameInput extends GameMovement {
       const tz = p ? Math.floor(p.z) : -1
       this.hover2d = !over && grid.inside(tx, tz) ? { x: tx, z: tz, ok: grid.walkable(tx, tz) } : null
       document.body.style.cursor = over ? 'pointer' : ''
+      // the rooms have no plates on the 2D floor: their name shows as a tooltip
+      const name = over?.kind === 'person' ? '' : (flat.roomAt(x, y) ?? '')
+      if (flat.canvas.title !== name) flat.canvas.title = name
       return
     }
     const homeInteraction = this.homeInteractionAt(x, y)

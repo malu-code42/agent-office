@@ -13,7 +13,6 @@
     "src/renderer/src/world/layout.ts",
     "src/renderer/src/world/home-layout.ts",
     "src/renderer/src/world2d/depth.ts",
-    "src/renderer/src/world2d/font.ts",
     "src/renderer/src/world2d/hit.ts",
     "src/renderer/src/world2d/iso.ts",
     "src/renderer/src/world2d/layout.ts",

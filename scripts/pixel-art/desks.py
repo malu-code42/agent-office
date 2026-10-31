@@ -10,20 +10,25 @@ def _led(L, x, y, z, state):
     L.dot(*[int(v) for v in L.P(x, y, z)], G.LED[state])
 
 
-def ws_back(sc, x, y, vi, state, extra='mug', head=None):
-    """desk long along y at (x,y) 14x26; agent east of it, facing -x (BL)."""
+def ws_back(sc, x, y, vi, state, extra='mug', head=None, boss=False, d_=26):
+    """desk long along y at (x,y) 14 x d_; agent east of it, facing -x (BL), at the middle of the desk."""
     L = sc.L
+    o = (d_ - 26) // 2
+    z = 13 if boss else 12
 
     def d():
-        F.desk(L, x, y, 14, 26)
-        F.crt(L, x + 1, y + 1, 12, '+x', state)
-        F.keyboard(L, x + 10, y + 3, 12, 'y')
+        if boss:
+            G.boss_desk(L, x, y, 14, d_)
+        else:
+            F.desk(L, x, y, 14, d_)
+        F.crt(L, x + 1, y + o + 1, z, '+x', state)
+        F.keyboard(L, x + 10, y + o + 3, z, 'y')
         if extra == 'mug':
-            F.mug(L, x + 4, y + 19, 12)
+            F.mug(L, x + 4, y + o + 19, z)
         elif extra == 'papers':
-            F.papers(L, x + 4, y + 18, 12)
-    sc.add((x, y, x + 14, y + 26), d, True)
-    cx, cy = x + 16, y + 3
+            F.papers(L, x + 4, y + o + 18, z)
+    sc.add((x, y, x + 14, y + d_), d, True)
+    cx, cy = x + 16, y + o + 3
 
     def c():
         F.chair(L, cx, cy, '-x', 'seat')
