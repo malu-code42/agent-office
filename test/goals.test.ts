@@ -165,3 +165,44 @@ describe('writer de objetivos', () => {
     expect(readdirSync(vault).sort()).toEqual(['objetivos.md', 'tarefas.md'])
   })
 })
+
+describe('objetivos.txt (checklist simples)', () => {
+  const LIST = ['- [ ] Concluir o curso A', '- [x] Terminar o livro B', '- [ ] Publicar o projeto C'].join('\n')
+  const confirm = { confirmAchieved: async () => true }
+
+  it('lê itens como objetivos sem alvo, prazo nem marcos', () => {
+    const { goals } = parseGoals(`${LIST}\n`)
+    expect(goals.map((g) => [g.title, g.achieved, g.simple, g.deadline])).toEqual([
+      ['Concluir o curso A', false, true, ''],
+      ['Terminar o livro B', true, true, ''],
+      ['Publicar o projeto C', false, true, ''],
+    ])
+    expect(new Set(goals.map((g) => g.id)).size).toBe(3)
+    expect(parseGoals(`${LIST}\n`).goals[0]?.id).toBe(goals[0]?.id)
+  })
+
+  it('o writer usa o objetivos.txt, cria e conclui sem mudar o formato', async () => {
+    writeFileSync(join(vault, 'objetivos.txt'), `${LIST}\n`)
+    writeFileSync(join(vault, 'tarefas.md'), '## A fazer\n')
+    const writer = createGoalsWriter({ ...confirm, newId: () => 'gnew00001' })
+    const { goals } = writer.read(vault)
+    expect(goals).toHaveLength(3)
+    writer.create(vault, { title: 'Novo item', target: 'x', deadline: '2026-12-31', milestones: [], taskIds: [] })
+    expect(await writer.achieve(vault, goals[0]!.id, [])).toBe(true)
+    expect(readFileSync(join(vault, 'objetivos.txt'), 'utf8')).toBe(
+      ['- [x] Concluir o curso A', '- [x] Terminar o livro B', '- [ ] Publicar o projeto C', '- [ ] Novo item', ''].join('\n'),
+    )
+    expect(readdirSync(vault)).not.toContain('objetivos.md')
+    expect(() => writer.setMilestone(vault, goals[1]!.id, 0, true)).toThrow(/simples/)
+  })
+
+  it('prefere objetivos.md quando os dois existem', () => {
+    writeFileSync(join(vault, 'objetivos.md'), `${START}\n`)
+    writeFileSync(join(vault, 'objetivos.txt'), `${LIST}\n`)
+    expect(
+      createGoalsWriter()
+        .read(vault)
+        .goals.map((g) => g.id),
+    ).toEqual([ID])
+  })
+})

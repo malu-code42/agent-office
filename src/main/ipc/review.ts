@@ -8,7 +8,7 @@ import { finishReview, hasDraftToday, markOffered, offerDue, openReview, postpon
 import type { TaskWriter } from '../tasks-write'
 import { taskIdsIn } from '../tasks-write'
 import type { ReviewPostpone } from '@shared/review'
-import { PERSONAL_ROUTINES_FILE, personalRoutineCandidates, personalRoutineDefinition, personalRoutineOverview } from '../routines-personal'
+import { personalRoutinesFile, personalRoutineCandidates, personalRoutineDefinition, personalRoutineOverview } from '../routines-personal'
 import { localWeek, routineOccurrenceId, weeklyOccurrenceDates } from '@shared/routine-personal'
 import type { PersonalRoutineStore } from '../personal-routines-store'
 import { personalRoutineTaskFingerprint, personalRoutineTaskFingerprintFromTask } from '../personal-routine-fingerprint'
@@ -178,10 +178,12 @@ export function registerReviewIpc(
     return resumeOccurrence(input.occurrenceId)
   })
   ipcMain.handle('office:openPersonalRoutines', async () => {
-    const path = join(files.vault(), PERSONAL_ROUTINES_FILE)
-    if (!existsSync(path)) throw new Error('Não encontrei rotinas-pessoais.md no vault. Crie a nota no Obsidian e tente de novo.')
+    const name = personalRoutinesFile(files.vault())
+    const path = join(files.vault(), name)
+    if (!existsSync(path))
+      throw new Error('Não encontrei rotinas-pessoais.md nem rotina_pessoal.txt no vault. Crie a nota e tente de novo.')
     const error = await shell.openPath(path)
-    if (error) throw new Error(`Não consegui abrir rotinas-pessoais.md: ${error}`)
+    if (error) throw new Error(`Não consegui abrir ${name}: ${error}`)
   })
 
   return {
