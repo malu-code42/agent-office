@@ -217,7 +217,6 @@ export abstract class PanelHead extends PanelSearch {
         'div',
         { class: 'ab-more' },
         led,
-        h('p', { class: 'field-hint' }, 'Coordenadora local. O contexto é preparado no dispositivo e enviado ao Claude para responder.'),
         h(
           'div',
           { class: 'ab-stamps' },
