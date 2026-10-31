@@ -22,8 +22,6 @@ import { openTasksBoard } from './ui/tasks-board'
 import { openFocusPopup } from './ui/focus-popup'
 import { openTimerPopup } from './ui/timer-popup'
 import { openProposalReview } from './ui/proposals'
-import { openLunaSettings } from './ui/luna-settings'
-import { openLunaPlan } from './ui/luna-plan'
 import { profileById } from '@shared/profiles'
 import { LUNA_AGENT_ID } from '@shared/luna'
 import { emiAgentId } from '@shared/emi'
@@ -346,9 +344,6 @@ async function boot(): Promise<void> {
     openResult: (id, entry) => dialog.showEntry(id, entry),
     focusCard: () => dialog.focus(),
     chooseAccount: (id, limit) => dialog.chooseAccount(id, limit),
-    openLunaReview: () => void openLunaReview(),
-    openLunaSettings: () => openLunaSettings(ui, state.settings, toast),
-    openLunaPlan: () => void openLunaPlan(ui, state, toast),
   })
 
   const dialog = new Dialog(ui, state, {
@@ -523,10 +518,6 @@ async function boot(): Promise<void> {
     }
     if (e.type === 'luna:transcript') {
       showAgent(LUNA_AGENT_ID).then(() => panel.showLocalTranscript(e.text))
-      return
-    }
-    if (e.type === 'luna:open-chat') {
-      void showAgent(LUNA_AGENT_ID).then(() => panel.focusInput())
       return
     }
     if (e.type === 'agent:chat') return game.chat(e.fromId, e.toId, e.text)
