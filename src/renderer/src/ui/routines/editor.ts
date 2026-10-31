@@ -4,7 +4,7 @@ import { ROUTINE_LIMITS } from '@shared/types'
 import type { OfficePermissionMode, ProjectFloor, Routine, RoutineDraft, RoutineWho, Schedule } from '@shared/types'
 import type { State } from '../../state'
 import { h, icon } from '../dom'
-import { brainFields, meterField, MODES } from '../modals/brain'
+import { brainFields, meterField, modeOptions, MODES } from '../modals/brain'
 import { field, LAST_CWD } from '../modals/common'
 
 // The routine form: who runs it, where, when (with a live sentence and the next 3 runs).
@@ -290,7 +290,7 @@ export function routineEditor(
   const whereField = field('Onde', h('div', { class: 'rt-col' }, where, pathRow), 'O agente que a rotina contratar trabalha aqui.')
 
   // ---------- freedom ----------
-  const mode = h('select', { class: 'input' }, ...MODES.map((m) => h('option', { value: m.value }, m.label))) as HTMLSelectElement
+  const mode = h('select', { class: 'input' }, ...modeOptions(MODES, state.settings.defaultPermissionMode)) as HTMLSelectElement
   // "Pedir permissão" unless the routine already says otherwise: never "Sem pedir nada" by default.
   mode.value =
     initial?.permissionMode ??

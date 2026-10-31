@@ -11,7 +11,7 @@ import { h, icon } from '../dom'
 import { portrait } from '../portrait'
 import { updateSettingsBox } from '../updates'
 import { cleanError, field, modal } from './common'
-import { brainFields, meterField, MODES } from './brain'
+import { brainFields, meterField, modeOptions, MODES } from './brain'
 import { brandFields } from './brand'
 import { openProfileMemories } from './profile-memory'
 
@@ -62,7 +62,7 @@ export function openSettings(
   const notify = h('input', { type: 'checkbox' }) as HTMLInputElement
   notify.checked = s.notifications
   const brain = brainFields({ model: s.defaultModel, effort: s.defaultEffort })
-  const mode = h('select', { class: 'input' }, ...MODES.map((m) => h('option', { value: m.value }, m.label)))
+  const mode = h('select', { class: 'input' }, ...modeOptions(MODES, 'default')) // 'default' is what a new office starts with (store.ts)
   mode.value = s.defaultPermissionMode
   const maxSubs = h('input', { class: 'input', type: 'number', min: 0, max: 100, step: 1, value: s.maxSubagents ?? 10 }) as HTMLInputElement
   const budget = h('input', { class: 'input', type: 'number', min: 0, step: 0.5, value: s.agentBudgetUsd ?? 0 }) as HTMLInputElement
@@ -199,7 +199,7 @@ export function openSettings(
             const floorMode = h(
               'select',
               { class: 'input' },
-              ...MODES.map((m) => h('option', { value: m.value }, m.label)),
+              ...modeOptions(MODES, s.defaultPermissionMode, 'padrão do app'),
             ) as HTMLSelectElement
             floorMode.value = p.permissionMode ?? s.defaultPermissionMode
             const modeHint = h('span', {})
@@ -634,9 +634,13 @@ function videoFields(state: State): { el: HTMLElement; value: () => VideoSetting
   const fps = h(
     'select',
     { class: 'input' },
-    h('option', { value: 30 }, '30 fps'),
-    h('option', { value: 60 }, '60 fps'),
-    h('option', { value: 0 }, 'Sem limite'),
+    ...([30, 60, 0] as const).map((limit) =>
+      h(
+        'option',
+        { value: limit, 'data-hint': limit === DEFAULT_VIDEO.fpsLimit ? 'padrão' : undefined },
+        limit ? `${limit} fps` : 'Sem limite',
+      ),
+    ),
   ) as HTMLSelectElement
   fps.value = String(v.fpsLimit)
   const battery = h('input', { type: 'checkbox' }) as HTMLInputElement

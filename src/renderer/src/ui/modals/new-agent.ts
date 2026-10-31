@@ -8,7 +8,7 @@ import { h, icon } from '../dom'
 import { templatesTab } from '../templates'
 import { stayHomeByDefault } from '../../game/home-seats'
 import { cleanError, field, LAST_CWD, modal } from './common'
-import { brainFields, meterField, MODES } from './brain'
+import { brainFields, meterField, modeOptions, MODES } from './brain'
 
 // "Novo agente": call an agent into a folder (Conversar), hire one with a task, or a template.
 
@@ -168,9 +168,9 @@ export function openNewAgent(
     profile.addEventListener('change', syncProfileHint)
     const brain = brainFields({ model: state.settings.defaultModel, effort: state.settings.defaultEffort })
     const account = accountField(state, () => folder.cwd())
-    const mode = h('select', { class: 'input' }, ...MODES.map((m) => h('option', { value: m.value }, m.label)))
     const savedMode = localStorage.getItem(LAST_SUMMON_MODE)
     const inheritedMode = project?.permissionMode ?? state.settings.defaultPermissionMode
+    const mode = h('select', { class: 'input' }, ...modeOptions(MODES, inheritedMode))
     mode.value = MODES.some((m) => m.value === savedMode) ? savedMode! : inheritedMode
     const modeHint = h('span', {})
     const syncHint = () => {

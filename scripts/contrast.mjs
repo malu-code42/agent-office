@@ -214,6 +214,8 @@ const PAIRS = [
   ['Dropdown: valor', '.dd-trigger', ['.dd-trigger', 'card']],
   ['Dropdown: opção escolhida', '.dd-list', ['.dd-opt.sel', 'card']],
   ['Dropdown: opção desabilitada', '.dd-opt.dis', 'card'],
+  ['Dropdown: dica da opção', '.dd-hint', 'card'],
+  ['Dropdown: dica da opção escolhida', '.dd-hint', ['.dd-opt.sel', 'card']],
 ]
 
 /** Theme tokens that are meant to go together, also where no selector pairs them yet (tema noturno). */
