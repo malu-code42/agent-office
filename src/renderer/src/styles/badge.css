@@ -381,6 +381,15 @@ button.ab-stamp:hover {
 .ab-brain-field .dd-trigger {
   flex: 1;
   min-width: 0;
+  /* .input sets width: 100%; next to the icon that overflows the panel */
+  width: auto;
+  box-sizing: border-box;
   min-height: 30px;
   font-size: 12px;
+}
+
+.ab-brain-field .dd-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
