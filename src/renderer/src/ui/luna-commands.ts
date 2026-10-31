@@ -7,7 +7,8 @@ import type { OfficeAPI } from '@shared/types'
 import { ARCHIVE_LIST, type ParsedBoard, type Task } from '@shared/tasks'
 import { BAR_MODES, type BarMode } from '@shared/barTimer'
 
-export type CommandKind = 'direct' | 'luna'
+/** panel = acts on the agent's session (every agent has them); direct/luna = Luna only. */
+export type CommandKind = 'direct' | 'luna' | 'panel'
 
 export interface SlashCommand {
   name: string
@@ -18,6 +19,11 @@ export interface SlashCommand {
   /** Luna commands: the message sent to her. */
   prompt?: string
 }
+
+export const PANEL_COMMANDS: readonly SlashCommand[] = [
+  { name: 'clear', kind: 'panel', args: '', hint: 'Limpa a conversa e começa uma sessão nova' },
+  { name: 'compact', kind: 'panel', args: '', hint: 'Resume a conversa para liberar memória' },
+]
 
 export const SLASH_COMMANDS: readonly SlashCommand[] = [
   { name: 'tarefa', kind: 'direct', args: '<texto> [lista]', hint: 'Cria uma tarefa no tarefas.md' },
@@ -75,6 +81,11 @@ export const SLASH_COMMANDS: readonly SlashCommand[] = [
   },
 ]
 
+/** The commands an agent's chat offers: Luna has all of them, every other agent only the panel ones. */
+export function commandsFor(builtIn?: string): readonly SlashCommand[] {
+  return builtIn === 'luna' ? [...SLASH_COMMANDS, ...PANEL_COMMANDS] : PANEL_COMMANDS
+}
+
 const fold = (s: string): string => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
 /** The text after "/" while the user is still typing the name (no space yet); null closes the list. */
@@ -84,10 +95,10 @@ export function slashQuery(text: string): string | null {
 }
 
 /** Commands for the typed part: names that start with it first, then those that contain it. */
-export function filterCommands(query: string): SlashCommand[] {
+export function filterCommands(query: string, list: readonly SlashCommand[] = SLASH_COMMANDS): SlashCommand[] {
   const q = fold(query)
-  const starts = SLASH_COMMANDS.filter((c) => c.name.startsWith(q))
-  return [...starts, ...SLASH_COMMANDS.filter((c) => !starts.includes(c) && c.name.includes(q))]
+  const starts = list.filter((c) => c.name.startsWith(q))
+  return [...starts, ...list.filter((c) => !starts.includes(c) && c.name.includes(q))]
 }
 
 export type SlashKey = { move: number } | 'pick' | 'close' | null
@@ -105,11 +116,11 @@ export function slashKey(index: number, count: number, key: string): SlashKey {
 }
 
 /** "/nome resto" → the command and its argument text; null when it is not a command (it goes to Luna as is). */
-export function parseSlash(text: string): { cmd: SlashCommand; rest: string } | null {
+export function parseSlash(text: string, list: readonly SlashCommand[] = SLASH_COMMANDS): { cmd: SlashCommand; rest: string } | null {
   const m = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(text.trim())
   if (!m) return null
   const name = fold(m[1]!)
-  const cmd = SLASH_COMMANDS.find((c) => c.name === name)
+  const cmd = list.find((c) => c.name === name)
   return cmd ? { cmd, rest: (m[2] ?? '').trim() } : null
 }
 

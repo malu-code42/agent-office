@@ -2,7 +2,7 @@ import type { AgentSummary } from '@shared/types'
 import { accountChip } from '../accounts'
 import { formatCost, h, icon } from '../dom'
 import { STATUS_LABEL } from '../hud'
-import { EFFORTS, MODELS } from '../modals'
+import { EFFORTS, MODELS, cleanError, confirmDialog } from '../modals'
 import { renderHelpers } from '../panel-helpers'
 import { osText } from '../os-text'
 import { portrait } from '../portrait'
@@ -124,6 +124,20 @@ export abstract class PanelHead extends PanelSearch {
                 )
               : led(false),
           ),
+          office
+            ? h(
+                'button',
+                {
+                  class: 'icon-btn',
+                  type: 'button',
+                  disabled: busy,
+                  title: busy ? 'Espere o agente terminar para limpar a conversa.' : 'Limpar conversa',
+                  'aria-label': 'Limpar conversa',
+                  onclick: () => this.clear(a),
+                },
+                icon('reset', 15),
+              )
+            : null,
           office && busy && !a.builtIn
             ? h('button', { class: 'icon-btn', title: 'Interromper', onclick: () => window.office.interrupt(a.id) }, icon('stop', 15))
             : null,
@@ -411,13 +425,28 @@ export abstract class PanelHead extends PanelSearch {
   }
 
   protected async clear(a: AgentSummary): Promise<void> {
-    if (
-      !confirm(
-        `Limpar a memória de ${a.name}? Ele continua no escritório, mas esquece esta conversa. O histórico fica salvo na Central de resume.`,
-      )
-    )
+    const ok = await confirmDialog(this.root, {
+      title: 'Limpar conversa',
+      text: `${a.name} continua no escritório, mas esquece esta conversa e começa uma sessão nova. O histórico fica salvo na Central de resume.`,
+      confirm: 'Limpar',
+      cancel: 'Cancelar',
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await window.office.clearContext(a.id)
+    } catch (err) {
+      this.actions.toast(cleanError(err), 'err')
       return
-    await window.office.clearContext(a.id)
+    }
+    // The stored log stays; the view restarts at the cut (summary.clearedAt).
+    if (this.agentId !== a.id || this.helper) return
+    this.feed.replaceChildren()
+    this.lastTool = null
+    this.lastEntry = undefined
+    this.from = this.floor
+    for (const e of this.log.slice(this.from)) this.append(e, false)
+    this.feed.scrollTop = this.feed.scrollHeight
   }
 
   protected async fire(a: AgentSummary): Promise<void> {

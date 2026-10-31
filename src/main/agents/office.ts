@@ -468,6 +468,7 @@ export abstract class AgentOffice extends AgentBase {
     agent.summary.profile = undefined
     agent.summary.quotaPaused = undefined
     agent.summary.quotaEnded = undefined
+    agent.summary.clearedAt = Date.now()
     this.addLog(agent, 'system', 'Contexto limpo. A próxima mensagem começa uma conversa nova.')
     // AO-43: the memory of the profile is not touched here — nothing is written on its own, and no
     // task receives it; the person read, edits or erases it in Configurações → Memória dos perfis.

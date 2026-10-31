@@ -12,7 +12,7 @@ export class SlashMenu {
     private input: HTMLTextAreaElement,
     private onPick: (cmd: SlashCommand) => void,
   ) {
-    this.el = h('div', { class: 'slash-menu hidden', role: 'listbox', id: 'slash-menu', 'aria-label': 'Comandos da Luna' })
+    this.el = h('div', { class: 'slash-menu hidden', role: 'listbox', id: 'slash-menu', 'aria-label': 'Comandos' })
     input.setAttribute('aria-autocomplete', 'list')
     input.setAttribute('aria-controls', 'slash-menu')
     input.setAttribute('aria-expanded', 'false')
@@ -22,10 +22,10 @@ export class SlashMenu {
     return !this.el.classList.contains('hidden')
   }
 
-  /** Follows the box: open while it holds "/name" being typed, and only for Luna. */
-  update(enabled: boolean): void {
-    const q = enabled ? slashQuery(this.input.value) : null
-    this.items = q === null ? [] : filterCommands(q)
+  /** Follows the box: open while it holds "/name" being typed; `commands` is what this agent offers (none = closed). */
+  update(commands: readonly SlashCommand[] | null): void {
+    const q = commands ? slashQuery(this.input.value) : null
+    this.items = q === null ? [] : filterCommands(q, commands!)
     this.index = 0
     this.render()
   }
@@ -73,7 +73,7 @@ export class SlashMenu {
           h('span', { class: 'slash-name' }, `/${c.name}`),
           c.args ? h('span', { class: 'slash-args' }, c.args) : null,
           h('span', { class: 'slash-hint' }, c.hint),
-          h('span', { class: `slash-tag slash-tag-${c.kind}` }, c.kind === 'direct' ? 'DIRETO' : 'LUNA'),
+          h('span', { class: `slash-tag slash-tag-${c.kind}` }, c.kind === 'direct' ? 'DIRETO' : c.kind === 'panel' ? 'AGENTE' : 'LUNA'),
         )
         // mousedown keeps the focus in the box.
         row.addEventListener('mousedown', (e) => e.preventDefault())

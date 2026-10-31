@@ -2,11 +2,12 @@ import { ATTACH_LIMITS, formatBytes, kindFromName, limitError } from '@shared/at
 import type { AttachmentInput, LogEntry } from '@shared/types'
 import { h, icon } from '../dom'
 import { cleanError, modal } from '../modals'
+import { isDupOfResult } from '@shared/feed-dedupe'
 import { entryCategory, entryView } from './entries'
 import { toBase64 } from './helpers'
 import { PanelHead } from './head'
 import { AUDIO_MAX_BYTES, isAudioFile } from '@shared/audio'
-import { runSlash, type SlashCommand } from '../luna-commands'
+import { commandsFor, PANEL_COMMANDS, parseSlash, runSlash, type SlashCommand } from '../luna-commands'
 import { SlashMenu, slashError, slashOutcome } from './slash'
 
 /** The message box: attachments, sending, and new log entries in the feed. */
@@ -20,12 +21,17 @@ export abstract class PanelComposer extends PanelHead {
     return menu
   }
 
+  /** The chat offers slash commands to the fixed agents' office sessions, helpers' logs excluded. */
+  private get slashAgent(): boolean {
+    return !this.helper && !!this.agentId && this.state.agents.get(this.agentId)?.source === 'office'
+  }
+
   private get lunaOpen(): boolean {
     return !this.helper && !!this.agentId && this.state.agents.get(this.agentId)?.builtIn === 'luna'
   }
 
   protected composerInput(): void {
-    this.slash.update(this.lunaOpen)
+    this.slash.update(this.slashAgent ? commandsFor(this.state.agents.get(this.agentId!)?.builtIn) : null)
   }
 
   protected composerKey(e: KeyboardEvent): boolean {
@@ -37,6 +43,25 @@ export abstract class PanelComposer extends PanelHead {
     this.input.value = `/${cmd.name}${cmd.args ? ' ' : ''}`
     this.input.focus()
     if (!cmd.args) void this.send()
+  }
+
+  /** /clear and /compact, in every agent's chat. Busy agents wait: the hint says so. */
+  private async panelCommand(agentId: string, text: string): Promise<boolean> {
+    const parsed = parseSlash(text, PANEL_COMMANDS)
+    const a = this.state.agents.get(agentId)
+    if (!parsed || !a) return false
+    if (this.input.value.trim() === text) this.input.value = ''
+    if (['working', 'starting', 'waiting'].includes(a.status)) {
+      this.actions.toast('Espere o agente terminar para usar este comando.', 'err')
+      return true
+    }
+    try {
+      if (parsed.cmd.name === 'clear') await this.clear(a)
+      else await window.office.compact(agentId)
+    } catch (err) {
+      this.actions.toast(cleanError(err), 'err')
+    }
+    return true
   }
 
   /** Luna's slash commands: direct ones run here, Luna ones send her prepared message. False = not a command. */
@@ -158,6 +183,7 @@ export abstract class PanelComposer extends PanelHead {
     this.slash.close()
     this.sending = true
     try {
+      if (this.slashAgent && !files.length && text.startsWith('/') && (await this.panelCommand(agentId, text))) return
       if (this.lunaOpen && !files.length && text.startsWith('/') && (await this.command(agentId, text))) return
       const attachments: AttachmentInput[] = await Promise.all(
         files.map(async (f) => {
@@ -195,6 +221,10 @@ export abstract class PanelComposer extends PanelHead {
     }
     if (e.kind === 'tool') this.lastTool = view
     else if (e.kind === 'tool_result' && e.isError && this.lastTool) this.lastTool.dataset.cat += ' err'
+    // The final reply shows once: the green card stays, the identical bubble before it is hidden.
+    if (isDupOfResult(this.lastEntry, e)) this.lastView?.classList.add('entry-dup')
+    this.lastEntry = e
+    this.lastView = view
     this.feed.append(view)
     // Durante a busca o feed não encolhe: as ocorrências carregadas continuam no DOM.
     if (!this.searching) this.trim()

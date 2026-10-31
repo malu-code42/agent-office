@@ -61,6 +61,8 @@ export interface AgentSummary {
   quotaPaused?: { accountId: string; resetsAt?: number }
   /** The user explicitly ended a quota-paused task; it must not auto-resume. */
   quotaEnded?: true
+  /** When "Limpar conversa" last ran: the panel shows only log entries from then on. The stored log stays. */
+  clearedAt?: number
   permissionMode: OfficePermissionMode
   status: AgentStatus
   /** Short present-tense description of what the agent is doing ("Editando app.ts"). */

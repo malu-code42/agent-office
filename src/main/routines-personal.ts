@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   localWeek,
@@ -22,11 +22,18 @@ import type { PersonalRoutineStore } from './personal-routines-store'
  */
 
 export const PERSONAL_ROUTINES_FILE = 'rotinas-pessoais.md'
+/** Accepted names, in order of preference: the vault may keep the plain-text note instead. */
+export const PERSONAL_ROUTINES_FILES = [PERSONAL_ROUTINES_FILE, 'rotina_pessoal.txt'] as const
+
+/** The note the vault actually has (first accepted name that exists), or the default name. */
+export function personalRoutinesFile(vault: string): string {
+  return PERSONAL_ROUTINES_FILES.find((name) => existsSync(join(vault, name))) ?? PERSONAL_ROUTINES_FILE
+}
 
 /** The exact text of the file, or null when the vault has no rotinas-pessoais.md. */
 export function readPersonalRoutines(vault: string): string | null {
   try {
-    return readFileSync(join(vault, PERSONAL_ROUTINES_FILE), 'utf8')
+    return readFileSync(join(vault, personalRoutinesFile(vault)), 'utf8')
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null
     throw err

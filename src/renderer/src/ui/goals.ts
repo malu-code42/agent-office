@@ -32,8 +32,8 @@ function goalItem(goal: Goal, completedTaskIds: ReadonlySet<string>): HTMLElemen
     h(
       'div',
       { class: 'tl-goal-when' },
-      h('span', { class: 'agenda-time' }, brDate(goal.deadline)),
-      h('span', { class: 'tl-sub' }, goal.achieved ? 'Alcançado' : daysLeft(goal.deadline)),
+      h('span', { class: 'agenda-time' }, goal.deadline ? brDate(goal.deadline) : 'Sem prazo'),
+      h('span', { class: 'tl-sub' }, goal.achieved ? 'Alcançado' : goal.deadline ? daysLeft(goal.deadline) : ''),
     ),
     h(
       'div',
@@ -44,13 +44,22 @@ function goalItem(goal: Goal, completedTaskIds: ReadonlySet<string>): HTMLElemen
         h('b', { class: 'tl-goal-title' }, goal.title),
         h('span', { class: `tl-state ${goal.achieved ? 'tl-state-done' : 'tl-state-open'}` }, goal.achieved ? 'Alcançado' : 'Em andamento'),
       ),
-      h('div', { class: 'tl-sub' }, 'Alvo: ', goal.target),
+      goal.target ? h('div', { class: 'tl-sub' }, 'Alvo: ', goal.target) : '',
       h(
         'div',
-        { class: 'tl-prog', role: 'progressbar', 'aria-valuenow': String(pct), 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-label': `Progresso de ${goal.title}` },
+        {
+          class: 'tl-prog',
+          role: 'progressbar',
+          'aria-valuenow': String(pct),
+          'aria-valuemin': '0',
+          'aria-valuemax': '100',
+          'aria-label': `Progresso de ${goal.title}`,
+        },
         h('i', { style: `width:${pct}%` }),
       ),
-      h('div', { class: 'tl-sub' }, h('b', {}, `${pct}%`), ` · ${progress.complete} de ${progress.total} marcos`),
+      goal.simple
+        ? h('div', { class: 'tl-sub' }, h('b', {}, goal.achieved ? 'Concluído' : 'Em aberto'))
+        : h('div', { class: 'tl-sub' }, h('b', {}, `${pct}%`), ` · ${progress.complete} de ${progress.total} marcos`),
       h('ul', { class: 'tl-marcos' }, ...milestoneMarks),
     ),
   )
@@ -75,15 +84,23 @@ export function openGoals(root: HTMLElement, _toast: (message: string, kind?: 'o
       content.replaceChildren(h('div', { class: 'dialog-note', role: 'alert' }, cleanError(err)))
       return
     }
-    const completedTaskIds = new Set(
-      tasks.filter((task) => task.status === 'completed' && task.id).map((task) => task.id!.toLowerCase()),
-    )
+    const completedTaskIds = new Set(tasks.filter((task) => task.status === 'completed' && task.id).map((task) => task.id!.toLowerCase()))
     const active = goals.filter((goal) => !goal.achieved)
     const done = goals.filter((goal) => goal.achieved)
 
     if (!goals.length) {
       content.replaceChildren(
-        h('div', { class: 'tl-empty' }, icon('gauge', 28), h('b', {}, 'Nenhum objetivo ainda'), h('span', {}, 'Os objetivos vêm de objetivos.md no vault. Peça à Luna para criar o primeiro.')),
+        h(
+          'div',
+          { class: 'tl-empty' },
+          icon('gauge', 28),
+          h('b', {}, 'Nenhum objetivo ainda'),
+          h(
+            'span',
+            {},
+            'Os objetivos vêm de objetivos.md ou objetivos.txt na pasta do vault (uma linha “- [ ] objetivo” por item). Peça à Luna para criar o primeiro.',
+          ),
+        ),
       )
       return
     }

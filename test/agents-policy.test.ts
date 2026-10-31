@@ -165,6 +165,18 @@ describe('permissões: o Office decide antes do cartão (seam 2)', () => {
     expect(manager.agent(archived.id)).toBeDefined()
   })
 
+  it('limpar a conversa grava o corte e ele sobrevive a recarregar o store', async () => {
+    const { m, a, store } = await started('default')
+    const before = Date.now()
+    m.clearContext(a.id)
+    const cut = m.agent(a.id)?.clearedAt
+    expect(cut).toBeGreaterThanOrEqual(before)
+    // The log is kept whole: only the view is cut.
+    expect(m.getLog(a.id).some((e) => e.kind === 'user')).toBe(true)
+    expect(store.agents.find((x) => x.summary.id === a.id)?.summary.clearedAt).toBe(cut)
+    expect(new AgentManager(store).agent(a.id)?.clearedAt).toBe(cut)
+  })
+
   it('leitura comum no Automático passa sem cartão nem evento', async () => {
     const { m, dir, canUse } = await started('auto')
     const evs = track(m)
