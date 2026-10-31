@@ -366,7 +366,9 @@ button.ab-stamp:hover {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 8px;
+  /* same side margins as the status line below (.ab-more), and room between the two */
+  padding: 0 12px 12px;
+  box-sizing: border-box;
 }
 
 .ab-brain-field {
