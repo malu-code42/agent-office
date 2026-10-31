@@ -18,7 +18,7 @@ export function openStudyLibrary(root: HTMLElement, toast: Toast, topic = ''): v
     maxlength: '200',
     value: topic,
     'aria-label': 'Pesquisar na biblioteca local com Cora',
-    placeholder: 'Tópico ou conceito nas fontes locais',
+    placeholder: 'Ex.: fila, estrutura de dados',
   }) as HTMLInputElement
   const button = h('button', { class: 'btn btn-small', type: 'submit' }, 'Pesquisar com Cora') as HTMLButtonElement
   const list = h('div', { class: 'study-cycle-content', role: 'status' })
@@ -33,7 +33,7 @@ export function openStudyLibrary(root: HTMLElement, toast: Toast, topic = ''): v
         { class: 'study-cycle-source-hit' },
         h('b', {}, hit.title),
         h('p', {}, hit.excerpt),
-        h('span', { class: 'field-hint' }, `${hit.sourceRef} · linha ${hit.line}`),
+        h('span', { class: 'field-hint' }, hit.line ? `${hit.sourceRef} · linha ${hit.line}` : hit.sourceRef),
       ),
     )
     list.replaceChildren(
@@ -73,7 +73,11 @@ export function openStudyLibrary(root: HTMLElement, toast: Toast, topic = ''): v
   const el = modal(
     'Biblioteca · Cora',
     [
-      h('p', { class: 'field-hint' }, 'A busca lê apenas os arquivos locais em “study sources”. O conteúdo não é enviado ao Claude.'),
+      h(
+        'p',
+        { class: 'field-hint' },
+        'A busca lê apenas os arquivos locais em “study sources” (conteúdo de .md, .txt e .pptx; outros formatos pelo nome). Separe termos com vírgula. O conteúdo não é enviado ao Claude.',
+      ),
       form,
       list,
     ],
