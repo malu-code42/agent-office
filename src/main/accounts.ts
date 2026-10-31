@@ -145,7 +145,13 @@ export class Accounts extends EventEmitter {
     let dir = join(homedir(), `.claude-${base}`)
     for (let n = 2; used.has(dir); n++) dir = join(homedir(), `.claude-${base}-${n}`)
     linkShared(dir)
-    return { id: randomUUID(), name: clean, provider: 'claude', configDir: dir, color: ACCOUNT_COLORS[this.list().length % ACCOUNT_COLORS.length] }
+    return {
+      id: randomUUID(),
+      name: clean,
+      provider: 'claude',
+      configDir: dir,
+      color: ACCOUNT_COLORS[this.list().length % ACCOUNT_COLORS.length],
+    }
   }
 
   /** Opens Terminal running `claude auth login` on the account; the browser does the rest. */
@@ -157,8 +163,9 @@ export class Accounts extends EventEmitter {
     const q = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`
     const env = account.configDir ? `CLAUDE_CONFIG_DIR=${q(account.configDir)} ` : ''
     const command = `${env}${q(claude)} auth login --claudeai`
-    if (process.platform !== 'darwin') return Promise.resolve({ ok: false, message: `Rode no terminal: ${command}` })
     if (account.configDir) linkShared(account.configDir)
+    if (process.platform === 'win32') return loginOnWindows(account, claude)
+    if (process.platform !== 'darwin') return Promise.resolve({ ok: false, message: `Rode no terminal: ${command}` })
     // A .command file opens in Terminal without needing Automation permission.
     const file = join(tmpdir(), `agent-office-login-${account.id.replace(/[^\w-]/g, '')}.command`)
     const script = [
@@ -179,11 +186,17 @@ export class Accounts extends EventEmitter {
     if (until && until > Date.now()) return true
     if (this.status.get(id)?.loggedIn === false) return true
     const u = this.usage().find((x) => x.accountId === id)
-    return !!u?.windows.some((w) => (w.key === 'five_hour' || w.key === 'seven_day') && w.percent >= 100 && (!w.resetsAt || w.resetsAt > Date.now()))
+    return !!u?.windows.some(
+      (w) => (w.key === 'five_hour' || w.key === 'seven_day') && w.percent >= 100 && (!w.resetsAt || w.resetsAt > Date.now()),
+    )
   }
 
   private fiveHour(id: string): number {
-    return this.usage().find((x) => x.accountId === id)?.windows.find((w) => w.key === 'five_hour')?.percent ?? 0
+    return (
+      this.usage()
+        .find((x) => x.accountId === id)
+        ?.windows.find((w) => w.key === 'five_hour')?.percent ?? 0
+    )
   }
 }
 
@@ -221,4 +234,29 @@ function present(p: string): boolean {
   } catch {
     return false
   }
+}
+
+/** Windows: a .cmd file in a new console window runs the login; the browser does the rest. */
+export function windowsLoginScript(account: Account, claude: string): string {
+  return [
+    '@echo off',
+    'chcp 65001 >nul',
+    `echo Agent Office: entrando na conta "${account.name.replace(/["%^&|<>]/g, '')}"`,
+    account.configDir ? `set "CLAUDE_CONFIG_DIR=${account.configDir}"` : 'set CLAUDE_CONFIG_DIR=',
+    `"${claude}" auth login --claudeai`,
+    'echo.',
+    'echo Pronto. Pode fechar esta janela e voltar ao Agent Office.',
+    'pause >nul',
+  ].join('\r\n')
+}
+
+function loginOnWindows(account: Account, claude: string): Promise<{ ok: boolean; message?: string }> {
+  const file = join(tmpdir(), `agent-office-login-${account.id.replace(/[^\w-]/g, '')}.cmd`)
+  writeFileSync(file, windowsLoginScript(account, claude) + '\r\n')
+  return new Promise((resolve) => {
+    // start "" opens a new console window; verbatim so cmd sees the quotes as written.
+    execFile('cmd.exe', ['/d', '/c', `start "" "${file}"`], { windowsVerbatimArguments: true }, (err) =>
+      resolve(err ? { ok: false, message: err.message } : { ok: true }),
+    )
+  })
 }
