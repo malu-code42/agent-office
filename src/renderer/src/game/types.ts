@@ -162,6 +162,8 @@ export interface GameHooks {
 export const TOTEM_TILE: [number, number] = [10, 8]
 /** Office spot beside the Claude FM TV where the skeleton stands. */
 export const SKULL_HOME = { x: 5.85, y: 0, z: 0.9 }
+/** How much higher (tiles) the HTML tags float on a 2D floor than in 3D: over the sprites' pixel bubbles. */
+export const TAG_LIFT = 1.2
 /** Seconds the camera gets to reach a dismissed agent before the skull drops. */
 export const STRIKE_AFTER_S = 0.6
 /** An idle agent waits at its desk this long before wandering off to the lounge. */

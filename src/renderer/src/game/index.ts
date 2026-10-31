@@ -1,14 +1,16 @@
 import { totemView } from '@shared/routines'
 import { emiAgentId } from '@shared/emi'
+import { LUNA_AGENT_ID } from '@shared/luna'
 import type { State } from '../state'
 import { Aura } from '../world/aura'
 import type { Avatar } from '../world/avatar'
 import type { UpperFloor } from '../world/upper-floor'
+import { headingOf } from '../world2d/iso'
 import type { FlatFloor } from '../world2d/floor'
 import type { FlatView, Person2d } from '../world2d/renderer'
-import { agentBubble, EMI_VARIANT, variantOf } from '../world2d/sprites'
+import { agentBubble, EMI_VARIANT, LUNA_VARIANT, variantOf } from '../world2d/sprites'
 import { GameInput } from './input'
-import { LOUNGE_AFTER_MS, screenMode, type GameHooks, type Upper } from './types'
+import { LOUNGE_AFTER_MS, screenMode, TAG_LIFT, type GameHooks, type Upper } from './types'
 
 export type { GameHooks } from './types'
 
@@ -71,7 +73,8 @@ export class Game extends GameInput {
     }
     this.updateHelpers(dt)
     this.updateMembers(dt)
-    this.office.update(dt)
+    // the 3D Casa (Luna's animation, the elevator doors) only moves while it is the one drawn
+    if (this.visual !== '2d') this.office.update(dt)
     for (const u of this.uppers) u.scene.update(dt)
     this.boardsIn -= dt
     if (this.boardsIn <= 0) this.syncBoards()
@@ -124,10 +127,11 @@ export class Game extends GameInput {
     const floor = up && (up.scene as UpperFloor & { flat?: FlatFloor }).flat
     this.flat2d.show(!!flat)
     this.engine.renderer.domElement.classList.toggle('hidden', !!flat)
-    if (flat && up && floor) {
-      flat.draw(this.flatView(up, floor), dt)
+    const view = flat && (up && floor ? this.flatView(up, floor) : this.player.floor === 0 ? this.casaView() : null)
+    if (flat && view) {
+      flat.draw(view, dt)
       // tags float a little higher than in 3D: the sprite's pixel bubble sits over the head
-      this.overlays.projector = (v) => flat.project(v.x, v.y + 1.2, v.z)
+      this.overlays.projector = (v) => flat.project(v.x, v.y + TAG_LIFT, v.z)
     } else {
       this.overlays.projector = null
       this.engine.render(dt)
@@ -135,17 +139,21 @@ export class Game extends GameInput {
     this.overlays.update(dt)
   }
 
-  /** What the 2D renderer draws this frame: the people of the floor on screen and the state of its desks. */
-  private flatView(up: Upper, floor: FlatFloor): FlatView {
+  /**
+   * The people of the floor on screen, as the 2D renderer draws them: the player, the
+   * agents, their helpers and the squad members, each in its own colours.
+   */
+  private flatPeople(): Person2d[] {
     const view = this.player.floor
-    const plan = floor.plan
     const people: Person2d[] = []
-    const add = (key: string, av: Avatar, variant: number, bubble: Person2d['bubble'] = null) => {
+    const add = (key: string, av: Avatar, bubble: Person2d['bubble'] = null) => {
       if (av.floor !== view || !av.root.visible) return
       const seated = !av.isWalking && (av.pose === 'sit' || av.pose === 'type' || av.pose === 'relax')
+      const look = av.worn
       people.push({
         key,
-        variant,
+        variant: variantOf(look),
+        look,
         x: av.position.x,
         z: av.position.z,
         heading: av.heading,
@@ -154,30 +162,61 @@ export class Game extends GameInput {
         bubble,
       })
     }
-    add('player', this.player, variantOf(this.state.settings.playerLook))
-    const desks = new Set<number>()
-    for (const r of plan.rooms) for (const d of r.desks) desks.add(d.index)
+    add('player', this.player)
     for (const actor of this.actors.values()) {
       const a = this.state.agents.get(actor.id)
       const items = a ? this.state.itemsFor(a.id) : null
       const result = items?.results[0] ? (items.results[0].isError ? 'error' : 'ok') : null
-      add(
-        actor.id,
-        actor.avatar,
-        variantOf(actor.avatar.look),
-        a && items ? agentBubble(a.status, items.permissions.length > 0, result) : null,
-      )
+      add(actor.id, actor.avatar, a && items ? agentBubble(a.status, items.permissions.length > 0, result) : null)
+    }
+    for (const h of this.helpers.values()) if (!h.gone) add(`helper:${h.id}`, h.avatar)
+    for (const m of this.members.values())
+      add(`member:${m.id}`, m.avatar, m.failed ? 'bang' : m.phase === 'delivering' ? 'ok' : m.phase === 'working' ? 'dots' : null)
+    return people
+  }
+
+  /** The 2D Casa this frame: its people and Luna at her chair, in her saved look. */
+  private casaView(): FlatView {
+    const people = this.flatPeople()
+    const luna = this.state.agents.get(LUNA_AGENT_ID)
+    const seat = this.casa2d.flat.layout.table.seats[0]
+    people.push({
+      key: 'luna',
+      variant: LUNA_VARIANT,
+      look: luna?.look,
+      x: seat.at[0] / 16,
+      z: seat.at[1] / 16,
+      heading: headingOf(seat.dir),
+      stride: null,
+      seated: true,
+      bubble: luna ? agentBubble(luna.status, this.state.itemsFor(luna.id).permissions.length > 0, null) : null,
+    })
+    return {
+      floor: this.casa2d.flat,
+      people,
+      desks: new Set(),
+      coordinators: [],
+      emi: null,
+      rooms: [],
+      meeting: 0,
+      hover: this.hover2d,
+      target: { x: this.engine.target.x, z: this.engine.target.z },
+      highlight: this.casaHot,
+    }
+  }
+
+  /** What the 2D renderer draws this frame: the people of the floor on screen and the state of its desks. */
+  private flatView(up: Upper, floor: FlatFloor): FlatView {
+    const view = this.player.floor
+    const plan = floor.plan
+    const people = this.flatPeople()
+    const desks = new Set<number>()
+    for (const r of plan.rooms) for (const d of r.desks) desks.add(d.index)
+    for (const actor of this.actors.values()) {
+      const a = this.state.agents.get(actor.id)
       if (a && a.role !== 'orchestrator' && this.homeFloor(a) === view && a.desk < plan.agentDesks.length)
         desks.add(plan.agentDesks[a.desk].index)
     }
-    for (const h of this.helpers.values()) if (!h.gone) add(`helper:${h.id}`, h.avatar, variantOf(h.avatar.look))
-    for (const m of this.members.values())
-      add(
-        `member:${m.id}`,
-        m.avatar,
-        variantOf(m.avatar.look),
-        m.failed ? 'bang' : m.phase === 'delivering' ? 'ok' : m.phase === 'working' ? 'dots' : null,
-      )
     const orchestrators = this.orchestratorsOn(view)
     const coordinators = plan.rooms.map((_, i) => {
       const a = orchestrators.get(i)
@@ -191,6 +230,7 @@ export class Game extends GameInput {
       people.push({
         key: 'emi',
         variant: EMI_VARIANT,
+        look: emi.look,
         x: seat.at[0] / 16,
         z: seat.at[1] / 16,
         heading: 0,

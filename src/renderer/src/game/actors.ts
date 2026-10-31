@@ -3,7 +3,6 @@ import { Avatar, type Uniform } from '../world/avatar'
 import { DEFAULT_BRAND } from '../world/brand'
 import * as L from '../world/layout'
 import { Tag } from '../world/overlays'
-import { HOME_SPAWN_POINT, HOME_SPAWN_TILE, HOME_TABLE_AT } from '../world/home-layout'
 import { GameBoards } from './boards'
 import { canContinueHomeArrival, freeHomeSeat, homeSpot } from './home-seats'
 import { LOUNGE_AFTER_MS, screenMode, seatKey, SQUAD_SPEED, type Actor, type Goal } from './types'
@@ -184,8 +183,8 @@ export abstract class GameActors extends GameBoards {
     }
     this.travel(actor, 0, instant || this.reducedEffects, () => {
       if (!stillHome()) return
-      // no room left in the office: wait by the elevator
-      const spot = homeSpot(this.office.grid, actor.homeSeat!) ?? { tile: HOME_SPAWN_TILE, point: HOME_SPAWN_POINT }
+      // no room left around the table: wait by the elevator
+      const spot = homeSpot(this.floorOf(0).grid, actor.homeSeat!, this.home) ?? this.home.elevator
       if (instant) {
         actor.avatar.placeAt(spot.point.x, spot.point.z)
         arrive()
@@ -303,16 +302,19 @@ export abstract class GameActors extends GameBoards {
       }
       if (actor.goal === 'meeting') av.faceTowards((meeting?.table ?? L.MEETING_TABLE_AT).x, (meeting?.table ?? L.MEETING_TABLE_AT).z)
       else if (av.floor === this.player.floor && this.playerInBossRoom()) av.faceTowards(this.player.position.x, this.player.position.z)
-      else av.faceTowards(L.BOSS_SEAT.x, L.BOSS_SEAT.z)
+      else av.faceTowards(this.home.boss.x, this.home.boss.z)
       av.pose = this.time < actor.waveUntil ? 'wave' : actor.id === this.nearId ? 'talk' : 'stand'
     } else if (actor.goal === 'home') {
       av.setProp('none')
-      av.faceTowards(HOME_TABLE_AT.x, HOME_TABLE_AT.z)
-      const seated = actor.homeSeat !== null && homeSpot(this.office.grid, actor.homeSeat)?.sit === true
+      const spot = actor.homeSeat !== null ? homeSpot(this.floorOf(0).grid, actor.homeSeat, this.home) : null
+      // a chair: look the way it faces (the 2D sprite sits by it); standing: at the table
+      if (spot?.sit) av.face(this.home.chairs[actor.homeSeat!].face)
+      else av.faceTowards(this.home.table.x, this.home.table.z)
+      const seated = spot?.sit === true
       av.pose = !seated ? 'stand' : a.status === 'working' ? 'type' : 'sit'
       av.seatY = 0
-    } else if (actor.goal === 'hang' && actor.hang !== null) {
-      const spot = L.LOUNGE_SEATS[actor.hang]
+    } else if (actor.goal === 'hang' && actor.hang !== null && this.home.hang[actor.hang]) {
+      const spot = this.home.hang[actor.hang]
       av.faceTowards(spot.look[0], spot.look[1])
       av.pose = spot.kind === 'sit' ? 'relax' : spot.kind === 'play' ? 'play' : 'stand'
       av.setProp(spot.kind === 'stand' ? 'mug' : 'none')

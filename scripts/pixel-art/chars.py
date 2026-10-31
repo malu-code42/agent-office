@@ -361,6 +361,18 @@ def make(vi, view, frame, mirror=False):
         'O': OUT, 'G': H('6b5560'), 'W': H('ffffff'), 'w': H('fbf6ea'),
         'A': H(acc[0]) if acc else H('d95f5f'), 'a': H(acc[1]) if acc else H('a84444'),
     }
+    pal = _full(base)
+    img = Image.new('RGBA', (SW2, SH2), (0, 0, 0, 0))
+    px = img.load()
+    for (r, c), ch in g2.items():
+        if 0 <= r < SH2 and 0 <= c < SW2 and ch in pal:
+            px[c, r] = pal[ch]
+    add_outline(img)
+    return img
+
+
+def _full(base):
+    """the base colours plus the mid tones, folds, deep hair and shoe highlight made from them."""
     mix = lambda c, d, t=.5: tuple(int(c[i] * (1 - t) + d[i] * t) for i in range(3)) + (255,)
     pal = dict(base)
     for m, (x, y) in MIDS.items():
@@ -369,13 +381,22 @@ def make(vi, view, frame, mirror=False):
     pal['y'] = mix(base['p'], OUT, .35)
     pal['z'] = mix(base['h'], OUT, .3)    # hair deep
     pal['B2'] = mix(base['B'], (255, 255, 255, 255), .2)
-    img = Image.new('RGBA', (SW2, SH2), (0, 0, 0, 0))
-    px = img.load()
-    for (r, c), ch in g2.items():
-        if 0 <= r < SH2 and 0 <= c < SW2 and ch in pal:
-            px[c, r] = pal[ch]
-    add_outline(img)
-    return img
+    return pal
+
+
+# the colours a Look repaints (the app recolours the sprites by role): role -> the base it follows
+ROLES = {'S': 'S', 's': 'S', 'q': 'S', 'H': 'H', 'h': 'H', 'L': 'H', 'k': 'H', 'z': 'H',
+         'C': 'C', 'c': 'C', 'r': 'C', 'x': 'C', 'P': 'P', 'p': 'P', 't': 'P', 'y': 'P', 'B': 'B', 'B2': 'B'}
+
+
+def palette(vi):
+    """the colour of each repaintable role of a variant, as hex."""
+    _n, _st, skin, hair, shirt, pants, shoes, *_ = VARIANTS[vi]
+    sk = SKINS[skin]
+    base = {'S': H(sk[0]), 's': H(sk[1]), 'H': H(hair[0]), 'h': H(hair[1]), 'L': H(hair[2]),
+            'C': H(shirt[0]), 'c': H(shirt[1]), 'P': H(pants[0]), 'p': H(pants[1]), 'B': H(shoes)}
+    pal = _full(base)
+    return {r: '%02x%02x%02x' % pal[r][:3] for r in ROLES}
 
 
 MIDS = {'q': ('S', 's'), 'r': ('C', 'c'), 't': ('P', 'p'), 'k': ('H', 'h')}

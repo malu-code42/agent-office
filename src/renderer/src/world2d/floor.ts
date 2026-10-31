@@ -4,7 +4,9 @@ import type { DeskScreen } from '../world/office'
 import type { CostBoard, Beacon } from '../world/props'
 import type { ScreenMode } from '../world/screens'
 import type { UpperFloor } from '../world/upper-floor'
+import type { Office } from '../world/office'
 import { PROJECT_LAYOUT } from './atlas'
+import type { CasaFlat, CasaLayout } from './casa'
 import { grid2d, slotOfDesk, type CrtState, type ProjectLayout } from './layout'
 
 /** The monitor colour of a desk in the 2D art for what its agent is doing. */
@@ -34,6 +36,7 @@ export class Crt implements DeskScreen {
 
 /** What the 2D renderer needs about a project floor, besides the people on it. */
 export interface FlatFloor {
+  kind: 'project'
   layout: ProjectLayout
   plan: ProjectPlan
   /** Desk screen index -> the room and slot it is drawn at. */
@@ -80,6 +83,28 @@ export function buildFloor2d(plan: ProjectPlan, layout: ProjectLayout = PROJECT_
     update() {},
     ding() {},
     setFloors() {},
-    flat: { layout, plan, slots: slotOfDesk(plan, layout), crts },
+    flat: { kind: 'project', layout, plan, slots: slotOfDesk(plan, layout), crts },
+  }
+}
+
+/**
+ * The Casa of the 2D world, shaped like a ground floor so the game logic runs unchanged:
+ * the grid comes from the pixel-art layout; the spending board and the alarm keep the 3D
+ * Casa's (their HTML tags move to the 2D spots), so these are inert.
+ */
+export function buildCasa2d(layout: CasaLayout): Office & { flat: CasaFlat } {
+  const inert = { group: new THREE.Group(), anchor: new THREE.Object3D(), set() {}, update() {} }
+  return {
+    group: new THREE.Group(),
+    grid: grid2d(layout),
+    floor: new THREE.Mesh(),
+    deskScreens: [],
+    money: inert,
+    alarm: { ...inert, on: false, setOn() {} },
+    reducedMotion: false,
+    update() {},
+    ding() {},
+    setFloors() {},
+    flat: { kind: 'casa', layout },
   }
 }

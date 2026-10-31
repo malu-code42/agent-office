@@ -21,7 +21,8 @@ export class Tag {
   hidden = false
 
   constructor(
-    readonly anchor: THREE.Object3D,
+    /** Where the tag floats; the Casa swaps it between its 3D and 2D spots. */
+    public anchor: THREE.Object3D,
     name: string,
     you = false,
     onClick?: () => void,

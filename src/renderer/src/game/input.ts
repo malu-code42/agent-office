@@ -1,7 +1,24 @@
 import * as THREE from 'three'
 import { emiAgentId } from '@shared/emi'
+import { CASA_LAYOUT } from '../world2d/atlas'
+import { zoneAt, type CasaAct } from '../world2d/casa'
 import { GameMovement } from './movement'
 import { SKULL_HOME, type Point } from './types'
+
+/** What the pointer over a clickable thing of the 2D Casa says. */
+const CASA_TITLES: Record<CasaAct, string> = {
+  agenda: 'Abrir Agenda',
+  goals: 'Abrir Objetivos',
+  'personal-routines': 'Abrir Rotinas pessoais',
+  books: 'Abrir Livros',
+  films: 'Abrir Filmes',
+  games: 'Abrir Jogos',
+  writing: 'Abrir Escrita',
+  radio: 'Ligar ou desligar a Claude FM',
+  skull: 'Caveira: dispensar um agente',
+  totem: 'Rotinas de agentes',
+  computer: 'Novo agente',
+}
 
 /** Camera and input: keys, drag to pan, wheel to zoom, clicks and the hover outline. */
 export abstract class GameInput extends GameMovement {
@@ -24,7 +41,8 @@ export abstract class GameInput extends GameMovement {
     window.addEventListener('blur', () => this.keys.clear())
 
     // any touch on the scene draws at full rate for a moment (hover outline, drag, zoom)
-    for (const type of ['pointermove', 'pointerdown', 'pointerup', 'pointerleave', 'wheel'] as const) el.addEventListener(type, () => this.wake(), { passive: true })
+    for (const type of ['pointermove', 'pointerdown', 'pointerup', 'pointerleave', 'wheel'] as const)
+      el.addEventListener(type, () => this.wake(), { passive: true })
     window.addEventListener('keydown', () => this.wake())
 
     el.addEventListener('contextmenu', (e) => e.preventDefault())
@@ -56,6 +74,7 @@ export abstract class GameInput extends GameMovement {
     el.addEventListener('pointerleave', () => {
       this.hover.visible = false
       this.hover2d = null
+      this.casaHot = null
       for (const interaction of this.office.interactions) interaction.highlight.visible = false
       document.body.style.cursor = ''
     })
@@ -84,10 +103,13 @@ export abstract class GameInput extends GameMovement {
         return h ? { id: h.parentId, helper: h.id } : null
       }
       if (hit.key === 'emi') return this.currentProject ? { id: emiAgentId(this.currentProject.id) } : null
+      if (hit.key === 'luna') return null
       return this.actors.has(hit.key) ? { id: hit.key } : null
     }
     const view = this.player.floor
-    const roots = [...this.actors.values()].filter((a) => a.goal !== 'leave' && !a.down && a.avatar.floor === view).map((a) => a.avatar.root)
+    const roots = [...this.actors.values()]
+      .filter((a) => a.goal !== 'leave' && !a.down && a.avatar.floor === view)
+      .map((a) => a.avatar.root)
     const helpers = [...this.helpers.values()].filter((h) => !h.gone && h.avatar.floor === view)
     for (const h of helpers) roots.push(h.avatar.root)
     for (const hit of this.engine.pick(x, y, roots)) {
@@ -102,6 +124,7 @@ export abstract class GameInput extends GameMovement {
   }
 
   protected click(x: number, y: number): void {
+    if (this.flat && this.player.floor === 0 && this.clickCasa2d(x, y)) return
     if (this.onSkull(x, y)) {
       this.hooks.onSkull()
       return
@@ -155,17 +178,44 @@ export abstract class GameInput extends GameMovement {
     this.walkPlayerTo(tile)
   }
 
+  /**
+   * A click on the 2D Casa: its furniture (the same flows as the 3D objects), Luna (her
+   * conversation, or the review of the day when due) and the elevator door. False lets the
+   * click go on to the agents and the floor.
+   */
+  private clickCasa2d(x: number, y: number): boolean {
+    const hit = this.flat2d.pick(x, y)
+    if (hit?.kind === 'person' && hit.key === 'luna') {
+      this.hooks.onLunaReview()
+      return true
+    }
+    if (hit?.kind === 'elevator') {
+      const door = this.elevatorOf(0)
+      this.walkPlayerTo([door.tile[0], door.tile[1] + 1])
+      this.hooks.onElevator?.()
+      return true
+    }
+    if (hit?.kind !== 'casa') return false
+    const act = hit.act
+    if (act === 'skull') this.hooks.onSkull()
+    else if (act === 'totem') this.hooks.onRoutines()
+    else if (act === 'computer') this.hooks.onComputer()
+    else if (act === 'radio') this.hooks.onTv()
+    else this.hooks.onHomeAction(act)
+    return true
+  }
+
   protected onTv(x: number, y: number): boolean {
-    return this.player.floor === 0 && this.engine.pick(x, y, [this.office.tv.group]).length > 0
+    return !this.flat && this.player.floor === 0 && this.engine.pick(x, y, [this.office.tv.group]).length > 0
   }
 
   protected onTotem(x: number, y: number): boolean {
-    return this.player.floor === 0 && this.engine.pick(x, y, [this.totem.view.group]).length > 0
+    return !this.flat && this.player.floor === 0 && this.engine.pick(x, y, [this.totem.view.group]).length > 0
   }
 
   /** Interactive furniture in the home routes to the matching existing app flow. */
   protected homeInteractionAt(x: number, y: number) {
-    if (this.player.floor !== 0) return undefined
+    if (this.player.floor !== 0 || this.flat) return undefined
     const hit = this.engine.pick(
       x,
       y,
@@ -182,7 +232,7 @@ export abstract class GameInput extends GameMovement {
   }
 
   protected onSkull(x: number, y: number): boolean {
-    return this.player.floor === 0 && this.engine.pick(x, y, [this.skull.root]).length > 0
+    return !this.flat && this.player.floor === 0 && this.engine.pick(x, y, [this.skull.root]).length > 0
   }
 
   setTvOn(on: boolean): void {
@@ -195,6 +245,11 @@ export abstract class GameInput extends GameMovement {
    */
   tvCorners(): [Point, Point, Point] | null {
     if (this.player.floor !== 0) return null
+    const flat = this.flat
+    if (flat) {
+      const [tl, tr, bl] = CASA_LAYOUT.tv.map(([ax, ay, h]) => flat.project(ax / 16, h / 16, ay / 16))
+      return [tl, tr, bl]
+    }
     const { screen, size } = this.office.tv
     const at = (x: number, y: number) => this.engine.project(screen.localToWorld(new THREE.Vector3(x, y, 0)))
     return [at(-size.w / 2, size.h / 2), at(size.w / 2, size.h / 2), at(-size.w / 2, -size.h / 2)]
@@ -211,7 +266,7 @@ export abstract class GameInput extends GameMovement {
     const flat = this.flat
     if (!flat) return this.engine.pan(dx, dy)
     const d = flat.panBy(dx, dy)
-    const [w, h] = this.upperOf(this.player.floor)?.scene.plan.size ?? [1, 1]
+    const [w, h] = this.floorSize(this.player.floor)
     const t = this.engine.target
     t.x = Math.max(0, Math.min(w, t.x + d.x))
     t.z = Math.max(0, Math.min(h, t.z + d.z))
@@ -227,6 +282,20 @@ export abstract class GameInput extends GameMovement {
       const tz = p ? Math.floor(p.z) : -1
       this.hover2d = !over && grid.inside(tx, tz) ? { x: tx, z: tz, ok: grid.walkable(tx, tz) } : null
       document.body.style.cursor = over ? 'pointer' : ''
+      // the Casa has no plates on the floor: the name of the place (or what a click does) on hover
+      if (this.player.floor === 0) {
+        this.casaHot = over?.kind === 'casa' ? over.act : null
+        const title = this.casaHot
+          ? CASA_TITLES[this.casaHot]
+          : over?.kind === 'person' && over.key === 'luna'
+            ? 'Luna'
+            : over?.kind === 'elevator'
+              ? 'Elevador'
+              : over || !grid.inside(tx, tz)
+                ? ''
+                : (zoneAt(CASA_LAYOUT, tx, tz) ?? '')
+        if (flat.canvas.title !== title) flat.canvas.title = title
+      } else if (flat.canvas.title) flat.canvas.title = ''
       return
     }
     const homeInteraction = this.homeInteractionAt(x, y)
@@ -255,6 +324,18 @@ export abstract class GameInput extends GameMovement {
 
   /** Spots of the ground floor the tour shows; null for one that does not exist (yet). */
   tourSpot(id: string): THREE.Vector3 | null {
+    if (this.visual === '2d') {
+      const at = (name: string) => {
+        const t = CASA_LAYOUT.tags[name]
+        return new THREE.Vector3(t[0] / 16, 1, t[1] / 16)
+      }
+      const home = this.home
+      if (id === 'desk') return new THREE.Vector3(home.boss.x, 1, home.boss.z)
+      if (id === 'team') return new THREE.Vector3(home.table.x, 1, home.table.z)
+      if (id === 'skull') return at('Caveira')
+      if (id === 'tv') return at('Claude FM')
+      return null
+    }
     switch (id) {
       case 'desk':
         return new THREE.Vector3(5, 1, 5.6)
@@ -285,7 +366,8 @@ export abstract class GameInput extends GameMovement {
   /** Where a tour spot is on the page, or null when the ground floor is not on screen. */
   spotOnPage(id: string): Point | null {
     const p = this.player.floor === 0 ? this.tourSpot(id) : null
-    return p ? this.engine.project(p) : null
+    if (!p) return null
+    return this.flat ? this.flat.project(p.x, p.y, p.z) : this.engine.project(p)
   }
 
   /** The camera follows the player again (the tour ended). */

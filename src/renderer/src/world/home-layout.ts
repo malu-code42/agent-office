@@ -1,4 +1,19 @@
-import { H, W, type Partition } from './layout'
+import {
+  BOSS_SEAT,
+  behindBossDesk,
+  DESKS,
+  H,
+  inBossRoom,
+  LOUNGE_SEATS,
+  SPAWN_POINT,
+  SPAWN_TILE,
+  UPPER_OVERFLOW,
+  VISIT_SPOTS,
+  W,
+  type DeskSlot,
+  type HangSpot,
+  type Partition,
+} from './layout'
 
 export type HomeRoomId = 'office' | 'entry' | 'kitchen' | 'garden' | 'reading' | 'corridor' | 'living' | 'bedroom' | 'games' | 'atelier'
 
@@ -76,4 +91,62 @@ export const LUNA_SEAT = 1
 
 export function isHomeRoomTile(x: number, z: number): boolean {
   return x >= 0 && z >= 0 && x < W && z < H && HOME_ROOMS.some(({ rect }) => x >= rect[0] && x < rect[2] && z >= rect[1] && z < rect[3])
+}
+
+/** A seat (tiles) and the way its sitter looks (radians, 0 = towards +z). */
+export interface HomeChair {
+  x: number
+  z: number
+  face: number
+}
+
+/**
+ * The spots of the ground floor the game walks people to. The 3D Casa and the 2D one
+ * (world2d/casa.ts) have different plans; the game asks the one on screen.
+ */
+export interface HomePlan {
+  /** Tiles. */
+  size: [number, number]
+  elevator: { tile: [number, number]; point: { x: number; z: number } }
+  /** The user's chair: where the player sits and visitors come to. */
+  boss: HomeChair
+  /** The player is in the user's corner: visitors come to the player instead of the chair. */
+  inBossRoom(x: number, z: number): boolean
+  /** Tiles a visitor never stands on (behind the user's desk). */
+  noVisit(x: number, z: number): boolean
+  /** Where visitors stand while the user sits, best first. */
+  visit: [number, number][]
+  /** Luna's table, her chair and the chairs the residents take, in order. */
+  table: { x: number; z: number }
+  luna: HomeChair
+  chairs: HomeChair[]
+  /** Where the residents past the chairs stand: tiles x0, z0, x1, z1 (exclusive). */
+  around: [number, number, number, number]
+  /** Tiles the standing residents keep clear (the clickable objects' approach). */
+  keepClear: [number, number][]
+  /** Where idle agents of the ground floor hang out. */
+  hang: HangSpot[]
+  /** Desks of the ground floor agents (none in the 2D Casa: they stand by the elevator). */
+  desks: DeskSlot[]
+  /** Where an agent with no desk waits. */
+  overflow: [number, number][]
+}
+
+/** The plan of the 3D Casa (world/home.ts). */
+export const HOME_PLAN_3D: HomePlan = {
+  size: [W, H],
+  elevator: { tile: SPAWN_TILE, point: SPAWN_POINT },
+  boss: { x: BOSS_SEAT.x, z: BOSS_SEAT.z, face: 0 },
+  inBossRoom,
+  noVisit: behindBossDesk,
+  visit: VISIT_SPOTS,
+  table: HOME_TABLE_AT,
+  luna: HOME_TABLE_SEATS[LUNA_SEAT],
+  chairs: HOME_TABLE_SEATS.filter((_, i) => i !== LUNA_SEAT),
+  around: HOME_ROOMS.find((room) => room.id === 'office')!.rect,
+  keepClear: HOME_INTERACTIONS.map(({ approach }) => approach),
+  hang: LOUNGE_SEATS,
+  desks: DESKS,
+  // as before: the overflow of the project floors (the 3D Casa has no spot of its own)
+  overflow: UPPER_OVERFLOW,
 }

@@ -188,7 +188,12 @@ export class Avatar {
         break
       case 1: // spiky
         cap()
-        for (const [x, z, r] of [[-0.12, 0.05, 0.3], [0.02, 0.1, -0.2], [0.14, -0.02, 0.25], [-0.04, -0.12, -0.3]]) {
+        for (const [x, z, r] of [
+          [-0.12, 0.05, 0.3],
+          [0.02, 0.1, -0.2],
+          [0.14, -0.02, 0.25],
+          [-0.04, -0.12, -0.3],
+        ]) {
           const s = box(g, 0.12, 0.12, 0.12, c, x, 0.24, z)
           s.rotation.set(r, r * 2, r)
         }
@@ -217,6 +222,11 @@ export class Avatar {
         blob(g, 0.14, dark, 0.18, 0.04, -0.1, 1, 0)
         box(g, 0.44, 0.06, 0.06, c, 0, 0.12, 0.17)
     }
+  }
+
+  /** The colours it wears now: its look, with the company's shirt while in uniform. */
+  get worn(): Look {
+    return this.uniform ? { ...this.look, shirt: this.uniform.color } : this.look
   }
 
   setLook(look: Look): void {
