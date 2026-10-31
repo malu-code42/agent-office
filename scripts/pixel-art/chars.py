@@ -96,9 +96,18 @@ BODY = {
         "........BBB..BBB........",
     ]),
 }
+# typing at a desk: the second frame of a two-frame loop with sitF / sitB (a hand up, an elbow in)
+BODY['typeF'] = (20, BODY['sitF'][1][:4] + [
+    ".......SSOCCCCOCC.......",
+    "..........CCCCSS........",
+] + BODY['sitF'][1][6:])
+BODY['typeB'] = (20, BODY['sitB'][1][:5] + [
+    ".......COCCCCCCOCC......",
+] + BODY['sitB'][1][6:])
 BODY_BACK = {k: (v[0], _back(v[1])) for k, v in BODY.items() if k in ('idle', 'walkA', 'walkB')}
 BODY_BACK['sitB'] = BODY['sitB']
-HEAD_DY = {'idle': 0, 'walkA': 1, 'walkB': 1, 'sitB': 3, 'sitF': 3}
+BODY_BACK['typeB'] = BODY['typeB']
+HEAD_DY = {'idle': 0, 'walkA': 1, 'walkB': 1, 'sitB': 3, 'sitF': 3, 'typeF': 3, 'typeB': 2}
 
 CAP = (2, [
     "........................",

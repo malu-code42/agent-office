@@ -26,7 +26,7 @@ import hashlib
 import json
 import os
 from PIL import Image
-from px import H
+from px import H, add_outline
 import furn as F
 from floorkit import SW, SH, OX, OY, TS, W, D, WALL_H, PART_H, Scene, new_layer, OAK, WALNUT, draw_floor, Layer
 import scene_projeto as P
@@ -155,6 +155,62 @@ def render(L, fn, size=(SW, SH)):
     return (img.crop(bb), bb[0], bb[1]) if bb else None
 
 
+def elevator_doors(place, name, x0, x1):
+    """the elevator doors half open and open: drawn over the base while someone arrives or leaves."""
+    return [{k: v for k, v in place(f'{name}/elevator{i}', lambda k=k: F.elevator_open_y(place.L, 0, x0, x1, k),
+                                    (x0, 0, x1, 1)).items() if k != 'fp'} for i, k in enumerate((0.5, 1.0))]
+
+
+# the skull that strikes a dismissed agent, the ghost that rises from it and the puff of the hit
+FX = {
+    'skull': ({'X': 'efe6d2', 'x': 'cfc4ad', 'O': 'ff3b5c', 'W': '3a2f3a'}, [
+        "..XXXXXXX..",
+        ".XXXXXXXXXx",
+        "XXXXXXXXXXx",
+        "XXOOXXXOOXx",
+        "XXOOXXXOOXx",
+        "XXXXXWXXXXx",
+        ".XXXXXXXXx.",
+        "..XWXWXWx..",
+        "..XXXXXxx..",
+    ]),
+    'ghost': ({'X': 'f4f2ff', 'x': 'd6d2ec', 'E': '1d1b26'}, [
+        "...XXXX...",
+        "..XXXXXX..",
+        ".XXXXXXXx.",
+        ".XEXXEXXx.",
+        ".XEXXEXXx.",
+        ".XXXXXXXx.",
+        ".XXXXXXXx.",
+        ".XXXXXXXx.",
+        ".XXXXXXXx.",
+        ".XX.XX.Xx.",
+        ".X...X..x.",
+    ]),
+    'puff': ({'X': '7a5cc4', 'x': '4b3a66'}, [
+        "..XXXX...",
+        ".XXXXXXx.",
+        "XXXXXXXxx",
+        "XXXXXXxxx",
+        ".XXXXxxx.",
+        "..xxxx...",
+    ]),
+}
+
+
+def fx(name):
+    pal, rows = FX[name]
+    img = Image.new('RGBA', (len(rows[0]), len(rows)), (0, 0, 0, 0))
+    for r, row in enumerate(rows):
+        for c, ch in enumerate(row):
+            if ch in pal:
+                img.putpixel((c, r), H(pal[ch]))
+    big = Image.new('RGBA', (img.width + 2, img.height + 2), (0, 0, 0, 0))
+    big.paste(img, (1, 1))
+    add_outline(big)
+    return big
+
+
 def main():
     os.makedirs(APP, exist_ok=True)
     atlas = Atlas()
@@ -164,6 +220,7 @@ def main():
         got = render(L, fn)
         x0, y0, x1, y1 = fp
         return {'f': atlas.put(name, got[0]), 'x': got[1], 'y': got[2], 'fp': [x0, y0, x1, y1]}
+    place.L = L
 
     def items(name, recs):
         out = []
@@ -304,7 +361,8 @@ def main():
         'meeting': meeting,
         'director': {'rect': [18, 7, 24, 18], 'plate': emi['plate']},
         'lounge': {'rect': [11, 0, 24, 7], 'plate': [lpx, int(lpy)]},
-        'elevator': {'tile': [17, 1], 'point': [17.5, 0.45], 'door': [P.ELEVATOR[0], P.ELEVATOR[1], 50]},
+        'elevator': {'tile': [17, 1], 'point': [17.5, 0.45], 'door': [P.ELEVATOR[0], P.ELEVATOR[1], 50],
+                     'open': elevator_doors(place, 'project', *P.ELEVATOR)},
     }
     with open(os.path.join(APP, 'project.json'), 'w', encoding='utf8') as f:
         json.dump(layout, f, separators=(',', ':'), ensure_ascii=False)
@@ -317,8 +375,13 @@ def main():
         for d in DIRS:
             for fr in ('idle', 'walkA', 'walkB'):
                 atlas.put(f'char/{vi}/{d}/{fr}', sprite(vi, d, fr))
-        for d, fr in (('BL', 'sitB'), ('BR', 'sitB'), ('FL', 'sitF'), ('FR', 'sitF')):
+        for d, fr in (('BL', 'sitB'), ('BR', 'sitB'), ('FL', 'sitF'), ('FR', 'sitF'),
+                      ('BL', 'typeB'), ('BR', 'typeB'), ('FL', 'typeF'), ('FR', 'typeF')):
             atlas.put(f'char/{vi}/{d}/{fr}', sprite(vi, d, fr))
+        # knocked out by the skull: flat on the floor
+        atlas.put(f'char/{vi}/down', sprite(vi, 'FL', 'idle').rotate(90, expand=True))
+    for name in FX:
+        atlas.put(f'fx/{name}', fx(name))
     anchors = {}
     small = Layer(64, 64, 0, 0, (0, 0, 0, 0))
     for kind, name in (('...', 'dots'), ('!', 'bang'), ('?', 'ask'), ('ok', 'ok')):
@@ -394,6 +457,19 @@ def casa(L, place, items, seat):
     ex0, ex1 = C.ELEVATOR
     # the screen of the Claude FM console (top-left, top-right, bottom-left), facing +x
     rx, ry = C.RADIO[:2]
+    # the sofa spots of the lounge corners: where a resting agent is drawn seated. The backrest
+    # is on the near side (sofa_mx), so the sitter sorts just behind the sofa.
+    couch = []
+    for hx, hy, look, kind in C.HANG:
+        if kind != 'sit':
+            continue
+        sofa = next(it['fp'] for it in static if it['fp'][0] <= hx < it['fp'][2] and it['fp'][1] <= hy < it['fp'][3])
+        dx, dy = look[0] - hx, look[1] - hy
+        face = ('+x' if dx > 0 else '-x') if abs(dx) >= abs(dy) else ('+y' if dy > 0 else '-y')
+        direction, frame = SIT[face]
+        px, py = L.P(hx, hy, 7)
+        couch.append({'at': [hx, hy], 'fp': [sofa[0] - 4, hy - 2, sofa[0], hy + 2], 'sit': [int(px - 12), int(py - 28)],
+                      'head': [int(px) + 3, int(py) - 24], 'dir': direction, 'pose': frame})
     tv = [[rx + 10, ry + 26, 28], [rx + 10, ry + 8, 28], [rx + 10, ry + 26, 18]]
     layout = {
         'tile': TS,
@@ -411,7 +487,11 @@ def casa(L, place, items, seat):
         'voce': {'seat': seat('casa/voce', x + w - 13, y - 12, '+y'), 'desk': [x, y, x + w, y + 14]},
         'hang': [{'at': [hx, hy], 'look': list(look), 'kind': kind} for hx, hy, look, kind in C.HANG],
         'zones': [{'name': n, 'rect': list(r)} for n, r in C.ZONES],
-        'elevator': {'tile': [ex0 // TS, 1], 'point': [(ex0 + ex1) / 2 / TS, 0.45], 'door': [ex0, ex1, 40]},
+        'elevator': {'tile': [ex0 // TS, 1], 'point': [(ex0 + ex1) / 2 / TS, 0.45], 'door': [ex0, ex1, 40],
+                     'open': elevator_doors(place, 'casa', ex0, ex1)},
+        'couch': couch,
+        # the routines board's face (+y): x0, x1, y, z0, z1; the app draws the next routine there
+        'totem': [C.TOTEM[0] + 1, C.TOTEM[2] - 1, C.TOTEM[1] + 5, 17, 33],
     }
     with open(os.path.join(APP, 'casa.json'), 'w', encoding='utf8') as f:
         json.dump(layout, f, separators=(',', ':'), ensure_ascii=False)
@@ -500,7 +580,8 @@ def estudos(L, place, items, seat):
         'notes': wood('notes', [E.NOTE_SEAT])[0],
         'class': {'at': [tx, ty], 'look': [(d0[0] + d0[2]) / 2, (d0[1] + d0[3]) / 2]},
         'zones': [{'name': n, 'rect': list(r)} for n, r in E.ZONES],
-        'elevator': {'tile': [ex0 // TS, 1], 'point': [(ex0 + ex1) / 2 / TS, 0.45], 'door': [ex0, ex1, 40]},
+        'elevator': {'tile': [ex0 // TS, 1], 'point': [(ex0 + ex1) / 2 / TS, 0.45], 'door': [ex0, ex1, 40],
+                     'open': elevator_doors(place, 'estudos', ex0, ex1)},
     }
     with open(os.path.join(APP, 'estudos.json'), 'w', encoding='utf8') as f:
         json.dump(layout, f, separators=(',', ':'), ensure_ascii=False)
