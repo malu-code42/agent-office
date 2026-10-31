@@ -1,5 +1,5 @@
-// The floating labels of the world cover each other when their 3D anchors stand
-// close together. The crowding is found on the projected screen boxes, not on 3D
+// The floating labels of the world cover each other when their anchors stand
+// close together. The crowding is found on the projected screen boxes, not on world
 // geometry, and it is solved by drifting the pills aside — plain numbers, so the
 // rules can be checked without a scene (the renderer applies them with smoothing).
 

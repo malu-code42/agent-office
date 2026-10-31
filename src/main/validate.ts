@@ -932,7 +932,6 @@ const numberField = z.union([
 const settingsFields = {
   playerName: z.string().trim().min(1).max(32),
   playerLook: lookSchema,
-  pixelSize: z.number().int().min(2).max(5),
   defaultModel: z.union([z.literal(''), z.string().regex(MODEL_RE)]),
   defaultEngine: z.literal('claude'),
   defaultEffort: z.union([z.literal(''), z.enum(EFFORT_LEVELS as [EffortLevel, ...EffortLevel[]])]),
@@ -951,15 +950,14 @@ const settingsFields = {
 
 /** Configurações → Vídeo, one schema per field: a bad one keeps its current value. */
 const videoFields = {
-  shadows: z.boolean(),
-  shadowMapSize: z.union([z.literal(1024), z.literal(2048)]),
   fpsLimit: z.union([z.literal(0), z.literal(30), z.literal(60)]),
-  effects: z.enum(['full', 'reduced']),
   batterySaver: z.boolean(),
-  visual: z.enum(['2d', '3d']),
 } satisfies { [K in keyof VideoSettings]: z.ZodType<VideoSettings[K]> }
 
-/** Video settings from the renderer (or an old office.json) laid over `current`; unknown keys are dropped. */
+/**
+ * Video settings from the renderer (or an old office.json) laid over `current`; unknown keys are
+ * dropped, so the 3D world's old fields (shadows, effects, visual) just go away.
+ */
 export function cleanVideo(raw: unknown, current: VideoSettings): VideoSettings {
   const patch = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   const next: VideoSettings = { ...current }

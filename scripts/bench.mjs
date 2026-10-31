@@ -4,7 +4,7 @@
 // AGENT_OFFICE_BENCH_S sets the seconds; AGENT_OFFICE_BENCH_OUT the report path.
 // AGENT_OFFICE_DEMO= (empty) benches an empty, still office; AGENT_OFFICE_BENCH_LIVE=1 keeps
 // the loop's own pacing (idle and fps limit) instead of drawing every frame.
-// AGENT_OFFICE_BENCH_EVAL runs a snippet before recording, e.g. to bench a project floor in 2D or 3D.
+// AGENT_OFFICE_BENCH_EVAL runs a snippet before recording, e.g. to bench a project floor.
 import { spawn } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -16,7 +16,12 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const out = resolve(root, process.env.AGENT_OFFICE_BENCH_OUT ?? 'out/bench.json')
 const data = mkdtempSync(join(tmpdir(), 'agent-office-bench-'))
 
-const env = { ...process.env, AGENT_OFFICE_DATA_DIR: data, AGENT_OFFICE_DEMO: process.env.AGENT_OFFICE_DEMO ?? 'stress', AGENT_OFFICE_BENCH: out }
+const env = {
+  ...process.env,
+  AGENT_OFFICE_DATA_DIR: data,
+  AGENT_OFFICE_DEMO: process.env.AGENT_OFFICE_DEMO ?? 'stress',
+  AGENT_OFFICE_BENCH: out,
+}
 // the built bundle, not a dev server
 delete env.ELECTRON_RENDERER_URL
 

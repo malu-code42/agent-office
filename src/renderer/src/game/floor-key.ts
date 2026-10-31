@@ -1,5 +1,5 @@
 import type { ProjectFloor, SquadInfo, SquadQueue } from '@shared/types'
-import type { ProjectPlan } from '../world/layout'
+import type { ProjectPlan } from '../world2d/plan'
 
 /** The logo of a project, as a short key: the data URL itself is long. */
 const logoKey = (p: ProjectFloor) => (p.logo ? `${p.logo.length}:${p.logo.slice(-48)}` : '')

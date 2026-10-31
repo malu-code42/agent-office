@@ -1,7 +1,6 @@
 // The red mark left by the helpers of an agent that failed: a pad on the floor
 // beside the owner's desk, until the owner's conversation is opened. Plain numbers,
 // so the rule can be checked without a scene.
-import * as THREE from 'three'
 
 /** How far from the middle of the owner's desk the red pad stands. */
 export const MARK_OFFSET = 1.55
@@ -93,17 +92,4 @@ export class SeenFailures {
 export function helperLeavesMark(failed: boolean, failedAt: number | null, seen: SeenFailures, ownerId: string, now: number): boolean {
   if (!failed) return false
   return seen.unseen(ownerId, failedAt ?? now)
-}
-
-/**
- * The red pad of a failed helper: a low red box on the floor. It has a geometry
- * and a material of its own, so disposeTree frees them when the mark goes away.
- */
-export function failurePad(x: number, z: number): THREE.Mesh {
-  const geometry = new THREE.BoxGeometry(0.8, 0.03, 0.8)
-  geometry.translate(0, 0.015, 0) // the origin at the bottom face, like the box of the kit
-  const pad = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({ color: '#ef5b5b' }))
-  pad.position.set(x, 0.03, z)
-  pad.receiveShadow = true
-  return pad
 }

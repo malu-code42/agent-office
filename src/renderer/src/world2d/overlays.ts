@@ -1,10 +1,31 @@
-import * as THREE from 'three'
-import type { Engine } from './engine'
 import { resolveTagOverlaps, type TagRect } from './tag-avoid'
+
+/** A point of the world in tiles (y = height) that a tag follows; read every frame. */
+export interface Anchor {
+  readonly x: number
+  readonly y: number
+  readonly z: number
+}
+
+/** A fixed anchor that can be moved. */
+export class Point3 implements Anchor {
+  constructor(
+    public x = 0,
+    public y = 0,
+    public z = 0,
+  ) {}
+
+  set(x: number, y: number, z: number): this {
+    this.x = x
+    this.y = y
+    this.z = z
+    return this
+  }
+}
 
 export type BubbleKind = 'work' | 'wait' | 'done' | 'error' | 'idle' | 'talk'
 
-/** HTML name tag + speech bubble that follows a 3D anchor. */
+/** HTML name tag + speech bubble that follows an anchor of the world. */
 export class Tag {
   readonly el: HTMLDivElement
   private nameEl: HTMLSpanElement
@@ -21,8 +42,8 @@ export class Tag {
   hidden = false
 
   constructor(
-    /** Where the tag floats; the Casa swaps it between its 3D and 2D spots. */
-    public anchor: THREE.Object3D,
+    /** Where the tag floats. */
+    public anchor: Anchor,
     name: string,
     you = false,
     onClick?: () => void,
@@ -123,26 +144,17 @@ export class Tag {
 
 export class Overlays {
   private tags = new Set<Tag>()
-  private labels: { el: HTMLDivElement; pos: THREE.Vector3; floor: number }[] = []
-  private tmp = new THREE.Vector3()
   /** The drift of each tag: its measured size and the offset it sits at now. */
   private drift = new WeakMap<Tag, { w: number; h: number; shown: boolean; dx: number; dy: number }>()
-  /** Floor on screen: labels of other floors hide. */
-  floor = 0
-  /**
-   * Page position of a world point when the 2D world is on screen (null: the 3D camera).
-   * The 3D scene is not rendered then, so the anchors' world matrices are refreshed here.
-   */
-  projector: ((v: THREE.Vector3) => { x: number; y: number }) | null = null
-
   constructor(
     private root: HTMLElement,
-    private engine: Engine,
+    /** Page position of a world point (the 2D renderer's projection). */
+    private project: (v: Anchor) => { x: number; y: number },
   ) {}
 
-  /** HTML elements following the world: name tags plus zone labels. */
+  /** HTML elements following the world. */
   get count(): number {
-    return this.tags.size + this.labels.length
+    return this.tags.size
   }
 
   add(tag: Tag): Tag {
@@ -157,40 +169,7 @@ export class Overlays {
     tag.el.remove()
   }
 
-  label(text: string, x: number, z: number, floor = 0, onClick?: () => void): void {
-    const el = document.createElement('div')
-    el.className = 'zone-label'
-    el.textContent = text
-    if (onClick) {
-      el.classList.add('zone-label-click')
-      el.setAttribute('role', 'button')
-      el.tabIndex = 0
-      el.addEventListener('click', onClick)
-      el.addEventListener('keydown', (e) => {
-        if (e.key !== 'Enter' && e.key !== ' ') return
-        e.preventDefault()
-        e.stopPropagation()
-        onClick()
-      })
-    }
-    this.root.prepend(el)
-    this.labels.push({ el, pos: new THREE.Vector3(x, 0, z), floor })
-  }
-
-  /** Drops the labels of a floor that is being rebuilt. */
-  clearLabels(floor: number): void {
-    for (const l of this.labels) if (l.floor === floor) l.el.remove()
-    this.labels = this.labels.filter((l) => l.floor !== floor)
-  }
-
   update(dt = 0): void {
-    for (const l of this.labels) {
-      l.el.style.display = l.floor === this.floor ? '' : 'none'
-      if (l.floor !== this.floor) continue
-      const p = this.project(l.pos)
-      l.el.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, -50%)`
-    }
-
     // Where each tag is anchored now, measuring only the ones with new content:
     // the browser size is read once per change, not once per frame.
     const live: { t: Tag; m: TagDrift; x: number; y: number }[] = []
@@ -216,9 +195,7 @@ export class Overlays {
         m.w = t.el.offsetWidth
         m.h = t.el.offsetHeight
       }
-      if (this.projector) t.anchor.updateWorldMatrix(true, false)
-      t.anchor.getWorldPosition(this.tmp)
-      const p = this.project(this.tmp)
+      const p = this.project(t.anchor)
       live.push({ t, m, x: p.x, y: p.y })
     }
 
@@ -238,10 +215,6 @@ export class Overlays {
       // The depth stays anchored: the drift is sideways, not further from the camera.
       t.el.style.zIndex = String(1000 + y)
     }
-  }
-
-  private project(v: THREE.Vector3): { x: number; y: number } {
-    return this.projector ? this.projector(v) : this.engine.project(v)
   }
 
   /** The drift of a tag, kept per tag so a removed tag leaves no work behind. */

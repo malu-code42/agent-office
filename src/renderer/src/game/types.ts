@@ -1,12 +1,11 @@
-import type * as THREE from 'three'
 import type { ProjectFloor, SquadMember, SubagentInfo, AgentSummary } from '@shared/types'
-import type { Avatar } from '../world/avatar'
-import * as L from '../world/layout'
-import type { Tag, BubbleKind } from '../world/overlays'
-import type { UpperFloor } from '../world/upper-floor'
-import type { ScreenMode } from '../world/screens'
+import type { Avatar } from '../world2d/avatar'
+import * as L from '../world2d/plan'
+import type { Tag, BubbleKind } from '../world2d/overlays'
+import type { ProjectFloor2d } from '../world2d/floor'
+import type { ScreenMode } from '../world2d/floor'
 import type { HelperReturn } from './helper-return'
-import type { HomeAction } from '../world/home-layout'
+import type { HomeAction } from '../world2d/home-layout'
 import type { StudyAct, Teacher } from '../world2d/estudos'
 
 export type Goal = 'desk' | 'boss' | 'meeting' | 'hang' | 'home' | 'leave' | 'chat'
@@ -45,9 +44,11 @@ export interface Actor {
 /** A project floor on screen: floor n is uppers[n - 1]. */
 export interface Upper {
   project: ProjectFloor
-  scene: UpperFloor
+  scene: ProjectFloor2d
   /** One "Passo 3/6 · Texto" line over each squad room that has a coordinator. */
   stepTags: Tag[]
+  /** An account of this floor is at its limit. */
+  alarm: boolean
   /** Over the alarm, while an account of this floor is at its limit. */
   alarmTag: Tag
   /** Over the spending board: the exact total. */
@@ -66,8 +67,6 @@ export interface Helper {
   tag: Tag
   /** The fixed spot beside the owner's desk (0, 1 or 2). */
   slot: number
-  /** The cord on the floor, in the shirt color of the owner. */
-  cord: THREE.Object3D
   /** What the helper is doing; the mini label shows it. */
   task: string
   /** The middle of the owner's desk, where the helper and its cord belong. */
@@ -98,8 +97,6 @@ export interface FailureMark {
   /** Where the pad stands on the floor. */
   x: number
   z: number
-  /** The red pad on the floor. */
-  pad: THREE.Object3D
   /** The mini label beside it. */
   tag: Tag
 }
@@ -161,11 +158,7 @@ export interface GameHooks {
   onStudy?(act: StudyAct, teacher?: Teacher): void
 }
 
-/** Entry-hall tile reserved for the existing agent-routine scheduler totem, west of the hall runner. */
-export const TOTEM_TILE: [number, number] = [10, 8]
-/** Office spot beside the Claude FM TV where the skeleton stands. */
-export const SKULL_HOME = { x: 5.85, y: 0, z: 0.9 }
-/** How much higher (tiles) the HTML tags float on a 2D floor than in 3D: over the sprites' pixel bubbles. */
+/** How much higher (tiles) the HTML tags float than their anchors: over the sprites' pixel bubbles. */
 export const TAG_LIFT = 1.2
 /** Seconds the camera gets to reach a dismissed agent before the skull drops. */
 export const STRIKE_AFTER_S = 0.6
@@ -184,12 +177,10 @@ export const SQUAD_SPEED = 4.4
 export const MEMBER_MIN_S = 5
 /** Whatever happens, a member leaves the floor this long after its work ends. */
 export const MEMBER_EXIT_S = 40
-/** Where an orchestrator waits when its squad has no room (ground floor fallback). */
-export const OVERFLOW_TILES = L.UPPER_OVERFLOW
 export const center = ([x, z]: [number, number]) => ({ x: x + 0.5, z: z + 0.5 })
 export const clip = (text: string, n: number) => (text.length > n ? text.slice(0, n - 1) + '…' : text)
 export type Point = { x: number; y: number }
-export const tileOf = (p: THREE.Vector3): [number, number] => [Math.floor(p.x), Math.floor(p.z)]
+export const tileOf = (p: { x: number; z: number }): [number, number] => [Math.floor(p.x), Math.floor(p.z)]
 
 /** Floor and desk an agent should be at; it changes when its folder moves to another floor. */
 export const seatKey = (a: AgentSummary) => `${a.project ?? ''}:${a.desk}`

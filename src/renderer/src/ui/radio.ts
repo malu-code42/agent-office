@@ -18,7 +18,6 @@ type Point = { x: number; y: number }
 export interface RadioTv {
   /** Page coordinates of the screen (top-left, top-right, bottom-left), or null when it is off view. */
   corners(): [Point, Point, Point] | null
-  setOn(on: boolean): void
 }
 
 /**
@@ -113,7 +112,6 @@ export class Radio {
 
   attach(tv: RadioTv): void {
     this.tv = tv
-    tv.setOn(this.on)
   }
 
   async toggle(on = !this.on): Promise<void> {
@@ -123,7 +121,6 @@ export class Radio {
     this.showSource()
     this.card.classList.toggle('hidden', !on)
     this.player.classList.toggle('hidden', !on)
-    this.tv?.setOn(on)
     if (!on) {
       // Removing the iframe is the only reliable way to stop the stream.
       this.frame?.remove()

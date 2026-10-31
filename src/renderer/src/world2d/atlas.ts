@@ -77,13 +77,22 @@ export class Atlas {
     this.pixels = ctx.getImageData(0, 0, c.width, c.height).data
   }
 
-  /** Draws a frame with its top-left corner at (x, y) on a native-size canvas; `look` paints a character. */
-  draw(ctx: CanvasRenderingContext2D, name: string, x: number, y: number, look?: Look): void {
+  /** Draws a frame with its top-left corner at (x, y) on a native-size canvas; `look` paints a character, `k` scales it. */
+  draw(ctx: CanvasRenderingContext2D, name: string, x: number, y: number, look?: Look, k = 1): void {
     const f = this.frames[name]
     if (!f) return
     const skin = look ? this.skin(name, look) : null
-    if (skin) ctx.drawImage(skin.canvas, skin.x, 0, f[2], f[3], x, y, f[2], f[3])
-    else ctx.drawImage(this.image, f[0], f[1], f[2], f[3], x, y, f[2], f[3])
+    const w = Math.round(f[2] * k)
+    const h = Math.round(f[3] * k)
+    if (skin) ctx.drawImage(skin.canvas, skin.x, 0, f[2], f[3], x, y, w, h)
+    else ctx.drawImage(this.image, f[0], f[1], f[2], f[3], x, y, w, h)
+  }
+
+  /** The painted character sheets kept now and their pixels (bytes): the leak test reads them. */
+  get skinBytes(): { count: number; bytes: number } {
+    let bytes = 0
+    for (const s of this.skins.values()) bytes += s.canvas.width * s.canvas.height * 4
+    return { count: this.skins.size, bytes }
   }
 
   /** The frame of a character (`char/<variant>/...`) painted in a Look, built once per variant and Look. */

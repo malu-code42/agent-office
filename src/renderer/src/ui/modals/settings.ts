@@ -3,16 +3,7 @@ import { floorNameFor, MAX_PROJECT_FLOORS } from '@shared/projects'
 import type { AlwaysAllowRule, Look, OfficePermissionMode, ProjectFloor } from '@shared/types'
 import type { ParsedBoard } from '@shared/tasks'
 import type { State } from '../../state'
-import {
-  DEFAULT_VIDEO,
-  QUALITY_LABELS,
-  QUALITY_PRESETS,
-  qualityOf,
-  type FpsLimit,
-  type Quality,
-  type ShadowMapSize,
-  type VideoSettings,
-} from '@shared/video'
+import { DEFAULT_VIDEO, type FpsLimit, type VideoSettings } from '@shared/video'
 import { openAccounts } from '../accounts'
 import { openLunaSettings } from '../luna-settings'
 import { dataSection } from '../data'
@@ -68,12 +59,6 @@ export function openSettings(
     styles.append(b)
   }
 
-  const pixel = h(
-    'select',
-    { class: 'input' },
-    ...[2, 3, 4, 5].map((n) => h('option', { value: n }, `${n}px${n === 3 ? ' (padrão)' : ''}`)),
-  )
-  pixel.value = String(s.pixelSize)
   const notify = h('input', { type: 'checkbox' }) as HTMLInputElement
   notify.checked = s.notifications
   const brain = brainFields({ model: s.defaultModel, effort: s.defaultEffort })
@@ -416,7 +401,6 @@ export function openSettings(
       await window.office.saveSettings({
         playerName: name.value.trim() || 'Você',
         playerLook: look,
-        pixelSize: Number(pixel.value),
         notifications: notify.checked,
         defaultModel: brain.model.value,
         defaultEffort: brain.value().effort ?? '',
@@ -457,7 +441,7 @@ export function openSettings(
           field('Calça', swatches('pants', PANTS_COLORS)),
         ),
       ),
-      h('div', { class: 'field-row' }, field('Pixel art', pixel), field('Modelo padrão', brain.model), field('Permissão padrão', mode)),
+      h('div', { class: 'field-row' }, field('Modelo padrão', brain.model), field('Permissão padrão', mode)),
       meterField('Esforço padrão', brain.meter),
       h('label', { class: 'check' }, notify, 'Notificar quando um agente precisar de mim ou terminar'),
       video.el,
@@ -644,73 +628,24 @@ export function openSettings(
   if (opts.section === 'bridge') el.querySelector('.bridge-terminal')?.scrollIntoView({ block: 'start' })
 }
 
-/**
- * Configurações → Vídeo (AO-29, AO-32). Picking a quality fills the other fields; changing one
- * by hand shows "Personalizada". Everything applies on Salvar, without restarting.
- */
+/** Configurações → Vídeo (AO-29, AO-32): the fps limit and Economia on battery; both apply on Salvar, without restarting. */
 function videoFields(state: State): { el: HTMLElement; value: () => VideoSettings } {
   const v: VideoSettings = { ...DEFAULT_VIDEO, ...state.settings.video }
-  const quality = h(
-    'select',
-    { class: 'input' },
-    ...(Object.keys(QUALITY_LABELS) as Quality[]).map((q) => h('option', { value: q }, QUALITY_LABELS[q])),
-    h('option', { value: 'custom', disabled: true }, 'Personalizada'),
-  )
   const fps = h(
     'select',
     { class: 'input' },
     h('option', { value: 30 }, '30 fps'),
     h('option', { value: 60 }, '60 fps'),
     h('option', { value: 0 }, 'Sem limite'),
-  )
-  const shadows = h(
-    'select',
-    { class: 'input' },
-    h('option', { value: 'off' }, 'Desligadas'),
-    h('option', { value: 1024 }, 'Ligadas · 1024'),
-    h('option', { value: 2048 }, 'Ligadas · 2048'),
-  )
-  const effects = h(
-    'select',
-    { class: 'input' },
-    h('option', { value: 'full' }, 'Completos'),
-    h('option', { value: 'reduced' }, 'Reduzidos'),
-  )
-  const visual = h(
-    'select',
-    { class: 'input' },
-    h('option', { value: '2d' }, '2D (beta)'),
-    h('option', { value: '3d' }, '3D'),
   ) as HTMLSelectElement
-  visual.value = v.visual ?? '2d'
+  fps.value = String(v.fpsLimit)
   const battery = h('input', { type: 'checkbox' }) as HTMLInputElement
   battery.checked = v.batterySaver
-
-  const value = (): VideoSettings => ({
-    shadows: shadows.value !== 'off',
-    shadowMapSize: (shadows.value === 'off' ? v.shadowMapSize : Number(shadows.value)) as ShadowMapSize,
-    fpsLimit: Number(fps.value) as FpsLimit,
-    effects: effects.value === 'reduced' ? 'reduced' : 'full',
-    batterySaver: battery.checked,
-    visual: visual.value === '3d' ? '3d' : '2d',
-  })
-  const fill = (x: Omit<VideoSettings, 'batterySaver' | 'visual'>) => {
-    fps.value = String(x.fpsLimit)
-    shadows.value = x.shadows ? String(x.shadowMapSize) : 'off'
-    effects.value = x.effects
-  }
-  const syncQuality = () => (quality.value = qualityOf(value()) ?? 'custom')
-  fill(v)
-  syncQuality()
-  quality.addEventListener('change', () => {
-    const preset = QUALITY_PRESETS[quality.value as Quality]
-    if (preset) fill(preset)
-  })
-  for (const sel of [fps, shadows, effects]) sel.addEventListener('change', syncQuality)
+  const value = (): VideoSettings => ({ fpsLimit: Number(fps.value) as FpsLimit, batterySaver: battery.checked })
 
   const now: string[] = []
   if (state.onBattery && v.batterySaver) now.push('Na bateria agora: o modo Economia está valendo até ligar na tomada.')
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) now.push('O sistema pede menos movimento: os efeitos ficam reduzidos.')
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) now.push('O sistema pede menos movimento: as animações ficam reduzidas.')
   const el = h(
     'div',
     { class: 'bridge-box' },
@@ -718,11 +653,9 @@ function videoFields(state: State): { el: HTMLElement; value: () => VideoSetting
     h(
       'div',
       { class: 'field-hint' },
-      'Economia desliga as sombras, limita a 30 fps e reduz fumaça, faíscas e giroflex. Com o escritório parado ou a janela minimizada, o app já desenha menos sozinho.',
+      'Economia limita a 30 fps e reduz as animações. Com o escritório parado ou a janela minimizada, o app já desenha menos sozinho.',
     ),
-    field('Visual', visual, 'Em 2D, todos os andares em pixel art, mais leve; o andar de estudos só existe no 2D.'),
-    h('div', { class: 'field-row' }, field('Qualidade', quality), field('Limite de fps', fps)),
-    h('div', { class: 'field-row' }, field('Sombras (só no 3D)', shadows), field('Efeitos (só no 3D)', effects)),
+    field('Limite de fps', fps),
     h('label', { class: 'check' }, battery, 'Economia automática na bateria'),
     ...(now.length ? [h('div', { class: 'field-hint' }, now.join(' '))] : []),
   )

@@ -1,7 +1,5 @@
-import * as THREE from 'three'
-import type { HomeChair } from '../world/home-layout'
-import type { Office } from '../world/office'
-import { Overlays, Tag } from '../world/overlays'
+import type { HomeChair } from '../world2d/home-layout'
+import { Overlays, Point3, Tag } from '../world2d/overlays'
 import { ESTUDOS_LAYOUT } from '../world2d/atlas'
 import {
   BONNIE_VARIANT,
@@ -15,7 +13,7 @@ import {
   type StudyPlan,
   type Teacher,
 } from '../world2d/estudos'
-import { buildEstudos2d } from '../world2d/floor'
+import { buildEstudos2d, type Floor2d } from '../world2d/floor'
 import type { Person2d } from '../world2d/renderer'
 import { Walker } from '../world2d/walker'
 import { TAG_LIFT } from './types'
@@ -41,7 +39,7 @@ const OBJECT_TAGS: [string, StudyAct][] = [
  */
 export class StudyFloor {
   readonly layout = ESTUDOS_LAYOUT
-  readonly scene: Office & { flat: EstudosFlat } = buildEstudos2d(ESTUDOS_LAYOUT)
+  readonly scene: Floor2d<EstudosFlat> = buildEstudos2d(ESTUDOS_LAYOUT)
   readonly plan: StudyPlan = studyPlan(ESTUDOS_LAYOUT, this.scene.grid)
   readonly walkers = new Map<Teacher['id'], Walker>()
   /** The teacher standing in (or walking to) the classroom. */
@@ -60,12 +58,8 @@ export class StudyFloor {
       w.seated = true
       this.walkers.set(t.id, w)
     })
-    const at = (x: number, y: number, z: number) => {
-      const o = new THREE.Object3D()
-      o.position.set(x, y, z)
-      return o
-    }
-    const person = (anchor: THREE.Object3D, name: string, click: () => void) => {
+    const at = (x: number, y: number, z: number) => new Point3(x, y, z)
+    const person = (anchor: Point3, name: string, click: () => void) => {
       const tag = overlays.add(new Tag(anchor, name, false, click))
       tag.setDot('idle')
       this.tags.push(tag)
@@ -121,7 +115,10 @@ export class StudyFloor {
 
   /** A teacher's tag over its head: low while it sits, higher while it stands (over the pixel bubble). */
   private placeTags(): void {
-    for (const [id, w] of this.walkers) this.teacherTags.get(id)?.anchor.position.set(w.x, w.seated ? 0.35 : STAND_TAG_Y, w.z)
+    for (const [id, w] of this.walkers) {
+      const anchor = this.teacherTags.get(id)?.anchor
+      if (anchor instanceof Point3) anchor.set(w.x, w.seated ? 0.35 : STAND_TAG_Y, w.z)
+    }
   }
 
   private toChair(id: Teacher['id'], instant: boolean): void {

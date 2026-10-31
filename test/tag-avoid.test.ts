@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveTagOverlaps, type TagRect } from '../src/renderer/src/world/tag-avoid'
+import { resolveTagOverlaps, type TagRect } from '../src/renderer/src/world2d/tag-avoid'
 
 const rect = (x: number, y: number, w: number, h: number): TagRect => ({ x, y, w, h })
 const zero = { dx: 0, dy: 0 }

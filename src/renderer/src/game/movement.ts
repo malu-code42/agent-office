@@ -1,4 +1,3 @@
-import type * as THREE from 'three'
 import { GameSkull } from './skull'
 import { tileOf } from './types'
 
@@ -54,7 +53,7 @@ export abstract class GameMovement extends GameSkull {
   }
 
   /** A free tile next to a position, the closest one to where you come from. */
-  protected besideTile(target: THREE.Vector3, from: THREE.Vector3, floor = 0): [number, number] | null {
+  protected besideTile(target: { x: number; z: number }, from: { x: number; z: number }, floor = 0): [number, number] | null {
     const [ax, az] = tileOf(target)
     const grid = this.floorOf(floor).grid
     const [px, pz] = tileOf(from)
@@ -136,7 +135,7 @@ export abstract class GameMovement extends GameSkull {
     const av = actor.avatar
     if (av.floor !== this.player.floor) this.goFloor(av.floor)
     this.follow = false
-    this.engine.target.set(av.position.x, 0, av.position.z)
+    this.target.set(av.position.x, 0, av.position.z)
     if (!av.isWalking && (actor.arrived || this.time > w.until)) this.watch = null
   }
 
@@ -157,7 +156,6 @@ export abstract class GameMovement extends GameSkull {
     const p = this.player
     p.stop()
     p.pose = 'stand'
-    p.seatY = 0
     this.follow = true
     const step = p.speed * dt
     const grid = this.floorOf(p.floor).grid

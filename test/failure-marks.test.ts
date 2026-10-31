@@ -1,7 +1,5 @@
-import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
-import { failureMarkPlace, failurePad, markOutOfPlace, SeenFailures, MARK_OFFSET } from '../src/renderer/src/game/failure-marks'
-import { disposeTree } from '../src/renderer/src/world/dispose'
+import { failureMarkPlace, markOutOfPlace, SeenFailures, MARK_OFFSET } from '../src/renderer/src/game/failure-marks'
 
 describe('the red mark of a failed helper', () => {
   it('stands beside the desk of its owner, on the floor of its owner', () => {
@@ -33,25 +31,6 @@ describe('the red mark of a failed helper', () => {
     expect(markOutOfPlace(mark, { floor: 2, x: 10, z: 10 })).toBe(true)
     expect(markOutOfPlace(mark, { floor: 1, x: 11, z: 10 })).toBe(true)
     expect(markOutOfPlace(mark, { floor: 1, x: 10, z: 11 })).toBe(true)
-  })
-})
-
-describe('the pad of the red mark', () => {
-  it('frees its geometry and its material when the mark goes away', () => {
-    const pad = failurePad(3, 4)
-    let geometry = 0
-    let material = 0
-    pad.geometry.addEventListener('dispose', () => geometry++)
-    ;(pad.material as THREE.Material).addEventListener('dispose', () => material++)
-    disposeTree(pad)
-    expect(geometry).toBe(1)
-    expect(material).toBe(1)
-  })
-
-  it('stands where the mark says', () => {
-    const pad = failurePad(3, 4)
-    expect(pad.position.x).toBe(3)
-    expect(pad.position.z).toBe(4)
   })
 })
 

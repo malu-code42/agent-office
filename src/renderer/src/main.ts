@@ -349,7 +349,7 @@ async function boot(): Promise<void> {
     radio,
   )
 
-  radio.attach({ corners: () => game.tvCorners(), setOn: (on) => game.setTvOn(on) })
+  radio.attach({ corners: () => game.tvCorners() })
 
   const panel = new AgentPanel(ui, state, {
     goTo: (id) => game.goToAgent(id),
@@ -489,27 +489,24 @@ async function boot(): Promise<void> {
   }, 4000)
   mountUpdateNotice(ui)
 
-  // Configurações → Vídeo (AO-32): shadows and effects apply live; on battery, Economia if asked.
+  // Configurações → Vídeo (AO-32): the fps limit applies live; on battery, Economia if asked.
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)')
   let video = effectiveVideo(state.settings.video ?? DEFAULT_VIDEO, state.onBattery)
   let videoKey = ''
   const applyVideo = () => {
     const was = video.saving
     video = effectiveVideo(state.settings.video ?? DEFAULT_VIDEO, state.onBattery)
-    const reduced = video.effects === 'reduced' || reduceMotion.matches
+    const reduced = video.saving || reduceMotion.matches
     const key = JSON.stringify([video, reduced])
     if (key === videoKey) return
     if (videoKey && video.saving !== was)
-      toast(video.saving ? 'Na bateria: o escritório entrou no modo Economia.' : 'Na tomada: a qualidade gráfica voltou ao normal.')
+      toast(video.saving ? 'Na bateria: o escritório entrou no modo Economia.' : 'Na tomada: o escritório voltou ao normal.')
     videoKey = key
-    game.engine.setShadows(video.shadows, video.shadowMapSize)
     game.setReducedEffects(reduced)
-    game.setVisual(video.visual ?? '2d')
   }
   applyVideo()
   reduceMotion.addEventListener('change', applyVideo)
 
-  let pixelSize = state.settings.pixelSize
   state.onChange(() => {
     applyVideo()
     game.setProjects(state.settings.projects, state.squads, state.squadProposals)
@@ -517,10 +514,6 @@ async function boot(): Promise<void> {
     panel.render()
     dialog.sync()
     board.render()
-    if (state.settings.pixelSize !== pixelSize) {
-      pixelSize = state.settings.pixelSize
-      game.setPixelSize(pixelSize)
-    }
   })
 
   // Data files found corrupt (AO-24): one warning each, now and when the archive loads later.
@@ -604,9 +597,10 @@ async function boot(): Promise<void> {
     }
   })
 
-  // F3 (or ?perf) shows fps, draw calls and GPU memory; the bench reads the same numbers.
+  // F3 (or ?perf) shows fps, CPU per frame and canvas memory; the bench reads the same numbers.
   bindPerfKeys()
   perf.source('overlays', () => game.overlays.count)
+  perf.source('canvas KB', () => Math.round(game.flat2d.memory.bytes / 1024))
   perf.source('agentes', () => state.agents.size)
 
   // AO-29: draw only when it shows. Something moving: up to the fps limit; a still office: a slow
@@ -645,7 +639,7 @@ async function boot(): Promise<void> {
     game.draw(dt)
     tour.update()
     loop.draws++
-    perf.frame(game.engine.renderer, dt)
+    perf.frame(dt)
   }
   requestAnimationFrame(frame)
   setInterval(() => {
@@ -691,7 +685,7 @@ async function boot(): Promise<void> {
       __dialog: dialog,
       __board: board,
       __tour: tour,
-      // AO-28: floors, agents and the skull in a loop, reading GPU memory (dev and headless runs only)
+      // AO-28: floors, agents and the skull in a loop, reading canvas memory (dev and headless runs only)
       __leakTest: async () => (await import('./dev/leak-test')).leakTest(game, state),
     })
 }

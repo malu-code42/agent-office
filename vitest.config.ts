@@ -30,7 +30,7 @@ export default defineConfig({
         'src/shared/schedule.ts',
         'src/shared/routines.ts',
         'src/shared/pricing.ts',
-        'src/renderer/src/world/pathfinding.ts',
+        'src/renderer/src/world2d/pathfinding.ts',
       ],
       thresholds: { lines: 70 },
     },

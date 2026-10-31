@@ -33,7 +33,6 @@ const emptyLedger = (): Ledger => ({ days: {}, agents: {}, switches: [] })
 const DEFAULT_SETTINGS: Settings = {
   playerName: 'Você',
   playerLook: { ...lookFromSeed('player'), shirt: '#4a8fe0', hairStyle: 1 },
-  pixelSize: 3,
   defaultModel: '',
   defaultEngine: 'claude',
   defaultEffort: '',
@@ -57,7 +56,8 @@ const DEFAULT_SETTINGS: Settings = {
 
 /** Up to v0.2 one squad folder made a single squad floor; it becomes the first project floor. */
 function migrateSettings(raw: Record<string, unknown> | undefined): Settings {
-  const { squadFolder, squadFloorName, ...rest } = (raw ?? {}) as Record<string, unknown>
+  // pixelSize was the 3D world's pixel-art scale: gone with it
+  const { squadFolder, squadFloorName, pixelSize: _pixelSize, ...rest } = (raw ?? {}) as Record<string, unknown>
   const settings = { ...DEFAULT_SETTINGS, ...rest } as Settings
   // GH-39: OpenCode settings are retired. Historical agents keep their engine label below, but
   // all future work is Claude-only and the obsolete consent timestamp is discarded.

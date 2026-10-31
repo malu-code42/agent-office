@@ -14,7 +14,6 @@ export interface BridgeStatus {
 export interface Settings {
   playerName: string
   playerLook: Look
-  pixelSize: number
   defaultModel: string
   /** New and migrated agents always use Claude. */
   defaultEngine: 'claude'

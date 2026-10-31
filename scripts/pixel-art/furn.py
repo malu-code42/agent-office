@@ -437,6 +437,21 @@ def elevator_y(L, yp, x0, x1, z1=40):
     L.qy(yp, x1 + 6, x1 + 7, 23, 24, H('f4bb55'))
 
 
+
+def elevator_open_y(L, yp, x0, x1, k, z1=40):
+    """the doors of elevator_y slid apart by k (0..1): the lit cabin shows between them."""
+    mx = (x0 + x1) // 2
+    gap = max(1, round((mx - x0) * k))
+    L.qy(yp, mx - gap, mx + gap, 0, z1, H('4a4450'))
+    L.qy(yp, mx - gap + 2, mx + gap - 2, 2, z1 - 2, H('f1dfb4'))
+    L.qy(yp, mx - gap + 2, mx + gap - 2, 2, 5, H('c8b48e'))
+    if mx - gap > x0:
+        L.qy(yp, x0, mx - gap, 0, z1, H('e2e6e9'))
+        L.qy(yp, mx - gap - 1, mx - gap, 0, z1, H('6e757d'))
+    if mx + gap < x1:
+        L.qy(yp, mx + gap, x1, 0, z1, H('d0d5d9'))
+        L.qy(yp, mx + gap, mx + gap + 1, 0, z1, H('6e757d'))
+
 # ---- speech bubbles (screen space; x,y = tail tip) ---------------------------------
 CHECK = [(0, 2), (1, 3), (2, 4), (3, 3), (4, 2), (5, 1), (6, 0), (1, 2), (2, 3), (3, 2), (4, 1), (5, 0)]
 

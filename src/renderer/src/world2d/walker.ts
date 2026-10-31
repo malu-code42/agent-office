@@ -1,4 +1,4 @@
-// Someone who walks on a 2D floor without a three.js avatar: a position, a heading and a
+// Someone who walks on a 2D floor: a position, a heading and a
 // walk phase. The study floor's teachers use it. Pure, so the tests check it.
 
 export class Walker {

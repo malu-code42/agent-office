@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import type { Account, ProjectFloor, Settings } from '@shared/types'
-import { DEFAULT_VIDEO, QUALITY_PRESETS } from '@shared/video'
+import { DEFAULT_VIDEO } from '@shared/video'
 import {
   assigneeSchema,
   attachmentsSchema,
@@ -73,7 +73,6 @@ const accounts = [main, work]
 const settings = (): Settings => ({
   playerName: 'Você',
   playerLook: { skin: '#f6d3b3', hair: '#2b1d16', hairStyle: 1, shirt: '#4a8fe0', pants: '#2f3b5c', shoes: '#1e1e24' },
-  pixelSize: 3,
   defaultModel: '',
   defaultEngine: 'claude',
   defaultEffort: '',
@@ -476,7 +475,6 @@ describe('cleanSettings', () => {
     const out = cleanSettings(
       {
         playerName: '  Allef ',
-        pixelSize: 4,
         defaultModel: 'sonnet',
         defaultEffort: 'max',
         defaultPermissionMode: 'auto',
@@ -489,7 +487,6 @@ describe('cleanSettings', () => {
     )
     expect(out).toMatchObject({
       playerName: 'Allef',
-      pixelSize: 4,
       defaultModel: 'sonnet',
       defaultEffort: 'max',
       defaultPermissionMode: 'auto',
@@ -509,7 +506,6 @@ describe('cleanSettings', () => {
     const out = cleanSettings(
       {
         playerName: 'x'.repeat(33),
-        pixelSize: 99,
         defaultModel: 'a b',
         defaultEffort: 'ultra',
         defaultPermissionMode: 'god',
@@ -544,10 +540,11 @@ describe('cleanSettings', () => {
     }
   })
   it('video: aplica os campos válidos e mantém os inválidos', () => {
-    const out = cleanSettings({ video: { ...QUALITY_PRESETS.saver, batterySaver: false } }, settings())
-    expect(out.video).toEqual({ ...QUALITY_PRESETS.saver, batterySaver: false, visual: '2d' })
-    expect(cleanSettings({ video: { visual: '3d' } }, settings()).video.visual).toBe('3d')
-    expect(cleanSettings({ video: { visual: 'vr' } }, settings()).video.visual).toBe('2d')
+    const out = cleanSettings({ video: { fpsLimit: 30, batterySaver: false } }, settings())
+    expect(out.video).toEqual({ fpsLimit: 30, batterySaver: false })
+    // the 3D world's old fields (shadows, effects, visual) are dropped, not rejected
+    const old = cleanSettings({ video: { shadows: true, shadowMapSize: 2048, effects: 'full', visual: '3d', fpsLimit: 0 } }, settings())
+    expect(old.video).toEqual({ ...DEFAULT_VIDEO, fpsLimit: 0 })
     const bad = cleanSettings(
       { video: { shadows: 'sim', shadowMapSize: 4096, fpsLimit: 144, effects: 'none', batterySaver: 1, evil: '<x>' } },
       settings(),
@@ -556,7 +553,7 @@ describe('cleanSettings', () => {
     expect(cleanSettings({ video: 'alta' }, settings()).video).toEqual(DEFAULT_VIDEO)
   })
   it('cleanVideo: cada campo vale sozinho; sem limite = 0', () => {
-    expect(cleanVideo({ fpsLimit: 0, shadowMapSize: 1024 }, DEFAULT_VIDEO)).toEqual({ ...DEFAULT_VIDEO, fpsLimit: 0, shadowMapSize: 1024 })
+    expect(cleanVideo({ fpsLimit: 0, shadowMapSize: 1024 }, DEFAULT_VIDEO)).toEqual({ ...DEFAULT_VIDEO, fpsLimit: 0 })
     expect(cleanVideo({ fpsLimit: '30' }, DEFAULT_VIDEO).fpsLimit).toBe(DEFAULT_VIDEO.fpsLimit)
     expect(cleanVideo(null, DEFAULT_VIDEO)).toEqual(DEFAULT_VIDEO)
   })

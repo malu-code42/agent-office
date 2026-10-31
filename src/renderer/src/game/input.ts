@@ -1,13 +1,12 @@
-import * as THREE from 'three'
 import { emiAgentId } from '@shared/emi'
 import { CASA_LAYOUT } from '../world2d/atlas'
 import { zoneAt, type CasaAct } from '../world2d/casa'
 import { studyZoneAt, type StudyAct } from '../world2d/estudos'
-import type { HomeChair } from '../world/home-layout'
+import type { HomeChair } from '../world2d/home-layout'
 import { GameMovement } from './movement'
-import { SKULL_HOME, type Point } from './types'
+import type { Point } from './types'
 
-/** What the pointer over a clickable thing of the 2D Casa says. */
+/** What the pointer over a clickable thing of the Casa says. */
 const CASA_TITLES: Record<CasaAct, string> = {
   agenda: 'Abrir Agenda',
   goals: 'Abrir Objetivos',
@@ -86,11 +85,9 @@ export abstract class GameInput extends GameMovement {
       this.click(e.clientX, e.clientY)
     })
     el.addEventListener('pointerleave', () => {
-      this.hover.visible = false
       this.hover2d = null
       this.casaHot = null
       this.studyHot = null
-      for (const interaction of this.office.interactions) interaction.highlight.visible = false
       document.body.style.cursor = ''
     })
     el.addEventListener(
@@ -109,106 +106,62 @@ export abstract class GameInput extends GameMovement {
 
   /** Helpers answer with their parent's id, plus their own in `helper`. */
   protected agentAt(x: number, y: number): { id: string; helper?: string } | null {
-    const flat = this.flat
-    if (flat) {
-      const hit = flat.pick(x, y)
-      if (hit?.kind !== 'person') return null
-      if (hit.key.startsWith('helper:')) {
-        const h = this.helpers.get(hit.key.slice('helper:'.length))
-        return h ? { id: h.parentId, helper: h.id } : null
-      }
-      if (hit.key === 'emi') return this.currentProject ? { id: emiAgentId(this.currentProject.id) } : null
-      if (hit.key === 'luna' || hit.key === 'cora' || hit.key === 'bonnie' || hit.key.startsWith('teacher:')) return null
-      return this.actors.has(hit.key) ? { id: hit.key } : null
+    const hit = this.flat2d.pick(x, y)
+    if (hit?.kind !== 'person') return null
+    if (hit.key.startsWith('helper:')) {
+      const h = this.helpers.get(hit.key.slice('helper:'.length))
+      return h ? { id: h.parentId, helper: h.id } : null
     }
-    const view = this.player.floor
-    const roots = [...this.actors.values()]
-      .filter((a) => a.goal !== 'leave' && !a.down && a.avatar.floor === view)
-      .map((a) => a.avatar.root)
-    const helpers = [...this.helpers.values()].filter((h) => !h.gone && h.avatar.floor === view)
-    for (const h of helpers) roots.push(h.avatar.root)
-    for (const hit of this.engine.pick(x, y, roots)) {
-      const id = hit.object.userData.avatarId as string | undefined
-      if (!id) continue
-      let o: THREE.Object3D | null = hit.object
-      while (o && !helpers.some((h) => h.avatar.root === o)) o = o.parent
-      const helper = o ? helpers.find((h) => h.avatar.root === o) : undefined
-      return helper ? { id, helper: helper.id } : { id }
-    }
-    return null
+    if (hit.key === 'emi') return this.currentProject ? { id: emiAgentId(this.currentProject.id) } : null
+    return this.actors.has(hit.key) ? { id: hit.key } : null
   }
 
   protected click(x: number, y: number): void {
-    if (this.flat && this.player.floor === 0 && this.clickCasa2d(x, y)) return
-    if (this.flat && this.player.floor === this.studyFloor && this.clickStudy2d(x, y)) return
-    if (this.onSkull(x, y)) {
-      this.hooks.onSkull()
-      return
-    }
-    if (this.onTv(x, y)) {
-      this.hooks.onTv()
-      return
-    }
-    const homeAction = this.homeActionAt(x, y)
-    if (homeAction) {
-      this.hooks.onHomeAction(homeAction)
-      return
-    }
-    if (this.onTotem(x, y)) {
-      this.hooks.onRoutines()
-      return
-    }
-    const flat = this.flat
+    if (this.player.floor === 0 && this.clickCasa(x, y)) return
+    if (this.player.floor === this.studyFloor && this.clickStudy(x, y)) return
     const project = this.currentProject
-    if (flat && project) {
-      const hit = flat.pick(x, y)
+    if (project) {
+      const hit = this.flat2d.pick(x, y)
       if (hit?.kind === 'room') {
         const room = this.upperOf(this.player.floor)?.scene.plan.rooms[hit.room]
         if (room) this.hooks.onRoomClick?.(project, room)
         return
       }
       if (hit?.kind === 'meeting') return this.hooks.onMeetingRoomClick?.(project)
-      if (hit?.kind === 'elevator') {
-        const door = this.elevatorOf(this.player.floor)
-        this.walkPlayerTo([door.tile[0], door.tile[1] + 1])
-        this.hooks.onElevator?.()
-        return
-      }
+      if (hit?.kind === 'elevator') return this.toElevator()
       if (hit?.kind === 'person' && hit.key.startsWith('member:')) return this.memberClick(hit.key.slice('member:'.length))
-    } else if (this.player.floor > 0) {
-      const roots = [...this.members.values()]
-        .filter((m) => m.phase !== 'leaving' && m.avatar.floor === this.player.floor)
-        .map((m) => m.avatar.root)
-      const hit = this.engine.pick(x, y, roots).find((h) => String(h.object.userData.avatarId ?? '').startsWith('member:'))
-      if (hit) return this.memberClick(String(hit.object.userData.avatarId).slice('member:'.length))
     }
     const hit = this.agentAt(x, y)
     if (hit) {
       this.hooks.onAgentClick(hit.id, hit.helper)
       return
     }
-    const p = this.floorPoint(x, y)
+    const p = this.flat2d.floorAt(x, y)
     if (!p) return
     const tile: [number, number] = [Math.floor(p.x), Math.floor(p.z)]
     if (!this.floorOf(this.player.floor).grid.inside(tile[0], tile[1])) return
     this.walkPlayerTo(tile)
   }
 
+  /** The player walks to the elevator door of the floor it is on, and the Elevator panel takes the focus. */
+  private toElevator(): void {
+    const door = this.elevatorOf(this.player.floor)
+    this.walkPlayerTo([door.tile[0], door.tile[1] + 1])
+    this.hooks.onElevator?.()
+  }
+
   /**
-   * A click on the 2D Casa: its furniture (the same flows as the 3D objects), Luna (her
-   * conversation, or the review of the day when due) and the elevator door. False lets the
-   * click go on to the agents and the floor.
+   * A click on the Casa: its furniture, Luna (her conversation, or the review of the day when
+   * due) and the elevator door. False lets the click go on to the agents and the floor.
    */
-  private clickCasa2d(x: number, y: number): boolean {
+  private clickCasa(x: number, y: number): boolean {
     const hit = this.flat2d.pick(x, y)
     if (hit?.kind === 'person' && hit.key === 'luna') {
       this.hooks.onLunaReview()
       return true
     }
     if (hit?.kind === 'elevator') {
-      const door = this.elevatorOf(0)
-      this.walkPlayerTo([door.tile[0], door.tile[1] + 1])
-      this.hooks.onElevator?.()
+      this.toElevator()
       return true
     }
     if (hit?.kind !== 'casa') return false
@@ -226,7 +179,7 @@ export abstract class GameInput extends GameMovement {
    * (library, blackboard, the user's desk, question bank, notes and cards, class schedule)
    * and the elevator door. False lets the click go on to the agents and the floor.
    */
-  private clickStudy2d(x: number, y: number): boolean {
+  private clickStudy(x: number, y: number): boolean {
     const hit = this.flat2d.pick(x, y)
     if (hit?.kind === 'person') {
       if (hit.key === 'cora' || hit.key === 'bonnie') {
@@ -241,9 +194,7 @@ export abstract class GameInput extends GameMovement {
       return false
     }
     if (hit?.kind === 'elevator') {
-      const door = this.elevatorOf(this.player.floor)
-      this.walkPlayerTo([door.tile[0], door.tile[1] + 1])
-      this.hooks.onElevator?.()
+      this.toElevator()
       return true
     }
     if (hit?.kind !== 'study') return false
@@ -259,170 +210,85 @@ export abstract class GameInput extends GameMovement {
     this.follow = true
     this.route(p, [Math.floor(chair.x), Math.floor(chair.z)], chair, () => {
       p.placeAt(chair.x, chair.z)
-      p.face(chair.face, true, true)
+      p.face(chair.face)
       p.pose = 'sit'
     })
   }
 
-  protected onTv(x: number, y: number): boolean {
-    return !this.flat && this.player.floor === 0 && this.engine.pick(x, y, [this.office.tv.group]).length > 0
-  }
-
-  protected onTotem(x: number, y: number): boolean {
-    return !this.flat && this.player.floor === 0 && this.engine.pick(x, y, [this.totem.view.group]).length > 0
-  }
-
-  /** Interactive furniture in the home routes to the matching existing app flow. */
-  protected homeInteractionAt(x: number, y: number) {
-    if (this.player.floor !== 0 || this.flat) return undefined
-    const hit = this.engine.pick(
-      x,
-      y,
-      this.office.interactions.map((item) => item.root),
-    )[0]
-    if (!hit) return undefined
-    let root: THREE.Object3D | null = hit.object
-    while (root && !this.office.interactions.some((item) => item.root === root)) root = root.parent
-    return this.office.interactions.find((item) => item.root === root)
-  }
-
-  protected homeActionAt(x: number, y: number) {
-    return this.homeInteractionAt(x, y)?.action
-  }
-
-  protected onSkull(x: number, y: number): boolean {
-    return !this.flat && this.player.floor === 0 && this.engine.pick(x, y, [this.skull.root]).length > 0
-  }
-
-  setTvOn(on: boolean): void {
-    this.office.tv.setOn(on)
-  }
-
   /**
-   * Where the TV screen is on the page (top-left, top-right, bottom-left), or null
-   * when its floor is not on screen. Valid after the frame rendered.
+   * Where the Claude FM screen is on the page (top-left, top-right, bottom-left), or null
+   * when the Casa is not on screen. Valid after the frame rendered.
    */
   tvCorners(): [Point, Point, Point] | null {
     if (this.player.floor !== 0) return null
-    const flat = this.flat
-    if (flat) {
-      const [tl, tr, bl] = CASA_LAYOUT.tv.map(([ax, ay, h]) => flat.project(ax / 16, h / 16, ay / 16))
-      return [tl, tr, bl]
-    }
-    const { screen, size } = this.office.tv
-    const at = (x: number, y: number) => this.engine.project(screen.localToWorld(new THREE.Vector3(x, y, 0)))
-    return [at(-size.w / 2, size.h / 2), at(size.w / 2, size.h / 2), at(-size.w / 2, -size.h / 2)]
+    const [tl, tr, bl] = CASA_LAYOUT.tv.map(([ax, ay, h]) => this.flat2d.project(ax / 16, h / 16, ay / 16))
+    return [tl, tr, bl]
   }
 
-  /** The floor point under the pointer, in tiles, in the world on screen. */
-  protected floorPoint(x: number, y: number): { x: number; z: number } | null {
-    const flat = this.flat
-    return flat ? flat.floorAt(x, y) : this.engine.pickFloor(x, y)
-  }
-
-  /** Drags the camera: the 3D one, or the 2D floor's (kept on the floor). */
+  /** Drags the camera, kept on the floor. */
   protected pan(dx: number, dy: number): void {
-    const flat = this.flat
-    if (!flat) return this.engine.pan(dx, dy)
-    const d = flat.panBy(dx, dy)
+    const d = this.flat2d.panBy(dx, dy)
     const [w, h] = this.floorSize(this.player.floor)
-    const t = this.engine.target
+    const t = this.target
     t.x = Math.max(0, Math.min(w, t.x + d.x))
     t.z = Math.max(0, Math.min(h, t.z + d.z))
   }
 
   protected updateHover(x: number, y: number): void {
-    const flat = this.flat
-    if (flat) {
-      const grid = this.floorOf(this.player.floor).grid
-      const p = flat.floorAt(x, y)
-      const over = flat.pick(x, y)
-      const tx = p ? Math.floor(p.x) : -1
-      const tz = p ? Math.floor(p.z) : -1
-      this.hover2d = !over && grid.inside(tx, tz) ? { x: tx, z: tz, ok: grid.walkable(tx, tz) } : null
-      document.body.style.cursor = over ? 'pointer' : ''
-      // the Casa has no plates on the floor: the name of the place (or what a click does) on hover
-      if (this.player.floor === 0) {
-        this.casaHot = over?.kind === 'casa' ? over.act : null
-        const title = this.casaHot
-          ? CASA_TITLES[this.casaHot]
-          : over?.kind === 'person' && over.key === 'luna'
-            ? 'Luna'
+    const flat = this.flat2d
+    const grid = this.floorOf(this.player.floor).grid
+    const p = flat.floorAt(x, y)
+    const over = flat.pick(x, y)
+    const tx = p ? Math.floor(p.x) : -1
+    const tz = p ? Math.floor(p.z) : -1
+    this.hover2d = !over && grid.inside(tx, tz) ? { x: tx, z: tz, ok: grid.walkable(tx, tz) } : null
+    document.body.style.cursor = over ? 'pointer' : ''
+    let title = ''
+    // the Casa has no plates on the floor: the name of the place (or what a click does) on hover
+    if (this.player.floor === 0) {
+      this.casaHot = over?.kind === 'casa' ? over.act : null
+      title = this.casaHot
+        ? CASA_TITLES[this.casaHot]
+        : over?.kind === 'person' && over.key === 'luna'
+          ? 'Luna'
+          : over?.kind === 'elevator'
+            ? 'Elevador'
+            : over || !grid.inside(tx, tz)
+              ? ''
+              : (zoneAt(CASA_LAYOUT, tx, tz) ?? '')
+    } else if (this.player.floor === this.studyFloor) {
+      // the study floor has no plates either: names and what a click does on hover
+      this.studyHot = over?.kind === 'study' ? over.act : null
+      const teacher = over?.kind === 'person' ? this.study.teacherOf(over.key) : undefined
+      title = this.studyHot
+        ? STUDY_TITLES[this.studyHot]
+        : teacher
+          ? `${teacher.name} · ${teacher.role}`
+          : over?.kind === 'person' && (over.key === 'cora' || over.key === 'bonnie')
+            ? STUDY_TITLES[over.key]
             : over?.kind === 'elevator'
               ? 'Elevador'
               : over || !grid.inside(tx, tz)
                 ? ''
-                : (zoneAt(CASA_LAYOUT, tx, tz) ?? '')
-        if (flat.canvas.title !== title) flat.canvas.title = title
-      } else if (this.player.floor === this.studyFloor) {
-        // the study floor has no plates either: names and what a click does on hover
-        this.studyHot = over?.kind === 'study' ? over.act : null
-        const teacher = over?.kind === 'person' ? this.study.teacherOf(over.key) : undefined
-        const title = this.studyHot
-          ? STUDY_TITLES[this.studyHot]
-          : teacher
-            ? `${teacher.name} · ${teacher.role}`
-            : over?.kind === 'person' && (over.key === 'cora' || over.key === 'bonnie')
-              ? STUDY_TITLES[over.key]
-              : over?.kind === 'elevator'
-                ? 'Elevador'
-                : over || !grid.inside(tx, tz)
-                  ? ''
-                  : (studyZoneAt(this.study.layout, tx, tz) ?? '')
-        if (flat.canvas.title !== title) flat.canvas.title = title
-      } else if (flat.canvas.title) flat.canvas.title = ''
-      return
+                : (studyZoneAt(this.study.layout, tx, tz) ?? '')
     }
-    const homeInteraction = this.homeInteractionAt(x, y)
-    for (const interaction of this.office.interactions) interaction.highlight.visible = interaction === homeInteraction
-    const p = this.engine.pickFloor(x, y)
-    const grid = this.floorOf(this.player.floor).grid
-    if (!p || !grid.inside(Math.floor(p.x), Math.floor(p.z)) || this.agentAt(x, y)) {
-      this.hover.visible = false
-      document.body.style.cursor = this.agentAt(x, y) ? 'pointer' : ''
-      return
-    }
-    if (homeInteraction || this.onSkull(x, y) || this.onTotem(x, y)) {
-      this.hover.visible = false
-      document.body.style.cursor = 'pointer'
-      return
-    }
-    document.body.style.cursor = ''
-    const tx = Math.floor(p.x)
-    const tz = Math.floor(p.z)
-    this.hover.visible = true
-    this.hover.position.set(tx, 0, tz)
-    ;(this.hover.material as THREE.LineBasicMaterial).color.set(grid.walkable(tx, tz) ? '#ffffff' : '#ff8a80')
+    if (flat.canvas.title !== title) flat.canvas.title = title
   }
 
   // ---------- guided tour ----------
 
-  /** Spots of the ground floor the tour shows; null for one that does not exist (yet). */
-  tourSpot(id: string): THREE.Vector3 | null {
-    if (this.visual === '2d') {
-      const at = (name: string) => {
-        const t = CASA_LAYOUT.tags[name]
-        return new THREE.Vector3(t[0] / 16, 1, t[1] / 16)
-      }
-      const home = this.home
-      if (id === 'desk') return new THREE.Vector3(home.boss.x, 1, home.boss.z)
-      if (id === 'team') return new THREE.Vector3(home.table.x, 1, home.table.z)
-      if (id === 'skull') return at('Caveira')
-      if (id === 'tv') return at('Claude FM')
-      return null
+  /** Spots of the ground floor the tour shows (tiles, y = height); null for one that does not exist. */
+  tourSpot(id: string): { x: number; y: number; z: number } | null {
+    const at = (name: string) => {
+      const t = CASA_LAYOUT.tags[name]
+      return { x: t[0] / 16, y: 1, z: t[1] / 16 }
     }
-    switch (id) {
-      case 'desk':
-        return new THREE.Vector3(5, 1, 5.6)
-      case 'team':
-        return new THREE.Vector3(13.1, 1, 18.5)
-      case 'skull':
-        return new THREE.Vector3(SKULL_HOME.x, 1, SKULL_HOME.z)
-      case 'tv':
-        return this.office.tv.screen.getWorldPosition(new THREE.Vector3())
-      default:
-        return null
-    }
+    const home = this.home
+    if (id === 'desk') return { x: home.boss.x, y: 1, z: home.boss.z }
+    if (id === 'team') return { x: home.table.x, y: 1, z: home.table.z }
+    if (id === 'skull') return at('Caveira')
+    if (id === 'tv') return at('Claude FM')
+    return null
   }
 
   /** The tour points the camera at a spot of the ground floor; `instant` jumps there (reduced motion). */
@@ -433,16 +299,15 @@ export abstract class GameInput extends GameMovement {
     // after goFloor, which hands the camera back to the player
     this.follow = false
     this.watch = null
-    if (instant) this.engine.jumpTo(p.x, p.z)
-    else this.engine.target.set(p.x, 0, p.z)
+    if (instant) this.jumpTo(p.x, p.z)
+    else this.target.set(p.x, 0, p.z)
     this.wake(1500)
   }
 
   /** Where a tour spot is on the page, or null when the ground floor is not on screen. */
   spotOnPage(id: string): Point | null {
     const p = this.player.floor === 0 ? this.tourSpot(id) : null
-    if (!p) return null
-    return this.flat ? this.flat.project(p.x, p.y, p.z) : this.engine.project(p)
+    return p ? this.flat2d.project(p.x, p.y, p.z) : null
   }
 
   /** The camera follows the player again (the tour ended). */
@@ -451,13 +316,7 @@ export abstract class GameInput extends GameMovement {
     this.wake(1500)
   }
 
-  setPixelSize(n: number): void {
-    this.engine.setPixelSize(n)
-  }
-
   zoom(delta: number): void {
-    const flat = this.flat
-    if (flat) flat.zoomStep(delta)
-    else this.engine.zoomStep(delta)
+    this.flat2d.zoomStep(delta)
   }
 }

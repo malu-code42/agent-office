@@ -1,11 +1,11 @@
 import type { ProjectFloor } from '@shared/types'
 import { accountPool } from '@shared/accounts'
 import { projectFor } from '@shared/projects'
-import type { Office } from '../world/office'
-import type { UpperFloor } from '../world/upper-floor'
-import type { Tag } from '../world/overlays'
-import { money } from '../world/props'
+import type { Tag } from '../world2d/overlays'
 import { GameFloors } from './floors'
+
+/** "$ 8,92" */
+const money = (usd: number) => `$ ${usd.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 /** Spending boards and limit alarms of every floor. */
 export abstract class GameBoards extends GameFloors {
@@ -30,9 +30,14 @@ export abstract class GameBoards extends GameFloors {
   protected syncBoards(): void {
     this.boardsIn = 5
     const limited = this.limitedAccounts()
-    const floors: [Office, Tag, Tag, ProjectFloor | null][] = [
-      [this.office, this.alarmTag, this.moneyTag, null],
-      ...this.uppers.map((u): [UpperFloor, Tag, Tag, ProjectFloor] => [u.scene, u.alarmTag, u.moneyTag, u.project]),
+    const floors: [(on: boolean) => void, Tag, Tag, ProjectFloor | null][] = [
+      [(on) => (this.alarm = on), this.alarmTag, this.moneyTag, null],
+      ...this.uppers.map((u): [(on: boolean) => void, Tag, Tag, ProjectFloor] => [
+        (on) => (u.alarm = on),
+        u.alarmTag,
+        u.moneyTag,
+        u.project,
+      ]),
     ]
     // Today's spend from the cost book: dismissing an agent keeps it, midnight zeroes it.
     const today = this.state.ledgerToday
@@ -43,11 +48,13 @@ export abstract class GameBoards extends GameFloors {
     const costUnknownOnFloor = (n: number) =>
       Object.entries(today.costUnknownByCwd ?? {}).some(([cwd, unknown]) => unknown && (n === 0 || floorOfCwd(cwd) === n))
     const spenders = Object.values(today.agents)
-    floors.forEach(([scene, tag, moneyTag, project], n) => {
+    floors.forEach(([setAlarm, tag, moneyTag, project], n) => {
       const total = Object.entries(today.costByCwd).reduce((sum, [cwd, usd]) => (n === 0 || floorOfCwd(cwd) === n ? sum + usd : sum), 0)
       const costUnknown = costUnknownOnFloor(n)
-      const top = spenders.filter((a) => n === 0 || floorOfCwd(a.cwd) === n).sort((a, b) => b.usd - a.usd).slice(0, 8)
-      scene.money.set(total, top.map((a) => ({ name: a.name, usd: a.usd, costUnknown: a.costUnknown })), costUnknown)
+      const top = spenders
+        .filter((a) => n === 0 || floorOfCwd(a.cwd) === n)
+        .sort((a, b) => b.usd - a.usd)
+        .slice(0, 8)
       moneyTag.setName(costUnknown ? (total > 0 ? `≥ ${money(total)} hoje` : 's/ preço hoje') : `${money(total)} hoje`)
       const spendersText = top
         .filter((a) => a.usd >= 0.005 || a.costUnknown)
@@ -56,10 +63,13 @@ export abstract class GameBoards extends GameFloors {
       moneyTag.el.title = spendersText.join('\n') || 'Ninguém gastou nada hoje'
       const pool = project ? accountPool(this.state.settings, project.cwd) : [...limited.keys()]
       const hit = pool.filter((id) => limited.has(id))
-      scene.alarm.setOn(hit.length > 0)
+      setAlarm(hit.length > 0)
       if (!hit.length) return
       const names = hit.map((id) => this.state.account(id)?.name ?? id).join(', ')
-      const back = hit.map((id) => limited.get(id)).filter((t): t is number => !!t).sort((a, b) => a - b)[0]
+      const back = hit
+        .map((id) => limited.get(id))
+        .filter((t): t is number => !!t)
+        .sort((a, b) => a - b)[0]
       const clock = back ? ` · volta ${new Date(back).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''
       tag.setName(`${hit.length > 1 ? 'Contas' : 'Conta'} ${names} no limite${clock}`)
     })

@@ -373,19 +373,14 @@ src/
   shared/               tipos e textos compartilhados; schedule.ts lê as agendas (presets e cron),
                         calcula a próxima execução e escreve a frase; routines.ts resume o LED e a tela do totem
   renderer/src/
-    world/              three.js
-      engine.ts         câmera ortográfica 2:1, luz, sombras, RenderPixelatedPass (o visual pixel art)
-      layout.ts         planta do térreo (zonas, mesas, lounge) e dos andares de projeto
-      office.ts         monta o térreo e a grade de colisão
-      upper-floor.ts    monta um andar de projeto: Diretoria, salas do time e setores dos squads
-      furniture.ts      móveis em voxel (mesa, monitor, cadeira, plantas, sofá, elevador...)
-      avatar.ts         personagens estilo Habbo com animação procedural
-      screens.ts        telas dos computadores (canvas pixel art que reflete o status)
+    world2d/            o mundo em pixel art (Canvas2D); ver docs/specs/motor-2d.md
+      renderer.ts       desenha o andar na tela: cache dos móveis, só os retângulos que mudaram
+      avatar.ts         quem anda (jogador, agentes, ajudantes, membros): posição, pose, andar, Look
+      plan.ts           tipos da planta (mesas, salas de squad, coordenação, reunião)
+      layout.ts, casa.ts, estudos.ts  plantas dos andares a partir do layout exportado da arte
       pathfinding.ts    A* em 8 direções com paredes finas
       overlays.ts       crachás com nome e balões de fala (HTML sobre o canvas)
-      skull.ts          caveira em voxel (a do armário e a que cai sobre o agente)
-      totem.ts          totem das rotinas: tela em canvas redesenhada só quando muda, e o LED
-      effects.ts        golpe da caveira, fumaça, faíscas, fantasma e efeitos sonoros
+      skins.ts          pinta os personagens com as cores do Look
     game/               comportamento: status do agente -> onde ele vai e o que faz
                         (cada parte estende a anterior: base, floors, boards, actors, lounge,
                         deliveries, subagents, squads, skull, movement, input; index.ts monta o Game)

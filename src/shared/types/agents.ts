@@ -43,7 +43,7 @@ export interface Look {
 export interface AgentSummary {
   id: string
   name: string
-  /** Built-in agent shown in the normal roster but not seated as a 3D worker: Luna, or the Emi of a floor. */
+  /** Built-in agent shown in the normal roster but not seated as a worker: Luna, or the Emi of a floor. */
   builtIn?: 'luna' | 'emi'
   source: AgentSource
   /** Missing on persisted pre-OpenCode agents: those migrate to Claude. */

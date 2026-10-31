@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Grid } from '../src/renderer/src/world/pathfinding'
+import { Grid } from '../src/renderer/src/world2d/pathfinding'
 
 describe('Grid.findPath (A* com paredes finas)', () => {
   it('mesmo tile: caminho vazio; destino fora: null', () => {

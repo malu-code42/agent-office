@@ -1,8 +1,7 @@
 import type { AgentSummary } from '@shared/types'
-import { Avatar, type Uniform } from '../world/avatar'
-import { DEFAULT_BRAND } from '../world/brand'
-import * as L from '../world/layout'
-import { Tag } from '../world/overlays'
+import { DEFAULT_BRAND } from '@shared/brand'
+import { Avatar, type Uniform } from '../world2d/avatar'
+import { Tag } from '../world2d/overlays'
 import { GameBoards } from './boards'
 import { canContinueHomeArrival, freeHomeSeat, homeSpot } from './home-seats'
 import { LOUNGE_AFTER_MS, screenMode, seatKey, SQUAD_SPEED, type Actor, type Goal } from './types'
@@ -60,7 +59,6 @@ export abstract class GameActors extends GameBoards {
     avatar.floor = this.homeFloor(a)
     if (a.role === 'orchestrator') avatar.speed = SQUAD_SPEED
     this.actors.set(a.id, actor)
-    this.engine.scene.add(avatar.root)
     if (animate) {
       // The agent comes out of the elevator of its own floor.
       const spawn = this.elevatorOf(avatar.floor).point
@@ -90,21 +88,24 @@ export abstract class GameActors extends GameBoards {
     })
   }
 
-  /** Shrinks the avatar away and forgets the actor. */
+  /** Shrinks the avatar away (after `delayMs`) and forgets the actor; the update loop does it (see shrink). */
   protected vanish(actor: Actor, delayMs: number): void {
-    const shrink = (start: number) => {
+    this.vanishing.set(actor, this.time + delayMs / 1000)
+  }
+
+  /** The actors shrinking away, with when they started (game time). */
+  private vanishing = new Map<Actor, number>()
+
+  /** One step of the actors shrinking away: gone after 0.6 s. */
+  protected shrink(): void {
+    for (const [actor, start] of this.vanishing) {
       const k = 1 - (this.time - start) / 0.6
-      if (k <= 0) {
-        actor.avatar.dispose()
-        this.engine.scene.remove(actor.avatar.root)
-        this.overlays.remove(actor.tag)
-        this.actors.delete(actor.id)
-        return
-      }
-      actor.avatar.root.scale.setScalar(Math.min(1, k))
-      requestAnimationFrame(() => shrink(start))
+      actor.avatar.scale = Math.max(0, Math.min(1, k))
+      if (k > 0) continue
+      this.vanishing.delete(actor)
+      this.overlays.remove(actor.tag)
+      this.actors.delete(actor.id)
     }
-    setTimeout(() => shrink(this.time), delayMs)
   }
 
   protected desired(actor: Actor, a: AgentSummary): Goal {
@@ -195,15 +196,12 @@ export abstract class GameActors extends GameBoards {
   /** The uniform of the agent's company: its project floor, when that floor asks for one. */
   protected uniformFor(a: AgentSummary): Uniform | null {
     const p = this.upperOf(this.homeFloor(a))?.project
-    return p?.uniform ? { color: p.brandColor ?? DEFAULT_BRAND, logo: p.logo } : null
+    return p?.uniform ? { color: p.brandColor ?? DEFAULT_BRAND } : null
   }
 
-  /** Uniform on (or off), the account diamond over the head and the effort aura. */
+  /** Uniform on (or off). */
   protected dress(avatar: Avatar, a: AgentSummary): void {
     avatar.setUniform(this.uniformFor(a))
-    const acc = a.source === 'office' && a.account ? this.state.account(a.account) : undefined
-    avatar.setGem(acc?.color ?? null)
-    avatar.setAura(a.effort, a.status === 'working' || a.status === 'starting')
   }
 
   /** The account chip on the name tag, only while there is more than one account. */
@@ -277,7 +275,6 @@ export abstract class GameActors extends GameBoards {
       }
       av.face(desk.rot)
       av.pose = a.status === 'working' || a.status === 'starting' ? 'type' : 'sit'
-      av.seatY = 0
     } else if (actor.goal === 'desk') {
       const desk = this.deskOf(a)
       if (!desk) {
@@ -287,7 +284,6 @@ export abstract class GameActors extends GameBoards {
       }
       av.face(desk.face ?? Math.PI)
       av.pose = a.status === 'working' ? 'type' : 'sit'
-      av.seatY = 0
     } else if (actor.goal === 'boss' || actor.goal === 'meeting') {
       const items = this.state.itemsFor(a.id)
       const result = items.results[0]
@@ -300,7 +296,7 @@ export abstract class GameActors extends GameBoards {
         av.pose = 'sit'
         return
       }
-      if (actor.goal === 'meeting') av.faceTowards((meeting?.table ?? L.MEETING_TABLE_AT).x, (meeting?.table ?? L.MEETING_TABLE_AT).z)
+      if (meeting) av.faceTowards(meeting.table.x, meeting.table.z)
       else if (av.floor === this.player.floor && this.playerInBossRoom()) av.faceTowards(this.player.position.x, this.player.position.z)
       else av.faceTowards(this.home.boss.x, this.home.boss.z)
       av.pose = this.time < actor.waveUntil ? 'wave' : actor.id === this.nearId ? 'talk' : 'stand'
@@ -312,7 +308,6 @@ export abstract class GameActors extends GameBoards {
       else av.faceTowards(this.home.table.x, this.home.table.z)
       const seated = spot?.sit === true
       av.pose = !seated ? 'stand' : a.status === 'working' ? 'type' : 'sit'
-      av.seatY = 0
     } else if (actor.goal === 'hang' && actor.hang !== null && this.home.hang[actor.hang]) {
       const spot = this.home.hang[actor.hang]
       av.faceTowards(spot.look[0], spot.look[1])
