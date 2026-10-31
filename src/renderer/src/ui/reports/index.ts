@@ -1,7 +1,7 @@
 import { projectFor, floorNameFor } from '@shared/projects'
 import type { Ledger, LedgerAgent, Look, ProjectFloor } from '@shared/types'
 import type { State } from '../../state'
-import { DEFAULT_BRAND } from '../../world/brand'
+import { DEFAULT_BRAND } from '@shared/brand'
 import { mountClaudeStats } from '../claude-stats'
 import { h, icon } from '../dom'
 import { cleanError, modal } from '../modals'
@@ -128,7 +128,15 @@ export function openReports(root: HTMLElement, state: State, opts: ReportsOption
     const days = Array.from({ length: period }, (_, i) => dayKey(i - period + 1))
     const first = days[0]
     const prevFirst = dayKey(-(2 * period) + 1)
-    const r: Report = { days, total: zero(), prevCost: 0, byDay: new Map(days.map((d) => [d, new Map()])), groups: new Map(), agents: new Map(), models: new Map() }
+    const r: Report = {
+      days,
+      total: zero(),
+      prevCost: 0,
+      byDay: new Map(days.map((d) => [d, new Map()])),
+      groups: new Map(),
+      agents: new Map(),
+      models: new Map(),
+    }
     for (const [cwd, byDay] of Object.entries(book.days)) {
       const g = groupOf(cwd)
       if (filter !== ALL && g.key !== filter) continue
@@ -178,14 +186,18 @@ export function openReports(root: HTMLElement, state: State, opts: ReportsOption
       'div',
       { class: 'rep-period' },
       ...PERIODS.map((p) =>
-        h('button', {
-          class: `rep-pill${p.n === period ? ' on' : ''}`,
-          onclick: () => {
-            period = p.n
-            localStorage.setItem(PERIOD_KEY, String(p.n))
-            render()
+        h(
+          'button',
+          {
+            class: `rep-pill${p.n === period ? ' on' : ''}`,
+            onclick: () => {
+              period = p.n
+              localStorage.setItem(PERIOD_KEY, String(p.n))
+              render()
+            },
           },
-        }, p.label),
+          p.label,
+        ),
       ),
     )
     const known = groupsKnown()
@@ -228,14 +240,25 @@ export function openReports(root: HTMLElement, state: State, opts: ReportsOption
     const per = PERIODS.find((p) => p.n === period)!
     const known = groupsKnown()
     const scope = filter === ALL ? 'Todos os projetos' : (known.find((g) => g.key === filter)?.name ?? '')
-    const md = reportMarkdown(compute(ledger), per.long, scope, per.prev, ledger.agents, (key) => groupByKey(key)?.name ?? key, (cwd) => groupOf(cwd).name)
+    const md = reportMarkdown(
+      compute(ledger),
+      per.long,
+      scope,
+      per.prev,
+      ledger.agents,
+      (key) => groupByKey(key)?.name ?? key,
+      (cwd) => groupOf(cwd).name,
+    )
     void saveMarkdown(`relatorio-${slug(scope)}-${dayKey()}.md`, md, opts.toast ?? (() => {}))
   }
 
   const emptyText = (book: Ledger, filtered: boolean) => {
     const anything = Object.values(book.days).some((d) => Object.keys(d).length)
-    if (!anything) return 'O livro-caixa ainda está vazio. Os gastos aparecem aqui quando os agentes do escritório terminarem as primeiras respostas.'
-    return filtered ? 'Nenhum gasto deste projeto no período. Tente outro período ou veja todos os projetos.' : 'Nenhum gasto no período. Tente um período maior.'
+    if (!anything)
+      return 'O livro-caixa ainda está vazio. Os gastos aparecem aqui quando os agentes do escritório terminarem as primeiras respostas.'
+    return filtered
+      ? 'Nenhum gasto deste projeto no período. Tente outro período ou veja todos os projetos.'
+      : 'Nenhum gasto no período. Tente um período maior.'
   }
 
   const scoreboard = (r: Report, label: string, scope: string, prevLabel: string): HTMLElement => {
@@ -243,7 +266,8 @@ export function openReports(root: HTMLElement, state: State, opts: ReportsOption
     rollUp(total, shownTotal, r.total.cost)
     shownTotal = r.total.cost
     const delta = variation(r.total.cost, r.prevCost)
-    const stat = (k: string, v: string, title: string) => h('div', { class: 'rep-stat', title }, h('span', { class: 'rep-stat-k' }, k), h('span', { class: 'rep-stat-v' }, v))
+    const stat = (k: string, v: string, title: string) =>
+      h('div', { class: 'rep-stat', title }, h('span', { class: 'rep-stat-k' }, k), h('span', { class: 'rep-stat-v' }, v))
     const spenders = [...r.agents.values()].filter((a) => a.cost > 0).length
     return h(
       'div',
@@ -253,7 +277,14 @@ export function openReports(root: HTMLElement, state: State, opts: ReportsOption
         'div',
         { class: 'rep-board-row' },
         total,
-        delta ? h('span', { class: `rep-delta rep-delta-${delta.tone}`, title: `Comparado com ${prevLabel}: ${usd(r.prevCost)}` }, delta.text, h('small', {}, `vs ${prevLabel}`)) : null,
+        delta
+          ? h(
+              'span',
+              { class: `rep-delta rep-delta-${delta.tone}`, title: `Comparado com ${prevLabel}: ${usd(r.prevCost)}` },
+              delta.text,
+              h('small', {}, `vs ${prevLabel}`),
+            )
+          : null,
       ),
       h(
         'div',
@@ -269,7 +300,13 @@ export function openReports(root: HTMLElement, state: State, opts: ReportsOption
   const highlights = (r: Report, prevLabel: string, all: boolean): HTMLElement => {
     const tiles: HTMLElement[] = []
     const tile = (kind: string, ic: string, k: string, v: string, sub: string, title = '') =>
-      h('div', { class: `rep-tile rep-tile-${kind}`, title }, h('div', { class: 'rep-tile-k' }, icon(ic, 14), k), h('div', { class: 'rep-tile-v' }, v), h('div', { class: 'rep-tile-sub' }, sub))
+      h(
+        'div',
+        { class: `rep-tile rep-tile-${kind}`, title },
+        h('div', { class: 'rep-tile-k' }, icon(ic, 14), k),
+        h('div', { class: 'rep-tile-v' }, v),
+        h('div', { class: 'rep-tile-sub' }, sub),
+      )
     if (r.days.length > 1) {
       let best = ''
       let bestUsd = 0
@@ -317,14 +354,26 @@ export function openReports(root: HTMLElement, state: State, opts: ReportsOption
         .sort((a, b) => b[1] - a[1])
         .map(([key, v]) => h('i', { style: `height:${(v / t) * 100}%;background:${groupByKey(key)?.color ?? 'var(--accent)'}` }))
       const record = t > 0 && t === max
-      const tip = [dayLong(day), usd(t), ...[...(r.byDay.get(day) ?? [])].filter(([, v]) => v > 0).map(([k, v]) => `${groupByKey(k)?.name ?? k}: ${usd(v)}`)].join('\n')
+      const tip = [
+        dayLong(day),
+        usd(t),
+        ...[...(r.byDay.get(day) ?? [])].filter(([, v]) => v > 0).map(([k, v]) => `${groupByKey(k)?.name ?? k}: ${usd(v)}`),
+      ].join('\n')
       const d = dateOf(day)
-      const label = dense ? (i % 5 === 4 || i === r.days.length - 1 ? String(d.getDate()) : '') : d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')
+      const label = dense
+        ? i % 5 === 4 || i === r.days.length - 1
+          ? String(d.getDate())
+          : ''
+        : d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')
       return h(
         'div',
         { class: `rep-col${record ? ' record' : ''}${i === r.days.length - 1 ? ' today' : ''}`, title: tip },
         h('div', { class: 'rep-col-val' }, record && !dense ? usd(t) : ''),
-        h('div', { class: 'rep-col-track' }, h('div', { class: 'rep-col-bar', style: `height:${max ? Math.max(t > 0 ? 3 : 0, (t / max) * 100) : 0}%` }, ...segs)),
+        h(
+          'div',
+          { class: 'rep-col-track' },
+          h('div', { class: 'rep-col-bar', style: `height:${max ? Math.max(t > 0 ? 3 : 0, (t / max) * 100) : 0}%` }, ...segs),
+        ),
         h('div', { class: 'rep-col-day' }, label),
       )
     })
@@ -344,19 +393,33 @@ export function openReports(root: HTMLElement, state: State, opts: ReportsOption
           const sparkTop = Math.max(0.0001, ...t.byDay.values())
           const spark =
             r.days.length > 1
-              ? h('div', { class: 'rep-spark', title: 'Gasto por dia' }, ...r.days.map((d) => {
-                  const v = t.byDay.get(d) ?? 0
-                  return h('i', { style: `height:${v > 0 ? Math.max(8, (v / sparkTop) * 100) : 0}%` })
-                }))
+              ? h(
+                  'div',
+                  { class: 'rep-spark', title: 'Gasto por dia' },
+                  ...r.days.map((d) => {
+                    const v = t.byDay.get(d) ?? 0
+                    return h('i', { style: `height:${v > 0 ? Math.max(8, (v / sparkTop) * 100) : 0}%` })
+                  }),
+                )
               : h('span')
           return h(
             'button',
-            { class: 'rep-project', style: `--brand:${g?.color ?? 'var(--accent)'}`, title: `${g?.title ?? key}\nClique para ver só este projeto`, onclick: () => {
-              filter = key
-              render()
-            } },
+            {
+              class: 'rep-project',
+              style: `--brand:${g?.color ?? 'var(--accent)'}`,
+              title: `${g?.title ?? key}\nClique para ver só este projeto`,
+              onclick: () => {
+                filter = key
+                render()
+              },
+            },
             h('span', { class: 'rep-project-pip' }),
-            h('div', { class: 'rep-project-main' }, h('div', { class: 'rep-project-name' }, g?.name ?? key), h('div', { class: 'rep-share' }, h('i', { style: `width:${(t.cost / max) * 100}%` }))),
+            h(
+              'div',
+              { class: 'rep-project-main' },
+              h('div', { class: 'rep-project-name' }, g?.name ?? key),
+              h('div', { class: 'rep-share' }, h('i', { style: `width:${(t.cost / max) * 100}%` })),
+            ),
             spark,
             h('div', { class: 'rep-project-meta' }, h('span', {}, `${int(t.turns)} turnos`), h('span', {}, workTime(t.durationMs))),
             h('div', { class: 'rep-project-usd' }, usd(t.cost)),
@@ -392,7 +455,13 @@ export function openReports(root: HTMLElement, state: State, opts: ReportsOption
                     'div',
                     { class: 'rep-rank-name' },
                     h('span', { class: 'name' }, ag?.name ?? 'Agente'),
-                    gone ? h('span', { class: 'chip rep-gone', title: `Dispensado em ${new Date(ag!.dismissedAt!).toLocaleDateString('pt-BR')}` }, 'dispensado') : null,
+                    gone
+                      ? h(
+                          'span',
+                          { class: 'chip rep-gone', title: `Dispensado em ${new Date(ag!.dismissedAt!).toLocaleDateString('pt-BR')}` },
+                          'dispensado',
+                        )
+                      : null,
                     g ? h('span', { class: 'rep-rank-proj', style: `--brand:${g.color}` }, g.name) : null,
                   ),
                   h('div', { class: 'rep-share' }, h('i', { style: `width:${(a.cost / max) * 100}%` })),
@@ -423,10 +492,20 @@ export function openReports(root: HTMLElement, state: State, opts: ReportsOption
                 h(
                   'div',
                   { class: 'rep-rank-main' },
-                  h('div', { class: 'rep-rank-name' }, h('span', { class: 'name' }, modelName(name)), h('span', { class: 'rep-pct' }, `${Math.round((m.cost / total) * 100)}%`)),
+                  h(
+                    'div',
+                    { class: 'rep-rank-name' },
+                    h('span', { class: 'name' }, modelName(name)),
+                    h('span', { class: 'rep-pct' }, `${Math.round((m.cost / total) * 100)}%`),
+                  ),
                   h('div', { class: 'rep-share' }, h('i', { style: `width:${(m.cost / total) * 100}%` })),
                 ),
-                h('div', { class: 'rep-rank-side' }, h('b', {}, usd(m.cost)), h('small', { title: 'Tokens de saída' }, `${tokens(m.output)} saída`)),
+                h(
+                  'div',
+                  { class: 'rep-rank-side' },
+                  h('b', {}, usd(m.cost)),
+                  h('small', { title: 'Tokens de saída' }, `${tokens(m.output)} saída`),
+                ),
               ),
             )
           : [h('div', { class: 'rep-empty small' }, 'Sem gasto por modelo no período.')]),
@@ -435,15 +514,24 @@ export function openReports(root: HTMLElement, state: State, opts: ReportsOption
   }
 
   renderTabs()
-  const exportBtn = h('button', { class: 'btn', title: 'Salvar o relatório deste período e projeto em Markdown (.md)', onclick: exportReport }, icon('file', 15), 'Exportar .md')
-  const el = modal('Relatórios', [tabs, host], [exportBtn, h('div', { class: 'grow' }), h('button', { class: 'btn', onclick: close }, 'Fechar')], close)
+  const exportBtn = h(
+    'button',
+    { class: 'btn', title: 'Salvar o relatório deste período e projeto em Markdown (.md)', onclick: exportReport },
+    icon('file', 15),
+    'Exportar .md',
+  )
+  const el = modal(
+    'Relatórios',
+    [tabs, host],
+    [exportBtn, h('div', { class: 'grow' }), h('button', { class: 'btn', onclick: close }, 'Fechar')],
+    close,
+  )
   el.classList.add('backdrop-reports')
   // The tab bar sits under the title; the X of modal() calls close().
   root.append(el)
   setTab(tab)
   void load()
 }
-
 
 function section(title: string, content: HTMLElement): HTMLElement {
   return h('div', { class: 'rep-section' }, h('div', { class: 'rep-section-head' }, title), content)

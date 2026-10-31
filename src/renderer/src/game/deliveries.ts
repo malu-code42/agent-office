@@ -1,6 +1,5 @@
 import type { AgentSummary } from '@shared/types'
-import * as L from '../world/layout'
-import type { BubbleKind } from '../world/overlays'
+import type { BubbleKind } from '../world2d/overlays'
 import { GameLounge } from './lounge'
 import { tileOf, type Actor } from './types'
 import { meetingWaitSpot } from './result-destination'
@@ -34,19 +33,13 @@ export abstract class GameDeliveries extends GameLounge {
     const floor = this.homeFloor(agent)
     this.travel(actor, floor, instant, () => {
       const meeting = this.upperOf(floor)?.scene.plan.meeting
+      if (!meeting) return
       const taken = [...this.actors.values()]
         .filter((other) => other !== actor && other.avatar.floor === floor)
         .flatMap((other) => (other.spot ? [other.spot] : []))
       // A floor with meeting chairs seats its visitors; the others stand by the table.
-      const seat = meeting?.seats.find((s) => !taken.some(([x, z]) => x === s.approach[0] && z === s.approach[1]))
-      const spot =
-        seat?.approach ??
-        meetingWaitSpot(
-          (x, z) => this.floorOf(floor).grid.walkable(x, z),
-          taken,
-          meeting?.rect ?? L.DIRECTOR_RECT,
-          meeting?.table ?? L.MEETING_TABLE_AT,
-        )
+      const seat = meeting.seats.find((s) => !taken.some(([x, z]) => x === s.approach[0] && z === s.approach[1]))
+      const spot = seat?.approach ?? meetingWaitSpot((x, z) => this.floorOf(floor).grid.walkable(x, z), taken, meeting.rect, meeting.table)
       if (!spot) return
       actor.spot = spot
       const done = () => {

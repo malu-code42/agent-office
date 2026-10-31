@@ -72,9 +72,22 @@ export function recolourMap(src: Palette, look: Look): Map<number, number> {
 
 /** Repaints RGBA pixels in place with a colour map (alpha kept, so the half-tone corners follow too). */
 export function recolour(px: Uint8ClampedArray, map: Map<number, number>): void {
+  let keys: number[] | null = null
   for (let i = 0; i < px.length; i += 4) {
-    if (!px[i + 3]) continue
-    const to = map.get((px[i] << 16) | (px[i + 1] << 8) | px[i + 2])
+    const a = px[i + 3]
+    if (!a) continue
+    let to = map.get((px[i] << 16) | (px[i + 1] << 8) | px[i + 2])
+    // The canvas keeps premultiplied alpha: a half-transparent corner pixel reads back a few
+    // levels off its colour, so it takes the nearest colour of the map within that rounding.
+    if (to === undefined && a < 255) {
+      keys ??= [...map.keys()]
+      const tol = Math.ceil(255 / a)
+      const near = keys.find(
+        (k) =>
+          Math.abs((k >> 16) - px[i]) <= tol && Math.abs(((k >> 8) & 255) - px[i + 1]) <= tol && Math.abs((k & 255) - px[i + 2]) <= tol,
+      )
+      if (near !== undefined) to = map.get(near)
+    }
     if (to === undefined) continue
     px[i] = to >> 16
     px[i + 1] = (to >> 8) & 255

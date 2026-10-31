@@ -155,8 +155,15 @@ describe('Store: carga e migração das configurações', () => {
   })
 
   it('vídeo: campo ruim volta ao padrão, os bons ficam', () => {
-    write({ settings: { video: { shadows: false, fpsLimit: 45, effects: 'reduced', extra: 1 } } })
-    expect(new Store().settings.video).toEqual({ ...DEFAULT_VIDEO, shadows: false, effects: 'reduced' })
+    write({ settings: { video: { batterySaver: false, fpsLimit: 45, extra: 1 } } })
+    expect(new Store().settings.video).toEqual({ ...DEFAULT_VIDEO, batterySaver: false })
+  })
+
+  it('configurações do mundo 3D antigo (pixelSize, sombras, efeitos, visual) são ignoradas', () => {
+    write({ settings: { pixelSize: 4, video: { shadows: true, shadowMapSize: 2048, effects: 'full', visual: '3d', fpsLimit: 30 } } })
+    const s = new Store().settings
+    expect('pixelSize' in s).toBe(false)
+    expect(s.video).toEqual({ ...DEFAULT_VIDEO, fpsLimit: 30 })
   })
 
   it('JSON truncado não derruba o app: volta aos padrões', () => {

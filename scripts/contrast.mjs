@@ -6,7 +6,7 @@
  *   node scripts/contrast.mjs          tabela com todos os pares
  *   node scripts/contrast.mjs --check  sai com erro se algum ficar abaixo de AA (4,5:1)
  *
- * O mundo atrás dos cartões é a cena 3D: varia. Para fundos translúcidos o script usa o
+ * O mundo atrás dos cartões é a cena em pixel art: varia. Para fundos translúcidos o script usa o
  * pior caso, o mundo branco; para o texto solto sobre a cena (marca e estatísticas no
  * topo), a cor clara do gradiente do #world, já que lá a sombra do texto ajuda.
  */
@@ -29,11 +29,18 @@ function parseRules(css) {
   const re = /([^{}]+)\{([^{}]*)\}/g
   let m
   while ((m = re.exec(clean))) {
-    const selectors = m[1].split(',').map((s) => s.trim().replace(/\s+/g, ' ')).filter(Boolean)
+    const selectors = m[1]
+      .split(',')
+      .map((s) => s.trim().replace(/\s+/g, ' '))
+      .filter(Boolean)
     const decls = {}
     for (const d of m[2].split(';')) {
       const i = d.indexOf(':')
-      if (i > 0) decls[d.slice(0, i).trim()] = d.slice(i + 1).trim().replace(/\s*!important$/, '')
+      if (i > 0)
+        decls[d.slice(0, i).trim()] = d
+          .slice(i + 1)
+          .trim()
+          .replace(/\s*!important$/, '')
     }
     rules.push([selectors, decls])
   }
@@ -41,7 +48,9 @@ function parseRules(css) {
 }
 
 const rules = parseRules(readStyles('index.css'))
-const vars = Object.fromEntries(rules.filter(([s]) => s.includes(':root')).flatMap(([, d]) => Object.entries(d).filter(([k]) => k.startsWith('--'))))
+const vars = Object.fromEntries(
+  rules.filter(([s]) => s.includes(':root')).flatMap(([, d]) => Object.entries(d).filter(([k]) => k.startsWith('--'))),
+)
 
 /** The last value a selector sets for a property (later rules win, like the cascade). */
 function prop(selector, name) {
@@ -68,7 +77,10 @@ function parseColor(raw) {
   }
   m = /^rgba?\(([^)]+)\)$/.exec(v)
   if (m) {
-    const p = m[1].split(/[\s,/]+/).filter(Boolean).map(Number)
+    const p = m[1]
+      .split(/[\s,/]+/)
+      .filter(Boolean)
+      .map(Number)
     return [p[0], p[1], p[2], p[3] ?? 1]
   }
   throw new Error(`cor que o script não entende: ${raw}`)
@@ -250,5 +262,6 @@ if (process.argv.includes('--check')) {
   for (const r of failing) console.error(`abaixo de AA: ${r.what} (${r.selector}, ${r.color}) ${r.ratio.toFixed(2)}:1`)
   process.exit(failing.length ? 1 : 0)
 }
-for (const r of rows) console.log(`${r.ratio < AA ? 'FALHA' : 'ok   '} ${r.ratio.toFixed(2).padStart(5)}:1  ${r.what.padEnd(30)} ${r.selector} (${r.color})`)
+for (const r of rows)
+  console.log(`${r.ratio < AA ? 'FALHA' : 'ok   '} ${r.ratio.toFixed(2).padStart(5)}:1  ${r.what.padEnd(30)} ${r.selector} (${r.color})`)
 console.log(`\n${rows.length - failing.length}/${rows.length} pares passam AA (${AA}:1).`)

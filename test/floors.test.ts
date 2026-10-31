@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { heldRooms, holdsRoom, type ProjectFloor, type SquadInfo, type SquadProposal } from '@shared/types'
 import { floorsKey, issuesToken } from '../src/renderer/src/game/floor-key'
-import { Grid } from '../src/renderer/src/world/pathfinding'
-import { PARTITIONS, projectPlan, rideBetween, SPAWN_TILE, UPPER_SPAWN_TILE } from '../src/renderer/src/world/layout'
+import { projectPlan2d, type ProjectLayout } from '../src/renderer/src/world2d/layout'
+import layoutData from '../src/renderer/src/assets/pixel/project.json'
+
+const LAYOUT = layoutData as unknown as ProjectLayout
+const projectPlan = (squads: SquadInfo[], proposed: number[] = []) => projectPlan2d(LAYOUT, squads, proposed)
 
 /** A squad of the project, with the given members. */
 function squad(code: string, name: string, members: string[]): SquadInfo {
@@ -21,49 +24,6 @@ const project: ProjectFloor = { id: 'p1', name: 'Projeto', cwd: '/proj' }
 
 /** The key of one project floor with the given squads. */
 const key = (squads: SquadInfo[]) => floorsKey([project], squads, [projectPlan(squads)])
-
-describe('the ride between floors', () => {
-  it('walks to the elevator of the floor the agent is on', () => {
-    const up = rideBetween(0, 1)
-    expect(up.from).toEqual(SPAWN_TILE)
-    expect(up.at).toEqual({ x: 13.5, z: 0.45 })
-    const down = rideBetween(1, 0)
-    expect(down.from).toEqual(UPPER_SPAWN_TILE)
-    expect(down.at).toEqual({ x: 15.5, z: 0.45 })
-  })
-
-  it('steps out of the elevator of the floor the agent is going to', () => {
-    expect(rideBetween(0, 1).to).toEqual({ x: 15.5, z: 0.45 })
-    expect(rideBetween(1, 0).to).toEqual({ x: 13.5, z: 0.45 })
-  })
-
-  it('never mixes the two ends: the walk belongs to the floor it leaves', () => {
-    const up = rideBetween(0, 1)
-    // The tile it walks to is the ground floor's elevator, not the one upstairs.
-    expect(up.from).not.toEqual(UPPER_SPAWN_TILE)
-    expect(up.from).toEqual(SPAWN_TILE)
-  })
-
-  it('the elevator of every floor can be reached on foot', () => {
-    // Ground floor: from the boss office to the elevator, through the glass door.
-    const ground = new Grid(32, 24)
-    for (const p of PARTITIONS) block(ground, p)
-    expect(ground.findPath(4, 5, ...SPAWN_TILE)).not.toBeNull()
-    // Project floor: from the hall to the elevator of the floor.
-    const upper = new Grid(32, 24)
-    for (const p of projectPlan([]).partitions) block(upper, p)
-    expect(upper.findPath(15, 12, ...UPPER_SPAWN_TILE)).not.toBeNull()
-  })
-})
-
-/** Puts the walls of a plan into a grid. */
-function block(grid: Grid, p: { axis: 'x' | 'z'; at: number; from: number; to: number; doors: number[] }): void {
-  for (let i = p.from; i < p.to; i++) {
-    if (p.doors.includes(i)) continue
-    if (p.axis === 'x') grid.blockEdgeX(p.at, i)
-    else grid.blockEdgeZ(p.at, i)
-  }
-}
 
 describe('the key of the project floors', () => {
   it('is the same for the same data', () => {

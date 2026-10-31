@@ -1,14 +1,9 @@
-import * as THREE from 'three'
 import { heldRooms, type ProjectFloor, type SquadInfo, type SquadProposal } from '@shared/types'
-import { brandOf, releaseLogos } from '../world/brand'
-import { disposeTree } from '../world/dispose'
-import * as L from '../world/layout'
-import { buildUpperFloor } from '../world/upper-floor'
+import * as L from '../world2d/plan'
 import { PROJECT_LAYOUT } from '../world2d/atlas'
 import { buildFloor2d } from '../world2d/floor'
 import { projectPlan2d } from '../world2d/layout'
-import type { Visual } from '@shared/video'
-import { Tag } from '../world/overlays'
+import { Point3, Tag } from '../world2d/overlays'
 import { GameBase } from './base'
 import { floorsKey, issuesToken } from './floor-key'
 import { RIDE_S, type Actor } from './types'
@@ -67,63 +62,29 @@ export abstract class GameFloors extends GameBase {
     const squadsOf = (p: ProjectFloor) => squads.filter((q) => q.cwd === p.cwd)
     // A room with a proposal waiting keeps it: it is not free for a squad. A proposal
     // whose composition is being redone holds the room too (the amber outline stays).
-    const proposedOf = (p: ProjectFloor) => heldRooms(p.id, proposals)
-    const flat = this.visual === '2d'
-    const plans = projects.map((p) =>
-      flat ? projectPlan2d(PROJECT_LAYOUT, squadsOf(p), proposedOf(p)) : L.projectPlan(squadsOf(p), proposedOf(p)),
-    )
-    const key = `${this.visual}:${floorsKey(projects, squads, plans, this.state.squadQueues)}`
+    const plans = projects.map((p) => projectPlan2d(PROJECT_LAYOUT, squadsOf(p), heldRooms(p.id, proposals)))
+    const key = floorsKey(projects, squads, plans, this.state.squadQueues)
     if (key === this.uppersKey) return
     this.uppersKey = key
     const playerOn = this.upperOf(this.player.floor)?.project.id
 
     for (const m of this.members.values()) this.memberGone(m)
-    this.uppers.forEach((u, i) => {
-      // the whole floor leaves the GPU: walls, furniture, screens, signs and their textures
-      disposeTree(u.scene.group)
-      this.engine.scene.remove(u.scene.group)
-      this.overlays.clearLabels(i + 1)
-      if (u.issueTag) this.overlays.remove(u.issueTag)
-      this.overlays.remove(u.alarmTag)
-      this.overlays.remove(u.moneyTag)
-      if (u.proposalTag) this.overlays.remove(u.proposalTag)
-      for (const t of u.stepTags) this.overlays.remove(t)
-    })
+    for (const u of this.uppers)
+      for (const t of [u.issueTag, u.alarmTag, u.moneyTag, u.proposalTag, ...u.stepTags]) if (t) this.overlays.remove(t)
     this.uppers = projects.map((project, i) => {
-      const n = i + 1
       const plan = plans[i]
-      // a 2D floor draws its own plates (and answers their clicks); the 3D one has HTML labels
-      const scene = flat ? buildFloor2d(plan) : buildUpperFloor(plan, brandOf(project))
-      scene.reducedMotion = this.reducedEffects
-      this.engine.scene.add(scene.group)
-      if (!flat) {
-        this.overlays.label('Diretoria', 12.8, 20, n)
-        this.overlays.label('Sala de reunião', L.MEETING_TABLE_AT.x, L.MEETING_TABLE_AT.z, n, () =>
-          this.hooks.onMeetingRoomClick?.(project),
-        )
-        this.overlays.label('Descanso e lazer', 15.5, 7.6, n)
-        this.overlays.label('Agentes individuais', (L.AGENT_ROOM_RECT[0] + L.AGENT_ROOM_RECT[2]) / 2, 22.9, n)
-        for (const r of plan.rooms)
-          this.overlays.label(this.roomPlate(r), (r.rect[0] + r.rect[2]) / 2, r.rect[1] + 0.6, n, () =>
-            this.hooks.onRoomClick?.(project, r),
-          )
-      }
+      // the floor draws its own plates (and answers their clicks)
+      const scene = buildFloor2d(plan)
       // one "Passo 3/6 · Texto" line over the coordinator's desk of each squad room
       const stepTags = plan.rooms.map((room) => {
-        const anchor = new THREE.Object3D()
-        anchor.position.set(room.coordinator.at.x, 1.9, room.coordinator.at.z)
-        scene.group.add(anchor)
-        const tag = this.overlays.add(new Tag(anchor, ''))
+        const tag = this.overlays.add(new Tag(new Point3(room.coordinator.at.x, 1.9, room.coordinator.at.z), ''))
         tag.el.classList.add('tag-step')
         return tag
       })
       // What does not fit on this floor (more squads than rooms): the user has to know.
       let issueTag: Tag | null = null
       if (plan.issues.length) {
-        const anchor = new THREE.Object3D()
-        anchor.position.set(5, 2.7, 4)
-        scene.group.add(anchor)
-        issueTag = this.overlays.add(new Tag(anchor, '', false))
+        issueTag = this.overlays.add(new Tag(new Point3(5, 2.7, 4), '', false))
         issueTag.el.classList.add('tag-issue')
         issueTag.setDot('error')
       }
@@ -132,9 +93,7 @@ export abstract class GameFloors extends GameBase {
       let proposalTag: Tag | null = null
       const waiting = plan.rooms.find((r) => r.state === 'proposed')
       if (waiting) {
-        const anchor = new THREE.Object3D()
-        anchor.position.set(plan.elevator.point.x, 2.5, 0.5)
-        scene.group.add(anchor)
+        const anchor = new Point3(plan.elevator.point.x, 2.5, 0.5)
         proposalTag = this.overlays.add(new Tag(anchor, 'Equipe proposta', false, () => this.hooks.onRoomClick?.(project, waiting)))
         proposalTag.setDot('waiting')
       }
@@ -144,17 +103,17 @@ export abstract class GameFloors extends GameBase {
         stepTags,
         issueTag,
         proposalTag,
-        alarmTag: this.alarmTagFor(scene.alarm),
-        moneyTag: this.moneyTagFor(scene.money),
+        alarm: false,
+        // the spending total and the limit alarm hang on the back wall, as HTML tags
+        alarmTag: this.alarmTagFor(new Point3(15.5, 3.4, 0.2)),
+        moneyTag: this.moneyTagFor(new Point3(20.5, 3.1, 0.2)),
       }
     })
-    this.office.setFloors(projects.length + 1)
-    for (const u of this.uppers) u.scene.setFloors(projects.length + 1)
 
     // The player stays with the same project, wherever its floor is now; a floor that is gone sends them down.
-    // On the study floor (the top one) they stay there; in 3D there is none, so they go down too.
+    // On the study floor (the top one) they stay there.
     const at = playerOn ? this.uppers.findIndex((u) => u.project.id === playerOn) + 1 : 0
-    if (this.onStudy && flat) this.player.floor = this.studyFloor
+    if (this.onStudy) this.player.floor = this.studyFloor
     else if (this.player.floor > 0 && at === 0) this.goFloor(0)
     else this.player.floor = at
     // Everyone upstairs starts over on the new plans, on their project's floor (or downstairs if it is gone).
@@ -174,8 +133,6 @@ export abstract class GameFloors extends GameBase {
       const a = this.state.agents.get(h.parentId)
       if (a) h.avatar.setUniform(this.uniformFor(a))
     }
-    // everyone wears the current logos now: patches of replaced or removed ones go
-    releaseLogos(new Set(projects.flatMap((p) => (p.logo ? [p.logo] : []))))
     // The helpers go with their owner: the new plan may have moved its desk, and
     // the floor of the owner may have been renumbered. Each helper goes back to
     // the floor of its owner, beside its desk, with its cord.
@@ -189,42 +146,6 @@ export abstract class GameFloors extends GameBase {
     // The notice of the floor: what does not fit, and who has no place in the scene.
     this.refreshIssues()
     if (notify) this.hooks.onFloor(this.player.floor)
-  }
-
-  /**
-   * The world in 2D or 3D (Configurações → Vídeo): the project floors are built again in the
-   * other one, and the Casa switches to the other plan.
-   */
-  setVisual(visual: Visual): void {
-    if (visual === this.visual) return
-    this.visual = visual
-    this.hover2d = null
-    this.casaHot = null
-    this.studyHot = null
-    this.setProjects(this.state.settings.projects, this.state.squads, this.state.squadProposals, false)
-    this.placeCasa()
-    // the other floor plan has other walls: the player steps out of the elevator again
-    // (in the Casa, back to the chair)
-    this.player.stop()
-    if (this.player.floor > 0) {
-      const door = this.elevatorOf(this.player.floor)
-      this.player.pose = 'stand'
-      this.player.placeAt(door.point.x, door.point.z + 0.6)
-      this.engine.jumpTo(door.point.x, door.point.z)
-    } else {
-      this.sitPlayer()
-      this.engine.jumpTo(this.player.position.x, this.player.position.z)
-    }
-    // everyone in the Casa takes their place in the other plan (setProjects left them there)
-    for (const actor of this.actors.values()) {
-      if (actor.avatar.floor !== 0 || actor.goal === 'leave' || actor.down || actor.riding) continue
-      actor.avatar.stop()
-      actor.goal = null
-      actor.chatUntil = 0
-      this.reconcile(actor, true)
-    }
-    this.syncHelpers()
-    this.wake(400)
   }
 
   /**
@@ -268,9 +189,9 @@ export abstract class GameFloors extends GameBase {
     }
   }
 
-  /** The elevator's floors: the Casa, the project floors and, in 2D, the study floor on top. */
+  /** The elevator's floors: the Casa, the project floors and the study floor on top. */
   get floors(): string[] {
-    return ['Casa', ...this.uppers.map((u) => u.project.name), ...(this.studyFloor > 0 ? ['Estudos'] : [])]
+    return ['Casa', ...this.uppers.map((u) => u.project.name), 'Estudos']
   }
 
   get currentFloor(): number {
@@ -284,65 +205,52 @@ export abstract class GameFloors extends GameBase {
 
   /** The player takes the elevator: out on the other floor, with the camera. */
   goFloor(n: number): void {
-    if (n === this.player.floor || n < 0 || n > Math.max(this.uppers.length, this.studyFloor)) return
+    if (n === this.player.floor || n < 0 || n > this.studyFloor) return
     const p = this.player
     this.onStudy = n === this.studyFloor
     p.stop()
     p.pose = 'stand'
-    p.seatY = 0
     this.ding(p.floor)
     p.floor = n
     const door = this.elevatorOf(n)
     p.placeAt(door.point.x, door.point.z)
     p.face(0)
     this.ding(n)
-    this.engine.jumpTo(p.position.x, p.position.z)
+    this.jumpTo(p.position.x, p.position.z)
     this.follow = true
     this.route(p, [door.tile[0], door.tile[1] + 1], null, () => undefined)
     this.hooks.onFloor(n)
   }
 
-  /** Only the floor the player is on is drawn. */
+  /** Only the floor the player is on is drawn, with its tags. */
   protected showFloor(): void {
     const view = this.player.floor
-    this.office.group.visible = view === 0
-    this.overlays.floor = view
     for (const tag of this.homeSceneTags) tag.hidden = view !== 0
     for (const a of this.actors.values()) {
       const here = a.avatar.floor === view
-      a.avatar.root.visible = here
+      a.avatar.visible = here
       a.tag.hidden = !here
     }
     for (const h of this.helpers.values()) {
-      h.avatar.root.visible = h.avatar.floor === view
-      h.cord.visible = h.avatar.floor === view && !h.gone
+      h.avatar.visible = h.avatar.floor === view
       h.tag.hidden = h.avatar.floor !== view
     }
     for (const m of this.members.values()) {
-      m.avatar.root.visible = m.avatar.floor === view
+      m.avatar.visible = m.avatar.floor === view
       m.tag.hidden = m.avatar.floor !== view
     }
-    for (const mark of this.failures.values()) {
-      mark.pad.visible = mark.floor === view
-      mark.tag.hidden = mark.floor !== view
-    }
+    for (const mark of this.failures.values()) mark.tag.hidden = mark.floor !== view
     this.uppers.forEach((u, i) => {
       const here = view === i + 1
-      u.scene.group.visible = here
       if (u.issueTag) u.issueTag.hidden = !here
       if (u.proposalTag) u.proposalTag.hidden = !here
       const seated = here ? this.orchestratorsOn(i + 1) : null
       u.stepTags.forEach((t, room) => (t.hidden = !seated?.has(room)))
+      u.alarmTag.hidden = !here || !u.alarm
+      u.moneyTag.hidden = !here
     })
     this.study.show(view === this.studyFloor)
-    this.skull.tag.hidden = view !== 0
-    this.totem.tag.hidden = view !== 0
-    this.pcTag.hidden = view !== 0
-    this.alarmTag.hidden = view !== 0 || !this.office.alarm.on
+    this.alarmTag.hidden = view !== 0 || !this.alarm
     this.moneyTag.hidden = view !== 0
-    this.uppers.forEach((u, i) => {
-      u.alarmTag.hidden = view !== i + 1 || !u.scene.alarm.on
-      u.moneyTag.hidden = view !== i + 1
-    })
   }
 }

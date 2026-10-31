@@ -1,5 +1,6 @@
 import type { Look } from '@shared/types'
-import type { ScreenMode } from '../world/screens'
+import type { TotemView } from '@shared/routines'
+import type { ScreenMode } from './floor'
 import type { CasaAct, CasaFlat } from './casa'
 import type { EstudosFlat, StudyAct } from './estudos'
 import { Atlas } from './atlas'
@@ -27,9 +28,31 @@ export interface Person2d {
   heading: number
   /** Walk phase while it walks; null when it stands still. */
   stride: number | null
-  /** Sitting (or typing): drawn on the chair under it, if there is one. */
+  /** Sitting (or typing): drawn on the chair (or sofa) under it, if there is one. */
   seated: boolean
   bubble: Bubble2d | null
+  /** Typing at a desk, on the second frame of the loop (hands up). */
+  alt?: boolean
+  /** Knocked out by the skull: flat on the floor. */
+  down?: boolean
+  /** Drawn smaller (helpers) or shrinking away; 1 by default. */
+  scale?: number
+}
+
+/** Something on the floor under the furniture: a helper's cord, the red pad of a failure. */
+export type Decal =
+  | { key: string; kind: 'cord'; from: { x: number; z: number }; to: { x: number; z: number }; color: string }
+  | { key: string; kind: 'pad'; x: number; z: number }
+
+/** Something in the air, over everything: the skull of a strike, a puff, a ghost. */
+export interface Fx2d {
+  key: string
+  frame: 'skull' | 'ghost' | 'puff'
+  /** Tiles; y = height. */
+  x: number
+  z: number
+  y: number
+  alpha: number
 }
 
 /** One frame of a 2D floor: a project floor, the Casa or the study floor (these two have no desks, rooms or Emi). */
@@ -52,6 +75,12 @@ export interface FlatView {
   target: { x: number; z: number }
   /** The clickable thing of the Casa or the study floor under the pointer: drawn a little brighter. */
   highlight?: CasaAct | StudyAct | null
+  /** The elevator doors: closed, half open or open. */
+  door?: 0 | 1 | 2
+  decals?: Decal[]
+  fx?: Fx2d[]
+  /** What the routines board of the Casa shows. */
+  totem?: TotemView | null
 }
 
 export type Hit =
@@ -72,6 +101,20 @@ interface Sprite {
   x: number
   y: number
   look?: Look
+  /** Drawn from this canvas instead of the atlas (the routines board's screen). */
+  img?: HTMLCanvasElement
+  /** Drawn at this size (helpers): k art pixels per sprite pixel. */
+  k?: number
+  alpha?: number
+}
+
+/** Something drawn besides the furniture and the people: under them (decals, doors) or over them (fx). */
+interface Extra {
+  key: string
+  sig: string
+  area: Rect
+  under: boolean
+  draw(c: CanvasRenderingContext2D): void
 }
 
 type Rect = [number, number, number, number]
@@ -100,6 +143,28 @@ interface PersonItem extends Item {
 }
 
 const ZOOM_MAX = 3
+const LED_COLORS: Record<TotemView['led'], string> = { ok: '#2ee86b', wait: '#ffc02e', fail: '#ff3b4a', none: '#6b6a7d' }
+/** 3x5 glyphs of the routines board's screen, rows top to bottom, '1' = lit. */
+const GLYPHS: Record<string, string> = {
+  '0': '111101101101111',
+  '1': '010110010010111',
+  '2': '110001010100111',
+  '3': '110001010001110',
+  '4': '101101111001001',
+  '5': '111100110001110',
+  '6': '011100111101111',
+  '7': '111001010010010',
+  '8': '111101111101111',
+  '9': '111101111001110',
+  D: '110101101101110',
+  H: '101101111101101',
+  M: '101111111101101',
+  S: '011100010001110',
+  '!': '010010010000010',
+  '>': '100110111110100',
+  '+': '000010111010000',
+  '-': '000000111000000',
+}
 const BG = '#1f1b24'
 /** How the hovered clickable thing of the Casa stands out. */
 const LIT = 'brightness(1.22)'
@@ -135,7 +200,9 @@ export class Renderer2d {
   private plates: { canvas: HTMLCanvasElement; box: Rect; hit?: Hit }[] = []
   private platesKey = ''
   private people: PersonItem[] = []
+  private extras: Extra[] = []
   private shown = new Map<string, { sig: string; area: Rect }>()
+  private totemCanvas = document.createElement('canvas')
   private hoverBox: Rect | null = null
   private highlight: string | null = null
   private screenKey = ''
@@ -158,6 +225,8 @@ export class Renderer2d {
     this.ctx = this.canvas.getContext('2d')!
     this.fctx = this.frame.getContext('2d')!
     this.cctx = this.cache.getContext('2d')!
+    // helpers are drawn smaller: whole art pixels, never blurred
+    this.fctx.imageSmoothingEnabled = false
     new ResizeObserver(() => (this.dirty = true)).observe(container)
     void atlas.ready.then(() => {
       this.cacheKey = ''
@@ -170,6 +239,22 @@ export class Renderer2d {
     this.canvas.classList.toggle('hidden', !on)
     this.dirty = true
     if (!on) this.focus = null
+  }
+
+  /** The camera jumps to its target on the next frame instead of easing there. */
+  snap(): void {
+    this.focus = null
+  }
+
+  /** The canvases the renderer keeps (screen, frame, cache, plates, painted characters): the leak test reads them. */
+  get memory(): { canvases: number; bytes: number; skins: number } {
+    const all = [this.canvas, this.frame, this.cache, this.totemCanvas, ...this.plaques.values()]
+    const skins = this.atlas.skinBytes
+    return {
+      canvases: all.length + skins.count,
+      bytes: all.reduce((n, c) => n + c.width * c.height * 4, 0) + skins.bytes,
+      skins: skins.count,
+    }
   }
 
   zoomStep(delta: number): void {
@@ -292,6 +377,7 @@ export class Renderer2d {
       full = true
     }
     this.people = this.placePeople(view)
+    this.extras = this.extrasOf(view)
     const hoverBox = view.hover ? this.hoverRect(view) : null
     const highlight = view.highlight ?? null
 
@@ -299,7 +385,7 @@ export class Renderer2d {
     const rects: Rect[] = []
     if (!full) {
       const now = new Set<string>()
-      for (const p of this.people) {
+      for (const p of [...this.people, ...this.extras]) {
         now.add(p.key)
         const was = this.shown.get(p.key)
         if (was?.sig === p.sig) continue
@@ -311,7 +397,7 @@ export class Renderer2d {
     }
     const screenKey = `${ox},${oy},${s},${w},${h}`
     if (!full && !rects.length && screenKey === this.screenKey) return
-    this.shown = new Map(this.people.map((p) => [p.key, { sig: p.sig, area: p.area }]))
+    this.shown = new Map([...this.people, ...this.extras].map((p) => [p.key, { sig: p.sig, area: p.area }]))
     this.hoverBox = hoverBox
     this.highlight = highlight
 
@@ -319,7 +405,8 @@ export class Renderer2d {
     if (full) {
       f.drawImage(this.cache, 0, 0)
       // around each person (and the lit thing), the floor again from scratch: furniture and people in depth order
-      for (const b of [...this.people.map((p) => p.box), ...this.litBoxes(view, highlight)]) this.recompose(f, b, view, false)
+      const under = this.extras.filter((e) => e.under).map((e) => e.area)
+      for (const b of [...this.people.map((p) => p.box), ...under, ...this.litBoxes(view, highlight)]) this.recompose(f, b, view, false)
       this.top(f, view, null)
     } else for (const r of rects) this.recompose(f, r, view, true)
 
@@ -343,6 +430,7 @@ export class Renderer2d {
 
   /** What the cache shows: the desks, their monitors, the rooms' lights. */
   private staticKey(view: FlatView): string {
+    if (view.floor.kind === 'casa') return JSON.stringify(['casa', view.totem?.screen ?? null, view.totem?.led ?? null])
     if (view.floor.kind !== 'project') return view.floor.kind
     const { plan, crts } = view.floor
     return JSON.stringify([
@@ -362,7 +450,7 @@ export class Renderer2d {
     const chair = (seat: SeatArt) => add(seat.fp, [place(seat.seat), place(seat.back)], seat)
     if (view.floor.kind === 'casa') {
       const { layout } = view.floor
-      for (const p of layout.static) add(p.fp, [place(p)], undefined, p.act)
+      for (const p of layout.static) add(p.fp, p.act === 'totem' ? [place(p), this.totemScreen(view)] : [place(p)], undefined, p.act)
       for (const seat of layout.table.seats) chair(seat)
       chair(layout.voce.seat)
     } else if (view.floor.kind === 'estudos') {
@@ -379,7 +467,7 @@ export class Renderer2d {
     this.cache.height = ch
     const c = this.cctx
     c.drawImage(this.baseOf(view), 0, 0)
-    for (const item of this.items) for (const sp of item.sprites) this.atlas.draw(c, sp.f, sp.x, sp.y)
+    for (const item of this.items) for (const sp of item.sprites) this.put(c, sp)
     this.shades(c, view)
     this.cacheKey = key
   }
@@ -462,12 +550,13 @@ export class Renderer2d {
     let x1 = -Infinity
     let y1 = -Infinity
     for (const sp of sprites) {
-      const f = this.atlas.frames[sp.f]
+      const f = sp.img ? [0, 0, sp.img.width, sp.img.height] : this.atlas.frames[sp.f]
       if (!f) continue
+      const k = sp.k ?? 1
       x0 = Math.min(x0, sp.x)
       y0 = Math.min(y0, sp.y)
-      x1 = Math.max(x1, sp.x + f[2])
-      y1 = Math.max(y1, sp.y + f[3])
+      x1 = Math.max(x1, sp.x + Math.ceil(f[2] * k))
+      y1 = Math.max(y1, sp.y + Math.ceil(f[3] * k))
     }
     return x0 === Infinity ? [0, 0, 0, 0] : [x0, y0, x1 - x0, y1 - y0]
   }
@@ -488,33 +577,58 @@ export class Renderer2d {
       const area = bubble ? union(box, this.bounds([bubble])) : box
       out.push({ fp, sprites, box, seat, key: p.key, char, bubble, area, sig: JSON.stringify([sprites, bubble]) })
     }
+    const couches = view.floor.kind === 'casa' ? view.floor.layout.couch : []
+    const near = (at: readonly number[], p: Person2d) => Math.hypot(at[0] / TILE - p.x, at[1] / TILE - p.z) < 0.35
+    const onCouch = new Set<unknown>()
     for (const p of view.people) {
-      const seat = p.seated
-        ? this.chairs.find((c) => c.seat && !taken.has(c.seat) && Math.hypot(c.seat.at[0] / TILE - p.x, c.seat.at[1] / TILE - p.z) < 0.35)
-            ?.seat
-        : undefined
+      const k = p.scale ?? 1
+      const at = toScreen(origin, p.x, p.z)
+      const px = Math.round(at.x)
+      const py = Math.round(at.y)
+      const ax = p.x * TILE
+      const az = p.z * TILE
+      if (p.down) {
+        // knocked out: flat on the floor, the feet where it stood
+        const f = `char/${p.variant}/down`
+        const [, , w, h] = this.atlas.frames[f] ?? [0, 0, 32, 24]
+        const char = { f, x: px - Math.round(w / 2), y: py - h + 4, look: p.look }
+        push(p, [ax - 2, az - 2, ax + 2, az + 2], [char], char, bubbleAt(p.bubble, px + 3, py - 16))
+        continue
+      }
+      const seat = p.seated && k === 1 ? this.chairs.find((c) => c.seat && !taken.has(c.seat) && near(c.seat.at, p))?.seat : undefined
       if (seat) {
         taken.add(seat)
-        const char = { f: `char/${p.variant}/${seat.dir}/${seat.pose}`, x: seat.sit[0], y: seat.sit[1], look: p.look }
+        // typing: the second frame of the loop has a hand up
+        const pose = p.alt ? seat.pose.replace('sit', 'type') : seat.pose
+        const char = { f: `char/${p.variant}/${seat.dir}/${pose}`, x: seat.sit[0], y: seat.sit[1], look: p.look }
         const under = { f: seat.seat.f, x: seat.seat.x, y: seat.seat.y }
         const back = { f: seat.back.f, x: seat.back.x, y: seat.back.y }
         push(p, seat.fp, seat.front ? [under, char, back] : [under, back, char], char, bubbleAt(p.bubble, seat.head[0], seat.head[1]), seat)
         continue
       }
-      const at = toScreen(origin, p.x, p.z)
-      const px = Math.round(at.x)
-      const py = Math.round(at.y)
+      // resting on a sofa: seated, behind its backrest
+      const couch = p.seated && k === 1 ? couches.find((c) => !onCouch.has(c) && near(c.at, p)) : undefined
+      if (couch) {
+        onCouch.add(couch)
+        const char = { f: `char/${p.variant}/${couch.dir}/${couch.pose}`, x: couch.sit[0], y: couch.sit[1], look: p.look }
+        push(p, couch.fp, [char], char, bubbleAt(p.bubble, couch.head[0], couch.head[1]))
+        continue
+      }
       const frame = p.stride === null ? 'idle' : Math.sin(p.stride) > 0 ? 'walkA' : 'walkB'
-      const char = { f: `char/${p.variant}/${dirOf(p.heading)}/${frame}`, x: px - 12, y: py - 30, look: p.look }
+      const char: Sprite = {
+        f: `char/${p.variant}/${dirOf(p.heading)}/${frame}`,
+        x: px - Math.round(12 * k),
+        y: py - Math.round(30 * k),
+        look: p.look,
+        k: k === 1 ? undefined : k,
+      }
       const sa = this.atlas.anchors.shadow ?? [0, 0]
-      const ax = p.x * TILE
-      const az = p.z * TILE
       push(
         p,
         [ax - 2, az - 2, ax + 2, az + 2],
         [{ f: 'shadow', x: px - sa[0], y: py - sa[1] }, char],
         char,
-        bubbleAt(p.bubble, px + 3, py - 29),
+        bubbleAt(p.bubble, px + 3, py - Math.round(29 * k)),
       )
     }
     return depthSort(out)
@@ -545,9 +659,10 @@ export class Renderer2d {
           f.drawImage(base, ...hot.box, ...hot.box)
           f.filter = 'none'
         }
+    for (const e of this.extras) if (e.under && hits(e.area, r)) e.draw(f)
     for (const item of depthSort(items)) {
       if (lit && item.act === lit) f.filter = LIT
-      for (const sp of item.sprites) this.atlas.draw(f, sp.f, sp.x, sp.y, sp.look)
+      for (const sp of item.sprites) this.put(f, sp)
       f.filter = 'none'
     }
     this.shades(f, view)
@@ -557,10 +672,135 @@ export class Renderer2d {
 
   /** Over everything, like the generator: the bubbles, the hovered tile and the plates (only those touching `r`). */
   private top(f: CanvasRenderingContext2D, view: FlatView, r: Rect | null): void {
-    for (const p of this.people)
-      if (p.bubble && (!r || hits(this.bounds([p.bubble]), r))) this.atlas.draw(f, p.bubble.f, p.bubble.x, p.bubble.y)
+    for (const p of this.people) if (p.bubble && (!r || hits(this.bounds([p.bubble]), r))) this.put(f, p.bubble)
+    for (const e of this.extras) if (!e.under && (!r || hits(e.area, r))) e.draw(f)
     if (view.hover && (!r || (this.hoverBox && hits(this.hoverBox, r)))) this.hoverTile(f, view)
     for (const plate of this.plates) if (!r || hits(plate.box, r)) f.drawImage(plate.canvas, plate.box[0], plate.box[1])
+  }
+
+  /** Draws a sprite: from the atlas (painted in its Look, at its size) or from its own canvas. */
+  private put(c: CanvasRenderingContext2D, sp: Sprite): void {
+    if (sp.alpha !== undefined) c.globalAlpha = sp.alpha
+    if (sp.img) c.drawImage(sp.img, sp.x, sp.y)
+    else this.atlas.draw(c, sp.f, sp.x, sp.y, sp.look, sp.k)
+    c.globalAlpha = 1
+  }
+
+  /** The elevator doors and the decals (under the furniture), and the fx (over everything). */
+  private extrasOf(view: FlatView): Extra[] {
+    const out: Extra[] = []
+    const { origin, elevator } = view.floor.layout
+    const sprite = (key: string, sig: string, sp: Sprite, under: boolean) =>
+      out.push({ key, sig, area: this.bounds([sp]), under, draw: (c) => this.put(c, sp) })
+    const doors = view.door ? elevator.open?.[view.door - 1] : undefined
+    if (doors) sprite('x:door', String(view.door), { f: doors.f, x: doors.x, y: doors.y }, true)
+    for (const d of view.decals ?? []) {
+      if (d.kind === 'cord') {
+        // the cord lies on the floor: a pixel line from the desk to the helper, darker underneath
+        const a = toScreen(origin, d.from.x, d.from.z)
+        const b = toScreen(origin, d.to.x, d.to.z)
+        const n = Math.max(1, Math.round(Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y))))
+        const pts: [number, number][] = []
+        for (let i = 0; i <= n; i++) pts.push([Math.round(a.x + ((b.x - a.x) * i) / n), Math.round(a.y + ((b.y - a.y) * i) / n)])
+        const xs = pts.map((p) => p[0])
+        const ys = pts.map((p) => p[1])
+        const x0 = Math.min(...xs)
+        const y0 = Math.min(...ys)
+        out.push({
+          key: `x:${d.key}`,
+          sig: JSON.stringify([pts[0], pts[n], d.color]),
+          area: [x0 - 1, y0 - 1, Math.max(...xs) - x0 + 3, Math.max(...ys) - y0 + 3],
+          under: true,
+          draw: (c) => {
+            c.fillStyle = 'rgba(30,24,36,0.45)'
+            for (const [x, y] of pts) c.fillRect(x, y + 1, 1, 1)
+            c.fillStyle = d.color
+            for (const [x, y] of pts) c.fillRect(x, y, 1, 1)
+          },
+        })
+      } else {
+        // the red pad of a failure: a tile-sized diamond on the floor
+        const pts = [
+          toScreen(origin, d.x - 0.4, d.z - 0.4),
+          toScreen(origin, d.x + 0.4, d.z - 0.4),
+          toScreen(origin, d.x + 0.4, d.z + 0.4),
+          toScreen(origin, d.x - 0.4, d.z + 0.4),
+        ]
+        const x0 = Math.floor(Math.min(...pts.map((p) => p.x)))
+        const y0 = Math.floor(Math.min(...pts.map((p) => p.y)))
+        out.push({
+          key: `x:${d.key}`,
+          sig: `${d.x},${d.z}`,
+          area: [
+            x0 - 1,
+            y0 - 1,
+            Math.ceil(Math.max(...pts.map((p) => p.x))) - x0 + 2,
+            Math.ceil(Math.max(...pts.map((p) => p.y))) - y0 + 2,
+          ],
+          under: true,
+          draw: (c) => {
+            c.beginPath()
+            pts.forEach((p, i) => (i ? c.lineTo(Math.round(p.x), Math.round(p.y)) : c.moveTo(Math.round(p.x), Math.round(p.y))))
+            c.closePath()
+            c.fillStyle = 'rgba(239,91,91,0.7)'
+            c.fill()
+            c.strokeStyle = '#a83a3a'
+            c.lineWidth = 1
+            c.stroke()
+          },
+        })
+      }
+    }
+    for (const e of view.fx ?? []) {
+      const f = `fx/${e.frame}`
+      const fr = this.atlas.frames[f]
+      if (!fr) continue
+      const at = toScreen(origin, e.x, e.z, e.y)
+      const sp = { f, x: Math.round(at.x - fr[2] / 2), y: Math.round(at.y - fr[3]), alpha: e.alpha }
+      sprite(`x:fx:${e.key}`, `${sp.x},${sp.y},${Math.round(e.alpha * 10)}`, sp, false)
+    }
+    return out
+  }
+
+  /**
+   * The routines board's screen, drawn on its face (a wall plane, so each column steps down
+   * half a pixel): the LED colour on top and the countdown (or a symbol) below, like the old 3D totem.
+   */
+  private totemScreen(view: FlatView): Sprite {
+    const c = this.totemCanvas
+    if (view.floor.kind !== 'casa') return { f: 'totem/screen', x: 0, y: 0, img: c }
+    const { origin, totem } = view.floor.layout
+    const [x0, x1, y, z0, z1] = totem
+    const w = x1 - x0
+    const top = (u: number) => Math.floor(origin[1] + (x0 + u + y) / 2 - z1)
+    const left = origin[0] + x0 - y
+    c.width = w
+    c.height = z1 - z0 + top(w - 1) - top(0) + 1
+    const g = c.getContext('2d')!
+    const row = (u: number) => top(u) - top(0)
+    const t = view.totem
+    for (let u = 0; u < w; u++) {
+      g.fillStyle = '#0e1018'
+      g.fillRect(u, row(u), 1, z1 - z0)
+      g.fillStyle = LED_COLORS[t?.led ?? 'none']
+      g.fillRect(u, row(u), 1, 2)
+    }
+    const sc = t?.screen ?? { kind: 'idle' as const }
+    let text = sc.kind === 'count' ? sc.text : { wait: '!', run: '>', add: '+', idle: '-' }[sc.kind]
+    // "2H14" does not fit three glyphs: the biggest unit is enough
+    if (text.length > 3) text = text.replace(/\d+$/, '').slice(0, 3)
+    g.fillStyle = sc.kind === 'wait' ? '#ffc02e' : sc.kind === 'count' ? '#ffb347' : '#b3b1cb'
+    const u0 = Math.floor((w - (text.length * 4 - 1)) / 2)
+    const v0 = Math.floor((z1 - z0 - 5) / 2) + 1
+    ;[...text].forEach((ch, i) => {
+      const glyph = GLYPHS[ch] ?? GLYPHS['-']
+      for (let k = 0; k < 15; k++) {
+        if (glyph[k] !== '1') continue
+        const u = u0 + i * 4 + (k % 3)
+        g.fillRect(u, row(u) + v0 + Math.floor(k / 3), 1, 1)
+      }
+    })
+    return { f: 'totem/screen', x: left, y: top(0), img: c }
   }
 
   private hoverRect(view: FlatView): Rect {

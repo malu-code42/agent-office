@@ -10,7 +10,7 @@ export const LUNA_VARIANT = 6
 export const EMI_VARIANT = 7
 
 /**
- * The sprite of each hair style of the 3D avatar (world/avatar.ts buildHair, by
+ * The sprite of each hair style of a Look (by
  * hairStyle % 6): short, spiky, long, bun, pigtails, curly. The colours come from the Look.
  */
 const BY_HAIR = [0, 4, 1, 3, 7, 5]

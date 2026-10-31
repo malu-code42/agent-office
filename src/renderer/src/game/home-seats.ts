@@ -1,5 +1,5 @@
-import { HOME_PLAN_3D, type HomePlan } from '../world/home-layout'
-import type { Grid } from '../world/pathfinding'
+import type { HomePlan } from '../world2d/home-layout'
+import type { Grid } from '../world2d/pathfinding'
 
 /** Rejects stale elevator/arrival callbacks after house presence was ended. */
 export function canContinueHomeArrival(goal: string | null, resident: boolean): boolean {
@@ -27,7 +27,7 @@ export interface HomeSpot {
  * Where resident seat n goes: a chair at Luna's table or, past the chairs, a free floor tile
  * around the table, closest first; null when there is no room left.
  */
-export function homeSpot(grid: Grid, n: number, plan: HomePlan = HOME_PLAN_3D): HomeSpot | null {
+export function homeSpot(grid: Grid, n: number, plan: HomePlan): HomeSpot | null {
   const chair = plan.chairs[n]
   if (chair) return { tile: [Math.floor(chair.x), Math.floor(chair.z)], point: { x: chair.x, z: chair.z }, sit: true }
   // shortcut: extra residents stand around the table instead of getting new chairs; the area

@@ -1,26 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { BLUR_FPS, DEFAULT_VIDEO, effectiveVideo, frameInterval, IDLE_FPS, QUALITY_PRESETS, qualityOf } from '../src/shared/video'
-
-describe('qualityOf', () => {
-  it('reconhece cada predefinição e o padrão é Equilibrada', () => {
-    for (const q of ['high', 'balanced', 'saver'] as const) expect(qualityOf({ ...QUALITY_PRESETS[q], batterySaver: false })).toBe(q)
-    expect(qualityOf(DEFAULT_VIDEO)).toBe('balanced')
-  })
-  it('mistura feita à mão não é predefinição; sem sombras a resolução não conta', () => {
-    expect(qualityOf({ ...QUALITY_PRESETS.high, fpsLimit: 30, batterySaver: false })).toBeNull()
-    expect(qualityOf({ ...QUALITY_PRESETS.saver, shadowMapSize: 2048, batterySaver: false })).toBe('saver')
-  })
-})
+import { BLUR_FPS, DEFAULT_VIDEO, effectiveVideo, frameInterval, IDLE_FPS } from '../src/shared/video'
 
 describe('effectiveVideo', () => {
-  it('na bateria com a opção marcada entra em Economia: sem sombras, 30 fps', () => {
-    const v = effectiveVideo({ ...QUALITY_PRESETS.high, batterySaver: true }, true)
-    expect(v).toMatchObject({ shadows: false, fpsLimit: 30, effects: 'reduced', saving: true })
+  it('na bateria com a opção marcada entra em Economia: 30 fps', () => {
+    expect(effectiveVideo({ fpsLimit: 0, batterySaver: true }, true)).toEqual({ fpsLimit: 30, batterySaver: true, saving: true })
   })
   it('na tomada, ou com a opção desmarcada, fica o que o jogador escolheu', () => {
-    const high = { ...QUALITY_PRESETS.high, batterySaver: true }
-    expect(effectiveVideo(high, false)).toEqual({ ...high, saving: false })
-    expect(effectiveVideo({ ...high, batterySaver: false }, true)).toEqual({ ...high, batterySaver: false, saving: false })
+    expect(effectiveVideo(DEFAULT_VIDEO, false)).toEqual({ ...DEFAULT_VIDEO, saving: false })
+    expect(effectiveVideo({ fpsLimit: 0, batterySaver: false }, true)).toEqual({ fpsLimit: 0, batterySaver: false, saving: false })
   })
 })
 

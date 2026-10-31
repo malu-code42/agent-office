@@ -80,7 +80,7 @@ async function pressKeys(w: BrowserWindow, spec: string): Promise<void> {
  * Dev helper (`npm run bench`): AGENT_OFFICE_BENCH=out/bench.json waits for the office
  * to fill up, records the frames for AGENT_OFFICE_BENCH_S seconds (30 by default),
  * writes the report there and quits. AGENT_OFFICE_BENCH_EVAL runs a snippet first (e.g. to
- * take the elevator to a project floor and pick the 2D or 3D world).
+ * take the elevator to a project floor).
  */
 export function runBench(w: BrowserWindow, file: string): void {
   const seconds = Number(process.env.AGENT_OFFICE_BENCH_S) || 30
@@ -108,7 +108,7 @@ export function runBench(w: BrowserWindow, file: string): void {
         }
         writeFileSync(file, JSON.stringify(out, null, 2) + '\n')
         console.log(
-          `bench: ${out.frames} frames, ${out.frameMs.mean} ms/frame (p95 ${out.frameMs.p95}), ${out.drawCalls.mean} draw calls -> ${file}`,
+          `bench: ${out.frames} frames, ${out.frameMs.mean} ms/frame (p95 ${out.frameMs.p95}), CPU ${out.workMs.mean} ms -> ${file}`,
         )
       } catch (err) {
         console.error('bench failed:', err)

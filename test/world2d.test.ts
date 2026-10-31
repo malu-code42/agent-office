@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { SQUAD_MAX_MEMBERS } from '@shared/types'
-import { AGENT_DESK_COUNT } from '../src/renderer/src/world/layout'
+import { AGENT_DESK_COUNT } from '../src/renderer/src/world2d/plan'
 import layoutData from '../src/renderer/src/assets/pixel/project.json'
 import { behind, depthSort, type Footprint } from '../src/renderer/src/world2d/depth'
 import { plaqueLeft, plaqueSize, ringColors, textWidth } from '../src/renderer/src/world2d/font'

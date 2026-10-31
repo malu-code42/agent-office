@@ -1,8 +1,8 @@
 import type { AgentSummary, SquadInfo, SquadMember } from '@shared/types'
 import { helperActivity, lookFromSeed } from '@shared/describe'
-import { Avatar } from '../world/avatar'
-import * as L from '../world/layout'
-import { Tag } from '../world/overlays'
+import { Avatar } from '../world2d/avatar'
+import * as L from '../world2d/plan'
+import { Tag } from '../world2d/overlays'
 import { GameSubagents } from './subagents'
 import { memberPlace, deliverySpot, floorReservations, spotKey, type Spot } from './member-slots'
 import { clip, MEMBER_EXIT_S, MEMBER_MIN_S, SQUAD_SPEED, type Member } from './types'
@@ -86,10 +86,24 @@ export abstract class GameSquads extends GameSubagents {
     const spawn = this.elevatorOf(avatar.floor).point
     avatar.placeAt(spawn.x, spawn.z)
     avatar.face(0)
-    this.engine.scene.add(avatar.root)
     const tag = this.overlays.add(new Tag(avatar.anchor, `${info.icon} ${info.name}`, false, () => this.memberClick(id)))
     tag.setDot('starting')
-    const m: Member = { id, parentId: a.id, info, avatar, tag, inline, desk: null, tile: null, phase: 'arriving', bornAt: this.time, endAt: null, failed: null, sub: null, infoUntil: 0 }
+    const m: Member = {
+      id,
+      parentId: a.id,
+      info,
+      avatar,
+      tag,
+      inline,
+      desk: null,
+      tile: null,
+      phase: 'arriving',
+      bornAt: this.time,
+      endAt: null,
+      failed: null,
+      sub: null,
+      infoUntil: 0,
+    }
     this.members.set(id, m)
     this.ding(avatar.floor)
     const arrive = () => {
@@ -175,7 +189,10 @@ export abstract class GameSquads extends GameSubagents {
     }
     if (m.phase === 'delivering') return m.tag.setBubble('✓ Entregando', 'done')
     if (m.phase === 'leaving') return m.tag.setBubble(null)
-    m.tag.setBubble(m.inline ? 'Neste passo com o coordenador' : m.sub ? clip(m.sub.activity ? helperActivity(m.sub) : m.sub.description, 40) : null, 'work')
+    m.tag.setBubble(
+      m.inline ? 'Neste passo com o coordenador' : m.sub ? clip(m.sub.activity ? helperActivity(m.sub) : m.sub.description, 40) : null,
+      'work',
+    )
   }
 
   /** Click: what the member is doing (task, tokens, last tool) for a few seconds, and the orchestrator's panel. */
@@ -214,16 +231,13 @@ export abstract class GameSquads extends GameSubagents {
   protected memberDeliver(m: Member): void {
     if (m.desk) this.floorOf(m.avatar.floor).deskScreens[m.desk.index]?.setMode(m.failed ? 'error' : 'done')
     m.avatar.pose = 'stand'
-    m.avatar.seatY = 0
     const a = this.state.agents.get(m.parentId)
     const desk = a && this.coordinatorDesk(a)
     if (m.failed || m.inline || !desk) return this.memberLeave(m)
     // A free tile in front of the coordinator: the room has one per member, so a
     // full room delivers all at once, and nobody stands on top of anybody else.
     const taken = new Set(
-      [...this.members.values()]
-        .filter((o) => o !== m && o.phase === 'delivering' && o.tile)
-        .map((o) => spotKey(o.tile![0], o.tile![1])),
+      [...this.members.values()].filter((o) => o !== m && o.phase === 'delivering' && o.tile).map((o) => spotKey(o.tile![0], o.tile![1])),
     )
     const grid = this.floorOf(m.avatar.floor).grid
     const tile = deliverySpot(desk.deliver, taken, (x, z) => grid.walkable(x, z))
@@ -264,8 +278,6 @@ export abstract class GameSquads extends GameSubagents {
   protected memberGone(m: Member): void {
     if (!this.members.has(m.id)) return
     this.members.delete(m.id)
-    m.avatar.dispose()
-    this.engine.scene.remove(m.avatar.root)
     this.overlays.remove(m.tag)
   }
 
@@ -276,9 +288,19 @@ export abstract class GameSquads extends GameSubagents {
       u.stepTags.forEach((tag, room) => {
         const st = byRoom.get(room)?.squadStep
         const text =
-          st?.status === 'completed' ? '✓ Ciclo concluído' : st?.current ? `${st.type === 'checkpoint' ? '⏸' : '▸'} Passo ${st.current}/${st.total} · ${clip(st.label, 32)}` : 'Aguardando o próximo ciclo'
+          st?.status === 'completed'
+            ? '✓ Ciclo concluído'
+            : st?.current
+              ? `${st.type === 'checkpoint' ? '⏸' : '▸'} Passo ${st.current}/${st.total} · ${clip(st.label, 32)}`
+              : 'Aguardando o próximo ciclo'
         tag.setName(text)
-        tag.setDot(st?.type === 'checkpoint' && st.status !== 'completed' ? 'waiting' : st?.current && st.status !== 'completed' ? 'working' : 'idle')
+        tag.setDot(
+          st?.type === 'checkpoint' && st.status !== 'completed'
+            ? 'waiting'
+            : st?.current && st.status !== 'completed'
+              ? 'working'
+              : 'idle',
+        )
       })
     })
   }

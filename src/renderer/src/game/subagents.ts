@@ -1,12 +1,9 @@
-import * as THREE from 'three'
 import type { AgentSummary, SubagentInfo } from '@shared/types'
 import { helperActivity } from '@shared/describe'
-import { Avatar } from '../world/avatar'
-import { disposeTree } from '../world/dispose'
-import { box } from '../world/kit'
-import { Tag } from '../world/overlays'
+import { Avatar } from '../world2d/avatar'
+import { Point3, Tag } from '../world2d/overlays'
 import { GameDeliveries } from './deliveries'
-import { failureMarkPlace, failurePad, helperLeavesMark, markOutOfPlace, type MarkOwner } from './failure-marks'
+import { failureMarkPlace, helperLeavesMark, markOutOfPlace, type MarkOwner } from './failure-marks'
 import { freeSlot, helperFailedLabel, helperLabel, helperMove, helperPlace } from './helper-slots'
 import { HelperReturn, type OwnerDesk } from './helper-return'
 import { clip, HELPER_MIN_S, HELPER_SCALE, type Actor, type Helper } from './types'
@@ -78,21 +75,17 @@ export abstract class GameSubagents extends GameDeliveries {
     avatar.floor = this.homeFloor(a)
     const p = parent.avatar.position
     avatar.placeAt(p.x, p.z)
-    avatar.root.scale.setScalar(0.01)
-    this.engine.scene.add(avatar.root)
+    avatar.scale = 0.01
     // The desk of the owner on the floor it is on now: the helper stands beside it.
     const desk = this.helperAnchorOn(a, avatar.floor)
     const anchor = desk ?? { x: parent.avatar.position.x, z: parent.avatar.position.z }
     const spot = helperPlace(anchor.x, anchor.z, slot)
-    // The cord on the floor, in the shirt color of the owner.
-    const cord = box(this.engine.scene, spot.cordLength, 0.04, 0.1, a.look.shirt, spot.cord[0], 0.02, spot.cord[1], false)
     const helper: Helper = {
       id,
       parentId: a.id,
       avatar,
       tag,
       slot,
-      cord,
       task,
       anchor,
       tile: [Math.floor(spot.at[0]), Math.floor(spot.at[1])],
@@ -104,7 +97,6 @@ export abstract class GameSubagents extends GameDeliveries {
       failedAt: null,
     }
     this.helpers.set(id, helper)
-    this.grow(helper)
     // It walks to its fixed spot beside the desk and works there.
     avatar.pose = 'stand'
     this.route(avatar, helper.tile!, null, () => {
@@ -116,10 +108,11 @@ export abstract class GameSubagents extends GameDeliveries {
     return helper
   }
 
+  /** A new helper grows to its size in 0.35 s. */
   protected grow(helper: Helper): void {
+    if (helper.avatar.scale >= HELPER_SCALE) return
     const k = Math.min(1, (this.time - helper.bornAt) / 0.35)
-    helper.avatar.root.scale.setScalar(Math.max(0.01, k * HELPER_SCALE))
-    if (k < 1 && !helper.gone) requestAnimationFrame(() => this.grow(helper))
+    helper.avatar.scale = Math.max(0.01, k * HELPER_SCALE)
   }
 
   /**
@@ -155,14 +148,11 @@ export abstract class GameSubagents extends GameDeliveries {
     const desk = this.helperAnchorOn(a, floor)
     // Without a desk of its own, the helper stands where its owner stands: it waits
     // for the owner to settle instead of following it step by step.
-    const anchor =
-      desk ?? (parent.avatar.isWalking ? helper.anchor : { x: parent.avatar.position.x, z: parent.avatar.position.z })
+    const anchor = desk ?? (parent.avatar.isWalking ? helper.anchor : { x: parent.avatar.position.x, z: parent.avatar.position.z })
     const move = helperMove({ floor, x: anchor.x, z: anchor.z }, helper.slot, { floor: helper.avatar.floor, anchor: helper.anchor })
     if (!move.changedFloor && !move.movedSpot) return
     helper.anchor = { x: anchor.x, z: anchor.z }
     helper.tile = move.tile
-    helper.cord.position.set(move.cord[0], 0.02, move.cord[1])
-    helper.cord.scale.x = move.cordLength
     if (move.changedFloor) {
       // The owner changed floor: the helper changes floor with it, at once.
       helper.avatar.floor = move.floor
@@ -209,6 +199,7 @@ export abstract class GameSubagents extends GameDeliveries {
   protected updateHelpers(dt: number): void {
     for (const h of this.helpers.values()) {
       h.avatar.update(dt)
+      this.grow(h)
       // A helper that is going back is on its own: the way back follows the
       // owner, even when the owner changes floor in the middle of the walk.
       if (h.returning) {
@@ -236,7 +227,6 @@ export abstract class GameSubagents extends GameDeliveries {
   protected helperLeave(h: Helper): void {
     h.gone = true
     this.overlays.remove(h.tag)
-    h.cord.visible = false
     h.avatar.stop()
     h.avatar.pose = 'stand'
     const onDone = () => this.helperGone(h)
@@ -263,9 +253,6 @@ export abstract class GameSubagents extends GameDeliveries {
     if (!this.helpers.has(h.id)) return
     this.helpers.delete(h.id)
     h.returning = null
-    h.avatar.dispose()
-    this.engine.scene.remove(h.avatar.root)
-    this.engine.scene.remove(h.cord)
     this.overlays.remove(h.tag)
     // A helper that failed leaves a red mark by the desk, unless the user already
     // saw the failure in the conversation of the owner: the error card is there,
@@ -273,7 +260,7 @@ export abstract class GameSubagents extends GameDeliveries {
     if (helperLeavesMark(h.failed, h.failedAt, this.seenFailures, h.parentId, Date.now())) this.failureMark(h)
   }
 
-  /** The red mark of a failed helper: a red pad on the floor and a mini label beside it. */
+  /** The red mark of a failed helper: a red pad on the floor (the renderer draws it) and a mini label beside it. */
   protected failureMark(h: Helper): void {
     const a = this.state.agents.get(h.parentId)
     if (!a) return
@@ -289,13 +276,10 @@ export abstract class GameSubagents extends GameDeliveries {
     if (!anchor) return
     const place = failureMarkPlace({ floor: this.homeFloor(a), project: a.project ?? null, x: anchor.x, z: anchor.z })
     if (!place) return
-    const pad = failurePad(place.x, place.z)
-    this.engine.scene.add(pad)
-    const tagAnchor = new THREE.Object3D()
-    tagAnchor.position.set(place.x, 0.9, place.z)
-    this.engine.scene.add(tagAnchor)
     const tag = this.overlays.add(
-      new Tag(tagAnchor, helperFailedLabel(a.name, h.task, 1), false, () => this.hooks.onAgentClick(h.parentId, h.id)),
+      new Tag(new Point3(place.x, 0.2, place.z), helperFailedLabel(a.name, h.task, 1), false, () =>
+        this.hooks.onAgentClick(h.parentId, h.id),
+      ),
     )
     tag.el.classList.add('tag-mini')
     tag.setDot('error')
@@ -306,7 +290,6 @@ export abstract class GameSubagents extends GameDeliveries {
       floor: place.floor,
       x: place.x,
       z: place.z,
-      pad,
       tag,
     })
   }
@@ -329,8 +312,7 @@ export abstract class GameSubagents extends GameDeliveries {
       mark.floor = place.floor
       mark.x = place.x
       mark.z = place.z
-      mark.pad.position.set(place.x, 0.03, place.z)
-      mark.tag.anchor.position.set(place.x, 0.9, place.z)
+      if (mark.tag.anchor instanceof Point3) mark.tag.anchor.set(place.x, 0.2, place.z)
     }
   }
 
@@ -369,10 +351,6 @@ export abstract class GameSubagents extends GameDeliveries {
     }
     const mark = this.failures.get(agentId)
     if (!mark) return
-    // The pad takes its geometry and material with it: they are its own.
-    disposeTree(mark.pad)
-    this.engine.scene.remove(mark.pad)
-    this.engine.scene.remove(mark.tag.anchor)
     this.overlays.remove(mark.tag)
     this.failures.delete(agentId)
   }

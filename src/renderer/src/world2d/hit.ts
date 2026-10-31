@@ -5,6 +5,8 @@ export interface Placed {
   f: string
   x: number
   y: number
+  /** Drawn at this size (k art pixels per sprite pixel); 1 by default. */
+  k?: number
 }
 
 /**
@@ -18,7 +20,8 @@ export function topmost<T extends { char: Placed }>(
 ): T | null {
   for (let i = list.length - 1; i >= 0; i--) {
     const { char } = list[i]
-    if (solid(char.f, p.x - char.x, p.y - char.y)) return list[i]
+    const k = char.k ?? 1
+    if (solid(char.f, (p.x - char.x) / k, (p.y - char.y) / k)) return list[i]
   }
   return null
 }

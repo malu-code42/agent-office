@@ -4,12 +4,12 @@
 // tile) unless named in tiles. buildEstudos2d (world2d/floor.ts) makes the floor.
 
 import { activeStudyCycle, evaluateStudyGate, type StudyCycleStage, type StudyCycleState } from '@shared/study-cycle'
-import type { HomeChair } from '../world/home-layout'
-import type { Partition } from '../world/layout'
-import type { Grid } from '../world/pathfinding'
+import type { HomeChair } from './home-layout'
+import type { Partition } from './plan'
+import type { Grid } from './pathfinding'
 import type { Footprint } from './depth'
 import { headingOf, TILE } from './iso'
-import { grid2d, type Placement, type SeatArt } from './layout'
+import { grid2d, type ElevatorDoors, type Placement, type SeatArt } from './layout'
 
 type Rect = [number, number, number, number]
 
@@ -49,7 +49,13 @@ export interface EstudosLayout {
   class: { at: [number, number]; look: [number, number] }
   /** Names shown when the pointer is over a part of the floor (tiles); the first one listed wins. */
   zones: { name: string; rect: Rect }[]
-  elevator: { tile: [number, number]; point: [number, number]; door: [number, number, number] }
+  elevator: {
+    tile: [number, number]
+    point: [number, number]
+    door: [number, number, number]
+    /** The doors half open and open, drawn over the base while someone arrives or leaves. */
+    open: [ElevatorDoors, ElevatorDoors]
+  }
 }
 
 /** A teacher of the study floor: who it is, its sprite and what it does in the cycle. */

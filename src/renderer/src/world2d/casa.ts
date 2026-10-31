@@ -3,12 +3,12 @@
 // so the tests check it. Layout numbers are art units (16 per tile) unless
 // named in tiles. buildCasa2d (world2d/floor.ts) makes the floor the game walks on.
 
-import type { HomeAction, HomeChair, HomePlan } from '../world/home-layout'
-import type { Partition } from '../world/layout'
-import type { Grid } from '../world/pathfinding'
+import type { HomeAction, HomeChair, HomePlan } from './home-layout'
+import type { Partition } from './plan'
+import type { Grid } from './pathfinding'
 import type { Footprint } from './depth'
 import { headingOf, TILE } from './iso'
-import { grid2d, type Placement, type SeatArt } from './layout'
+import { grid2d, type ElevatorDoors, type Placement, type SeatArt } from './layout'
 
 type Rect = [number, number, number, number]
 
@@ -40,7 +40,17 @@ export interface CasaLayout {
   hang: { at: [number, number]; look: [number, number]; kind: 'sit' | 'stand' | 'play' }[]
   /** Names shown when the pointer is over a part of the floor (tiles). */
   zones: { name: string; rect: Rect }[]
-  elevator: { tile: [number, number]; point: [number, number]; door: [number, number, number] }
+  /** Where a resting agent sits on a sofa: drawn seated, just behind the sofa (its backrest is on the near side). */
+  couch: Omit<SeatArt, 'seat' | 'back' | 'front'>[]
+  /** The routines board's face (+y), art units: x0, x1, y, z0, z1; the next routine shows there. */
+  totem: [number, number, number, number, number]
+  elevator: {
+    tile: [number, number]
+    point: [number, number]
+    door: [number, number, number]
+    /** The doors half open and open, drawn over the base while someone arrives or leaves. */
+    open: [ElevatorDoors, ElevatorDoors]
+  }
 }
 
 const chairOf = (s: SeatArt): HomeChair => ({ x: s.at[0] / TILE, z: s.at[1] / TILE, face: headingOf(s.dir) })
@@ -118,7 +128,6 @@ export function casaPlan(layout: CasaLayout, grid: Grid = grid2d(layout)): HomeP
     around: zone(layout, 'Mesa da Luna'),
     keepClear,
     hang,
-    desks: [],
     overflow: hall.slice(0, 8),
   }
 }

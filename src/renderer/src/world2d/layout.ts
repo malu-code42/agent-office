@@ -1,20 +1,12 @@
 // The project floor of the 2D world, as scripts/pixel-art/export_app.py describes it
 // (assets/pixel/project.json), and the seat/desk/room plan the game walks by. Pure: no
 // DOM, so the tests check it. Layout numbers are art units (16 per tile) unless named
-// in tiles; the plan is in tiles, like the 3D plan of world/layout.ts.
+// in tiles (world2d/plan.ts).
 
 import { SQUAD_MAX_MEMBERS, SQUAD_MIN_MEMBERS, SQUAD_ROOM_COUNT } from '@shared/types'
 import { floorRooms } from '@shared/squad-rooms'
-import {
-  AGENT_DESK_COUNT,
-  memberKey,
-  type DeskSlot,
-  type Partition,
-  type ProjectIssue,
-  type ProjectPlan,
-  type SquadRoom,
-} from '../world/layout'
-import { Grid } from '../world/pathfinding'
+import { AGENT_DESK_COUNT, memberKey, type DeskSlot, type Partition, type ProjectIssue, type ProjectPlan, type SquadRoom } from './plan'
+import { Grid } from './pathfinding'
 import type { Footprint } from './depth'
 import { headingOf, TILE, type Dir } from './iso'
 
@@ -30,6 +22,13 @@ export interface Placement {
   fp: Footprint
   /** A glass wall piece: it blocks tile edges, not tiles. */
   wall?: boolean
+}
+
+/** A frame of the elevator doors at its place on the native canvas. */
+export interface ElevatorDoors {
+  f: string
+  x: number
+  y: number
 }
 
 export type CrtState = 'green' | 'amber' | 'red' | 'off'
@@ -84,7 +83,13 @@ export interface ProjectLayout {
   director: { rect: Rect; plate: [number, number] }
   lounge: { rect: Rect; plate: [number, number] }
   /** Door tile, drop point (tiles) and the door on the back wall (x0, x1, height in art units). */
-  elevator: { tile: [number, number]; point: [number, number]; door: [number, number, number] }
+  elevator: {
+    tile: [number, number]
+    point: [number, number]
+    door: [number, number, number]
+    /** The doors half open and open, drawn over the base while someone arrives or leaves. */
+    open: [ElevatorDoors, ElevatorDoors]
+  }
 }
 
 /** Tile of a point in art units. */
@@ -120,7 +125,7 @@ function deskSlot(index: number, desk: DeskArt, seat: SeatArt): DeskSlot {
   }
 }
 
-/** Screen index of a member desk: the agents' desks first, then six per room (as in the 3D plan). */
+/** Screen index of a member desk: the agents' desks first, then six per room. */
 export const memberDeskIndex = (room: number, k: number) => AGENT_DESK_COUNT + room * SQUAD_MAX_MEMBERS + k
 
 /** An empty squad room of the 2D floor: the coordinator's desk is there, no member desks. */

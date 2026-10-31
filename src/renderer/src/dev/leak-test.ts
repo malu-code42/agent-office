@@ -1,12 +1,13 @@
 import type { AgentSummary, ProjectFloor } from '@shared/types'
 import { lookFromSeed } from '@shared/describe'
 import type { Game } from '../game'
-import { perf } from '../perf'
 import type { State } from '../state'
 
 /**
- * Dev only (AO-28): adds and removes a floor 20 times, hires and dismisses 30 agents
- * uses the skull 10 times and dresses the player 30 times, reading renderer.info.memory after each round. Agents
+ * Dev only (AO-28): adds and removes a floor 20 times, hires and dismisses 30 agents,
+ * uses the skull 10 times and dresses the player 30 times, reading what the 2D renderer
+ * keeps (canvases and their pixels, painted character sheets, HTML tags) and the JS heap
+ * after each round. Agents
  * are fake summaries pushed through the same agent:upsert / agent:removed events the
  * main process sends, so nothing reaches Claude or the store.
  *
@@ -17,26 +18,25 @@ import type { State } from '../state'
 
 interface Snapshot {
   step: string
-  geometries: number
-  textures: number
-  programs: number
+  /** Canvases the renderer keeps (screen, frame, cache, plates, painted characters). */
+  canvases: number
+  /** Their pixels, in KB. */
+  canvasKB: number
+  /** Painted character sheets (one per variant and Look on screen, at most 96). */
+  skins: number
+  /** HTML tags following the world. */
+  tags: number
+  heapMB: number | null
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const FLOOR_ID = 'leak-test-floor'
-/** Uniform colors for the dressing round (shadeHex needs hex). */
+/** Uniform colors for the dressing round. */
 const SHIRTS = ['#2f8f83', '#6c5ce7', '#e17055', '#0984e3', '#fdcb6e']
 
-/** A tiny PNG logo whose color changes every round, so each rebuild draws a new one. */
-function logo(i: number): string {
-  const c = document.createElement('canvas')
-  c.width = c.height = 32
-  const ctx = c.getContext('2d')!
-  ctx.fillStyle = `hsl(${(i * 47) % 360} 70% 50%)`
-  ctx.fillRect(0, 0, 32, 32)
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(8, 8, 16, 16)
-  return c.toDataURL('image/png')
+function heapMB(): number | null {
+  const mem = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory
+  return mem ? Math.round((mem.usedJSHeapSize / 1048576) * 10) / 10 : null
 }
 
 function fakeAgent(i: number, project?: string): AgentSummary {
@@ -55,7 +55,8 @@ function fakeAgent(i: number, project?: string): AgentSummary {
     createdAt: Date.now(),
     project,
     // two helpers on every third agent, so subagents come and go too
-    subagents: i % 3 ? [] : [0, 1].map((k) => ({ id: `${id}-sub-${k}`, description: 'Contar linhas', startedAt: Date.now(), background: true })),
+    subagents:
+      i % 3 ? [] : [0, 1].map((k) => ({ id: `${id}-sub-${k}`, description: 'Contar linhas', startedAt: Date.now(), background: true })),
   }
 }
 
@@ -64,10 +65,17 @@ export async function leakTest(game: Game, state: State): Promise<{ snapshots: S
   const snap = async (step: string) => {
     // a few frames so whatever is on screen gets uploaded (or released) first
     await sleep(400)
-    const m = perf.memory()
-    const s: Snapshot = { step, geometries: m.geometries, textures: m.textures, programs: m.programs }
+    const m = game.flat2d.memory
+    const s: Snapshot = {
+      step,
+      canvases: m.canvases,
+      canvasKB: Math.round(m.bytes / 1024),
+      skins: m.skins,
+      tags: game.overlays.count,
+      heapMB: heapMB(),
+    }
     snapshots.push(s)
-    console.log(`[leak] ${step}: geometries ${s.geometries}, textures ${s.textures}, programs ${s.programs}`)
+    console.log(`[leak] ${step}: canvases ${s.canvases} (${s.canvasKB} KB), skins ${s.skins}, tags ${s.tags}, heap ${s.heapMB} MB`)
     return s
   }
   const original = state.settings
@@ -90,9 +98,9 @@ export async function leakTest(game: Game, state: State): Promise<{ snapshots: S
   game.goFloor(0)
   const start = await snap('início')
 
-  // ---------- 1. a floor added and removed 20 times (new logo each time) ----------
+  // ---------- 1. a floor added and removed 20 times ----------
   for (let i = 0; i < 20; i++) {
-    setFloors([...original.projects, { id: FLOOR_ID, name: `Teste ${i}`, cwd: '/tmp/leak-floor', logo: logo(i), brandColor: '#2f8f83', uniform: true }])
+    setFloors([...original.projects, { id: FLOOR_ID, name: `Teste ${i}`, cwd: '/tmp/leak-floor', brandColor: '#2f8f83', uniform: true }])
     game.goFloor(original.projects.length + 1)
     await sleep(300)
     game.goFloor(0)
@@ -102,12 +110,18 @@ export async function leakTest(game: Game, state: State): Promise<{ snapshots: S
   const afterFloors = snapshots.at(-1)!
 
   // ---------- 2. 30 agents hired and dismissed, half of them on a uniformed floor ----------
-  const floorWith = (i: number) => [...original.projects, { id: FLOOR_ID, name: 'Uniforme', cwd: '/tmp/leak-floor', logo: logo(100 + i), brandColor: '#6c5ce7', uniform: true }]
+  const floorWith = (i: number) => [
+    ...original.projects,
+    { id: FLOOR_ID, name: 'Uniforme', cwd: '/tmp/leak-floor', brandColor: SHIRTS[i % SHIRTS.length], uniform: true },
+  ]
   let id = 0
   for (let round = 0; round < 3; round++) {
     setFloors(floorWith(round))
     const upstairs = original.projects.length + 1
-    for (const [floor, project] of [[0, undefined], [upstairs, FLOOR_ID]] as const) {
+    for (const [floor, project] of [
+      [0, undefined],
+      [upstairs, FLOOR_ID],
+    ] as const) {
       game.goFloor(floor)
       const batch = Array.from({ length: 5 }, () => fakeAgent(id++, project))
       for (const a of batch) state.apply({ type: 'agent:upsert', agent: a })
@@ -134,22 +148,20 @@ export async function leakTest(game: Game, state: State): Promise<{ snapshots: S
       })
     })
     await empty()
-    // smoke and sparks fade in under a second
-    await sleep(1200)
+    // the puff and the ghost fade in under two seconds
+    await sleep(2000)
     game.goFloor(0)
     await snap(`caveira ${i + 1}/10`)
   }
   const afterSkull = snapshots.at(-1)!
 
-  // ---------- 4. the player dressed 30 times: uniform with logo, own clothes, new look ----------
-  // build() used to clear the body before disposing it, so every change leaked the old one.
-  // One logo for all rounds: its patch is cached on purpose and released with the floor.
-  const patch = logo(7)
+  // ---------- 4. the player dressed 30 times: uniform, own clothes, new look ----------
+  // Each look paints a character sheet; the cache keeps at most 96 of them.
   const ownLook = game.player.look
   for (let i = 0; i < 30; i++) {
-    game.player.setUniform(i % 2 ? null : { color: SHIRTS[i % SHIRTS.length], logo: patch })
+    game.player.setUniform(i % 2 ? null : { color: SHIRTS[i % SHIRTS.length] })
     game.player.setLook(lookFromSeed(`leak-look-${i}`))
-    // one frame at least, so each body is uploaded before the next replaces it
+    // one frame at least, so each look is painted before the next replaces it
     await sleep(120)
     if ((i + 1) % 10 === 0) await snap(`roupa ${i + 1}/30`)
   }
@@ -157,16 +169,22 @@ export async function leakTest(game: Game, state: State): Promise<{ snapshots: S
   game.player.setLook(ownLook)
   const end = await snap('roupa original')
 
-  const delta = (a: Snapshot, b: Snapshot) => ({ geometries: b.geometries - a.geometries, textures: b.textures - a.textures })
+  const delta = (a: Snapshot, b: Snapshot) => ({
+    canvases: b.canvases - a.canvases,
+    canvasKB: b.canvasKB - a.canvasKB,
+    tags: b.tags - a.tags,
+    heapMB: a.heapMB === null || b.heapMB === null ? null : Math.round((b.heapMB - a.heapMB) * 10) / 10,
+  })
+  const at = (s: Snapshot) => ({ canvases: s.canvases, canvasKB: s.canvasKB, skins: s.skins, tags: s.tags, heapMB: s.heapMB })
   return {
     snapshots,
     summary: {
-      início: { geometries: start.geometries, textures: start.textures },
+      início: at(start),
       andares: delta(start, afterFloors),
       agentes: delta(afterFloors, afterAgents),
       caveira: delta(afterAgents, afterSkull),
       roupa: delta(afterSkull, end),
-      fim: { geometries: end.geometries, textures: end.textures },
+      fim: at(end),
     },
   }
 }

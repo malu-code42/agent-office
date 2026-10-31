@@ -27,6 +27,34 @@ const ACTS: CasaAct[] = [
   'computer',
 ]
 
+describe('fase 4 no layout da Casa', () => {
+  it('cada sofá dos cantos de descanso tem o lugar sentado, atrás do sofá', () => {
+    const sit = CASA.hang.filter((h) => h.kind === 'sit')
+    expect(CASA.couch).toHaveLength(sit.length)
+    for (const c of CASA.couch) {
+      const sofa = CASA.static.find((p) => p.fp[0] <= c.at[0] && c.at[0] < p.fp[2] && p.fp[1] <= c.at[1] && c.at[1] < p.fp[3])!
+      expect(sofa).toBeTruthy()
+      // the sitter sorts before the sofa: its backrest hides the sitter's back
+      expect(depthSort([{ fp: sofa.fp }, { fp: c.fp }])[0].fp).toBe(c.fp)
+      expect(ATLAS.frames[`char/0/${c.dir}/${c.pose}`]).toBeTruthy()
+    }
+  })
+
+  it('o quadro de rotinas tem a tela na face dele, e o elevador abre em dois quadros', () => {
+    const [x0, x1, y, z0, z1] = CASA.totem
+    expect(x1 - x0).toBeGreaterThanOrEqual(11) // three 3x5 glyphs
+    expect(z1 - z0).toBeGreaterThan(7)
+    expect(y).toBeGreaterThan(0)
+    expect(CASA.elevator.open).toHaveLength(2)
+    for (const d of CASA.elevator.open) expect(ATLAS.frames[d.f]).toBeTruthy()
+  })
+
+  it('o atlas tem digitando, caído e os efeitos da caveira', () => {
+    for (const f of ['char/3/FL/typeF', 'char/3/BR/typeB', 'char/3/down', 'fx/skull', 'fx/ghost', 'fx/puff'])
+      expect(ATLAS.frames[f], f).toBeTruthy()
+  })
+})
+
 describe('layout 2D da Casa', () => {
   it('tem 24x18 tiles, o elevador no fundo do hall e as duas meias-paredes com portas', () => {
     expect(CASA.size).toEqual([24, 18])
@@ -144,7 +172,6 @@ describe('plano da Casa 2D', () => {
   it('quem fica à toa vai aos sofás, aos fliperamas e ao canto de leitura', () => {
     expect(plan.hang.map((h) => h.kind)).toContain('play')
     expect(plan.hang.filter((h) => h.kind === 'sit').length).toBeGreaterThanOrEqual(4)
-    expect(plan.desks).toEqual([])
     expect(plan.overflow.length).toBeGreaterThan(3)
   })
 })
@@ -213,6 +240,18 @@ describe('cores do visual nos sprites', () => {
     // transparent pixels stay as they are
     expect([...px.slice(4)]).toEqual([0, 0, 0, 0])
     expect(map.size).toBeGreaterThan(30)
+  })
+
+  it('o canto meio transparente do contorno também muda de cor (o canvas arredonda o RGB)', () => {
+    const map = recolourMap(luna, look)
+    // the shirt base read back from a 50% alpha pixel, a couple of levels off
+    const px = new Uint8ClampedArray([0x7c + 2, 0xc4 - 1, 0xbc, 128])
+    recolour(px, map)
+    expect([...px]).toEqual([0xe8, 0x6a, 0x5a, 128])
+    // an opaque pixel off by the same amount is not part of the character: it stays
+    const solid = new Uint8ClampedArray([0x7c + 2, 0xc4 - 1, 0xbc, 255])
+    recolour(solid, map)
+    expect([...solid]).toEqual([0x7c + 2, 0xc4 - 1, 0xbc, 255])
   })
 
   it('uma cor ilegível deixa aquela parte como estava', () => {
