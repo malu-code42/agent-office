@@ -29,6 +29,33 @@ export interface AgendaView {
   week: AgendaDay[]
   /** Lines before any date heading, or under a heading that is not a date. They are shown, never dropped. */
   undated: AgendaEntry[]
+  /** Done vs planned per day of `week`; only the dated read (readAgendaForDate) fills it. */
+  progress?: AgendaProgress
+}
+
+/** One day of the week dashboard: what was done that day and what was planned for it (done never exceeds planned). */
+export interface AgendaDayProgress {
+  date: string
+  done: number
+  planned: number
+}
+
+export interface AgendaProgress {
+  days: AgendaDayProgress[]
+  /** Tasks of tarefas.md completed (✅) on a day of the week, routine tasks excluded. */
+  tasksDone: number
+  /** Tasks of tarefas.md discarded (❌) on a day of the week. */
+  tasksDiscarded: number
+  routinesDone: number
+  routinesPlanned: number
+}
+
+/** A personal-routine occurrence placed on a day of the week, and whether it was marked done. */
+export interface RoutineMark {
+  day: string
+  done: boolean
+  /** The tarefas.md task the occurrence created, so its ✅ is not counted twice. */
+  taskId?: string
 }
 
 export interface ClassRule {
@@ -243,4 +270,55 @@ export function buildAgendaView(agenda: string | null, tasks: string, today: Dat
     week: week.map(dayOf),
     undated: undated.map(resolve),
   }
+}
+
+/** ISO day of a ✅/❌ date, which tarefas.md writes as AAAA-MM-DD or DD.MM.AAAA. */
+const isoOfMark = (date: string): string => (date.includes('.') ? `${date.slice(6, 10)}-${date.slice(3, 5)}-${date.slice(0, 2)}` : date)
+
+/**
+ * Done vs planned for each day of `week`. Planned: the agenda items of the day plus the routine occurrences placed
+ * on it. Done: commitments and classes whose time has passed, tasks completed that day (✅ date in tarefas.md,
+ * scheduled or not) and routine occurrences marked done. A day never shows more done than planned.
+ */
+export function weekProgress(week: AgendaDay[], tasks: string, routines: RoutineMark[], now: Date): AgendaProgress {
+  const today = isoDay(now)
+  const nowHm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  const routineTasks = new Set(routines.flatMap((mark) => (mark.taskId ? [mark.taskId.toLowerCase()] : [])))
+  const completedOn = new Map<string, number>()
+  const inWeek = new Set(week.map((day) => day.date))
+  let tasksDiscarded = 0
+  for (const list of parseTasksFile(tasks).lists) {
+    for (const task of list.tasks) {
+      if (!task.completedDate || (task.id && routineTasks.has(task.id.toLowerCase()))) continue
+      const day = isoOfMark(task.completedDate)
+      if (!inWeek.has(day)) continue
+      if (task.status === 'completed') completedOn.set(day, (completedOn.get(day) ?? 0) + 1)
+      else if (task.status === 'discarded') tasksDiscarded++
+    }
+  }
+  let tasksDone = 0
+  let routinesDone = 0
+  let routinesPlanned = 0
+  const days = week.map((day): AgendaDayProgress => {
+    let planned = 0
+    let done = completedOn.get(day.date) ?? 0
+    tasksDone += done
+    for (const entry of day.entries) {
+      if (entry.kind === 'unknown') continue
+      if (entry.kind === 'task' && routineTasks.has(entry.id.toLowerCase())) continue
+      planned++
+      if (entry.kind !== 'task' && (day.date < today || (day.date === today && entry.time <= nowHm))) done++
+    }
+    for (const mark of routines) {
+      if (mark.day !== day.date) continue
+      planned++
+      routinesPlanned++
+      if (mark.done) {
+        done++
+        routinesDone++
+      }
+    }
+    return { date: day.date, done, planned: Math.max(planned, done) }
+  })
+  return { days, tasksDone, tasksDiscarded, routinesDone, routinesPlanned }
 }

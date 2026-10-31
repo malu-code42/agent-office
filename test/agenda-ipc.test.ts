@@ -153,6 +153,17 @@ describe('agenda IPC', () => {
     expect(view.week[6]!.date).toBe('2026-11-01')
   })
 
+  it('readAgendaForDate traz concluídos e previstos da semana, com as tarefas concluídas do tarefas.md', async () => {
+    writeFileSync(join(vault, 'agenda.md'), '## 2025-10-28\n- 09:00 Dentista\n')
+    writeFileSync(join(vault, 'tarefas.md'), '## Hoje\n- [x] Pagar boleto ✅ 2025-10-29\n')
+    settings.vaultPath = vault
+
+    const view = (await invoke('office:readAgendaForDate', '2025-10-29')) as View
+
+    expect(view.progress!.days.map((day) => `${day.done}/${day.planned}`)).toEqual(['0/0', '1/1', '1/1', '0/0', '0/0', '0/0', '0/0'])
+    expect(view.progress!.tasksDone).toBe(1)
+  })
+
   it('readAgendaForDate recusa datas impossíveis (ex. 2026-02-31)', async () => {
     settings.vaultPath = vault
 
