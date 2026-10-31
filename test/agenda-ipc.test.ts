@@ -53,6 +53,7 @@ type View = {
   today: { date: string; entries: unknown[] }
   week: { date: string; entries: unknown[] }[]
   undated: unknown[]
+  progress?: { days: { date: string; done: number; planned: number }[]; tasksDone: number }
 }
 
 describe('agenda IPC', () => {

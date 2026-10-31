@@ -54,6 +54,11 @@ class FakeNode {
   set innerHTML(_html: string) {}
 }
 
+// The DOM modules load by a computed path, so the type check of the tests (no DOM lib) does not pull them in.
+const DROPDOWN = '../src/renderer/src/ui/dropdown'
+const BRAIN = '../src/renderer/src/ui/modals/brain'
+type FakeOption = { selected: boolean; textContent: string; dataset: Record<string, string> }
+
 async function withFakeDom<T>(run: () => Promise<T>): Promise<T> {
   const g = globalThis as Record<string, unknown>
   g.document = { createElement: (tag: string) => new FakeNode(tag), createElementNS: (_ns: string, tag: string) => new FakeNode(tag) }
@@ -69,7 +74,7 @@ async function withFakeDom<T>(run: () => Promise<T>): Promise<T> {
 describe('optionBody', () => {
   it('desenha a dica do <option> (data-hint) apagada ao lado do rótulo, fora do texto da opção', async () => {
     await withFakeDom(async () => {
-      const { optionBody } = await import('../src/renderer/src/ui/dropdown')
+      const { optionBody } = (await import(/* @vite-ignore */ DROPDOWN)) as { optionBody: (opt: FakeOption) => unknown[] }
       const parts = optionBody({ selected: true, textContent: 'Equilibrada', dataset: { hint: 'padrão' } }) as unknown as FakeNode[]
       expect(parts.map((p) => p.className)).toEqual(['dd-check', 'dd-label', 'dd-hint grow'])
       expect(parts[1]!.textContent).toBe('Equilibrada')
@@ -83,7 +88,10 @@ describe('optionBody', () => {
 describe('modeOptions', () => {
   it('marca como "padrão" só o modo que vale quando ninguém escolhe', async () => {
     await withFakeDom(async () => {
-      const { MODES, modeOptions } = await import('../src/renderer/src/ui/modals/brain')
+      const { MODES, modeOptions } = (await import(/* @vite-ignore */ BRAIN)) as {
+        MODES: { value: string; label: string }[]
+        modeOptions: (modes: { value: string; label: string }[], fallback: string, hint?: string) => unknown[]
+      }
       const options = modeOptions(MODES, 'acceptEdits') as unknown as FakeNode[]
       expect(options.filter((o) => o.getAttribute('data-hint')).map((o) => [o.textContent, o.getAttribute('data-hint')])).toEqual([
         ['Editar livremente', 'padrão'],
