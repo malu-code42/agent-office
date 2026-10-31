@@ -27,7 +27,9 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.292",
+    "@napi-rs/canvas": "1.0.11",
     "electron-updater": "^6.8.9",
+    "tesseract.js": "7.0.0",
     "unpdf": "1.8.1",
     "yaml": "^2.9.1",
     "zod": "^4.6.5"

@@ -17,7 +17,7 @@ import { writeFileAtomicChecked } from './fs-safe'
 import type { StudyNoteWriter } from './study-cycle'
 import { scoreStudyText, studySnippet, tokenizeStudyQuery, type StudyLibraryHit, type StudyLibrarySearch } from '@shared/study-library'
 import { rankStudySources, type StudySourceDoc, type StudySourceRecommendations } from '@shared/study-sources'
-import { type PdfExtractor } from './study-pdf'
+import { type PdfExtractor, type PdfOcrJob } from './study-pdf'
 import { markdownUnits, PdfTextCache, pdfSearchText, pdfUnits, pptxText, slideUnits, textUnits } from './study-source-text'
 
 const SOURCE_DIR = 'study sources'
@@ -31,7 +31,7 @@ const MAX_HITS_PER_FILE = 4
 /** A deck is a zip of slides: it can be large on disk (images) for little text. */
 const MAX_DECK_BYTES = 64 * 1024 * 1024
 /** A PDF is mostly images and fonts on disk; its text is what counts against the search budget. */
-const MAX_PDF_BYTES = 128 * 1024 * 1024
+const MAX_PDF_BYTES = 256 * 1024 * 1024
 /** How long one search waits for PDFs never parsed before; the rest are read in the background. */
 const PDF_COLD_BUDGET_MS = 15_000
 const TEXT_EXTENSIONS = new Set(['.md', '.markdown', '.txt'])
@@ -84,10 +84,10 @@ export class StudyLibrary {
    * `pdf.cacheDir`: where PDF pages are cached (the app data folder; without it PDFs are parsed on
    * every search). `pdf.extract`: the parser (the app's worker thread; in-thread by default).
    */
-  constructor(vault: string, pdf: { cacheDir?: string; extract?: PdfExtractor } = {}) {
+  constructor(vault: string, pdf: { cacheDir?: string; extract?: PdfExtractor; ocr?: (job: PdfOcrJob) => void } = {}) {
     this.vault = realpathSync(resolve(vault))
     this.sourceRoot = join(this.vault, SOURCE_DIR)
-    this.pdf = new PdfTextCache(pdf.cacheDir, pdf.extract)
+    this.pdf = new PdfTextCache(pdf.cacheDir, pdf.extract, pdf.ocr)
   }
 
   async search(query: string): Promise<StudyLibrarySearch> {

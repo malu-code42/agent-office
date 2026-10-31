@@ -8,6 +8,7 @@ import { parseStudyTrail, STUDY_TRAIL_FILE } from '@shared/study-trail'
 import { routineWeekMarks } from '@shared/routine-personal'
 import { personalRoutineOverview } from '../routines-personal'
 import { openPdfAtPage } from '../pdf-viewer'
+import { pdfOcrQueue, workerOcrRunner } from '../study-ocr'
 import { focusItems, focusKey } from '@shared/planning'
 import { ARCHIVE_LIST, parseTasksFile, type TaskList, type TaskRef } from '@shared/tasks'
 import type { Proposal } from '@shared/proposals'
@@ -90,6 +91,8 @@ export function registerTasksIpc(ctx: IpcContext): void {
   const pdfCacheDir = join(ctx.store.dataDirectory, 'study-pdf-cache')
   // pdf.js runs in a worker thread, so a first read of a big library never freezes the window.
   const extractPdf = workerPdfExtractor()
+  // Scanned PDFs (pages without text) are read by OCR, one at a time in the background; local only.
+  const ocrPdf = pdfOcrQueue(pdfCacheDir, workerOcrRunner(join(ctx.store.dataDirectory, 'ocr-lang')))
   const read = (vaultPath: unknown) => readTasksAt(writer, vaultPath)
   const requireVault = (): string => {
     const vaultPath = ctx.store.settings.vaultPath
@@ -100,7 +103,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const vault = requireVault()
     let service = studyServices.get(vault)
     if (!service) {
-      service = new StudyQuestionService(vault, claudeStudyQuestionProviders(), { pdfCacheDir, extractPdf })
+      service = new StudyQuestionService(vault, claudeStudyQuestionProviders(), { pdfCacheDir, extractPdf, ocrPdf })
       studyServices.set(vault, service)
     }
     return service
@@ -121,7 +124,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const vault = requireVault()
     let library = studyLibraries.get(vault)
     if (!library) {
-      library = new StudyLibrary(vault, { cacheDir: pdfCacheDir, extract: extractPdf })
+      library = new StudyLibrary(vault, { cacheDir: pdfCacheDir, extract: extractPdf, ocr: ocrPdf })
       studyLibraries.set(vault, library)
     }
     return library

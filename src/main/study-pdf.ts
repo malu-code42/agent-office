@@ -46,9 +46,35 @@ interface CacheEntry {
   pages: string[]
   /** The file could not be parsed: remembered, so a broken PDF is not parsed on every search. */
   failed?: boolean
+  /** The pages without text went through OCR already (study-ocr.ts). */
+  ocr?: boolean
 }
 
-type FileInfo = { mtimeMs: number; size: number }
+export type FileInfo = { mtimeMs: number; size: number }
+
+/** A page with fewer characters than this has no text layer (a scan, an image, a blank page). */
+const EMPTY_PAGE_CHARS = 40
+/** OCR runs when at least this share of a PDF's pages has no text: a scan, not a few blank pages. */
+const OCR_EMPTY_SHARE = 0.2
+
+/** The indexes (0-based) of the pages without a text layer. */
+export function pagesWithoutText(pages: string[]): number[] {
+  return pages.flatMap((text, i) => (text.trim().length < EMPTY_PAGE_CHARS ? [i] : []))
+}
+
+/** Whether a PDF looks scanned: enough of its pages have no text for OCR to be worth it. */
+export function needsOcr(pages: string[]): boolean {
+  const empty = pagesWithoutText(pages).length
+  return empty > 0 && empty >= pages.length * OCR_EMPTY_SHARE
+}
+
+/** A scanned PDF handed to OCR; `finish` stores its pages with the recognised text. */
+export interface PdfOcrJob {
+  key: string
+  path: string
+  pages: string[]
+  finish(pages: string[]): void
+}
 
 /** PDF pages cached on disk (one JSON per file version). Without a folder it only parses. */
 export class PdfTextCache {
@@ -58,6 +84,8 @@ export class PdfTextCache {
   constructor(
     private readonly dir?: string,
     private readonly extract: PdfExtractor = pdfPages,
+    /** Queues a scanned PDF for OCR (in the background; the pages without text stay empty until then). */
+    private readonly ocr?: (job: PdfOcrJob) => void,
   ) {}
 
   /** The pages of `path`, whose bytes are `read()` only on a cache miss. */
@@ -100,13 +128,16 @@ export class PdfTextCache {
     }
     if (entry.path !== path || entry.mtimeMs !== info.mtimeMs || entry.size !== info.size || !Array.isArray(entry.pages)) return null
     if (entry.failed) throw new Error('PDF ilegível.')
-    return entry.pages.map(String)
+    const pages = entry.pages.map(String)
+    if (!entry.ocr) this.queueOcr(path, info, pages)
+    return pages
   }
 
   private async parse(path: string, info: FileInfo, read: () => Buffer): Promise<string[]> {
     try {
       const pages = await this.extract(read())
       this.save(path, info, pages, false)
+      this.queueOcr(path, info, pages)
       return pages
     } catch (error) {
       // A worker restart is not the file's fault; anything else marks this version unreadable.
@@ -115,12 +146,17 @@ export class PdfTextCache {
     }
   }
 
-  private save(path: string, info: FileInfo, pages: string[], failed: boolean): void {
+  private queueOcr(path: string, info: FileInfo, pages: string[]): void {
+    if (!this.ocr || !this.dir || !needsOcr(pages)) return
+    this.ocr({ key: this.key(path, info), path, pages, finish: (done) => this.save(path, info, done, false, true) })
+  }
+
+  private save(path: string, info: FileInfo, pages: string[], failed: boolean, ocr = false): void {
     const file = this.file(path, info)
     if (!file || !this.dir) return
     try {
       if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
-      const entry: CacheEntry = { path, mtimeMs: info.mtimeMs, size: info.size, pages, ...(failed ? { failed } : {}) }
+      const entry: CacheEntry = { path, mtimeMs: info.mtimeMs, size: info.size, pages, ...(failed ? { failed } : {}), ...(ocr ? { ocr } : {}) }
       writeFileAtomic(file, JSON.stringify(entry))
     } catch {
       // The cache is a speed-up only: a failed write leaves the next search to parse again.
