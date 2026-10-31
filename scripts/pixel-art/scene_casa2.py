@@ -34,7 +34,8 @@ VOCE_DESK = (70, 266, 36)
 # footprints of the clickable furniture (export_app.py tags the items with these)
 SKULL = (146, 20, 154, 28)
 RADIO = (2, 30, 14, 64)
-TOTEM = (206, 70, 220, 80)
+# the 'Rotinas de agentes' board: in the back corner of Luna's table room, by the half wall, clear of the doors and chairs
+TOTEM = (142, 100, 156, 110)
 WRITING = (306, 14, 322, 50)
 FILMS_TV = (228, 120, 238, 146)
 ARCADES = [(228, 216, 238, 228), (228, 232, 238, 244), (228, 248, 238, 260)]
@@ -205,7 +206,7 @@ def build():
     half_wall(sc, 1)
     media(sc)
     # plaques of the preview (the app shows names on hover instead)
-    sc.label('Rotinas de agentes', 213, 74, 40)
+    sc.label('Rotinas de agentes', 149, 104, 40)
     sc.label('Entrada', 192, 284)
     for a_, b_, _act, n in BOARDS:
         sc.label(n, (a_ + b_) / 2, 0, WALL_H + 2, dy=-6)

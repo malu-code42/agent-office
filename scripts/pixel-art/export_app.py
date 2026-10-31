@@ -440,7 +440,7 @@ def casa(L, place, items, seat):
     # tags (HTML) over the clickable things: art units x, y and height
     tags = {n: [(a + b) / 2, 0, 46] for a, b, _act, n in C.BOARDS}
     tags.update({
-        'Claude FM': [8, 47, 34], 'Caveira': [150, 24, 34], 'Rotinas de agentes': [213, 74, 40],
+        'Claude FM': [8, 47, 34], 'Caveira': [150, 24, 34], 'Rotinas de agentes': [149, 104, 40],
         'Novo agente': [80, 270, 40], 'Livros': [306, 4, 44], 'Escrita': [314, 32, 30],
         'Filmes': [233, 133, 34], 'Jogos': [233, 238, 38], 'Gastos': [218, 0, 54], 'Alarme': [168, 0, 54],
     })
