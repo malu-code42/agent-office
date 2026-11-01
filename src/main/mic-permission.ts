@@ -17,6 +17,15 @@ export function allowMicrophone(req: MediaRequest, devUrl = process.env.ELECTRON
   return isOwnPage(req.url, devUrl)
 }
 
+/**
+ * The app's permission handlers: only `media` (microphone, camera, screen) goes through
+ * allowMicrophone. Everything else keeps Electron's default (allowed), as before voice mode:
+ * the copy buttons need `clipboard-sanitized-write`, and the radio needs fullscreen.
+ */
+export function allowPermission(req: MediaRequest, devUrl = process.env.ELECTRON_RENDERER_URL): boolean {
+  return req.permission === 'media' ? allowMicrophone(req, devUrl) : true
+}
+
 function isOwnPage(url: string, devUrl?: string): boolean {
   let page: URL
   try {

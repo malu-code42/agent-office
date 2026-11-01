@@ -59,7 +59,7 @@ import { registerGoalsIpc } from './ipc/goals'
 import { registerTicketsIpc } from './ipc/tickets'
 import { registerWorktreesIpc } from './ipc/worktrees'
 import { registerVoiceIpc } from './ipc/voice'
-import { allowMicrophone } from './mic-permission'
+import { allowPermission } from './mic-permission'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
 let win: BrowserWindow | null = null
@@ -628,11 +628,11 @@ app.whenReady().then(async () => {
   // Modo voz: do Chromium, só o microfone e só para a página do próprio app.
   session.defaultSession.setPermissionRequestHandler((_wc, permission, cb, details) => {
     const d = details as { requestingUrl?: string; mediaTypes?: string[] }
-    cb(allowMicrophone({ permission, url: d.requestingUrl ?? '', mediaTypes: d.mediaTypes ?? [] }))
+    cb(allowPermission({ permission, url: d.requestingUrl ?? '', mediaTypes: d.mediaTypes ?? [] }))
   })
   session.defaultSession.setPermissionCheckHandler((_wc, permission, origin, details) => {
     const d = details as { requestingUrl?: string; mediaType?: string }
-    return allowMicrophone({ permission, url: d.requestingUrl || origin, mediaTypes: d.mediaType ? [d.mediaType] : [] })
+    return allowPermission({ permission, url: d.requestingUrl || origin, mediaTypes: d.mediaType ? [d.mediaType] : [] })
   })
 
   // YouTube refuses embeds without a web Referer (error 153), and file:// sends none.

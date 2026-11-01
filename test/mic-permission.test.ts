@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { allowMicrophone } from '../src/main/mic-permission'
+import { allowMicrophone, allowPermission } from '../src/main/mic-permission'
 
 const PAGE = 'file:///C:/app/resources/app.asar/out/renderer/index.html'
 
@@ -19,6 +19,13 @@ describe('permissão do microfone', () => {
   it('nega outras origens, como o iframe do rádio', () => {
     expect(allowMicrophone({ permission: 'media', url: 'https://www.youtube-nocookie.com/embed/x', mediaTypes: ['audio'] }, undefined)).toBe(false)
     expect(allowMicrophone({ permission: 'media', url: 'não é url', mediaTypes: ['audio'] }, undefined)).toBe(false)
+  })
+  it('os handlers do app mantêm o resto como antes: copiar e tela cheia continuam liberados', () => {
+    for (const p of ['clipboard-sanitized-write', 'fullscreen'])
+      expect(allowPermission({ permission: p, url: PAGE, mediaTypes: [] }, undefined)).toBe(true)
+    expect(allowPermission({ permission: 'media', url: PAGE, mediaTypes: ['audio'] }, undefined)).toBe(true)
+    expect(allowPermission({ permission: 'media', url: 'https://www.youtube-nocookie.com/embed/x', mediaTypes: ['audio'] }, undefined)).toBe(false)
+    expect(allowPermission({ permission: 'media', url: PAGE, mediaTypes: ['video'] }, undefined)).toBe(false)
   })
   it('em desenvolvimento, só a origem do servidor da página', () => {
     const dev = 'http://localhost:5173'
