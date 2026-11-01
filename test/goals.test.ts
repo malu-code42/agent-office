@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { appendGoal, goalProgress, linkGoalTask, parseGoals, serializeGoals, setGoalMilestone } from '../src/shared/goals'
 import { createGoalsWriter } from '../src/main/goals-write'
 import { parseTasksFile } from '../src/shared/tasks'
+import { parseStudyTrail, trailGoalTopics } from '../src/shared/study-trail'
 
 const ID = 'gabc12345'
 const START = [
@@ -204,5 +205,35 @@ describe('objetivos.txt (checklist simples)', () => {
         .read(vault)
         .goals.map((g) => g.id),
     ).toEqual([ID])
+  })
+})
+
+describe('objetivo ligado à trilha de estudo', () => {
+  const TRAIL = [
+    '## 2º período',
+    '### [P2-ED] Estrutura de Dados — 45 h',
+    '- [ ] [P2-ED-01] Introdução.',
+    '- [x] [P2-ED-02] Recursividade.',
+    '### [P2-CS] Sociedade — 60 h',
+    '- [ ] [P2-CS-01] Formação.',
+  ].join('\n')
+  const cycle = (topic: string, stage: string) => ({ id: topic, topic, stage, updatedAt: new Date(2026, 10, 3, 10).getTime() })
+
+  it('lê a linha Trilha e conta só os tópicos com ciclo concluído (a caixa da trilha não conta)', () => {
+    const goal = parseGoals(['## Meta', `- ID: ${ID}`, '- Alvo: x', '- Prazo: 2027-06-30', '- Estado: ativo', '- Trilha: P2-ED', ''].join('\n')).goals[0]!
+    expect(goal.trail).toEqual(['P2-ED'])
+    const topics = trailGoalTopics(parseStudyTrail(TRAIL), { activeId: null, cycles: [cycle('[P2-ED-01] Introdução', 'completed')] }, goal.trail!)
+    expect(topics.map((t) => [t.label, t.done, t.day])).toEqual([
+      ['[P2-ED-01] Introdução', true, '2026-11-03'],
+      ['[P2-ED-02] Recursividade', false, undefined],
+    ])
+    expect(goalProgress({ ...goal, trailTopics: topics }, new Set())).toEqual({ complete: 1, total: 2, percent: 50 })
+  })
+})
+
+describe('objetivo alcançado', () => {
+  it('mostra 100% mesmo sem marcos nem tarefas', () => {
+    const goal = parseGoals(['## Meta', `- ID: ${ID}`, '- Alvo: x', '- Prazo: 2026-10-31', '- Estado: alcançado', ''].join('\n')).goals[0]!
+    expect(goalProgress(goal, new Set())).toEqual({ complete: 1, total: 1, percent: 100 })
   })
 })

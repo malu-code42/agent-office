@@ -25,7 +25,7 @@ export interface ClassScheduleView {
   /** False when the vault has no aulas.md. */
   found: boolean
   warnings: string[]
-  /** Monday to Saturday of the week of `today`, and Sunday too when a class falls on it. */
+  /** Monday to Friday of the week of `today`, and Saturday and Sunday too when a class falls on them. */
   days: ClassScheduleDay[]
   /** Every time of the week, sorted: the rows of the grid. */
   times: string[]
@@ -65,8 +65,8 @@ export function buildClassSchedule(source: string | null, today: Date): ClassSch
       .sort((a, b) => a.time.localeCompare(b.time) || a.topic.localeCompare(b.topic, 'pt-BR'))
     return { date, label: LABELS[day.getDay()]!, today: date === todayKey, classes }
   })
-  // Sunday is the 7th column only when something happens on it.
-  const shown = days[6]!.classes.length ? days : days.slice(0, 6)
+  // Saturday and Sunday are columns only when a class falls on them.
+  const shown = days.filter((day, i) => i < 5 || day.classes.length)
   const times = [...new Set(shown.flatMap((day) => day.classes.map((slot) => slot.time)))].sort()
   return { found: source !== null, warnings: parsed.warnings, days: shown, times }
 }

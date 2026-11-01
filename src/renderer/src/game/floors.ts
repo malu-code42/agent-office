@@ -4,6 +4,7 @@ import { PROJECT_LAYOUT } from '../world2d/atlas'
 import { buildFloor2d } from '../world2d/floor'
 import { projectPlan2d } from '../world2d/layout'
 import { emiAgentId } from '@shared/emi'
+import { LUNA_AGENT_ID } from '@shared/luna'
 import { Point3, Tag } from '../world2d/overlays'
 import { GameBase } from './base'
 import { floorsKey, issuesToken } from './floor-key'
@@ -231,7 +232,7 @@ export abstract class GameFloors extends GameBase {
   /** Only the floor the player is on is drawn, with its tags. */
   protected showFloor(): void {
     const view = this.player.floor
-    for (const tag of this.homeSceneTags) tag.hidden = view !== 0
+    for (const tag of this.homeSceneTags) tag.hidden = view !== 0 || (tag === this.lunaTag && this.actors.has(LUNA_AGENT_ID))
     for (const a of this.actors.values()) {
       const here = a.avatar.floor === view
       a.avatar.visible = here

@@ -313,11 +313,30 @@ export class Dialog {
           o.description ? h('div', { class: 'q-desc' }, o.description) : null,
         )
         b.dataset.label = o.label
+        // Enter on an option answers with it (adding it first, unless a multiple choice already has marks).
+        b.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter' || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || e.isComposing) return
+          e.preventDefault()
+          e.stopPropagation()
+          if (!q.multiSelect) {
+            chosen.clear()
+            other.value = ''
+          }
+          if (!q.multiSelect || !chosen.size) chosen.add(o.label)
+          buttons.forEach((x) => x.classList.toggle('on', chosen.has(x.dataset.label ?? '')))
+          submit()
+        })
         buttons.push(b)
         opts.append(b)
       }
       const other = h('input', { class: 'input', placeholder: 'Outra resposta…' })
-      other.addEventListener('keydown', (e) => e.stopPropagation())
+      other.addEventListener('keydown', (e) => {
+        e.stopPropagation()
+        if (e.key === 'Enter' && !e.isComposing && !e.shiftKey) {
+          e.preventDefault()
+          submit()
+        }
+      })
       other.addEventListener('input', () => {
         if (other.value && !q.multiSelect) {
           chosen.clear()
@@ -342,6 +361,7 @@ export class Dialog {
       }
       this.decide({ requestId: p.id, behavior: 'allow', answers: result })
     }
+    this.keys = { allow: submit }
     this.frame(
       agent,
       'veio te fazer uma pergunta',

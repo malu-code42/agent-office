@@ -8,7 +8,7 @@ export type AgendaLine =
 export type AgendaEntry =
   | { kind: 'commitment'; time: string; title: string; conflict?: true }
   | { kind: 'task'; time: string; id: string; text: string | null; conflict?: true }
-  | { kind: 'class'; id: string; time: string; title: string; conflict?: true }
+  | { kind: 'class'; id: string; time: string; title: string; attended?: true; conflict?: true }
   | { kind: 'unknown'; text: string }
 
 export interface AgendaDay {
@@ -74,13 +74,15 @@ export interface ClassException {
 export interface ParsedClasses {
   rules: ClassRule[]
   exceptions: ClassException[]
+  /** `id/AAAA-MM-DD` of each class the user said she went to. */
+  attended: Set<string>
   warnings: string[]
 }
 
 const CLASS_RULE =
   /^- id: ([a-z][a-z0-9-]{1,39}) \| dia: (segunda|terça|quarta|quinta|sexta|sábado|domingo) \| hora: (\d{2}:\d{2}) \| título: (.+)$/i
 const CLASS_EXCEPTION =
-  /^- id: ([a-z][a-z0-9-]{1,39}) \| data: (\d{4}-\d{2}-\d{2}) \| (cancelar|hora: (\d{2}:\d{2})(?: \| título: (.+))?|título: (.+))$/i
+  /^- id: ([a-z][a-z0-9-]{1,39}) \| data: (\d{4}-\d{2}-\d{2}) \| (cancelar|presença|hora: (\d{2}:\d{2})(?: \| título: (.+))?|título: (.+))$/i
 const WEEKDAY = new Map([
   ['segunda', 1],
   ['terça', 2],
@@ -97,9 +99,10 @@ const WEEKDAY = new Map([
  * Unknown or invalid non-empty lines are returned as warnings, never silently discarded.
  */
 export function parseClasses(source: string | null): ParsedClasses {
-  if (source === null) return { rules: [], exceptions: [], warnings: [] }
+  if (source === null) return { rules: [], exceptions: [], attended: new Set(), warnings: [] }
   const rules: ClassRule[] = []
   const exceptions: ClassException[] = []
+  const attended = new Set<string>()
   const warnings: string[] = []
   const ids = new Set<string>()
   const exceptionKeys = new Set<string>()
@@ -127,6 +130,11 @@ export function parseClasses(source: string | null): ParsedClasses {
       const id = exception[1]!.toLowerCase()
       const date = exception[2]!
       const key = `${id}/${date}`
+      if (exception[3]!.toLowerCase() === 'presença') {
+        if (!isIsoDate(date)) warnings.push(`Linha ${index + 1}: data inválida em aulas.md (${date}).`)
+        else attended.add(key)
+        continue
+      }
       if (!isIsoDate(date)) warnings.push(`Linha ${index + 1}: data inválida em aulas.md (${date}).`)
       else if (exceptionKeys.has(key)) warnings.push(`Linha ${index + 1}: exceção duplicada para ${id} em ${date}.`)
       else if (exception[3]!.toLowerCase() !== 'cancelar' && exception[4] && !TIME_FORMAT.test(exception[4]))
@@ -153,7 +161,8 @@ export function parseClasses(source: string | null): ParsedClasses {
   }
   for (const exception of exceptions)
     if (!ids.has(exception.id)) warnings.push(`Exceção sem regra correspondente: ${exception.id} em ${exception.date}.`)
-  return { rules, exceptions, warnings }
+  for (const key of attended) if (!ids.has(key.slice(0, key.indexOf('/')))) warnings.push(`Presença sem regra correspondente: ${key.replace('/', ' em ')}.`)
+  return { rules, exceptions, attended, warnings }
 }
 
 function validTitle(title: string): boolean {
@@ -241,7 +250,13 @@ export function buildAgendaView(agenda: string | null, tasks: string, today: Dat
       if (day.getDay() !== rule.weekday) continue
       const exception = exceptionMap.get(rule.id)
       if (exception?.cancelled) continue
-      const entry = { kind: 'class' as const, id: rule.id, time: exception?.time ?? rule.time, title: exception?.title ?? rule.title }
+      const entry = {
+        kind: 'class' as const,
+        id: rule.id,
+        time: exception?.time ?? rule.time,
+        title: exception?.title ?? rule.title,
+        ...(parsedClasses.attended.has(`${rule.id}/${date}`) ? { attended: true as const } : {}),
+      }
       const isClassMatch = (item: AgendaEntry): boolean =>
         'time' in item &&
         item.time === entry.time &&
@@ -277,12 +292,10 @@ const isoOfMark = (date: string): string => (date.includes('.') ? `${date.slice(
 
 /**
  * Done vs planned for each day of `week`. Planned: the agenda items of the day plus the routine occurrences placed
- * on it. Done: commitments and classes whose time has passed, tasks completed that day (✅ date in tarefas.md,
+ * on it. Done: classes the user said she attended, goals achieved that day (`goalDays`), tasks completed that day (✅ date in tarefas.md,
  * scheduled or not) and routine occurrences marked done. A day never shows more done than planned.
  */
-export function weekProgress(week: AgendaDay[], tasks: string, routines: RoutineMark[], now: Date): AgendaProgress {
-  const today = isoDay(now)
-  const nowHm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+export function weekProgress(week: AgendaDay[], tasks: string, routines: RoutineMark[], goalDays: string[] = []): AgendaProgress {
   const routineTasks = new Set(routines.flatMap((mark) => (mark.taskId ? [mark.taskId.toLowerCase()] : [])))
   const completedOn = new Map<string, number>()
   const inWeek = new Set(week.map((day) => day.date))
@@ -303,11 +316,13 @@ export function weekProgress(week: AgendaDay[], tasks: string, routines: Routine
     let planned = 0
     let done = completedOn.get(day.date) ?? 0
     tasksDone += done
+    done += goalDays.filter((goalDay) => goalDay === day.date).length
     for (const entry of day.entries) {
       if (entry.kind === 'unknown') continue
       if (entry.kind === 'task' && routineTasks.has(entry.id.toLowerCase())) continue
       planned++
-      if (entry.kind !== 'task' && (day.date < today || (day.date === today && entry.time <= nowHm))) done++
+      // Nothing is done by the clock: a class counts when the user said she went (presença in aulas.md).
+      if (entry.kind === 'class' && entry.attended) done++
     }
     for (const mark of routines) {
       if (mark.day !== day.date) continue

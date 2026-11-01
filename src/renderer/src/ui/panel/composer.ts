@@ -84,11 +84,12 @@ export abstract class PanelComposer extends PanelHead {
     if (this.terminal) return
     const luna = this.agentId && this.state.agents.get(this.agentId)?.builtIn === 'luna'
     for (const file of list) {
-      if (luna && !isAudioFile(file.name, file.type)) {
-        this.actions.toast('Anexe um arquivo de áudio para enviar à Luna.', 'err')
+      const audio = isAudioFile(file.name, file.type)
+      if (luna && !audio && kindFromName(file.name, file.type) !== 'image') {
+        this.actions.toast('Anexe um áudio ou uma imagem para enviar à Luna.', 'err')
         continue
       }
-      if (luna && file.size > AUDIO_MAX_BYTES) {
+      if (luna && audio && file.size > AUDIO_MAX_BYTES) {
         this.actions.toast('O áudio precisa ter até 20 MB.', 'err')
         continue
       }
@@ -187,8 +188,8 @@ export abstract class PanelComposer extends PanelHead {
       if (this.lunaOpen && !files.length && text.startsWith('/') && (await this.command(agentId, text))) return
       const attachments: AttachmentInput[] = await Promise.all(
         files.map(async (f) => {
-          return f.path && !lunaAudio
-            ? { name: f.name, mime: f.file.type, path: f.path }
+          return f.path && !(lunaAudio && isAudioFile(f.name, f.file.type))
+            ?{ name: f.name, mime: f.file.type, path: f.path }
             : { name: f.name, mime: f.file.type, dataBase64: await toBase64(f.file) }
         }),
       )

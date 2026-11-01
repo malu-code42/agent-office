@@ -63,6 +63,11 @@ export abstract class GameDeliveries extends GameLounge {
     const items = this.state.itemsFor(a.id)
     let text: string | null = null
     let kind: BubbleKind = 'work'
+    if (a.builtIn === 'luna' && !items.permissions.length && !items.results.length) {
+      // Her tag only speaks for the review of the day; what she is doing shows on the pixel bubble.
+      actor.tag.setBubble(this.state.reviewDue ? '! Revisão do dia' : null, 'wait')
+      return
+    }
     if (items.permissions.length) {
       const p = items.permissions[0]
       text = p.kind === 'question' ? '? Tenho uma pergunta' : p.kind === 'plan' ? '! Tenho um plano' : '! Preciso da sua permissão'

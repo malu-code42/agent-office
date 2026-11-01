@@ -3,8 +3,10 @@ import { join } from 'node:path'
 import { dialog, ipcMain, shell } from 'electron'
 import { z } from 'zod'
 import { buildAgendaView, weekProgress } from '@shared/agenda'
+import { GOALS_FILES, parseGoals } from '@shared/goals'
+import { achievedDates } from '../goal-dates'
 import { buildClassSchedule } from '@shared/class-schedule'
-import { parseStudyTrail, STUDY_TRAIL_FILE } from '@shared/study-trail'
+import { parseStudyTrail, STUDY_TRAIL_FILE, trailGoalTopics } from '@shared/study-trail'
 import { routineWeekMarks } from '@shared/routine-personal'
 import { personalRoutineOverview } from '../routines-personal'
 import { openPdfAtPage } from '../pdf-viewer'
@@ -587,7 +589,16 @@ export function registerTasksIpc(ctx: IpcContext): void {
     // The week dashboard compares done with planned: ✅ dates of tarefas.md, routine occurrences and past items.
     const weekDays = view.week.map((day) => day.date)
     const routines = routineWeekMarks(personalRoutineOverview(path, date, personalRoutines).rows, personalRoutines.list(), weekDays)
-    return { ...view, progress: weekProgress(view.week, tasks, routines, new Date()) }
+    const goalsText = GOALS_FILES.map((name) => readOptionalFile(path, name)).find((text) => text !== null) ?? ''
+    const goals = parseGoals(goalsText).goals
+    const dates = achievedDates(ctx.store.dataDirectory, goals, new Date())
+    // A trail topic of a goal counts on the day its study cycle concluded.
+    const trail = parseStudyTrail(readOptionalFile(path, STUDY_TRAIL_FILE))
+    const topicDays = goals.flatMap((goal) =>
+      goal.trail ? trailGoalTopics(trail, studyCycleStore.read(), goal.trail).flatMap((topic) => (topic.day ? [topic.day] : [])) : [],
+    )
+    const goalDays = [...dates.values(), ...topicDays].filter((day) => weekDays.includes(day))
+    return { ...view, progress: weekProgress(view.week, tasks, routines, goalDays) }
   })
 
   ipcMain.handle('office:focusTask', async (_e, line: unknown) => {

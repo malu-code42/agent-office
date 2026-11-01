@@ -16,6 +16,7 @@ import type {
   WorktreeInfo,
 } from '@shared/types'
 import { lookFromSeed } from '@shared/describe'
+import { isAudioFile } from '@shared/audio'
 import { buildMessage } from '../attachments'
 import { findSquad, readProgress, squadDir, type SquadDefinition } from '../squads'
 import { createWorktree } from '../git'
@@ -390,8 +391,8 @@ export abstract class AgentOffice extends AgentBase {
   sendMessage(id: string, text: string, display?: string, attachments: AttachmentInput[] = []): void | Promise<void> {
     const agent = this.agents.get(id)
     if (!agent || agent.summary.source !== 'office' || agent.summary.departed || agent.demo) return
-    // #101: Luna talks through the ordinary agent session; only audio keeps its own local workflow.
-    if (agent.summary.builtIn === 'luna' && (attachments.length || this.simulate)) {
+    // #101: Luna talks through the ordinary agent session; only audio keeps its own local workflow (images go as in any chat).
+    if (agent.summary.builtIn === 'luna' && (attachments.some((a) => isAudioFile(a.name, a.mime)) || this.simulate)) {
       const userText = display ?? text
       this.addLog(agent, 'user', attachments.length ? `${userText || 'Áudio anexado para transcrição local.'}\n[Áudio anexado]` : userText)
       this.dropResults(id)

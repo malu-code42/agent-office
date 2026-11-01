@@ -11,6 +11,15 @@ export interface GoalMilestone {
   done: boolean
 }
 
+/** A topic of the study trail that counts for a goal: done when its study cycle concluded with the retest. */
+export interface GoalTrailTopic {
+  label: string
+  discipline: string
+  done: boolean
+  /** AAAA-MM-DD the cycle concluded. */
+  day?: string
+}
+
 export interface Goal {
   id: string
   title: string
@@ -22,6 +31,12 @@ export interface Goal {
   /** Plain checklist item (`- [ ] title`): no target, deadline, milestones or tasks. `line` is its index. */
   simple?: boolean
   line?: number
+  /** AAAA-MM-DD the app first saw the goal achieved; filled by the main process, never written to the vault file. */
+  achievedDate?: string
+  /** Trail discipline ids (`- Trilha: P1-ICC, P2-ED`): the goal counts their topics too. */
+  trail?: string[]
+  /** The topics of those disciplines, filled by the main process from the trail and the cycles; never written. */
+  trailTopics?: GoalTrailTopic[]
 }
 
 export interface GoalDocument {
@@ -44,6 +59,7 @@ const DEADLINE = /^- Prazo: (\d{4}-\d{2}-\d{2})$/
 const STATUS = /^- Estado: (ativo|alcançado)$/
 const MILESTONE = /^- Marco: \[([ x])\] (.+)$/
 const TASK = /^- Tarefa: \^(t[a-z0-9]{6})$/i
+const TRAIL = /^- Trilha: (.+)$/
 const CHECKLIST = /^\s*[-*] \[([ xX])\] (.+?)\s*$/
 
 /** Stable id for a checklist goal (nothing is written to the file): FNV-1a of the title, plus the repeat count. */
@@ -76,6 +92,7 @@ export function parseGoals(text: string): GoalDocument {
         achieved: current.achieved,
         milestones: current.milestones ?? [],
         taskIds: [...new Set(current.taskIds ?? [])],
+        ...(current.trail?.length ? { trail: current.trail } : {}),
       })
     }
     start = end
@@ -112,12 +129,14 @@ export function parseGoals(text: string): GoalDocument {
     const status = STATUS.exec(line)
     const milestone = MILESTONE.exec(line)
     const task = TASK.exec(line)
+    const trail = TRAIL.exec(line)
     if (id) current.id = id[1]!
     else if (target) current.target = target[1]!.trim()
     else if (deadline && isIsoDay(deadline[1]!)) current.deadline = deadline[1]!
     else if (status) current.achieved = status[1] === 'alcançado'
     else if (milestone) current.milestones!.push({ done: milestone[1] === 'x', text: milestone[2]!.trim() })
     else if (task) current.taskIds!.push(task[1]!.toLowerCase())
+    else if (trail) current.trail = trail[1]!.split(',').map((item) => item.trim()).filter(Boolean)
   }
   finish(lines.length)
   return { lines, goals, eol, trailingNewline }
@@ -132,10 +151,13 @@ export function serializeGoals(document: GoalDocument): string {
 export function goalProgress(goal: Goal, completedTaskIds: ReadonlySet<string>): GoalProgress {
   if (goal.simple) return goal.achieved ? { complete: 1, total: 1, percent: 100 } : { complete: 0, total: 1, percent: 0 }
   const taskIds = [...new Set(goal.taskIds.map((id) => id.toLowerCase()))]
-  const total = goal.milestones.length + taskIds.length
+  const topics = goal.trailTopics ?? []
+  const total = goal.milestones.length + taskIds.length + topics.length
+  // An achieved goal is whole, whatever its marks say.
+  if (goal.achieved) return { complete: total || 1, total: total || 1, percent: 100 }
   if (total === 0) return { complete: 0, total: 0, percent: 0 }
   const completed = new Set([...completedTaskIds].map((id) => id.toLowerCase()))
-  const complete = goal.milestones.filter((milestone) => milestone.done).length + taskIds.filter((id) => completed.has(id)).length
+  const complete = goal.milestones.filter((milestone) => milestone.done).length + taskIds.filter((id) => completed.has(id)).length + topics.filter((topic) => topic.done).length
   return { complete, total, percent: Math.floor((complete / total) * 100) }
 }
 

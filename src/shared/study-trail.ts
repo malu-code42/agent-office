@@ -30,6 +30,9 @@ export interface StudyTrail {
 
 export const STUDY_TRAIL_FILE = 'trilha zettel.md'
 
+/** A topic as people read it: without the trail's code ("[P2-ED-05] Filas" → "Filas"). Display only; the label stays the key. */
+export const topicName = (label: string): string => label.replace(/^\[[^\]]+\]\s*/, '')
+
 const ITEM = /^[-*+]\s+\[( |x|X)\]\s+(?:\[([A-Za-z0-9][\w.-]{0,39})\]\s+)?(.+)$/
 const DISCIPLINE = /^###\s+(?:\[[^\]]+\]\s+)?(.+?)(?:\s+[—–-]\s+\d+\s*h)?\s*$/
 
@@ -170,4 +173,29 @@ export const STUDY_TRAIL_STATE_LABEL: Record<StudyTrailTopicState, string> = {
   completed: 'Concluído',
   checked: 'Marcado na trilha',
   new: 'Não iniciado',
+}
+
+/** The trail topics of the given discipline ids (`P2-ED`), done when their cycle concluded (the trail checkbox proves nothing), with the day it did. */
+export function trailGoalTopics(
+  trail: StudyTrail,
+  state: StudyTrailCycles,
+  disciplineIds: readonly string[],
+): { label: string; discipline: string; done: boolean; day?: string }[] {
+  const wanted = new Set(disciplineIds)
+  const day = (ms: number): string => {
+    const d = new Date(ms)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  return studyTrailBoard(trail, state)
+    .flatMap((list) => list.cards)
+    .filter((card) => card.topic.id !== null && wanted.has(card.topic.id.replace(/-\d+$/, '')))
+    .map((card) => {
+      const finished = card.state === 'completed' ? state.cycles.find((cycle) => cycle.id === card.cycleId) : undefined
+      return {
+        label: card.topic.label,
+        discipline: card.topic.discipline,
+        done: card.state === 'completed',
+        ...(finished ? { day: day(finished.updatedAt) } : {}),
+      }
+    })
 }

@@ -104,7 +104,7 @@ describe('agenda view', () => {
         ].join('\n'),
       ).warnings,
     ).toHaveLength(3)
-    expect(parseClasses(null)).toEqual({ rules: [], exceptions: [], warnings: [] })
+    expect(parseClasses(null)).toEqual({ rules: [], exceptions: [], attended: new Set(), warnings: [] })
   })
 
   it('deduplicates exact class/commitment entries and marks distinct same-time entries as conflicts', () => {
@@ -280,7 +280,7 @@ describe('weekProgress', () => {
     '- [ ] Aberta',
   ].join('\n')
 
-  it('soma concluídos e previstos por dia com tarefas, compromissos passados e rotinas', () => {
+  it('soma concluídos e previstos por dia com tarefas e rotinas; o relógio não conclui compromissos', () => {
     const view = buildAgendaView(agendaText, tasksText, now)
     const routines = [
       { day: '2026-10-26', done: true },
@@ -288,17 +288,32 @@ describe('weekProgress', () => {
       { day: '2026-10-28', done: false },
       { day: '2026-10-29', done: false },
     ]
-    const progress = weekProgress(view.week, tasksText, routines, now)
-    expect(progress.days.map((d) => `${d.done}/${d.planned}`)).toEqual(['3/3', '2/2', '1/3', '0/1', '0/1', '0/0', '0/0'])
+    const progress = weekProgress(view.week, tasksText, routines)
+    expect(progress.days.map((d) => `${d.done}/${d.planned}`)).toEqual(['2/3', '2/2', '0/3', '0/1', '0/1', '0/0', '0/0'])
     expect(progress.tasksDone).toBe(2)
     expect(progress.tasksDiscarded).toBe(1)
     expect(progress.routinesDone).toBe(2)
     expect(progress.routinesPlanned).toBe(4)
   })
 
+  it('aula passada é prevista; só conta como concluída com presença registrada', () => {
+    const classes = '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A'
+    const week = (source: string) => buildAgendaView(null, '', now, source).week
+    expect(weekProgress(week(classes), '', []).days[0]).toEqual({ date: '2026-10-26', done: 0, planned: 1 })
+    const attended = `${classes}
+- id: aula-a | data: 2026-10-26 | presença`
+    expect(weekProgress(week(attended), '', []).days[0]).toEqual({ date: '2026-10-26', done: 1, planned: 1 })
+    expect(week(attended)[0]!.entries[0]).toMatchObject({ kind: 'class', attended: true })
+  })
+
+  it('objetivo alcançado conta como concluído no dia da data ✅', () => {
+    const week = buildAgendaView(null, '', now).week
+    expect(weekProgress(week, '', [], ['2026-10-27']).days[1]).toEqual({ date: '2026-10-27', done: 1, planned: 1 })
+  })
+
   it('não mostra mais concluídos que previstos num dia', () => {
     const tasks = ['## Hoje', '- [x] A ✅ 2026-10-27', '- [x] B ✅ 2026-10-27'].join('\n')
-    expect(weekProgress(buildAgendaView(null, tasks, now).week, tasks, [], now).days[1]).toEqual({
+    expect(weekProgress(buildAgendaView(null, tasks, now).week, tasks, []).days[1]).toEqual({
       date: '2026-10-27',
       done: 2,
       planned: 2,

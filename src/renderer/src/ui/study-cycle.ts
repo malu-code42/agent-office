@@ -11,7 +11,7 @@ import {
 import type { StudyQuestion } from '@shared/study-questions'
 import type { StudyLibraryHit, StudyLibrarySearch } from '@shared/study-library'
 import type { StudyPracticeQuestion } from '@shared/study-cycle'
-import { studyTopicStart, trailTopicOf, type StudyTrail, type StudyTrailTopic } from '@shared/study-trail'
+import { studyTopicStart, topicName, trailTopicOf, type StudyTrail, type StudyTrailTopic } from '@shared/study-trail'
 import { questionsForTopic, studyQueryOfQuestion, type StudySourceRecommendations } from '@shared/study-sources'
 import { announce } from './a11y'
 import { studySourceList } from './study-library'
@@ -200,7 +200,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
     return h(
       'article',
       { class: 'study-cycle-question' },
-      h('h4', {}, item.source.topic || cycle.topic),
+      h('h4', {}, topicName(item.source.topic) || topicName(cycle.topic)),
       h(
         'p',
         { class: 'study-cycle-source' },
@@ -235,7 +235,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
         'div',
         { class: 'study-cycle-topic' },
         h('span', { class: 'field-label' }, 'Tópico atual'),
-        h('b', {}, cycle.topic),
+        h('b', {}, topicName(cycle.topic)),
         inTrail ? h('span', { class: 'field-hint' }, `${trailPlace(inTrail)} · trilha zettel`) : null,
       ),
       h('p', { class: 'study-cycle-status', role: 'status' }, status),
@@ -390,7 +390,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
           h(
             'article',
             { class: 'study-cycle-gap' },
-            h('h4', {}, `${gap.assessment?.kind === 'incorrect' ? 'Erro' : 'Dúvida'} · ${gap.source.topic || cycle.topic}`),
+            h('h4', {}, `${gap.assessment?.kind === 'incorrect' ? 'Erro' : 'Dúvida'} · ${topicName(gap.source.topic) || topicName(cycle.topic)}`),
             h('p', { class: 'study-cycle-prompt' }, gap.source.question),
             sources(gapSources.get(gap.id)),
           ),
@@ -430,7 +430,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
       return h(
         'article',
         { class: 'study-cycle-gap' },
-        h('h4', {}, `Erro ou dúvida · ${gap.source.topic || cycle.topic}`),
+        h('h4', {}, `Erro ou dúvida · ${topicName(gap.source.topic) || topicName(cycle.topic)}`),
         h('p', { class: 'study-cycle-prompt' }, gap.source.question),
         h('p', { class: 'study-cycle-source' }, `Sua resposta: ${gap.response}${gap.uncertain ? ' · Você marcou dúvida' : ''}`),
         h('label', { class: 'study-cycle-field' }, h('span', { class: 'field-label' }, 'O que causou a dificuldade?'), cause),
@@ -503,7 +503,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
         h(
           'option',
           { value: gap.id, selected: (selectedPracticeGaps.get(hit.id) ?? gaps[0]?.id) === gap.id },
-          `${gap.source.topic}: ${gap.id}`,
+          `${topicName(gap.source.topic)}: ${gap.id}`,
         ),
       ),
     ) as HTMLSelectElement
@@ -602,7 +602,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
                   else selected.delete(question.id)
                 },
               }),
-              h('span', {}, h('strong', {}, `${question.topic} · ${originLabel[question.originKind]}`), h('span', {}, question.question)),
+              h('span', {}, h('strong', {}, `${topicName(question.topic)} · ${originLabel[question.originKind]}`), h('span', {}, question.question)),
               h(
                 'select',
                 {
@@ -610,7 +610,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
                   'aria-label': `Vincular ${question.id} ao erro ou dúvida`,
                   onchange: (event: Event) => selectedPracticeGaps.set(question.id, (event.currentTarget as HTMLSelectElement).value),
                 },
-                ...gaps.map((gap) => h('option', { value: gap.id, selected: selectedGap === gap.id }, `${gap.source.topic}: ${gap.id}`)),
+                ...gaps.map((gap) => h('option', { value: gap.id, selected: selectedGap === gap.id }, `${topicName(gap.source.topic)}: ${gap.id}`)),
               ),
             )
           })
@@ -623,7 +623,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
         h(
           'article',
           { class: 'study-cycle-gap' },
-          h('h4', {}, `Lacuna · ${gap.source.topic || cycle.topic}`),
+          h('h4', {}, `Lacuna · ${topicName(gap.source.topic) || topicName(cycle.topic)}`),
           h('p', {}, `Causa: ${gap.review?.cause ?? '—'}`),
           h('p', {}, `Próximo passo: ${gap.review?.nextStep ?? '—'}`),
           h('p', { class: 'study-cycle-source' }, `Fontes: ${gap.review?.sourceRefs.join(' · ') || 'nenhuma'}`),
@@ -708,7 +708,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
     return h(
       'article',
       { class: 'study-cycle-question' },
-      h('h4', {}, `${item.source.topic} · prática nova`),
+      h('h4', {}, `${topicName(item.source.topic)} · prática nova`),
       h('p', { class: 'study-cycle-prompt' }, item.source.question),
       h('p', { class: 'study-cycle-source' }, `Gabarito conferido · vinculado a ${item.gapQuestionIds.join(', ')}`),
       h('label', { class: 'study-cycle-field' }, h('span', { class: 'field-label' }, 'Sua resposta'), response),
@@ -754,7 +754,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
         h('input', {
           type: 'checkbox',
           checked: selectedRetest.has(question.id),
-          'aria-label': `Selecionar para reteste: ${question.topic} · ${question.question}`,
+          'aria-label': `Selecionar para reteste: ${topicName(question.topic)} · ${question.question}`,
           onchange: (event: Event) => {
             const input = event.currentTarget as HTMLInputElement
             if (input.checked) selectedRetest.add(question.id)
@@ -764,7 +764,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
         h(
           'span',
           {},
-          h('strong', {}, `${question.topic} · ${originLabel[question.originKind]} · gabarito conferido`),
+          h('strong', {}, `${topicName(question.topic)} · ${originLabel[question.originKind]} · gabarito conferido`),
           h('span', {}, question.question),
         ),
       ),
@@ -826,7 +826,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
               h(
                 'p',
                 { class: `study-cycle-assessment study-cycle-assessment-${question.assessment?.kind ?? 'pending'}` },
-                `${question.source.topic} · ${assessmentLabel(question.assessment?.kind ?? 'pending')}`,
+                `${topicName(question.source.topic)} · ${assessmentLabel(question.assessment?.kind ?? 'pending')}`,
               ),
             ),
           )
@@ -898,7 +898,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
     return h(
       'article',
       { class: 'study-cycle-question' },
-      h('h4', {}, `${item.source.topic} · ${originLabel[item.source.originKind]}`),
+      h('h4', {}, `${topicName(item.source.topic)} · ${originLabel[item.source.originKind]}`),
       h('p', { class: 'study-cycle-prompt' }, item.source.question),
       h('label', { class: 'study-cycle-field' }, h('span', { class: 'field-label' }, 'Sua resposta, sem consulta'), response),
       ...(locked
@@ -971,7 +971,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
         h(
           'span',
           {},
-          h('strong', {}, cycle.topic),
+          h('strong', {}, topicName(cycle.topic)),
           h(
             'span',
             {},
@@ -984,7 +984,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
             class: 'btn btn-small',
             type: 'button',
             disabled: busy || undefined,
-            onclick: () => void save(() => window.office.resumeStudyCycle(cycle.id), `Ciclo de “${cycle.topic}” retomado de onde parou.`),
+            onclick: () => void save(() => window.office.resumeStudyCycle(cycle.id), `Ciclo de “${topicName(cycle.topic)}” retomado de onde parou.`),
           },
           'Retomar',
         ),
@@ -1039,7 +1039,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
               type: 'checkbox',
               checked: selected.has(question.id),
               disabled: busy || undefined,
-              'aria-label': `Selecionar ${question.topic}: ${question.question}`,
+              'aria-label': `Selecionar ${topicName(question.topic)}: ${question.question}`,
               onchange: (event: Event) => {
                 const input = event.currentTarget as HTMLInputElement
                 if (input.checked) selected.add(question.id)
@@ -1051,7 +1051,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
               'label',
               { class: 'study-cycle-bank-row' },
               checkbox,
-              h('span', {}, h('strong', {}, `${question.topic} · ${originLabel[question.originKind]}`), h('span', {}, question.question)),
+              h('span', {}, h('strong', {}, `${topicName(question.topic)} · ${originLabel[question.originKind]}`), h('span', {}, question.question)),
             )
           })
         : [h('p', { class: 'field-hint' }, 'O banco local ainda não tem questões disponíveis.')]),

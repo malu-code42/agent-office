@@ -148,9 +148,14 @@
 }
 
 .q-option.on {
-  border-color: var(--outline);
-  background: var(--inv-bg);
-  color: var(--inv-text);
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.q-option.on .q-desc {
+  color: var(--text);
 }
 
 .q-label {

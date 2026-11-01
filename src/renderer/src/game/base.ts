@@ -81,7 +81,6 @@ export abstract class GameBase {
   protected nearId: string | null = null
   protected recheck = 0
   protected dragging: { x: number; y: number; moved: boolean; button: number } | null = null
-  protected wheelAcc = 0
   /** The skull strikes, puffs and ghosts playing now. */
   protected fx: Fx[] = []
   protected skullTag: Tag

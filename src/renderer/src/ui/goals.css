@@ -118,26 +118,27 @@
 }
 
 .tl-marcos {
-  margin: 4px 0 0;
+  margin: 6px 0 0;
   padding: 0;
   list-style: none;
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: column;
+  gap: 2px;
   font-size: 12.5px;
   color: var(--muted);
 }
 
 .tl-marcos li {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 2px 8px 2px 4px;
-  background: var(--sunken);
+  gap: 8px;
+  padding: 3px 8px;
+  border-left: 2px solid var(--ctl-line);
 }
 
 .tl-marcos li.ok {
   color: var(--text);
+  border-left-color: var(--green);
 }
 
 /* uma marca, não uma caixa de marcar: um círculo em pixels (octógono), para não ler como um controle editável */
@@ -169,5 +170,66 @@
   height: 1px;
   overflow: hidden;
   clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.tl-disc {
+  margin-top: 6px;
+  border: 2px solid var(--ctl-line);
+  background: var(--sunken);
+  font-size: 12.5px;
+}
+
+.tl-disc > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.tl-disc > summary > span:first-of-type {
+  flex: 1;
+}
+
+.tl-disc > summary::before {
+  content: '▸';
+  color: var(--muted);
+}
+
+.tl-disc[open] > summary::before {
+  content: '▾';
+}
+
+.tl-disc[open] > summary {
+  border-bottom: 2px solid var(--ctl-line);
+}
+
+.tl-disc .tl-marcos {
+  margin: 0;
+  padding: 6px 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.tl-disc-bar {
+  width: 72px;
+  height: 8px;
+  background: var(--bg);
+  border: 2px solid var(--outline);
+  overflow: hidden;
+}
+
+.tl-disc-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.tl-disc-pct {
+  min-width: 84px;
+  text-align: right;
   white-space: nowrap;
 }

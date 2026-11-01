@@ -161,7 +161,7 @@ describe('agenda IPC', () => {
 
     const view = (await invoke('office:readAgendaForDate', '2025-10-29')) as View
 
-    expect(view.progress!.days.map((day) => `${day.done}/${day.planned}`)).toEqual(['0/0', '1/1', '1/1', '0/0', '0/0', '0/0', '0/0'])
+    expect(view.progress!.days.map((day) => `${day.done}/${day.planned}`)).toEqual(['0/0', '0/1', '1/1', '0/0', '0/0', '0/0', '0/0'])
     expect(view.progress!.tasksDone).toBe(1)
   })
 
