@@ -440,7 +440,7 @@ def casa(L, place, items, seat):
     # tags (HTML) over the clickable things: art units x, y and height
     tags = {n: [(a + b) / 2, 0, 46] for a, b, _act, n in C.BOARDS}
     tags.update({
-        'Claude FM': [8, 47, 34], 'Caveira': [150, 24, 34], 'Rotinas de agentes': [C.TOTEM[0] + 7, C.TOTEM[1] + 4, 40],
+        'Claude FM': [8, 47, 34], 'Caveira': [150, 24, 34], 'Rotinas de agentes': [2, 176, 46],
         'Novo agente': [80, 270, 40], 'Livros': [306, 4, 44], 'Escrita': [314, 32, 30],
         'Filmes': [233, 133, 34], 'Jogos': [233, 238, 38], 'Gastos': [218, 0, 54], 'Alarme': [168, 0, 54],
     })
@@ -484,8 +484,8 @@ def casa(L, place, items, seat):
         'elevator': {'tile': [ex0 // TS, 1], 'point': [(ex0 + ex1) / 2 / TS, 0.45], 'door': [ex0, ex1, 40],
                      'open': elevator_doors(place, 'casa', ex0, ex1)},
         'couch': couch,
-        # the routines board's face (+y): x0, x1, y, z0, z1; the app draws the next routine there
-        'totem': [C.TOTEM[0] + 1, C.TOTEM[2] - 1, C.TOTEM[1] + 5, 17, 33],
+        # the routines board on the west wall (plane x=0): y0, y1, z0, z1; the app draws the next routine there
+        'totem': list(C.TOTEM_WALL),
         # the window glass on the west wall (plane x=0): y0, y1, z0, z1; the app paints the sky for the hour
         'window': list(C.WINDOW),
     }

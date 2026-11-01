@@ -12,7 +12,7 @@ import { personalRoutineOverview } from '../routines-personal'
 import { openPdfAtPage } from '../pdf-viewer'
 import { pdfOcrQueue, workerOcrRunner } from '../study-ocr'
 import { focusItems, focusKey } from '@shared/planning'
-import { ARCHIVE_LIST, parseTasksFile, type TaskList, type TaskRef } from '@shared/tasks'
+import { ARCHIVE_LIST, fillCompletions, parseTasksFile, type TaskList, type TaskRef } from '@shared/tasks'
 import type { Proposal } from '@shared/proposals'
 import { createAgendaWriter, planAddCommitment, planRemoveCommitment } from '../agenda-write'
 import { createGoalsWriter } from '../goals-write'
@@ -59,6 +59,7 @@ import {
   resetStudyCycleArgsSchema,
   resumeStudyCycleArgsSchema,
   searchStudyLibraryArgsSchema,
+  studySourceInventoryArgsSchema,
   recommendStudySourcesArgsSchema,
   openStudySourceArgsSchema,
   studyLibrarySourceArgsSchema,
@@ -95,7 +96,11 @@ export function registerTasksIpc(ctx: IpcContext): void {
   const extractPdf = workerPdfExtractor()
   // Scanned PDFs (pages without text) are read by OCR, one at a time in the background; local only.
   const ocrPdf = pdfOcrQueue(pdfCacheDir, workerOcrRunner(join(ctx.store.dataDirectory, 'ocr-lang')))
-  const read = (vaultPath: unknown) => readTasksAt(writer, vaultPath)
+  const read = (vaultPath: unknown) => {
+    const board = readTasksAt(writer, vaultPath)
+    fillCompletions(board.lists, ctx.planning.completions())
+    return board
+  }
   const requireVault = (): string => {
     const vaultPath = ctx.store.settings.vaultPath
     if (!vaultPath) throw new Error('Configure a pasta do vault em Ajustes → Tarefas do Obsidian.')
@@ -220,6 +225,11 @@ export function registerTasksIpc(ctx: IpcContext): void {
   ipcMain.handle('office:reviewStudyGap', (_e, ...args: unknown[]) => {
     const [questionId, cause, nextStep] = parse(reviewStudyGapArgsSchema, args, 'Revisão da lacuna inválida.')
     return studyCycleService().reviewGap(questionId, cause, nextStep)
+  })
+  // Everything in "study sources" and its state; `verify` also finishes the cold PDFs and hands the scanned ones to the OCR.
+  ipcMain.handle('office:studySourceInventory', (_e, ...args: unknown[]) => {
+    const [verify] = parse(studySourceInventoryArgsSchema, args, 'Pedido de inventário da Cora inválido.')
+    return studyLibrary().inventory(verify)
   })
   ipcMain.handle('office:searchStudyLibrary', (_e, ...args: unknown[]) => {
     const [query] = parse(searchStudyLibraryArgsSchema, args, 'Busca local da Cora inválida.')
@@ -401,7 +411,12 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const linkedRoutineMatches = !!linkedRoutineId && routineTaskMatches(linkedRoutineId, before!.task, before!.list)
     const done = writer.complete(path, targetId)
     const wasFocused = ctx.planning.focus().includes(focusKey(done.id))
-    ctx.planning.archive(done.id, { origin: done.origin, completedAt: done.completedAt, originalLine: done.originalLine })
+    ctx.planning.archive(done.id, {
+      origin: done.origin,
+      completedAt: done.completedAt,
+      completedTime: done.completedTime,
+      originalLine: done.originalLine,
+    })
     if (linkedRoutineId === done.id) {
       if (linkedRoutineMatches) personalRoutines.completeTask(done.id, dayKey())
       else personalRoutines.recoverMissingTask(done.id)
@@ -564,6 +579,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
       readOptionalFile(path, 'tarefas.md') ?? '',
       new Date(),
       readOptionalFile(path, 'aulas.md'),
+      ctx.planning.completions(),
     )
   })
 
@@ -585,6 +601,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
       tasks,
       new Date(`${date}T12:00:00`),
       readOptionalFile(path, 'aulas.md'),
+      ctx.planning.completions(),
     )
     // The week dashboard compares done with planned: ✅ dates of tarefas.md, routine occurrences and past items.
     const weekDays = view.week.map((day) => day.date)
@@ -598,7 +615,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
       goal.trail ? trailGoalTopics(trail, studyCycleStore.read(), goal.trail).flatMap((topic) => (topic.day ? [topic.day] : [])) : [],
     )
     const goalDays = [...dates.values(), ...topicDays].filter((day) => weekDays.includes(day))
-    return { ...view, progress: weekProgress(view.week, tasks, routines, goalDays) }
+    return { ...view, progress: weekProgress(view.week, tasks, routines, goalDays, ctx.planning.completions()) }
   })
 
   ipcMain.handle('office:focusTask', async (_e, line: unknown) => {

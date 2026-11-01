@@ -26,6 +26,7 @@ const api: OfficeAPI = {
   resumeStudyCycle: (cycleId) => ipcRenderer.invoke('office:resumeStudyCycle', cycleId),
   readStudyTrail: () => ipcRenderer.invoke('office:readStudyTrail'),
   readClassSchedule: () => ipcRenderer.invoke('office:readClassSchedule'),
+  studySourceInventory: (verify) => ipcRenderer.invoke('office:studySourceInventory', verify),
   searchStudyLibrary: (query) => ipcRenderer.invoke('office:searchStudyLibrary', query),
   recommendStudySources: (queries) => ipcRenderer.invoke('office:recommendStudySources', queries),
   openStudySource: (path, page) => ipcRenderer.invoke('office:openStudySource', path, page),

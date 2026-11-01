@@ -9,7 +9,8 @@ export abstract class GameDeliveries extends GameLounge {
   /** Permission requests retain their existing follow-the-player behavior; non-project results wait at the House table. */
   protected goBoss(actor: Actor, instant: boolean): void {
     const agent = this.state.agents.get(actor.id)
-    const floor = agent && this.homeFloor(agent) > 0 ? this.player.floor : 0
+    // Project agents and Luna come to the floor the player is on; the House residents wait at the House.
+    const floor = agent && (this.homeFloor(agent) > 0 || agent.builtIn === 'luna') ? this.player.floor : 0
     this.travel(actor, floor, instant, () => {
       const spot = this.pickVisitSpot(actor)
       actor.spot = spot
@@ -141,7 +142,7 @@ export abstract class GameDeliveries extends GameLounge {
       if (actor.goal !== 'boss' || !actor.arrived || actor.avatar.isWalking || actor.down || actor.riding) continue
       if (actor.avatar.floor !== this.player.floor) {
         const agent = this.state.agents.get(actor.id)
-        if (agent && this.homeFloor(agent) > 0 && !this.player.isWalking) {
+        if (agent && (this.homeFloor(agent) > 0 || agent.builtIn === 'luna') && !this.player.isWalking) {
           actor.arrived = false
           actor.trip++
           this.goBoss(actor, false)

@@ -39,7 +39,7 @@ import type { DecodedStudyBank, StudyQuestion } from '../study-questions'
 import type { StudyCycleState } from '../study-cycle'
 import type { StudyTrail } from '../study-trail'
 import type { ClassScheduleView } from '../class-schedule'
-import type { StudyLibrarySearch } from '../study-library'
+import type { StudyLibrarySearch, StudySourceInventory } from '../study-library'
 import type { StudySourceRecommendations } from '../study-sources'
 import type { Dictation } from '../voice'
 import type { StudyCardDraft, StudyCardSummary, StudyCardsRead, StudyNotesRead } from '../study-cards'
@@ -312,6 +312,8 @@ export interface OfficeAPI {
   readClassSchedule(): Promise<ClassScheduleView>
   /** Busca trechos apenas nos arquivos locais de estudo; nenhum conteúdo é enviado a modelos. */
   searchStudyLibrary(query: string): Promise<StudyLibrarySearch>
+  /** Todos os arquivos de "study sources" e o que a Cora faz com cada um; com `verify`, termina de ler os PDFs e manda os escaneados ao OCR. */
+  studySourceInventory(verify: boolean): Promise<StudySourceInventory>
   /**
    * Fontes da Cora para cada tema, da melhor para a pior, com página (slide ou seção) de início e de fim.
    * Só leitura local dos arquivos de "study sources"; nada é enviado a modelos.

@@ -1,4 +1,4 @@
-import { parseTasksFile, TIME_FORMAT } from './tasks'
+import { fillCompletions, parseTasksFile, TIME_FORMAT } from './tasks'
 
 /** A line of agenda.md as the file wrote it. Any line that matches none of the known forms is unknown. */
 export type AgendaLine =
@@ -9,6 +9,8 @@ export type AgendaEntry =
   | { kind: 'commitment'; time: string; title: string; conflict?: true }
   | { kind: 'task'; time: string; id: string; text: string | null; conflict?: true }
   | { kind: 'class'; id: string; time: string; title: string; attended?: true; conflict?: true }
+  /** A task completed that day, at the moment it was completed (✅ DD.MM.AAAA HH:MM in tarefas.md). */
+  | { kind: 'done'; time: string; id: string; text: string }
   | { kind: 'unknown'; text: string }
 
 export interface AgendaDay {
@@ -227,9 +229,15 @@ export function parseAgenda(content: string): { days: Map<string, AgendaLine[]>;
 
 /**
  * The view for `today` (local): that day, the Monday-to-Sunday week and the undated lines. `agenda` is the text
- * of agenda.md, or null when the vault has none. `tasks` is the text of tarefas.md, read only to resolve ids.
+ * of agenda.md, or null when the vault has none. `tasks` is the text of tarefas.md, read to resolve ids and the days tasks were completed. `completions` is the day and time of each completion by task id (planning.json), for lines with no ✅ mark.
  */
-export function buildAgendaView(agenda: string | null, tasks: string, today: Date, classes: string | null = null): AgendaView {
+export function buildAgendaView(
+  agenda: string | null,
+  tasks: string,
+  today: Date,
+  classes: string | null = null,
+  completions: ReadonlyMap<string, { day: string; time?: string }> = new Map(),
+): AgendaView {
   const titles = new Map<string, string>()
   for (const list of parseTasksFile(tasks).lists) {
     for (const task of list.tasks) {
@@ -237,6 +245,16 @@ export function buildAgendaView(agenda: string | null, tasks: string, today: Dat
     }
   }
   const { days, undated } = parseAgenda(agenda ?? '')
+  // Tasks completed on each day; the moment of completion places them (older lines only know the day).
+  const completedByDay = new Map<string, { id?: string; text: string; time?: string }[]>()
+  const board = parseTasksFile(tasks).lists
+  fillCompletions(board, completions)
+  for (const list of board)
+    for (const task of list.tasks) {
+      if (task.status !== 'completed' || !task.completedDate) continue
+      const day = isoOfMark(task.completedDate)
+      completedByDay.set(day, [...(completedByDay.get(day) ?? []), { id: task.id, text: task.text, time: task.completedTime }])
+    }
   const parsedClasses = parseClasses(classes)
   const resolve = (line: AgendaLine): AgendaEntry =>
     line.kind === 'task' ? { kind: 'task', time: line.time, id: line.id, text: titles.get(line.id.toLowerCase()) ?? null } : line
@@ -270,11 +288,22 @@ export function buildAgendaView(agenda: string | null, tasks: string, today: Dat
       entries[firstMatch] = entry
       for (let index = entries.length - 1; index > firstMatch; index--) if (isClassMatch(entries[index]!)) entries.splice(index, 1)
     }
+    for (const done of completedByDay.get(date) ?? []) {
+      // A task that was on the agenda and got done is that line, not a second one: with the moment of completion it
+      // becomes the completion; without it (older lines) the agenda line stays.
+      const planned = done.id ? entries.findIndex((e) => e.kind === 'task' && e.id.toLowerCase() === done.id!.toLowerCase()) : -1
+      if (done.time) {
+        if (planned >= 0) entries.splice(planned, 1)
+        entries.push({ kind: 'done', time: done.time, id: done.id ?? '', text: done.text })
+      } else if (planned < 0) entries.push({ kind: 'unknown', text: `✔ ${done.text}` })
+    }
     const counts = new Map<string, number>()
-    for (const entry of entries) if ('time' in entry) counts.set(entry.time, (counts.get(entry.time) ?? 0) + 1)
+    for (const entry of entries) if ('time' in entry && entry.kind !== 'done') counts.set(entry.time, (counts.get(entry.time) ?? 0) + 1)
     return {
       date,
-      entries: entries.map((entry) => ('time' in entry && counts.get(entry.time)! > 1 ? { ...entry, conflict: true as const } : entry)),
+      entries: entries.map((entry) =>
+        'time' in entry && entry.kind !== 'done' && counts.get(entry.time)! > 1 ? { ...entry, conflict: true as const } : entry,
+      ),
     }
   }
   return {
@@ -295,12 +324,17 @@ const isoOfMark = (date: string): string => (date.includes('.') ? `${date.slice(
  * on it. Done: classes the user said she attended, goals achieved that day (`goalDays`), tasks completed that day (✅ date in tarefas.md,
  * scheduled or not) and routine occurrences marked done. A day never shows more done than planned.
  */
-export function weekProgress(week: AgendaDay[], tasks: string, routines: RoutineMark[], goalDays: string[] = []): AgendaProgress {
+export function weekProgress(week: AgendaDay[], tasks: string, routines: RoutineMark[],
+  goalDays: string[] = [],
+  completions: ReadonlyMap<string, { day: string; time?: string }> = new Map(),
+): AgendaProgress {
   const routineTasks = new Set(routines.flatMap((mark) => (mark.taskId ? [mark.taskId.toLowerCase()] : [])))
   const completedOn = new Map<string, number>()
   const inWeek = new Set(week.map((day) => day.date))
   let tasksDiscarded = 0
-  for (const list of parseTasksFile(tasks).lists) {
+  const board = parseTasksFile(tasks).lists
+  fillCompletions(board, completions)
+  for (const list of board) {
     for (const task of list.tasks) {
       if (!task.completedDate || (task.id && routineTasks.has(task.id.toLowerCase()))) continue
       const day = isoOfMark(task.completedDate)
@@ -318,7 +352,8 @@ export function weekProgress(week: AgendaDay[], tasks: string, routines: Routine
     tasksDone += done
     done += goalDays.filter((goalDay) => goalDay === day.date).length
     for (const entry of day.entries) {
-      if (entry.kind === 'unknown') continue
+      // Completions are counted from tarefas.md above (done, and as planned through the max below).
+      if (entry.kind === 'unknown' || entry.kind === 'done') continue
       if (entry.kind === 'task' && routineTasks.has(entry.id.toLowerCase())) continue
       planned++
       // Nothing is done by the clock: a class counts when the user said she went (presença in aulas.md).

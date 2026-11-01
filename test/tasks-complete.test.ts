@@ -54,19 +54,18 @@ describe('planComplete', () => {
       '',
       '## Archive',
       '- [-] Ler artigo antigo ❌ 2026-10-10 — descartada: não é mais relevante ^t7e8f9a',
-      '- [x] 16.10.2026 | 09:00 | Casa | Lavar roupa ✅ 17.10.2026 ^tabc123',
+      '- [x] 16.10.2026 | 09:00 | Casa | Lavar roupa ^tabc123',
       '',
     ])
   })
 
-  it('reads back as a completed task with its date, its fields and its id', () => {
+  it('reads back as a completed task with its fields and its id', () => {
     const board = parseTasksFile(planComplete(SOURCE, 10, DAY, ids('tnovo01')).text)
     const archive = board.lists.find((l) => l.name === 'Archive')!
 
     expect(archive.tasks.find((t) => t.id === 'tabc123')).toMatchObject({
       text: 'Lavar roupa',
       status: 'completed',
-      completedDate: '17.10.2026',
       date: '16.10.2026',
       time: '09:00',
     })
@@ -77,7 +76,7 @@ describe('planComplete', () => {
     const out = planComplete(legacy, 2, DAY, ids('tfoco01'))
 
     expect(out.id).toBe('tfoco01')
-    expect(out.text).toBe('## Estudo\n## Archive\n- [x] **06.10.2026** | Hera | criar relatório ✅ 17.10.2026 ^tfoco01\n')
+    expect(out.text).toBe('## Estudo\n## Archive\n- [x] **06.10.2026** | Hera | criar relatório ^tfoco01\n')
   })
 
   it('gives a task without an id one that no other task has', () => {
@@ -85,19 +84,19 @@ describe('planComplete', () => {
     const out = planComplete(noId, 2, DAY, ids('t7e8f9a', 'tnovo02'))
 
     expect(out.id).toBe('tnovo02')
-    expect(out.text).toBe('## Casa\n## Archive\n- [-] Velho ^t7e8f9a\n- [x] Lavar roupa ✅ 17.10.2026 ^tnovo02\n')
+    expect(out.text).toBe('## Casa\n## Archive\n- [-] Velho ^t7e8f9a\n- [x] Lavar roupa ^tnovo02\n')
   })
 
   it('creates the Archive at the end of the file, after one blank line, when there is none', () => {
     const out = planComplete('## Casa\n- [ ] Lavar roupa ^tabc123\n', 2, DAY)
 
-    expect(out.text).toBe('## Casa\n\n## Archive\n- [x] Lavar roupa ✅ 17.10.2026 ^tabc123\n')
+    expect(out.text).toBe('## Casa\n\n## Archive\n- [x] Lavar roupa ^tabc123\n')
   })
 
   it('keeps CRLF line endings in the new section', () => {
     const out = planComplete('## Casa\r\n- [ ] Lavar roupa ^tabc123\r\n', 2, DAY)
 
-    expect(out.text).toBe('## Casa\r\n\r\n## Archive\r\n- [x] Lavar roupa ✅ 17.10.2026 ^tabc123\r\n')
+    expect(out.text).toBe('## Casa\r\n\r\n## Archive\r\n- [x] Lavar roupa ^tabc123\r\n')
   })
 
   it('refuses the Archive, a task that is not open, and a line with no task', () => {
@@ -158,7 +157,7 @@ describe('complete and undo in createTaskWriter', () => {
     writer.remember(vault, SOURCE)
 
     expect(writer.complete(vault, 'tabc123').id).toBe('tabc123')
-    expect(readFileSync(file, 'utf8')).toContain('- [x] 16.10.2026 | 09:00 | Casa | Lavar roupa ✅ 17.10.2026 ^tabc123')
+    expect(readFileSync(file, 'utf8')).toContain('- [x] 16.10.2026 | 09:00 | Casa | Lavar roupa ^tabc123')
   })
 
   it('refuses to complete when the file changed after the board read it, and writes nothing', () => {

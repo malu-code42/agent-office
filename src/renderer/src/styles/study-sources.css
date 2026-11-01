@@ -164,3 +164,132 @@
   outline: 2px solid var(--focus, var(--accent));
   outline-offset: 2px;
 }
+
+/* Cora's library window: wider, with the tabs as a bar, one search row and a scrolling list. */
+.study-library-modal .modal {
+  width: min(860px, 94vw);
+  max-width: none;
+}
+
+.study-library-tabs {
+  gap: 0;
+  border-bottom: 2px solid var(--ctl-line);
+  margin-bottom: 10px;
+}
+
+.study-library-tab {
+  border: 0;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  background: transparent;
+  padding: 7px 14px;
+}
+
+.study-library-tab:hover {
+  background: var(--surface-3);
+}
+
+.study-library-tab[aria-selected='true'] {
+  border-bottom-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.study-library-modal .study-cycle-library-search {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  margin: 8px 0 12px;
+}
+
+.study-library-modal .study-cycle-library-search .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.study-library-modal .study-cycle-content {
+  max-height: min(48vh, 440px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.study-inv-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 10px;
+}
+
+.study-inv-chip,
+.study-inv-status {
+  padding: 1px 7px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid var(--ctl-line);
+  background: var(--surface-3);
+  white-space: nowrap;
+}
+
+.study-inv-status-lida {
+  color: var(--green);
+  border-color: var(--green);
+}
+
+.study-inv-status-ocr,
+.study-inv-status-lendo,
+.study-inv-status-grande {
+  color: var(--amber);
+  border-color: var(--amber);
+}
+
+.study-inv-status-ilegivel {
+  color: var(--accent-hi);
+  border-color: var(--accent);
+}
+
+.study-inv-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.study-inv-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
+  background: var(--sunken);
+  border-left: 3px solid var(--ctl-line);
+}
+
+.study-inv-ocr,
+.study-inv-lendo {
+  border-left-color: var(--amber);
+}
+
+.study-inv-ilegivel {
+  border-left-color: var(--accent);
+}
+
+.study-inv-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.study-inv-main b,
+.study-inv-main .field-hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.study-inv-detail {
+  color: var(--muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}

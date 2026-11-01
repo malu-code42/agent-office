@@ -15,9 +15,18 @@ import {
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path'
 import { writeFileAtomicChecked } from './fs-safe'
 import type { StudyNoteWriter } from './study-cycle'
-import { scoreStudyText, studySnippet, tokenizeStudyQuery, type StudyLibraryHit, type StudyLibrarySearch } from '@shared/study-library'
+import {
+  scoreStudyText,
+  studySnippet,
+  tokenizeStudyQuery,
+  type StudyLibraryHit,
+  type StudyLibrarySearch,
+  type StudySourceInfo,
+  type StudySourceInventory,
+  type StudySourceStatus,
+} from '@shared/study-library'
 import { rankStudySources, type StudySourceDoc, type StudySourceRecommendations } from '@shared/study-sources'
-import { type PdfExtractor, type PdfOcrJob } from './study-pdf'
+import { needsOcr, pagesWithoutText, type PdfExtractor, type PdfOcrJob } from './study-pdf'
 import { markdownUnits, PdfTextCache, pdfSearchText, pdfUnits, pptxText, slideUnits, textUnits } from './study-source-text'
 
 const SOURCE_DIR = 'study sources'
@@ -34,6 +43,8 @@ const MAX_DECK_BYTES = 64 * 1024 * 1024
 const MAX_PDF_BYTES = 256 * 1024 * 1024
 /** How long one search waits for PDFs never parsed before; the rest are read in the background. */
 const PDF_COLD_BUDGET_MS = 15_000
+/** How long "verify" waits for cold PDFs to be parsed. */
+const VERIFY_BUDGET_MS = 10 * 60_000
 const TEXT_EXTENSIONS = new Set(['.md', '.markdown', '.txt'])
 const IGNORED_FILES = new Set(['.DS_Store', 'Thumbs.db', 'desktop.ini'])
 const TOO_BIG = 'Fonte local grande demais.'
@@ -59,6 +70,8 @@ interface SourceFile {
   text: string | null
   /** The PDF's pages, when it is one. */
   pages?: string[]
+  /** Why the file could not be read (inventory only). */
+  status?: StudySourceStatus
 }
 
 interface SourceScan {
@@ -191,7 +204,7 @@ export class StudyLibrary {
   }
 
   /** Walks the study sources folder and reads what Cora can read (within the limits). Null when there is no folder. */
-  private async scan(): Promise<SourceScan | null> {
+  private async scan(coldBudgetMs = PDF_COLD_BUDGET_MS): Promise<SourceScan | null> {
     const root = this.checkedSourceRoot()
     if (!root) return null
     const { paths, complete: walked } = walkSources(root)
@@ -203,7 +216,7 @@ export class StudyLibrary {
     let unreadable = 0
     let pending = 0
     // A cold library (PDFs never parsed) is read for a while; the rest goes on in the background.
-    const deadline = Date.now() + PDF_COLD_BUDGET_MS
+    const deadline = Date.now() + coldBudgetMs
     const files: SourceFile[] = []
     for (const path of paths) {
       const ext = extname(path).toLowerCase()
@@ -211,7 +224,10 @@ export class StudyLibrary {
       const file: SourceFile = { path, kind, text: null }
       files.push(file)
       if (!kind) byName.set(ext || 'sem extensão', (byName.get(ext || 'sem extensão') ?? 0) + 1)
-      else if (overBudget) tooBig.push(basename(path))
+      else if (overBudget) {
+        tooBig.push(basename(path))
+        file.status = 'grande'
+      }
       else {
         try {
           if (kind === 'pdf') {
@@ -221,12 +237,14 @@ export class StudyLibrary {
             const pages = await this.pdf.pagesBy(path, info, () => readLocalStudyFile(path, root, MAX_PDF_BYTES).buffer, deadline)
             if (pages === 'pending') {
               pending++
+              file.status = 'lendo'
               continue
             }
             const text = pdfSearchText(pages)
             if (text.length + totalBytes > MAX_TOTAL_BYTES) {
               overBudget = true
               tooBig.push(basename(path))
+              file.status = 'grande'
             } else {
               totalBytes += text.length
               file.text = text
@@ -238,17 +256,54 @@ export class StudyLibrary {
           if (content.size + totalBytes > MAX_TOTAL_BYTES) {
             overBudget = true
             tooBig.push(basename(path))
+            file.status = 'grande'
           } else {
             totalBytes += content.size
             file.text = kind === 'text' ? content.buffer.toString('utf8') : pptxText(content.buffer)
           }
         } catch (error) {
-          if (error instanceof Error && error.message === TOO_BIG) tooBig.push(basename(path))
-          else unreadable++
+          if (error instanceof Error && error.message === TOO_BIG) {
+            tooBig.push(basename(path))
+            file.status = 'grande'
+          } else {
+            unreadable++
+            file.status = 'ilegivel'
+          }
         }
       }
     }
     return { root, files, byName, tooBig, unreadable, pending, walked }
+  }
+
+  /**
+   * Every file of "study sources" and what Cora can do with it. With `verify` the cold PDFs are
+   * parsed to the end (instead of in the background), which also hands the scanned ones to the OCR.
+   */
+  async inventory(verify = false): Promise<StudySourceInventory> {
+    const scan = await this.scan(verify ? VERIFY_BUDGET_MS : PDF_COLD_BUDGET_MS)
+    if (!scan) return { sources: [], complete: true, missingFolder: true, ocrQueued: 0 }
+    let ocrQueued = 0
+    const sources = scan.files.map((file): StudySourceInfo => {
+      const ext = extname(file.path).toLowerCase()
+      let status: StudySourceStatus = file.status ?? (file.kind ? 'lida' : 'so-nome')
+      let size = 0
+      try {
+        size = statSync(file.path).size
+      } catch {
+        status = 'ilegivel'
+      }
+      const info: StudySourceInfo = { path: relative(this.vault, file.path).split(sep).join('/'), name: basename(file.path), ext, size, status }
+      if (file.pages) {
+        info.pages = file.pages.length
+        info.blankPages = pagesWithoutText(file.pages).length
+        if (needsOcr(file.pages)) {
+          info.status = 'ocr'
+          ocrQueued++
+        }
+      }
+      return info
+    })
+    return { sources, complete: scan.walked, ocrQueued }
   }
 
   source(token: string, hitId: string): StudyLibraryHit {

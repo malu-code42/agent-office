@@ -28,17 +28,18 @@ const KIND_LABEL: Record<string, string> = {
   aula: 'Aula',
   tarefa: 'Tarefa',
   feita: 'Rotina feita',
+  concluida: 'Tarefa concluída',
   rotina: 'Rotina prevista',
 }
 
 function entryToEv(entry: AgendaEntry): DayEv | null {
   if (entry.kind === 'unknown') return null
-  const kind = entry.kind === 'class' ? 'aula' : entry.kind === 'task' ? 'tarefa' : 'evento'
+  const kind = entry.kind === 'class' ? 'aula' : entry.kind === 'task' ? 'tarefa' : entry.kind === 'done' ? 'concluida' : 'evento'
   return {
     at: entry.time,
-    t: entry.kind === 'task' ? (entry.text ?? 'tarefa não encontrada') : entry.title,
+    t: entry.kind === 'task' ? (entry.text ?? 'tarefa não encontrada') : entry.kind === 'done' ? entry.text : entry.title,
     kind,
-    conflict: !!entry.conflict,
+    conflict: entry.kind !== 'done' && !!entry.conflict,
   }
 }
 
@@ -174,7 +175,7 @@ function resumo(view: AgendaView, routines: PersonalRoutineOverview | null): HTM
   const weekEntries = view.week.flatMap((day) => day.entries)
   const commitments = weekEntries.filter((e) => e.kind === 'commitment')
   const classes = weekEntries.filter((e) => e.kind === 'class')
-  const tasks = weekEntries.filter((e) => e.kind === 'task')
+  const tasks = weekEntries.filter((e) => e.kind === 'task' || e.kind === 'done')
   const todayIndex = view.week.findIndex((day) => day.date === view.today.date)
   // Passed this week: every entry of the days before today, and today's up to now.
   const passed = (kind: AgendaEntry['kind']) =>
@@ -211,7 +212,7 @@ function resumo(view: AgendaView, routines: PersonalRoutineOverview | null): HTM
       { class: 'tl-stats' },
       stat(String(doneWeek), 'itens concluídos', `de ${plannedWeek} previstos na semana`),
       stat(String(commitments.length), 'compromissos', `${passed('commitment')} já passaram`),
-      stat(String(classes.length), 'aulas', `${passed('class')} já aconteceram`),
+      stat(String(classes.length), 'aulas', `${classes.filter((e) => e.kind === 'class' && e.attended).length} com presença confirmada`),
       rows.length ? stat(String(routinesDone), 'rotinas concluídas', `de ${routinesPlanned} previstas`, ' ok') : null,
       view.progress
         ? stat(

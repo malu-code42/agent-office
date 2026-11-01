@@ -1,4 +1,4 @@
-import type { StudyLibrarySearch } from '@shared/study-library'
+import type { StudyLibrarySearch, StudySourceInfo, StudySourceInventory, StudySourceStatus } from '@shared/study-library'
 import type { StudySourceRecommendation, StudySourceRecommendations } from '@shared/study-sources'
 import { announce } from './a11y'
 import { h } from './dom'
@@ -53,6 +53,60 @@ export function studySourceItem(r: StudySourceRecommendation, toast: Toast, comp
   )
 }
 
+const STATUS_LABEL: Record<StudySourceStatus, string> = {
+  lida: 'Lida',
+  ocr: 'Precisa de OCR',
+  lendo: 'Lendo…',
+  'so-nome': 'Só pelo nome',
+  grande: 'Grande demais',
+  ilegivel: 'Ilegível',
+}
+/** What each state asks of the user, worst first. */
+const STATUS_ORDER: StudySourceStatus[] = ['ilegivel', 'ocr', 'lendo', 'grande', 'so-nome', 'lida']
+
+const fileSize = (bytes: number): string => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`)
+
+function inventoryRow(s: StudySourceInfo): HTMLElement {
+  const detail = [s.ext.replace('.', '').toUpperCase() || 'sem extensão', fileSize(s.size)]
+  if (s.pages) detail.push(s.blankPages ? `${s.pages} páginas, ${s.blankPages} sem texto` : `${s.pages} páginas`)
+  return h(
+    'li',
+    { class: `study-inv-row study-inv-${s.status}` },
+    h('div', { class: 'study-inv-main' }, h('b', {}, s.name), h('span', { class: 'field-hint' }, s.path)),
+    h('span', { class: 'study-inv-detail' }, detail.join(' · ')),
+    h('span', { class: `study-inv-status study-inv-status-${s.status}` }, STATUS_LABEL[s.status]),
+  )
+}
+
+/** Every source Cora has, by what is left to do with it, and a button that asks her to check and fix what is pending. */
+function inventoryView(inv: StudySourceInventory, verify: () => void, busy: boolean): HTMLElement[] {
+  if (inv.missingFolder) return [h('p', { class: 'field-hint' }, 'A pasta “study sources” ainda não existe no vault.')]
+  const count = (status: StudySourceStatus) => inv.sources.filter((s) => s.status === status).length
+  const pending = count('ocr') + count('lendo')
+  const chips = STATUS_ORDER.filter((status) => count(status)).map((status) =>
+    h('span', { class: `study-inv-chip study-inv-status-${status}` }, `${count(status)} · ${STATUS_LABEL[status]}`),
+  )
+  const sorted = [...inv.sources].sort(
+    (a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status) || a.path.localeCompare(b.path, 'pt-BR'),
+  )
+  return [
+    h(
+      'div',
+      { class: 'study-inv-summary' },
+      h('b', {}, `${inv.sources.length} fonte${inv.sources.length === 1 ? '' : 's'}`),
+      ...chips,
+      h('div', { class: 'grow' }),
+      h(
+        'button',
+        { class: 'btn btn-small btn-primary', type: 'button', disabled: busy, onclick: verify },
+        busy ? 'Verificando…' : pending ? `Verificar e integrar (${pending})` : 'Verificar de novo',
+      ),
+    ),
+    ...(inv.complete ? [] : [h('p', { class: 'field-hint' }, 'Algumas pastas ou atalhos não foram percorridos.')]),
+    sorted.length ? h('ul', { class: 'study-inv-list' }, ...sorted.map(inventoryRow)) : h('p', { class: 'field-hint' }, 'Nenhum arquivo na pasta.'),
+  ]
+}
+
 /** Cora's ranked list for one request, best to worst, or why there is none. */
 export function studySourceList(result: StudySourceRecommendations, toast: Toast, compact = false, limit = 12): HTMLElement {
   if (!result.recommendations.length)
@@ -75,7 +129,8 @@ export function studySourceList(result: StudySourceRecommendations, toast: Toast
  * with the start and end page of each; "Pesquisar trechos" finds passages. Linking a passage to a
  * gap stays in the study cycle, where the gap is.
  */
-export function openStudyLibrary(root: HTMLElement, toast: Toast, topic = '', mode: 'sources' | 'search' = 'sources'): void {
+export function openStudyLibrary(root: HTMLElement, toast: Toast, topic = '', mode: 'sources' | 'search' | 'inventory' = 'sources'): void {
+  let inventory: StudySourceInventory | null = null
   let result: StudyLibrarySearch | null = null
   let sources: StudySourceRecommendations | null = null
   let busy = false
@@ -88,7 +143,7 @@ export function openStudyLibrary(root: HTMLElement, toast: Toast, topic = '', mo
   const button = h('button', { class: 'btn btn-small btn-primary', type: 'submit' }) as HTMLButtonElement
   const list = h('div', { class: 'study-cycle-content', role: 'status' })
   const hint = h('p', { class: 'field-hint' })
-  const tabs = (['sources', 'search'] as const).map(
+  const tabs = (['sources', 'search', 'inventory'] as const).map(
     (m) =>
       h(
         'button',
@@ -102,12 +157,20 @@ export function openStudyLibrary(root: HTMLElement, toast: Toast, topic = '', mo
             query.focus()
           },
         },
-        m === 'sources' ? 'Pedir fontes' : 'Pesquisar trechos',
+        m === 'sources' ? 'Pedir fontes' : m === 'search' ? 'Pesquisar trechos' : 'Fontes disponíveis',
       ) as HTMLButtonElement,
   )
 
   const render = () => {
-    tabs.forEach((tab, i) => tab.setAttribute('aria-selected', String((i === 0) === (mode === 'sources'))))
+    tabs.forEach((tab, i) => tab.setAttribute('aria-selected', String(i === ['sources', 'search', 'inventory'].indexOf(mode))))
+    form.hidden = mode === 'inventory'
+    if (mode === 'inventory') {
+      hint.textContent =
+        'Tudo o que há em “study sources” e o que a Cora consegue fazer com cada arquivo. “Verificar e integrar” termina de ler os PDFs novos e manda os escaneados para o OCR, que roda em segundo plano; depois volte aqui para ver o resultado.'
+      list.replaceChildren(...(inventory ? inventoryView(inventory, () => void check(true), busy) : [h('p', { class: 'field-hint' }, 'Lendo a pasta…')]))
+      if (!inventory && !busy) void check(false)
+      return
+    }
     query.placeholder = mode === 'sources' ? 'Ex.: fila, estrutura de dados, introdução para iniciante' : 'Ex.: fila, estrutura de dados'
     hint.textContent =
       mode === 'sources'
@@ -135,6 +198,22 @@ export function openStudyLibrary(root: HTMLElement, toast: Toast, topic = '', mo
     )
   }
 
+  const check = async (verify: boolean) => {
+    if (busy) return
+    busy = true
+    render()
+    try {
+      inventory = await window.office.studySourceInventory(verify)
+      if (verify) toast(inventory.ocrQueued ? `${inventory.ocrQueued} PDF(s) escaneado(s) no OCR, em segundo plano.` : 'Nada pendente de OCR.', 'ok')
+      announce(`${inventory.sources.length} fontes.`)
+    } catch (error) {
+      toast(cleanError(error), 'err')
+    } finally {
+      busy = false
+      render()
+    }
+  }
+
   const ask = async () => {
     const q = query.value.trim()
     if (!q || busy) return
@@ -156,7 +235,7 @@ export function openStudyLibrary(root: HTMLElement, toast: Toast, topic = '', mo
     }
   }
 
-  const form = h(
+  const form: HTMLElement = h(
     'form',
     {
       class: 'study-cycle-library-search',

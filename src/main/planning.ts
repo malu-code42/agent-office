@@ -208,6 +208,13 @@ export class PlanningStore {
     this.save()
   }
 
+  /** The day and HH:MM each archived task was completed, by id (the line in tarefas.md carries neither). */
+  completions(): Map<string, { day: string; time?: string }> {
+    const out = new Map<string, { day: string; time?: string }>()
+    for (const [id, a] of this.archived) out.set(id, { day: a.completedAt, ...(a.completedTime ? { time: a.completedTime } : {}) })
+    return out
+  }
+
   /** The record of a completed or discarded task, when this store has it. */
   archivedOf(id: string): ArchivedTask | undefined {
     return this.archived.get(focusKey(id))

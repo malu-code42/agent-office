@@ -7,6 +7,31 @@ export interface StudyLibraryHit {
   score: number
 }
 
+/** What Cora can do with a file of "study sources": read it, wait for OCR, or only find it by name. */
+export type StudySourceStatus = 'lida' | 'ocr' | 'lendo' | 'so-nome' | 'grande' | 'ilegivel'
+
+export interface StudySourceInfo {
+  /** Path relative to the vault. */
+  path: string
+  name: string
+  ext: string
+  size: number
+  status: StudySourceStatus
+  /** PDF only: pages, and how many have no text (scanned pages the OCR still has to read). */
+  pages?: number
+  blankPages?: number
+}
+
+export interface StudySourceInventory {
+  sources: StudySourceInfo[]
+  /** False when some folders or shortcuts were not walked. */
+  complete: boolean
+  /** The "study sources" folder does not exist yet. */
+  missingFolder?: true
+  /** Scanned PDFs handed to the background OCR by this check. */
+  ocrQueued: number
+}
+
 export interface StudyLibrarySearch {
   token: string
   query: string

@@ -21,7 +21,7 @@ ELEVATOR = (180, 204)
 # the half walls between the halves and the hall: x, doors (y0, y1)
 HALF_WALLS = [(160, [(56, 88), (176, 208)]), (224, [(56, 88), (176, 208)])]
 # the boards on the back wall: x0, x1, action, name
-BOARDS = [(8, 42, 'agenda', 'Agenda'), (54, 90, 'goals', 'Objetivos'), (102, 148, 'personal-routines', 'Rotinas pessoais')]
+BOARDS = [(8, 42, 'agenda', 'Agenda'), (54, 90, 'goals', 'Objetivos'), (102, 138, 'personal-routines', 'Rotinas pessoais')]
 # Luna's table (x, y, w, d) and its chairs (x, y, the way the sitter looks); Luna takes the first
 TABLE = (44, 132, 36, 26)
 TABLE_SEATS = [(50, 120, '+y'), (66, 120, '+y'), (30, 146, '+x'), (84, 141, '-x'), (50, 162, '-y'), (66, 162, '-y')]
@@ -34,8 +34,9 @@ VOCE_DESK = (70, 266, 36)
 # footprints of the clickable furniture (export_app.py tags the items with these)
 SKULL = (146, 20, 154, 28)
 RADIO = (2, 30, 14, 64)
-# the 'Rotinas de agentes' board: against the west wall of Luna's table room, clear of the doors, chairs and the window
-TOTEM = (6, 176, 20, 186)
+# the 'Rotinas de agentes' board hangs on the west wall of Luna's table room (plane x=0): y0, y1, z0, z1, clear of the window
+TOTEM_WALL = (168, 184, 26, 42)
+TOTEM = (0, 168, 2, 184)
 # the window on the west wall by the user's corner: y0, y1, z0, z1 (the glass is drawn by the app: morning, day, evening, night)
 WINDOW = (192, 262, 20, 50)
 WRITING = (306, 14, 322, 50)
@@ -62,15 +63,10 @@ ZONES = [
 ]
 
 
-def totem(L, x, y):
-    """'Rotinas de agentes' standing board, face +y."""
-    L.pbox(x, y, 0, 14, 8, 2, T('8a6a52', '73563f', '5c4430'))
-    L.pbox(x + 6, y + 3, 2, 2, 2, 12, T('8a6a52', '73563f', '5c4430'), outline=False)
-    L.pbox(x, y + 2, 14, 14, 3, 20, T('8a6448', 'f4ead2', '73563f'))
-    for i, c in enumerate(('7cc4bc', 'f2b8c0', 'f6e27a', 'a9d6ec')):
-        zz = 30 - i * 4
-        L.qy(y + 5, x + 2, x + 4, zz, zz + 2, H(c))
-        L.qy(y + 5, x + 5, x + 12, zz + 1, zz + 2, H('8a7a6a'))
+def totem(L):
+    """'Rotinas de agentes' board on the west wall (plane x=0): the frame; the app paints the screen."""
+    y0, y1, z0, z1 = TOTEM_WALL
+    L.qx(0, y0, y1, z0, z1, H('7b5a44'))
 
 
 def window_frame(L):
@@ -112,7 +108,7 @@ def entrance(sc):
     L, add = sc.L, sc.add
     add((164, 3, 174, 13), lambda: F.plant(L, 164, 3, seed=1), True)
     add((210, 3, 220, 13), lambda: F.plant(L, 210, 3, seed=2), True)
-    add(TOTEM, lambda: totem(L, *TOTEM[:2]), True)
+    add(TOTEM, lambda: totem(L), True)
 
 
 def half_wall(sc, i):
@@ -218,7 +214,7 @@ def build():
     half_wall(sc, 1)
     media(sc)
     # plaques of the preview (the app shows names on hover instead)
-    sc.label('Rotinas de agentes', TOTEM[0] + 7, TOTEM[1] + 4, 40)
+    sc.label('Rotinas de agentes', 2, 176, 46)
     sc.label('Entrada', 192, 284)
     for a_, b_, _act, n in BOARDS:
         sc.label(n, (a_ + b_) / 2, 0, WALL_H + 2, dy=-6)
