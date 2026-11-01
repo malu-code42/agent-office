@@ -504,7 +504,7 @@ def estudos(L, place, items, seat):
     E.library_walls(sc)
     E.library(sc)
     for name, (x, y, w) in (('cora', E.CORA_DESK), ('bonnie', E.BONNIE_DESK)):
-        ws_front_y(sc, x, y, None, E.LOOK[name][1], w=w)
+        ws_front_y(sc, x, y, None, E.LOOK[name][1], w=w, centered=True)
         sc.rec.pop()  # the chair is a seat below
     E.library_plant(sc)
     E.diretoria_walls(sc)
@@ -571,8 +571,8 @@ def estudos(L, place, items, seat):
             'Questões': [163, 153, 34], 'Sua carteira': [148, 212, 26], 'Notas e cartões': [316, 212, 26],
             'Trilha de estudos': [(E.TRAIL[0] + E.TRAIL[1]) / 2, 0, E.TRAIL[3] + 6],
         },
-        'cora': seat('estudos/cora', cx + cw - 13, cy - 12, '+y', col=F.CHAIRS[E.LOOK['cora'][0]]),
-        'bonnie': seat('estudos/bonnie', bx + bw - 13, by - 12, '+y', col=F.CHAIRS[E.LOOK['bonnie'][0]]),
+        'cora': seat('estudos/cora', cx + cw - 13 - ws_front_shift(cw, True), cy - 12, '+y', col=F.CHAIRS[E.LOOK['cora'][0]]),
+        'bonnie': seat('estudos/bonnie', bx + bw - 13 - ws_front_shift(bw, True), by - 12, '+y', col=F.CHAIRS[E.LOOK['bonnie'][0]]),
         'visitors': wood('visit', E.VISIT_SEATS),
         'teachers': wood('teacher', E.TEACHER_SEATS),
         'student': {'seat': seat('estudos/student', sx, sy, sface), 'desk': list(d0)},
