@@ -59,6 +59,7 @@ import {
   resetStudyCycleArgsSchema,
   resumeStudyCycleArgsSchema,
   searchStudyLibraryArgsSchema,
+  studySourceInventoryArgsSchema,
   recommendStudySourcesArgsSchema,
   openStudySourceArgsSchema,
   studyLibrarySourceArgsSchema,
@@ -220,6 +221,11 @@ export function registerTasksIpc(ctx: IpcContext): void {
   ipcMain.handle('office:reviewStudyGap', (_e, ...args: unknown[]) => {
     const [questionId, cause, nextStep] = parse(reviewStudyGapArgsSchema, args, 'Revisão da lacuna inválida.')
     return studyCycleService().reviewGap(questionId, cause, nextStep)
+  })
+  // Everything in "study sources" and its state; `verify` also finishes the cold PDFs and hands the scanned ones to the OCR.
+  ipcMain.handle('office:studySourceInventory', (_e, ...args: unknown[]) => {
+    const [verify] = parse(studySourceInventoryArgsSchema, args, 'Pedido de inventário da Cora inválido.')
+    return studyLibrary().inventory(verify)
   })
   ipcMain.handle('office:searchStudyLibrary', (_e, ...args: unknown[]) => {
     const [query] = parse(searchStudyLibraryArgsSchema, args, 'Busca local da Cora inválida.')

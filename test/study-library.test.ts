@@ -262,3 +262,15 @@ describe('Cora: PDFs e fontes recomendadas', () => {
     expect(() => library.sourcePath('study sources/../segredo.md')).toThrow(/pasta local de estudos/)
   })
 })
+
+describe('inventory', () => {
+  it('lists each source with what Cora can do with it', async () => {
+    const vault = fixture()
+    mkdirSync(join(vault, 'study sources'))
+    writeFileSync(join(vault, 'study sources', 'filas.md'), '# Filas\n\nFila é uma estrutura de dados.')
+    writeFileSync(join(vault, 'study sources', 'prova.docx'), 'x')
+    const inv = await new StudyLibrary(vault).inventory()
+    expect(inv.sources.map((s) => `${s.name}:${s.status}`)).toEqual(['filas.md:lida', 'prova.docx:so-nome'])
+    expect((await new StudyLibrary(fixture()).inventory()).missingFolder).toBe(true)
+  })
+})

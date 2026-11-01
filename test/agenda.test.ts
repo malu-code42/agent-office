@@ -361,3 +361,16 @@ describe('routineWeekMarks', () => {
     expect(marks).toEqual([{ day: '2026-10-30', done: true }])
   })
 })
+
+describe('tarefas concluídas na agenda', () => {
+  const now = new Date(2026, 9, 28, 12, 0)
+  it('entram no dia pela hora da conclusão; sem hora, aparecem sem hora; a agendada vira a conclusão', () => {
+    const tasks = ['## Hoje', '- [x] Pagar boleto ✅ 28.10.2026 14:32 ^tabc123', '- [x] Ligar para a Ana ✅ 28.10.2026'].join('\n')
+    const view = buildAgendaView('## 2026-10-28\n- 10:00 Banco\n- 09:00 ↦ ^tabc123', tasks, now)
+    expect(view.today.entries).toEqual([
+      { kind: 'commitment', time: '10:00', title: 'Banco' },
+      { kind: 'done', time: '14:32', id: 'tabc123', text: 'Pagar boleto' },
+      { kind: 'unknown', text: '✔ Ligar para a Ana' },
+    ])
+  })
+})

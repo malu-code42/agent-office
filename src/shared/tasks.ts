@@ -11,6 +11,8 @@ export interface Task {
   /** Hora da linha no formato novo: HH:MM. */
   time?: string
   completedDate?: string
+  /** Hora da conclusão (HH:MM), quando a linha a traz; tarefas antigas só têm o dia. */
+  completedTime?: string
   reason?: string
 }
 
@@ -66,7 +68,7 @@ const BLOCK_ID = /\s+(\^t\S+)$/i
 const VALID_BLOCK_ID = /^\^t[a-z0-9]{6}$/i
 const SCHEDULED_DATE = /\s+📅\s+(\d{4}-\d{2}-\d{2})$/
 const BOLD_DATE = /^\*\*(\d{2}\.\d{2}(?:\.\d{4})?)\*\*\s*(?:\|\s*)?/
-const COMPLETED_DATE = /\s+✅\s+(\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\.\d{4})$/
+const COMPLETED_DATE = /\s+✅\s+(\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\.\d{4})(?:\s+(\d{2}:\d{2}))?$/
 // The date is DD.MM.AAAA (AO-06); the ISO day and "descartada: motivo" of the first lines are still read.
 const DISCARDED_DATE = /\s+❌\s+(\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\.\d{4})(?:\s+[—-]\s+(?:descartada:\s*)?(.*))?$/i
 /** Fields of the new format: "data | hora | lista | tarefa"; a field that is absent is not written. */
@@ -180,6 +182,7 @@ export function parseTasksFile(content: string): ParsedBoard & { original: strin
       const date = COMPLETED_DATE.exec(text)
       if (date) {
         task.completedDate = date[1]
+        if (date[2]) task.completedTime = date[2]
         text = text.slice(0, date.index).trimEnd()
       }
     } else if (task.status === 'discarded') {
@@ -293,6 +296,9 @@ export function taskDue(task: Pick<Task, 'date' | 'dueDate'>, now: Date): { kind
 /** A local day as DD.MM.AAAA, the way the lines of tarefas.md write dates. */
 export const dayLabel = (d: Date): string =>
   `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`
+
+/** A local time as HH:MM, the moment a task is completed. */
+export const timeLabel = (d: Date): string => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 
 /** A card of the completed list: the list it sits in and the task. */
 export interface CompletedView {

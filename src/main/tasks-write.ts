@@ -10,6 +10,7 @@ import {
   parseTasksFile,
   rescheduleLine,
   retargetListField,
+  timeLabel,
   taskDraftProblem,
   type NewTaskDraft,
   type ParsedBoard,
@@ -40,7 +41,7 @@ const BROKEN_ID = 'Essa tarefa tem um identificador repetido ou inválido no tar
 const CHECKBOX_OPEN = /^(\s*[-*]\s+)\[ \]/
 const CHECKBOX_ANY = /^(\s*[-*]\s+)\[[ xX-]\]/
 /** The mark a completed or discarded line ends with, before its id: ✅ or ❌, the day, and for a discard the reason. */
-const DONE_MARK = /\s+[✅❌]\s+(?:\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\.\d{4})(?:\s+[—-]\s+.*)?$/
+const DONE_MARK = /\s+[✅❌]\s+(?:\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\.\d{4})(?:\s+\d{2}:\d{2})?(?:\s+[—-]\s+.*)?$/
 const REASON_MAX = 200
 const NO_REASON = 'Escreva o motivo para descartar a tarefa.'
 const NOT_DONE = 'Essa tarefa não está concluída nem descartada, então não há o que reabrir.'
@@ -176,7 +177,7 @@ export function lineOfId(text: string, id: string): number {
 }
 
 /**
- * The text of tarefas.md with the open task on `line` completed. Its line gets [x] and " ✅ DD.MM.AAAA"
+ * The text of tarefas.md with the open task on `line` completed. Its line gets [x] and " ✅ DD.MM.AAAA HH:MM"
  * before its id, and goes to the end of the Archive section (the Archive is made at the end of the
  * file when there is none). Its fields stay as they are; a task without an id gets one now.
  * Nothing else changes.
@@ -205,7 +206,7 @@ export function planComplete(
   const body = content.trimEnd()
   const block = /\s+\^t\S+$/i.exec(body)
   const head = (block ? body.slice(0, block.index) : body).replace(CHECKBOX_OPEN, '$1[x]')
-  const completed = `${head} ✅ ${dayLabel(day)} ^${id}`
+  const completed = `${head} ✅ ${dayLabel(day)} ${timeLabel(day)} ^${id}`
   return { text: moveToArchive(text, line, completed), id, origin, originalLine: content, completedAt: dayKey(day) }
 }
 

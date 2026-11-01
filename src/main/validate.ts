@@ -240,6 +240,7 @@ export const reviewStudyGapArgsSchema = z.tuple([
   z.string().trim().min(1).max(2000),
   z.string().trim().min(1).max(2000),
 ])
+export const studySourceInventoryArgsSchema = z.tuple([z.boolean()])
 export const searchStudyLibraryArgsSchema = z.tuple([z.string().trim().min(1).max(200)])
 /** Cora's recommendations: one theme per request (a wrong question each, at the cycle's end). */
 export const recommendStudySourcesArgsSchema = z.tuple([z.array(z.string().trim().min(1).max(200)).min(1).max(30)])

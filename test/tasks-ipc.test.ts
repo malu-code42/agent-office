@@ -946,7 +946,7 @@ describe('tasks focus IPC', () => {
 
       expect(done.id).toBe('tabc123')
       expect(done.focus).toEqual([])
-      expect(readFileSync(file(), 'utf8')).toBe('## Casa\n\n## Archive\n- [x] Lavar roupa ✅ 17.10.2026 ^tabc123\n')
+      expect(readFileSync(file(), 'utf8')).toBe('## Casa\n\n## Archive\n- [x] Lavar roupa ✅ 17.10.2026 10:30 ^tabc123\n')
       expect(planning.focus()).toEqual([])
       expect(new PlanningStore(data).focus()).toEqual([])
 
@@ -964,7 +964,7 @@ describe('tasks focus IPC', () => {
       const done = (await invoke('office:completeTask', { line: 2 })) as { id: string; board: { lists: { name: string }[] } }
 
       expect(done.id).toMatch(/^t[a-z0-9]{6}$/)
-      expect(readFileSync(file(), 'utf8')).toContain(`- [x] Lavar roupa ✅ 17.10.2026 ^${done.id}`)
+      expect(readFileSync(file(), 'utf8')).toContain(`- [x] Lavar roupa ✅ 17.10.2026 10:30 ^${done.id}`)
       expect(done.board.lists.map((l) => l.name)).toEqual(['Casa', 'Archive'])
     })
 
