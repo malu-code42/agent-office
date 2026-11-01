@@ -14,7 +14,7 @@ import {
 } from '@shared/study-bank'
 import { studyBankStats } from '@shared/study-bank-stats'
 import { answeredStudyQuestions, isStudyQuestionAnswered, type StudyCycleState } from '@shared/study-cycle'
-import { STUDY_QUESTION_LIMITS, type StudyQuestion } from '@shared/study-questions'
+import { STUDY_QUESTION_LIMITS, studyQuestionText, type StudyQuestion } from '@shared/study-questions'
 import type { StudyTrail, StudyTrailTopic } from '@shared/study-trail'
 import { announce } from './a11y'
 import { h } from './dom'
@@ -76,7 +76,7 @@ export function studyQuestionCard(question: StudyQuestion, answered: boolean, di
     ),
     question.sourceOnly
       ? h('p', { class: 'qc-q' }, 'Somente a referência da fonte; sem enunciado guardado.')
-      : h('p', { class: 'qc-q' }, question.question),
+      : h('p', { class: 'qc-q', style: 'white-space: pre-wrap' }, studyQuestionText(question)),
     question.answer
       ? h(
           'details',
