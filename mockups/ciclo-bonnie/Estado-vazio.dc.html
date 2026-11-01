@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Nenhum tópico escolhido</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Pixelify+Sans:wght@500&amp;display=swap">
+<style>
+body{margin:0}
+.root{width:1280px;height:800px;position:relative;overflow:hidden;background:#1d1a24;font-family:'IBM Plex Sans',sans-serif;color:#f2e9dc;font-size:14px;line-height:1.45}
+.floor{position:absolute;inset:0;background-color:#1d1a24;background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 2px,transparent 2px 48px),repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 2px,transparent 2px 48px)}
+.dim{position:absolute;inset:0;background:rgba(10,8,14,.6)}
+.tag{position:absolute;background:#2b2635;border:2px solid #0f0d14;color:#b9ab9c;font:500 12px 'IBM Plex Mono',monospace;padding:4px 8px;opacity:.5}
+.m{position:absolute;background:#2b2635;border:3px solid #0f0d14;box-shadow:4px 4px 0 #0f0d14;display:flex;flex-direction:column;overflow:hidden}
+.h{font-family:'Pixelify Sans',sans-serif;font-weight:500}
+.mono{font-family:'IBM Plex Mono',monospace}
+.lbl{font:500 11px 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:#b9ab9c}
+.muted{color:#b9ab9c}
+.btn{font:500 14px 'IBM Plex Sans',sans-serif;min-height:40px;padding:0 16px;border:2px solid #0f0d14;background:#383149;color:#f2e9dc;box-shadow:2px 2px 0 #0f0d14;cursor:pointer;border-radius:0;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{background:#4a3550}
+.btn-p{background:#e07a4f;color:#1a1410;font-weight:600}
+.btn-p:hover{background:#ea8c63}
+.btn-q{background:transparent;box-shadow:none;border-color:#4a4258}
+.x{width:44px;height:44px;justify-content:center;padding:0}
+.chip{display:inline-flex;align-items:center;gap:6px;font:500 12px 'IBM Plex Mono',monospace;padding:2px 8px;border:2px solid #0f0d14;background:#383149;color:#f2e9dc;white-space:nowrap}
+.warn{background:#3a2f1f;color:#f0b85a;border-color:#f0b85a}
+.sunk{background:#221e2b;border:2px solid #0f0d14}
+.step{background:#221e2b;border:2px dashed #4a4258;padding:10px 12px;display:flex;align-items:center;gap:8px;color:#b9ab9c}
+.num{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;background:#2b2635;border:2px solid #0f0d14;font:500 13px 'IBM Plex Mono',monospace}
+.av{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #0f0d14;font:500 15px 'Pixelify Sans',sans-serif;color:#1a1410}
+.kept{display:flex;align-items:center;gap:10px;padding:8px 10px;background:#221e2b;border:2px solid #0f0d14;font-size:13px}
+button:focus-visible{outline:2px solid #e3a1d1;outline-offset:2px}
+</style>
+</helmet>
+<div class="root">
+<div class="floor" aria-hidden="true"></div>
+<span class="tag" style="left:60px;top:70px" aria-hidden="true">Sala de aula · lousa vazia</span>
+<span class="tag" style="left:1050px;top:110px" aria-hidden="true">Trilha de estudos</span>
+<div class="dim" aria-hidden="true"></div>
+
+<section class="m" role="dialog" aria-labelledby="t" style="left:240px;top:120px;width:800px;height:560px">
+  <header style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:3px solid #0f0d14">
+    <span class="av" style="background:#e3a1d1" aria-hidden="true">B</span>
+    <div style="flex:1;min-width:0">
+      <h1 id="t" class="h" style="margin:0;font-size:22px;line-height:1.2">Ciclo de estudo</h1>
+      <div class="muted" style="font-size:13px">Bonnie · diretoria</div>
+    </div>
+    <button class="btn btn-q x" aria-label="Fechar"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"></path></svg></button>
+  </header>
+
+  <div style="padding:24px;display:flex;flex-direction:column;gap:18px;flex:1">
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <h2 class="h" style="margin:0;font-size:26px">Nenhum tópico escolhido</h2>
+      <p class="muted" style="margin:0;max-width:600px">Um tópico por vez. Escolha o próximo no quadro Trilha de estudos; a Bonnie abre o Diagnóstico e chama o tutor.</p>
+    </div>
+
+    <ol aria-label="Etapas do ciclo, ainda vazias" style="list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">
+      <li class="step"><span class="num">1</span>Diagnóstico</li>
+      <li class="step"><span class="num">2</span>Erros e dúvidas</li>
+      <li class="step"><span class="num">3</span>Prática e fontes</li>
+      <li class="step"><span class="num">4</span>Reteste</li>
+    </ol>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-p">Escolher na Trilha de estudos</button>
+      <button class="btn">Retomar tópico guardado</button>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <span class="lbl">Com trabalho guardado</span>
+      <div class="kept"><span style="flex:1">Distribuição binomial <span class="mono muted" style="font-size:12px">[P2-PE-05] · Probabilidade e Estatística</span></span><span class="chip warn">Erros e dúvidas</span></div>
+    </div>
+
+    <div class="sunk" style="padding:10px 14px;margin-top:auto;display:flex;gap:10px;align-items:flex-start">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#b9ab9c" stroke-width="2" aria-hidden="true" style="flex:none;margin-top:2px"><path d="M8 7v5M8 4v.5"></path><rect x="1" y="1" width="14" height="14"></rect></svg>
+      <span class="muted" style="font-size:13px">Variante sem trilha: se o vault não tiver "trilha zettel.md", o botão principal vira "Como criar a trilha" e a lista acima some.</span>
+    </div>
+  </div>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

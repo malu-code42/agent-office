@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Resultado do diagnóstico</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Pixelify+Sans:wght@500&amp;display=swap">
+<style>
+body{margin:0}
+.root{width:1280px;height:800px;position:relative;overflow:hidden;background:#1d1a24;font-family:'IBM Plex Sans',sans-serif;color:#f2e9dc;font-size:14px;line-height:1.45}
+.floor{position:absolute;inset:0;background-color:#1d1a24;background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 2px,transparent 2px 48px),repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 2px,transparent 2px 48px)}
+.dim{position:absolute;inset:0;background:rgba(10,8,14,.6)}
+.tag{position:absolute;background:#2b2635;border:2px solid #0f0d14;color:#b9ab9c;font:500 12px 'IBM Plex Mono',monospace;padding:4px 8px;opacity:.5}
+.m{position:absolute;background:#2b2635;border:3px solid #0f0d14;box-shadow:4px 4px 0 #0f0d14;display:flex;flex-direction:column;overflow:hidden}
+.h{font-family:'Pixelify Sans',sans-serif;font-weight:500}
+.mono{font-family:'IBM Plex Mono',monospace}
+.lbl{font:500 11px 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:#b9ab9c}
+.muted{color:#b9ab9c}
+.btn{font:500 14px 'IBM Plex Sans',sans-serif;min-height:40px;padding:0 16px;border:2px solid #0f0d14;background:#383149;color:#f2e9dc;box-shadow:2px 2px 0 #0f0d14;cursor:pointer;border-radius:0;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{background:#4a3550}
+.btn-p{background:#e07a4f;color:#1a1410;font-weight:600}
+.btn-p:hover{background:#ea8c63}
+.btn-q{background:transparent;box-shadow:none;border-color:#4a4258}
+.btn-s{min-height:32px;padding:0 10px;font-size:13px}
+.x{width:44px;height:44px;justify-content:center;padding:0}
+.chip{display:inline-flex;align-items:center;gap:6px;font:500 12px 'IBM Plex Mono',monospace;padding:2px 8px;border:2px solid #0f0d14;background:#383149;color:#f2e9dc;white-space:nowrap}
+.ok{background:#1f3528;color:#cfeedd;border-color:#7fd39b}
+.warn{background:#3a2f1f;color:#f0b85a;border-color:#f0b85a}
+.err{background:#3a1f22;color:#ff8f7a;border-color:#ff8f7a}
+.pink{background:#3a2a3a;color:#e3a1d1;border-color:#e3a1d1}
+.now{background:#e07a4f;color:#1a1410;border-color:#0f0d14}
+.card{background:#332d40;border:2px solid #0f0d14}
+.sunk{background:#221e2b;border:2px solid #0f0d14}
+.mini{display:flex;align-items:center;gap:8px;padding:6px 10px;background:#221e2b;border:2px solid #0f0d14;font-size:13px}
+.mini-now{background:#4a3550;border-color:#e07a4f}
+.num{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;background:#383149;border:2px solid #0f0d14;font:500 12px 'IBM Plex Mono',monospace}
+.av{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #0f0d14;font:500 15px 'Pixelify Sans',sans-serif;color:#1a1410}
+.row{display:flex;align-items:center;gap:10px;padding:8px 10px;background:#221e2b;border:2px solid #0f0d14;color:#f2e9dc;font:14px 'IBM Plex Sans',sans-serif;text-align:left;cursor:pointer;width:100%}
+.row-on{background:#4a3550;border-color:#e07a4f}
+.src{display:grid;grid-template-columns:32px minmax(0,1fr) 120px 92px auto;gap:12px;align-items:center;padding:10px 12px;background:#221e2b;border:2px solid #0f0d14}
+.rank{font:500 18px 'Pixelify Sans',sans-serif;color:#e07a4f;text-align:center}
+.rel{display:flex;gap:3px}
+.rel i{width:10px;height:14px;background:#383149;border:1px solid #0f0d14;display:block}
+.rel i.f{background:#7fd39b}
+button:focus-visible{outline:2px solid #e3a1d1;outline-offset:2px}
+</style>
+</helmet>
+<div class="root">
+<div class="floor" aria-hidden="true"></div>
+<span class="tag" style="left:60px;top:70px" aria-hidden="true">Sala de aula</span>
+<span class="tag" style="left:1050px;top:720px" aria-hidden="true">Cora · biblioteca</span>
+<div class="dim" aria-hidden="true"></div>
+
+<section class="m" role="dialog" aria-labelledby="t" style="left:120px;top:32px;width:1040px;height:736px">
+  <header style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:3px solid #0f0d14">
+    <span class="av" style="background:#e3a1d1" aria-hidden="true">B</span>
+    <div style="flex:1;min-width:0">
+      <h1 id="t" class="h" style="margin:0;font-size:22px;line-height:1.2">Diagnóstico concluído</h1>
+      <div class="muted" style="font-size:13px">Probabilidade condicional · tópico 3 de 9 · Probabilidade e Estatística</div>
+    </div>
+    <button class="btn btn-q x" aria-label="Fechar"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"></path></svg></button>
+  </header>
+
+  <ol aria-label="Etapas do ciclo" style="list-style:none;margin:0;padding:10px 16px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;border-bottom:3px solid #0f0d14">
+    <li class="mini" style="border-color:#7fd39b"><span class="num" style="background:#1f3528;color:#cfeedd">1</span><strong>Diagnóstico</strong><span style="flex:1"></span><span class="chip ok">Gate cumprido</span></li>
+    <li class="mini mini-now" aria-current="step"><span class="num" style="background:#e07a4f;color:#1a1410">2</span><strong>Erros e dúvidas</strong><span style="flex:1"></span><span class="chip">Pronto p/ liberar</span></li>
+    <li class="mini"><span class="num">3</span><span class="muted">Prática e fontes</span></li>
+    <li class="mini"><span class="num">4</span><span class="muted">Reteste</span></li>
+  </ol>
+
+  <div style="display:grid;grid-template-columns:280px minmax(0,1fr);gap:16px;padding:16px;flex:1;min-height:0">
+    <div style="display:flex;flex-direction:column;gap:12px;min-height:0">
+      <div class="card" style="padding:14px;display:flex;flex-direction:column;gap:8px">
+        <span class="lbl">Resultado</span>
+        <div style="display:flex;align-items:baseline;gap:10px"><span class="h" style="font-size:40px;line-height:1">58%</span><span class="muted">7 de 12 contadas</span></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap"><span class="chip ok">7 certas</span><span class="chip err">3 erradas</span><span class="chip pink">2 incertas</span><span class="chip warn">1 em verificação</span></div>
+        <span class="muted" style="font-size:12px">Sem nota mínima no diagnóstico. Ele só mostra por onde começar.</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px" role="list" aria-label="Erradas e incertas">
+        <span class="lbl">Para revisar · 5</span>
+        <div role="listitem"><button class="row row-on"><span class="chip err">Errada</span><span class="mono">Q6</span><span style="flex:1;font-size:13px">Urna sem reposição</span></button></div>
+        <div role="listitem"><button class="row"><span class="chip err">Errada</span><span class="mono">Q9</span><span style="flex:1;font-size:13px">Teorema de Bayes</span></button></div>
+        <div role="listitem"><button class="row"><span class="chip err">Errada</span><span class="mono">Q12</span><span style="flex:1;font-size:13px">Independência</span></button></div>
+        <div role="listitem"><button class="row"><span class="chip pink">Incerta</span><span class="mono">Q3</span><span style="flex:1;font-size:13px">Acertou com dúvida</span></button></div>
+        <div role="listitem"><button class="row"><span class="chip pink">Incerta</span><span class="mono">Q7</span><span style="flex:1;font-size:13px">Errou com dúvida</span></button></div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px;min-height:0">
+      <div class="card" style="padding:14px 16px;display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;gap:8px;align-items:center"><span class="chip err">Errada</span><span class="mono">Q6</span><span class="chip" style="background:#2b3a4f;border-color:#8fb4e3;color:#d6e6fa">ENEM 2019</span></div>
+        <p style="margin:0">Primeira bola azul, sem reposição: P(2ª vermelha | 1ª azul)?</p>
+        <div style="display:flex;gap:16px;font-size:13px"><span>Sua resposta: <strong style="color:#ff8f7a">A · 2/5</strong></span><span>Gabarito: <strong style="color:#7fd39b">B · 4/9</strong></span><span class="muted">conferido</span></div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="av" style="background:#8fb4e3;width:28px;height:28px;font-size:13px" aria-hidden="true">C</span>
+        <h2 class="h" style="margin:0;font-size:18px">Fontes da Cora para a Q6</h2>
+        <span class="muted" style="font-size:12px">biblioteca local · da melhor para a pior</span>
+      </div>
+
+      <ol style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px" aria-label="Fontes recomendadas, da melhor para a pior">
+        <li class="src">
+          <span class="rank">1</span>
+          <div><strong>Análise Combinatória e Probabilidade</strong> <span class="muted">· Morgado et al.</span><div class="muted" style="font-size:12px">Cap. 4 · Probabilidade condicional — o exemplo 4.3 é a mesma urna</div></div>
+          <span class="mono" style="font-size:15px">p. 112–118</span>
+          <div style="display:flex;flex-direction:column;gap:2px"><span class="rel" aria-hidden="true"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i></span><span class="mono" style="font-size:11px;color:#cfeedd">Alta · 5/5</span></div>
+          <button class="btn btn-s">Abrir na p. 112</button>
+        </li>
+        <li class="src">
+          <span class="rank">2</span>
+          <div><strong>Estatística Básica</strong> <span class="muted">· Bussab e Morettin</span><div class="muted" style="font-size:12px">§5.3 · Probabilidade condicional e independência</div></div>
+          <span class="mono" style="font-size:15px">p. 118–124</span>
+          <div style="display:flex;flex-direction:column;gap:2px"><span class="rel" aria-hidden="true"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i></span><span class="mono" style="font-size:11px;color:#cfeedd">Alta · 4/5</span></div>
+          <button class="btn btn-s">Abrir na p. 118</button>
+        </li>
+        <li class="src">
+          <span class="rank">3</span>
+          <div><strong>Notas de aula · P2-PE, aula 6</strong> <span class="muted">· seu vault</span><div class="muted" style="font-size:12px">Árvore de probabilidades, sem reposição</div></div>
+          <span class="mono" style="font-size:15px">p. 3–5</span>
+          <div style="display:flex;flex-direction:column;gap:2px"><span class="rel" aria-hidden="true"><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i></span><span class="mono" style="font-size:11px;color:#f0b85a">Média · 3/5</span></div>
+          <button class="btn btn-s">Abrir na p. 3</button>
+        </li>
+        <li class="src">
+          <span class="rank">4</span>
+          <div><strong>Matemática para o ENEM, vol. 2</strong> <span class="muted">· apostila</span><div class="muted" style="font-size:12px">Resumo curto; sem exemplos sem reposição</div></div>
+          <span class="mono" style="font-size:15px">p. 40–41</span>
+          <div style="display:flex;flex-direction:column;gap:2px"><span class="rel" aria-hidden="true"><i class="f"></i><i class="f"></i><i></i><i></i><i></i></span><span class="mono" style="font-size:11px;color:#b9ab9c">Baixa · 2/5</span></div>
+          <button class="btn btn-s">Abrir na p. 40</button>
+        </li>
+      </ol>
+
+      <div style="display:flex;gap:8px;align-items:center;margin-top:auto;padding-top:12px;border-top:2px solid #0f0d14">
+        <span class="muted" style="font-size:12px;flex:1">As fontes ficam ligadas à Q6 e voltam na etapa Prática e fontes. Abrir um livro não dá acesso a agentes.</span>
+        <button class="btn">Rever questões</button>
+        <button class="btn btn-p">Pedir à Bonnie para liberar Erros e dúvidas</button>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

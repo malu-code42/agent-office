@@ -10,6 +10,7 @@ import {
 import { announce, asDialog, FocusReturn, isTyping, rove } from './a11y'
 import { h, icon } from './dom'
 import { cleanError } from './modals/common'
+import { dressStudyWindow, STUDY_WHO } from './study-kit'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
 
@@ -224,6 +225,7 @@ export async function openStudyTrailBoard(root: HTMLElement, toast: Toast, onSta
     focusBack.restore(board)
   })
   focusBack.save(board)
+  dressStudyWindow(board, { who: STUDY_WHO.bonnie, subtitle: 'trilha zettel.md · escolha o próximo tópico; a Bonnie abre o Diagnóstico' })
   root.append(board)
   observer.observe(root, { childList: true })
   paint()

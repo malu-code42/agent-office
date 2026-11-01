@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Erros e dúvidas</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Pixelify+Sans:wght@500&amp;display=swap">
+<style>
+body{margin:0}
+.root{width:1280px;height:800px;position:relative;overflow:hidden;background:#1d1a24;font-family:'IBM Plex Sans',sans-serif;color:#f2e9dc;font-size:14px;line-height:1.45}
+.floor{position:absolute;inset:0;background-color:#1d1a24;background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 2px,transparent 2px 48px),repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 2px,transparent 2px 48px)}
+.dim{position:absolute;inset:0;background:rgba(10,8,14,.6)}
+.tag{position:absolute;background:#2b2635;border:2px solid #0f0d14;color:#b9ab9c;font:500 12px 'IBM Plex Mono',monospace;padding:4px 8px;opacity:.5}
+.m{position:absolute;background:#2b2635;border:3px solid #0f0d14;box-shadow:4px 4px 0 #0f0d14;display:flex;flex-direction:column;overflow:hidden}
+.h{font-family:'Pixelify Sans',sans-serif;font-weight:500}
+.mono{font-family:'IBM Plex Mono',monospace}
+.lbl{font:500 11px 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:#b9ab9c}
+.muted{color:#b9ab9c}
+.btn{font:500 14px 'IBM Plex Sans',sans-serif;min-height:40px;padding:0 16px;border:2px solid #0f0d14;background:#383149;color:#f2e9dc;box-shadow:2px 2px 0 #0f0d14;cursor:pointer;border-radius:0;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{background:#4a3550}
+.btn-p{background:#e07a4f;color:#1a1410;font-weight:600}
+.btn-p:hover{background:#ea8c63}
+.btn-q{background:transparent;box-shadow:none;border-color:#4a4258}
+.btn:disabled{background:#2b2635;color:#a0939f;border-color:#4a4258;box-shadow:none;cursor:not-allowed}
+.btn-s{min-height:32px;padding:0 10px;font-size:13px}
+.x{width:44px;height:44px;justify-content:center;padding:0}
+.chip{display:inline-flex;align-items:center;gap:6px;font:500 12px 'IBM Plex Mono',monospace;padding:2px 8px;border:2px solid #0f0d14;background:#383149;color:#f2e9dc;white-space:nowrap}
+.ok{background:#1f3528;color:#cfeedd;border-color:#7fd39b}
+.warn{background:#3a2f1f;color:#f0b85a;border-color:#f0b85a}
+.err{background:#3a1f22;color:#ff8f7a;border-color:#ff8f7a}
+.pink{background:#3a2a3a;color:#e3a1d1;border-color:#e3a1d1}
+.now{background:#e07a4f;color:#1a1410;border-color:#0f0d14}
+.card{background:#332d40;border:2px solid #0f0d14}
+.sunk{background:#221e2b;border:2px solid #0f0d14}
+.mini{display:flex;align-items:center;gap:8px;padding:6px 10px;background:#221e2b;border:2px solid #0f0d14;font-size:13px}
+.mini-now{background:#4a3550;border-color:#e07a4f}
+.num{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;background:#383149;border:2px solid #0f0d14;font:500 12px 'IBM Plex Mono',monospace}
+.av{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #0f0d14;font:500 15px 'Pixelify Sans',sans-serif;color:#1a1410}
+.item{display:flex;flex-direction:column;gap:4px;padding:10px 12px;background:#221e2b;border:2px solid #0f0d14}
+.item-on{background:#4a3550;border-color:#e07a4f}
+.seg{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;background:#221e2b;border:2px solid #0f0d14;font-size:13px;cursor:pointer}
+.seg-on{background:#4a3550;border-color:#e07a4f}
+input[type=text],textarea{background:#221e2b;border:2px solid #0f0d14;color:#f2e9dc;font:14px 'IBM Plex Sans',sans-serif;padding:8px 10px;box-shadow:inset 2px 2px 0 #0f0d14;border-radius:0;box-sizing:border-box;width:100%;resize:none}
+input[type=radio],input[type=checkbox]{accent-color:#e07a4f;width:16px;height:16px;margin:0}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #e3a1d1;outline-offset:2px}
+</style>
+</helmet>
+<div class="root">
+<div class="floor" aria-hidden="true"></div>
+<span class="tag" style="left:60px;top:70px" aria-hidden="true">Sala de aula</span>
+<span class="tag" style="left:1090px;top:110px" aria-hidden="true">Bonnie · diretoria</span>
+<div class="dim" aria-hidden="true"></div>
+
+<section class="m" role="dialog" aria-labelledby="t" style="left:160px;top:40px;width:960px;height:720px">
+  <header style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:3px solid #0f0d14">
+    <span class="av" style="background:#e3a1d1" aria-hidden="true">B</span>
+    <div style="flex:1;min-width:0">
+      <h1 id="t" class="h" style="margin:0;font-size:22px;line-height:1.2">Erros e dúvidas</h1>
+      <div class="muted" style="font-size:13px">Probabilidade condicional · tópico 3 de 9 · Probabilidade e Estatística</div>
+    </div>
+    <span class="chip" style="gap:8px"><span class="av" style="width:18px;height:18px;font-size:11px;background:#7fd39b" aria-hidden="true">T</span>Tutor na sala</span>
+    <button class="btn btn-q x" aria-label="Fechar"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"></path></svg></button>
+  </header>
+
+  <ol aria-label="Etapas do ciclo" style="list-style:none;margin:0;padding:10px 16px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;border-bottom:3px solid #0f0d14">
+    <li class="mini" style="border-color:#7fd39b"><span class="num" style="background:#1f3528;color:#cfeedd">1</span>Diagnóstico<span style="flex:1"></span><span class="chip ok">OK</span></li>
+    <li class="mini mini-now" aria-current="step"><span class="num" style="background:#e07a4f;color:#1a1410">2</span><strong>Erros e dúvidas</strong><span style="flex:1"></span><span class="chip now">3 de 5</span></li>
+    <li class="mini"><span class="num">3</span><span class="muted">Prática e fontes</span></li>
+    <li class="mini"><span class="num">4</span><span class="muted">Reteste</span></li>
+  </ol>
+
+  <div style="display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;padding:16px;flex:1;min-height:0">
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <span class="lbl">Erradas e incertas · 3 de 5 explicadas</span>
+      <div class="item"><div style="display:flex;gap:8px;align-items:center"><span class="chip err">Errada</span><span class="mono">Q6</span><span style="flex:1"></span><span class="chip ok">Feito</span></div><span class="muted" style="font-size:12px">Causa: ignorei que não há reposição. Próximo: refazer 3 exemplos de urna.</span></div>
+      <div class="item"><div style="display:flex;gap:8px;align-items:center"><span class="chip err">Errada</span><span class="mono">Q12</span><span style="flex:1"></span><span class="chip ok">Feito</span></div><span class="muted" style="font-size:12px">Causa: confundi independentes com excludentes.</span></div>
+      <div class="item"><div style="display:flex;gap:8px;align-items:center"><span class="chip pink">Incerta</span><span class="mono">Q3</span><span style="flex:1"></span><span class="chip ok">Feito</span></div><span class="muted" style="font-size:12px">Acertei no chute; revisar a definição de P(A|B).</span></div>
+      <div class="item item-on" aria-current="true"><div style="display:flex;gap:8px;align-items:center"><span class="chip err">Errada</span><span class="mono">Q9</span><span style="flex:1"></span><span class="chip now">Agora</span></div><span style="font-size:12px">Teorema de Bayes · teste médico</span></div>
+      <div class="item"><div style="display:flex;gap:8px;align-items:center"><span class="chip pink">Incerta</span><span class="mono">Q7</span><span style="flex:1"></span><span class="chip" style="color:#b9ab9c">Falta</span></div><span class="muted" style="font-size:12px">Árvore de probabilidades</span></div>
+      <div class="sunk" style="padding:10px 12px;margin-top:auto;display:flex;gap:10px;align-items:flex-start">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#b9ab9c" stroke-width="2" aria-hidden="true" style="flex:none;margin-top:2px"><path d="M8 7v5M8 4v.5"></path><rect x="1" y="1" width="14" height="14"></rect></svg>
+        <span class="muted" style="font-size:12px">Sem erros nem dúvidas no diagnóstico, a Bonnie pula esta etapa e a Prática e libera direto o Reteste.</span>
+      </div>
+    </div>
+
+    <form class="card" style="padding:16px;display:flex;flex-direction:column;gap:14px;min-height:0" aria-labelledby="q9">
+      <div style="display:flex;gap:8px;align-items:center"><span class="chip err">Errada</span><h2 id="q9" class="h" style="margin:0;font-size:18px">Q9 · Teorema de Bayes</h2><span class="chip">CONCURSO · FCC 2021</span></div>
+      <p class="muted" style="margin:0;font-size:13px">1% da população tem a doença; o teste acerta 95% dos doentes e dá falso positivo em 10%. Dado um positivo, qual a chance de ter a doença? Você marcou 95%; o gabarito é ≈ 8,8%.</p>
+
+      <fieldset style="border:0;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px">
+        <legend class="lbl" style="margin-bottom:6px">Tipo de causa</legend>
+        <label class="seg seg-on"><input type="radio" name="tc" checked>Conceito</label>
+        <label class="seg"><input type="radio" name="tc">Cálculo</label>
+        <label class="seg"><input type="radio" name="tc">Leitura do enunciado</label>
+        <label class="seg"><input type="radio" name="tc">Distração</label>
+        <label class="seg"><input type="radio" name="tc">Outra</label>
+      </fieldset>
+
+      <label style="display:flex;flex-direction:column;gap:6px">
+        <span class="lbl">Causa · por que errou <span style="color:#ff8f7a">*</span></span>
+        <textarea rows="2">Usei P(positivo | doente) como se fosse P(doente | positivo). Esqueci a taxa base de 1%.</textarea>
+      </label>
+      <label style="display:flex;flex-direction:column;gap:6px">
+        <span class="lbl">Próximo passo <span style="color:#ff8f7a">*</span></span>
+        <input type="text" value="Montar a árvore com 1.000 pessoas e refazer a Q9 sem olhar o gabarito">
+      </label>
+
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <span class="lbl">Fontes ligadas (da Cora)</span>
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" checked>Bussab e Morettin, §5.4 Bayes <span class="mono muted">p. 125–130</span></label>
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" checked>Morgado et al., cap. 4.4 <span class="mono muted">p. 119–122</span></label>
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox">Notas de aula · aula 7 <span class="mono muted">p. 1–2</span></label>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center;margin-top:auto">
+        <button type="button" class="btn">Perguntar ao tutor</button>
+        <span style="flex:1"></span>
+        <button type="button" class="btn btn-p">Salvar e ir para Q7</button>
+      </div>
+    </form>
+  </div>
+
+  <footer style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:3px solid #0f0d14;background:#221e2b">
+    <span class="muted" style="font-size:12px;flex:1">Liberação bloqueada: Q9 e Q7 ainda sem causa e próximo passo.</span>
+    <button class="btn" disabled>Pedir à Bonnie para liberar Prática e fontes</button>
+  </footer>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

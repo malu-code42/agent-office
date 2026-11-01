@@ -2,6 +2,7 @@ import type { ClassScheduleView, ClassSlot } from '@shared/class-schedule'
 import { announce } from './a11y'
 import { h } from './dom'
 import { cleanError, modal } from './modals/common'
+import { dressStudyWindow, STUDY_WHO } from './study-kit'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
 
@@ -135,6 +136,11 @@ export async function openStudySchedule(root: HTMLElement, toast: Toast, openAge
     true,
   )
   el.querySelector('.modal')?.classList.add('study-schedule-modal')
+  dressStudyWindow(
+    el.querySelector('.modal') as HTMLElement,
+    { who: STUDY_WHO.schedule, subtitle: 'Grade semanal de aulas.md · as aulas aparecem na agenda' },
+    'xl',
+  )
   root.append(el)
   el.querySelector<HTMLButtonElement>('.modal-foot .btn-primary')?.focus()
   announce(view.found ? `Horário de aula aberto: ${count} aulas nesta semana.` : 'Horário de aula aberto: ainda não há aulas.md no vault.')

@@ -19,6 +19,7 @@ import type { StudyTrail, StudyTrailTopic } from '@shared/study-trail'
 import { announce } from './a11y'
 import { h } from './dom'
 import { cleanError, confirmDialog, modal } from './modals/common'
+import { dressStudyWindow, STUDY_WHO } from './study-kit'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
 
@@ -192,6 +193,7 @@ export async function openStudyBankBuilder(
   box.classList.add('study-popup', 'study-bank-modal')
   box.querySelector('.modal-title')!.replaceWith(title)
   box.querySelector('.modal-foot')!.replaceWith(foot)
+  dressStudyWindow(box, { who: STUDY_WHO.bank, subtitle: 'Cadeia de agentes · roda em segundo plano, uma por vez' }, 'm')
 
   const start = async (request: StudyBankRequest) => {
     if (busy) return

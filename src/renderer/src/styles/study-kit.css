@@ -1,0 +1,930 @@
+/* The study floor's windows, from the approved prototype "Ciclo de estudo da Bonnie": hard 3px
+   outline with a 4px shadow, a head with the badge of who runs the window, bordered panels with
+   mono labels, the stages of the cycle as a strip and gate checklists in the foot. */
+
+.modal.sk-window,
+.board.sk-window {
+  border: 3px solid var(--outline);
+  box-shadow: var(--shadow);
+  background: var(--card-solid);
+}
+
+/* the old orange strip of .study-popup is not part of this look */
+.sk-window.study-popup::before {
+  display: none;
+}
+
+.modal.sk-m {
+  width: min(680px, calc(100vw - 32px));
+}
+
+.modal.sk-l {
+  width: min(960px, calc(100vw - 32px));
+}
+
+.modal.sk-xl {
+  width: min(1080px, calc(100vw - 32px));
+}
+
+.sk-window .modal-head,
+.sk-window .board-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: var(--card-solid);
+  border-bottom: 3px solid var(--outline);
+}
+
+.sk-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.sk-window .sk-title {
+  margin: 0;
+  font: 500 20px var(--pixel);
+  color: var(--text);
+  letter-spacing: 0.5px;
+}
+
+.sk-subtitle {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.sk-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.sk-window .modal-head > .icon-btn:last-child,
+.sk-window .board-head > .icon-btn:last-child {
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--ctl-line);
+}
+
+.sk-window .modal-body {
+  padding: 16px 18px;
+}
+
+/* the cycle lays out its own strips and sections edge to edge */
+.sk-window.sk-flush .modal-body {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sk-window .modal-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 18px;
+  background: var(--card-solid);
+  border-top: 3px solid var(--outline);
+}
+
+.sk-window .modal-foot:empty {
+  display: none;
+}
+
+.sk-window .btn {
+  min-height: 40px;
+  height: auto;
+  padding: 0 16px;
+  border: 2px solid var(--outline);
+  background: var(--surface-3);
+  box-shadow: var(--shadow-sm);
+  font-weight: 500;
+}
+
+.sk-window .btn:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.sk-window .btn-primary {
+  background: var(--accent-solid);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.sk-window .btn-primary:hover:not(:disabled) {
+  background: var(--accent-solid-hi);
+}
+
+.sk-window .btn-quiet {
+  background: transparent;
+  box-shadow: none;
+  border-color: var(--ctl-line);
+}
+
+.sk-window .btn:disabled {
+  background: var(--card-solid);
+  color: var(--dim);
+  border-color: var(--ctl-line);
+  box-shadow: none;
+}
+
+.sk-window .btn-small {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.sk-window .input {
+  border: 2px solid var(--outline);
+  background: var(--sunken);
+}
+
+.sk-window .input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.sk-window .field-label,
+.sk-label {
+  color: var(--muted);
+  font: 500 11px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sk-label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.sk-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* the badge of who runs the window */
+.sk-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border: 2px solid var(--outline);
+  font: 500 15px var(--pixel);
+  color: var(--inv-text);
+}
+
+.sk-badge-s {
+  width: 20px;
+  height: 20px;
+  font-size: 11px;
+  border-width: 1px;
+}
+
+.sk-badge-bonnie {
+  background: var(--pink);
+}
+
+.sk-badge-cora,
+.sk-badge-schedule {
+  background: var(--blue);
+}
+
+.sk-badge-tutor,
+.sk-badge-cards {
+  background: var(--green);
+}
+
+.sk-badge-curator,
+.sk-badge-bank {
+  background: var(--amber);
+}
+
+.sk-badge-verifier {
+  background: #b7aec4;
+}
+
+.sk-room {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border: 2px solid var(--outline);
+  background: var(--sunken);
+  font: 500 12px var(--mono);
+  color: var(--text);
+}
+
+/* chips */
+.sk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 2px solid var(--outline);
+  background: var(--surface-3);
+  color: var(--text);
+  font: 500 12px var(--mono);
+  white-space: nowrap;
+}
+
+.sk-chip-ok {
+  background: var(--ok-bg);
+  color: var(--green-text);
+  border-color: var(--green);
+}
+
+.sk-chip-warn {
+  background: var(--warn-bg);
+  color: var(--amber);
+  border-color: var(--amber);
+}
+
+.sk-chip-err {
+  background: var(--err-bg);
+  color: var(--red);
+  border-color: var(--red);
+}
+
+.sk-chip-pink {
+  background: #3a2a3a;
+  color: var(--pink);
+  border-color: var(--pink);
+}
+
+.sk-chip-info {
+  background: var(--info-bg);
+  color: var(--blue);
+  border-color: var(--blue);
+}
+
+.sk-chip-now {
+  background: var(--accent-solid);
+  color: var(--on-accent);
+}
+
+.sk-chip-mute {
+  background: var(--card-solid);
+  color: var(--muted);
+  border-color: var(--ctl-line);
+}
+
+/* panels and layout */
+.sk-panel {
+  padding: 14px 16px;
+  border: 2px solid var(--outline);
+  background: var(--sunken);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sk-panel > .sk-label {
+  margin-bottom: 2px;
+}
+
+.sk-card {
+  padding: 12px 14px;
+  border: 2px solid var(--outline);
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sk-heading {
+  margin: 0;
+  font: 500 17px var(--pixel);
+  color: var(--text);
+}
+
+.sk-heading-note {
+  margin-left: 10px;
+  font: 400 12px var(--font);
+  color: var(--muted);
+}
+
+.sk-strip {
+  padding: 12px 18px;
+  border-bottom: 3px solid var(--outline);
+}
+
+.sk-section {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sk-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 16px;
+  padding: 16px 18px;
+  align-items: start;
+}
+
+.sk-split-left {
+  grid-template-columns: 300px minmax(0, 1fr);
+}
+
+.sk-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sk-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sk-grow {
+  flex: 1;
+}
+
+.sk-muted {
+  color: var(--muted);
+}
+
+.sk-small {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.sk-mono {
+  font-family: var(--mono);
+}
+
+/* stages */
+.sk-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sk-step {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border: 2px solid var(--outline);
+  background: var(--sunken);
+  color: var(--muted);
+  min-width: 0;
+}
+
+.sk-steps-detailed .sk-step {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 12px;
+}
+
+.sk-step-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sk-step-n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--outline);
+  background: var(--surface-3);
+  color: var(--text);
+  font: 500 12px var(--mono);
+  flex: none;
+}
+
+.sk-step-name {
+  font-size: 14px;
+}
+
+.sk-step-note {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.sk-step-done {
+  border-color: var(--green);
+  color: var(--text);
+}
+
+.sk-step-now {
+  border-color: var(--accent);
+  background: var(--hover);
+  color: var(--text);
+}
+
+.sk-step-now .sk-step-n {
+  background: var(--accent-solid);
+  color: var(--on-accent);
+}
+
+.sk-step-now .sk-step-name,
+.sk-step-done .sk-step-name {
+  font-weight: 600;
+}
+
+.sk-steps-dashed .sk-step {
+  border-style: dashed;
+  border-color: var(--ctl-line);
+  background: transparent;
+}
+
+/* meter, stats, score */
+.sk-meter {
+  position: relative;
+  height: 18px;
+  border: 2px solid var(--outline);
+  background: var(--sunken);
+}
+
+.sk-meter-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent);
+}
+
+.sk-meter-fill.sk-meter-ok {
+  background: var(--green);
+}
+
+.sk-meter-goal {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  width: 3px;
+  margin-left: -1px;
+  background: var(--amber);
+}
+
+.sk-score {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sk-score-value {
+  font: 500 36px var(--pixel);
+  color: var(--text);
+}
+
+.sk-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.sk-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 2px solid var(--outline);
+  background: var(--sunken);
+}
+
+.sk-stat .sk-label {
+  margin: 0;
+}
+
+.sk-stat-value {
+  font: 500 20px var(--pixel);
+}
+
+.sk-stat-caption {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* gate checklist */
+.sk-gate {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sk-gate-inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+
+.sk-gate li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13.5px;
+}
+
+.sk-tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--ctl-line);
+  background: var(--sunken);
+  font: 600 12px var(--mono);
+  color: var(--muted);
+}
+
+.sk-gate-ok .sk-tick {
+  border-color: var(--green);
+  background: var(--ok-bg);
+  color: var(--green);
+}
+
+.sk-gate-pending .sk-tick {
+  border-color: var(--amber);
+  background: var(--warn-bg);
+  color: var(--amber);
+}
+
+.sk-gate-note {
+  color: var(--muted);
+}
+
+.sk-foot-label {
+  font: 500 11px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* banners */
+.sk-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  border-bottom: 3px solid var(--outline);
+  font-size: 13.5px;
+}
+
+.sk-banner-warn {
+  background: var(--warn-bg);
+  color: var(--amber-text);
+}
+
+.sk-banner-warn b {
+  color: var(--amber);
+}
+
+.sk-banner-err {
+  background: var(--err-bg);
+  color: var(--red);
+}
+
+.sk-banner-info {
+  background: var(--info-bg);
+  color: var(--blue);
+}
+
+/* list rows (questions, gaps, sources) */
+.sk-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sk-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 2px solid var(--outline);
+  background: var(--surface-2);
+  min-width: 0;
+}
+
+button.sk-item {
+  width: 100%;
+  text-align: left;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+button.sk-item:hover {
+  background: var(--hover);
+}
+
+.sk-item[aria-current='true'] {
+  border-color: var(--accent);
+  background: var(--hover);
+}
+
+.sk-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.sk-item-main > span:last-child:not(:first-child) {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.sk-clip {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sk-scroll {
+  max-height: 340px;
+  overflow: auto;
+}
+
+/* question grid of the diagnosis */
+.sk-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.sk-cell {
+  height: 38px;
+  border: 2px solid var(--outline);
+  background: var(--sunken);
+  color: var(--text);
+  font: 500 13px var(--mono);
+  cursor: pointer;
+}
+
+.sk-cell:hover {
+  background: var(--hover);
+}
+
+.sk-cell-done {
+  background: var(--ok-bg);
+  color: var(--green-text);
+}
+
+.sk-cell-doubt {
+  background: #3a2a3a;
+  color: var(--pink);
+}
+
+.sk-cell-pending {
+  background: var(--warn-bg);
+  color: var(--amber);
+  border-color: var(--amber);
+}
+
+.sk-cell-wrong {
+  background: var(--err-bg);
+  color: var(--red);
+}
+
+.sk-cell[aria-current='true'] {
+  background: var(--accent-solid);
+  color: var(--on-accent);
+}
+
+/* the question being answered */
+.sk-prompt {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.sk-answer {
+  width: 100%;
+  min-height: 84px;
+  resize: vertical;
+  font: 400 14px var(--font);
+}
+
+.sk-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border: 2px solid var(--outline);
+  background: var(--surface-3);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.sk-choice:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.sk-choice-doubt:has(input:checked) {
+  border-color: var(--pink);
+  background: #3a2a3a;
+}
+
+.sk-choice input {
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+.sk-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.sk-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+.sk-confirm {
+  border: 2px solid var(--accent);
+  background: var(--sunken);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sk-empty-title {
+  margin: 0;
+  font: 500 22px var(--pixel);
+}
+
+.sk-error {
+  margin: 0;
+  padding: 8px 18px;
+  background: var(--err-bg);
+  color: var(--red);
+  border-bottom: 2px solid var(--outline);
+  font-size: 13.5px;
+}
+
+.sk-details > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 4px 0;
+}
+
+@media (max-width: 860px) {
+  .sk-split,
+  .sk-split-left {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sk-steps,
+  .sk-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---- inside the other study windows: the same rules ----------------------------------------- */
+
+/* small labels in mono caps, section titles in pixel sentence case */
+.sk-window .study-section-title {
+  margin: 0;
+  font: 500 16px var(--pixel);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+}
+
+.sk-window .qc-label,
+.sk-window .study-bank-cap {
+  font: 500 11px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* notes read as plain dim text, no side bar */
+.sk-window .study-note,
+.sk-window .study-questions-body > .field-hint {
+  margin: 0;
+  padding: 0;
+  border-left: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.sk-window .study-library-section {
+  padding-top: 4px;
+  border-top: 0;
+  gap: 8px;
+}
+
+/* Cora's ranked sources: numbered bordered rows */
+.sk-window .study-sources-list {
+  list-style: none;
+  padding: 0;
+  counter-reset: sk-rank;
+  gap: 6px;
+}
+
+.sk-window .study-source {
+  counter-increment: sk-rank;
+  position: relative;
+  padding: 10px 12px 10px 44px;
+  border: 2px solid var(--outline);
+  background: var(--surface-2);
+}
+
+.sk-window .study-source::before {
+  content: counter(sk-rank);
+  position: absolute;
+  left: 14px;
+  top: 9px;
+  font: 500 18px var(--pixel);
+  color: var(--accent);
+}
+
+.sk-window .study-source-4,
+.sk-window .study-source-5 {
+  border-left-color: var(--outline);
+}
+
+.sk-window .study-source-title {
+  font-weight: 600;
+}
+
+.sk-window .study-library-list {
+  padding: 8px;
+  border: 2px solid var(--outline);
+  background: var(--sunken);
+}
+
+.sk-window .study-library-list .study-cycle-source-hit {
+  padding: 10px 12px;
+  border: 2px solid var(--outline);
+  background: var(--surface-2);
+  box-shadow: none;
+}
+
+/* the bank's panels and question cards */
+.sk-window .study-bank-stats,
+.sk-window .study-bank-notice > * {
+  border: 2px solid var(--outline);
+  background: var(--sunken);
+  box-shadow: none;
+}
+
+.sk-window .qc {
+  border: 2px solid var(--outline);
+  background: var(--surface-2);
+  box-shadow: none;
+}
+
+/* the trail board: the badge replaces the list icon */
+.sk-window .sk-title > svg {
+  display: none;
+}
+
+.sk-window .board-count {
+  font: 500 12px var(--mono);
+  color: var(--muted);
+}

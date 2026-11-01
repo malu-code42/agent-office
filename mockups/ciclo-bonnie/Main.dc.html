@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Ciclo de estudo · visão geral</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Pixelify+Sans:wght@500&amp;display=swap">
+<style>
+body{margin:0}
+.root{width:1280px;height:800px;position:relative;overflow:hidden;background:#1d1a24;font-family:'IBM Plex Sans',sans-serif;color:#f2e9dc;font-size:14px;line-height:1.45}
+.floor{position:absolute;inset:0;background-color:#1d1a24;background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 2px,transparent 2px 48px),repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 2px,transparent 2px 48px)}
+.dim{position:absolute;inset:0;background:rgba(10,8,14,.6)}
+.tag{position:absolute;background:#2b2635;border:2px solid #0f0d14;color:#b9ab9c;font:500 12px 'IBM Plex Mono',monospace;padding:4px 8px;opacity:.5}
+.m{position:absolute;background:#2b2635;border:3px solid #0f0d14;box-shadow:4px 4px 0 #0f0d14;display:flex;flex-direction:column;overflow:hidden}
+.h{font-family:'Pixelify Sans',sans-serif;font-weight:500}
+.mono{font-family:'IBM Plex Mono',monospace}
+.lbl{font:500 11px 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:#b9ab9c}
+.muted{color:#b9ab9c}
+.btn{font:500 14px 'IBM Plex Sans',sans-serif;min-height:40px;padding:0 16px;border:2px solid #0f0d14;background:#383149;color:#f2e9dc;box-shadow:2px 2px 0 #0f0d14;cursor:pointer;border-radius:0;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{background:#4a3550}
+.btn-p{background:#e07a4f;color:#1a1410;font-weight:600}
+.btn-p:hover{background:#ea8c63}
+.btn-q{background:transparent;box-shadow:none;border-color:#4a4258}
+.btn:disabled{background:#2b2635;color:#a0939f;border-color:#4a4258;box-shadow:none;cursor:not-allowed}
+.x{width:44px;height:44px;justify-content:center;padding:0}
+.chip{display:inline-flex;align-items:center;gap:6px;font:500 12px 'IBM Plex Mono',monospace;padding:2px 8px;border:2px solid #0f0d14;background:#383149;color:#f2e9dc;white-space:nowrap}
+.ok{background:#1f3528;color:#cfeedd;border-color:#7fd39b}
+.warn{background:#3a2f1f;color:#f0b85a;border-color:#f0b85a}
+.err{background:#3a1f22;color:#ff8f7a;border-color:#ff8f7a}
+.pink{background:#3a2a3a;color:#e3a1d1;border-color:#e3a1d1}
+.now{background:#e07a4f;color:#1a1410;border-color:#0f0d14}
+.card{background:#332d40;border:2px solid #0f0d14}
+.sunk{background:#221e2b;border:2px solid #0f0d14}
+.step{background:#221e2b;border:2px solid #0f0d14;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.step-now{background:#4a3550;border-color:#e07a4f}
+.num{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;background:#383149;border:2px solid #0f0d14;font:500 13px 'IBM Plex Mono',monospace}
+.av{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #0f0d14;font:500 15px 'Pixelify Sans',sans-serif;color:#1a1410}
+.meter{height:14px;background:#221e2b;border:2px solid #0f0d14;position:relative}
+.fill{position:absolute;left:0;top:0;bottom:0;background:#7fd39b}
+.target{position:absolute;top:-7px;bottom:-7px;width:3px;background:#f0b85a}
+input[type=text],textarea{background:#221e2b;border:2px solid #0f0d14;color:#f2e9dc;font:14px 'IBM Plex Sans',sans-serif;padding:8px 10px;box-shadow:inset 2px 2px 0 #0f0d14;border-radius:0;box-sizing:border-box}
+input[type=checkbox],input[type=radio]{accent-color:#e07a4f;width:18px;height:18px;margin:0}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #e3a1d1;outline-offset:2px}
+</style>
+</helmet>
+<div class="root">
+<div class="floor" aria-hidden="true"></div>
+<span class="tag" style="left:60px;top:70px" aria-hidden="true">Sala de aula</span>
+<span class="tag" style="left:1090px;top:110px" aria-hidden="true">Bonnie · diretoria</span>
+<span class="tag" style="left:80px;top:700px" aria-hidden="true">Sala dos professores</span>
+<span class="tag" style="left:1050px;top:720px" aria-hidden="true">Cora · biblioteca</span>
+<div class="dim" aria-hidden="true"></div>
+
+<section class="m" role="dialog" aria-labelledby="t" style="left:160px;top:40px;width:960px;height:720px">
+  <header style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:3px solid #0f0d14">
+    <span class="av" style="background:#e3a1d1" aria-hidden="true">B</span>
+    <div style="flex:1;min-width:0">
+      <h1 id="t" class="h" style="margin:0;font-size:22px;line-height:1.2">Ciclo de estudo</h1>
+      <div class="muted" style="font-size:13px">Bonnie · diretoria — libera cada etapa quando o critério é cumprido</div>
+    </div>
+    <button class="btn btn-q">Pausar ciclo</button>
+    <button class="btn btn-q x" aria-label="Fechar"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"></path></svg></button>
+  </header>
+
+  <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;background:#221e2b;border-bottom:3px solid #0f0d14">
+    <span class="lbl">Tópico atual</span>
+    <strong style="font-size:16px">Probabilidade condicional</strong>
+    <span class="mono muted" style="font-size:12px">[P2-PE-03] · tópico 3 de 9 · Probabilidade e Estatística</span>
+    <span style="flex:1"></span>
+    <button class="btn btn-q">Trocar tópico</button>
+  </div>
+
+  <div style="padding:16px;display:flex;flex-direction:column;gap:16px;flex:1;min-height:0">
+    <ol aria-label="Etapas do ciclo" style="list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">
+      <li class="step">
+        <div style="display:flex;align-items:center;gap:8px"><span class="num">1</span><strong>Diagnóstico</strong></div>
+        <span class="chip ok" style="align-self:flex-start">Concluído</span>
+        <span class="muted" style="font-size:12px">Todas respondidas, incertezas marcadas. Sem nota mínima.</span>
+      </li>
+      <li class="step step-now" aria-current="step">
+        <div style="display:flex;align-items:center;gap:8px"><span class="num" style="background:#e07a4f;color:#1a1410">2</span><strong>Erros e dúvidas</strong></div>
+        <span class="chip now" style="align-self:flex-start">Em curso · 3 de 5</span>
+        <span style="font-size:12px;color:#f2e9dc">Cada erro ou dúvida com causa e próximo passo.</span>
+      </li>
+      <li class="step">
+        <div style="display:flex;align-items:center;gap:8px"><span class="num">3</span><strong class="muted">Prática e fontes</strong></div>
+        <span class="chip" style="align-self:flex-start;color:#b9ab9c">Bloqueado</span>
+        <span class="muted" style="font-size:12px">Fontes estudadas, ≥1 nota, 80% na prática.</span>
+      </li>
+      <li class="step">
+        <div style="display:flex;align-items:center;gap:8px"><span class="num">4</span><strong class="muted">Reteste</strong></div>
+        <span class="chip" style="align-self:flex-start;color:#b9ab9c">Bloqueado</span>
+        <span class="muted" style="font-size:12px">≥10 questões novas, sem ajuda, ≥80%.</span>
+      </li>
+    </ol>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:16px;flex:1;min-height:0">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="card" style="padding:16px;display:flex;flex-direction:column;gap:10px">
+          <span class="lbl">Sua próxima ação</span>
+          <h2 class="h" style="margin:0;font-size:20px">Explicar a causa de 2 dúvidas restantes</h2>
+          <p class="muted" style="margin:0">Faltam a questão 7 (incerta) e a 9 (errada). Para cada uma: por que errou ou ficou em dúvida e o que vai fazer a seguir.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <button class="btn btn-p">Continuar Erros e dúvidas</button>
+            <button class="btn" disabled>Pedir à Bonnie para liberar Prática e fontes</button>
+          </div>
+          <span class="muted" style="font-size:12px">Liberação bloqueada: 2 de 5 sem causa e próximo passo.</span>
+        </div>
+
+        <div class="sunk" style="padding:14px 16px;display:flex;flex-direction:column;gap:8px">
+          <span class="lbl">Diagnóstico · resumo</span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <span class="chip ok">7 certas</span>
+            <span class="chip err">3 erradas</span>
+            <span class="chip pink">2 incertas</span>
+            <span class="chip warn">1 em verificação</span>
+          </div>
+          <span class="muted" style="font-size:12px">13 questões · "Em verificação" não conta como erro nem acerto.</span>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="sunk" style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+          <span class="lbl">Na sala de aula agora</span>
+          <div style="display:flex;align-items:center;gap:10px"><span class="av" style="background:#7fd39b" aria-hidden="true">T</span><div><strong>Tutor</strong><div class="muted" style="font-size:12px">Ajudando nos erros e dúvidas</div></div></div>
+          <div style="display:flex;align-items:center;gap:10px;opacity:.75"><span class="av" style="background:#b9ab9c" aria-hidden="true">C</span><div><strong>Curadora</strong><div class="muted" style="font-size:12px">Na sala dos professores · entra na prática</div></div></div>
+          <div style="display:flex;align-items:center;gap:10px;opacity:.75"><span class="av" style="background:#b9ab9c" aria-hidden="true">V</span><div><strong>Verificador</strong><div class="muted" style="font-size:12px">Conferindo 1 gabarito · entra no reteste</div></div></div>
+        </div>
+        <div class="sunk" style="padding:14px 16px;display:flex;flex-direction:column;gap:6px">
+          <span class="lbl">Critério de conclusão</span>
+          <span>80% em ≥10 questões novas de reteste, sem ajuda, gabaritos conferidos.</span>
+          <span class="muted" style="font-size:12px">Ajustável só antes do diagnóstico. Conclusão só com a sua confirmação.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

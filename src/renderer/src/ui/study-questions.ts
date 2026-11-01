@@ -5,6 +5,7 @@ import { STUDY_QUESTION_LIMITS, type StudyOriginKind, type StudyQuestion } from 
 import { h } from './dom'
 import { cleanError, modal } from './modals/common'
 import { studyMeter, studyQuestionCard } from './study-bank'
+import { dressStudyWindow, STUDY_WHO } from './study-kit'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
 
@@ -50,6 +51,11 @@ export function openStudyQuestions(root: HTMLElement, toast: Toast, openBuilder:
     close,
   )
   el.querySelector('.modal')?.classList.add('study-popup', 'study-questions-modal')
+  dressStudyWindow(
+    el.querySelector('.modal') as HTMLElement,
+    { who: STUDY_WHO.bank, subtitle: 'Escrito pelos agentes a partir dos seus livros · nenhuma questão se repete' },
+    'm',
+  )
   el.querySelector('.modal-foot')?.classList.add('study-modal-foot')
   root.append(el)
   el.querySelector<HTMLElement>('.modal-foot .btn')?.focus()

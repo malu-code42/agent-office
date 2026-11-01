@@ -2,6 +2,7 @@ import type { StudyCardDraft, StudyCardSections, StudyCardSummary, StudyNoteSnap
 import { announce } from './a11y'
 import { h } from './dom'
 import { cleanError, modal } from './modals/common'
+import { dressStudyWindow, STUDY_WHO } from './study-kit'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
 type SectionField = 'information' | 'examplePractice' | 'connections' | 'sources'
@@ -340,6 +341,11 @@ export async function openStudyCards(root: HTMLElement, toast: Toast): Promise<v
 
   const el = modal('Notas e cartões de estudo', [content], [actions], () => el.remove())
   el.querySelector('.modal-foot')?.classList.add('study-modal-foot')
+  dressStudyWindow(
+    el.querySelector('.modal') as HTMLElement,
+    { who: STUDY_WHO.cards, subtitle: 'As notas do ciclo viram cartões · cada cartão é escrito à mão' },
+    'l',
+  )
   root.append(el)
   await refresh()
   render()

@@ -3,6 +3,7 @@ import type { StudySourceRecommendation, StudySourceRecommendations } from '@sha
 import { announce } from './a11y'
 import { h } from './dom'
 import { cleanError, modal } from './modals/common'
+import { dressStudyWindow, STUDY_WHO } from './study-kit'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
 
@@ -27,7 +28,11 @@ export function studySourceItem(r: StudySourceRecommendation, toast: Toast, comp
       'div',
       { class: 'study-source-line' },
       h('span', {}, 'Estude: '),
-      h('button', { class: 'study-source-title', type: 'button', title: page ? `Abrir na página ${page}` : 'Abrir', onclick: open }, r.title),
+      h(
+        'button',
+        { class: 'study-source-title', type: 'button', title: page ? `Abrir na página ${page}` : 'Abrir', onclick: open },
+        r.title,
+      ),
       h('span', {}, `, ${r.range}${sections}`),
       h('span', { class: `study-source-level study-source-level-${r.level}`, title: `Pontuação local ${r.score}/100` }, r.label),
     ),
@@ -64,7 +69,8 @@ const STATUS_LABEL: Record<StudySourceStatus, string> = {
 /** What each state asks of the user, worst first. */
 const STATUS_ORDER: StudySourceStatus[] = ['ilegivel', 'ocr', 'lendo', 'grande', 'so-nome', 'lida']
 
-const fileSize = (bytes: number): string => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`)
+const fileSize = (bytes: number): string =>
+  bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`
 
 function inventoryRow(s: StudySourceInfo): HTMLElement {
   const detail = [s.ext.replace('.', '').toUpperCase() || 'sem extensão', fileSize(s.size)]
@@ -214,7 +220,8 @@ export function openStudyLibrary(root: HTMLElement, toast: Toast, topic = ''): v
     render()
     try {
       inventory = await window.office.studySourceInventory(verify)
-      if (verify) toast(inventory.ocrQueued ? `${inventory.ocrQueued} PDF(s) escaneado(s) no OCR, em segundo plano.` : 'Nada pendente de OCR.', 'ok')
+      if (verify)
+        toast(inventory.ocrQueued ? `${inventory.ocrQueued} PDF(s) escaneado(s) no OCR, em segundo plano.` : 'Nada pendente de OCR.', 'ok')
       announce(`${inventory.sources.length} fontes.`)
     } catch (error) {
       toast(cleanError(error), 'err')
@@ -280,6 +287,11 @@ export function openStudyLibrary(root: HTMLElement, toast: Toast, topic = ''): v
   )
   el.classList.add('study-library-modal')
   el.querySelector('.modal')?.classList.add('study-popup')
+  dressStudyWindow(
+    el.querySelector('.modal') as HTMLElement,
+    { who: STUDY_WHO.cora, subtitle: 'Bibliotecária · lê só os arquivos locais de “study sources”; nada vai ao Claude' },
+    'l',
+  )
   root.append(el)
   render()
   query.focus()
