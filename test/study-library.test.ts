@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { deflateRawSync } from 'node:zlib'
 import { StudyLibrary, StudyNotesWriter } from '../src/main/study-library'
+import { parseStudyNotes } from '../src/main/study-cards'
 import { scoreStudyText, studySnippet, tokenizeStudyQuery } from '../src/shared/study-library'
 import { tinyPdf } from './helpers/tiny-pdf'
 
@@ -184,6 +185,18 @@ describe('tokenizeStudyQuery e scoreStudyText', () => {
 })
 
 describe('notas de estudo Obsidian', () => {
+  it('saves a standalone note that parseStudyNotes finds, and rejects an empty title', () => {
+    const vault = fixture()
+    const writer = new StudyNotesWriter(vault)
+    const { id } = writer.writeLoose('Ideia do artigo', 'Texto autoral.')
+    const text = readFileSync(join(vault, 'notas-estudo.md'), 'utf8')
+    const found = parseStudyNotes(text).notes
+    expect(found).toHaveLength(1)
+    expect(found[0]).toMatchObject({ id, sourceRef: 'Nota avulsa (autoral)' })
+    expect(found[0]!.title).toContain('Ideia do artigo')
+    expect(() => writer.writeLoose(' ', 'x')).toThrow()
+  })
+
   it('append-only atomic note save preserves existing text, backs it up and deduplicates retries', () => {
     const vault = fixture()
     const noteFile = join(vault, 'notas-estudo.md')

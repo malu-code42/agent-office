@@ -304,6 +304,10 @@ export function registerTasksIpc(ctx: IpcContext): void {
     return studyCycleService().completeRetest()
   })
   ipcMain.handle('office:readStudyNotes', () => studyCardsService().readNotes())
+  ipcMain.handle('office:saveLooseStudyNote', (_e, title: unknown, text: unknown) => {
+    if (typeof title !== 'string' || typeof text !== 'string') throw new Error('Nota avulsa inválida.')
+    new StudyNotesWriter(requireVault()).writeLoose(title, text)
+  })
   ipcMain.handle('office:generateStudyCardDraft', async (_e, ...args: unknown[]) => {
     const [noteIds] = parse(generateStudyCardDraftArgsSchema, args, 'Seleção de notas para cartão inválida.')
     const cards = studyCardsService()

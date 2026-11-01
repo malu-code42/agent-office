@@ -247,6 +247,11 @@
   border-color: var(--accent);
 }
 
+.study-inv-subject {
+  margin: 14px 0 6px;
+  font-size: 14px;
+}
+
 .study-inv-list {
   margin: 0;
   padding: 0;

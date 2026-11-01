@@ -103,8 +103,30 @@ function inventoryView(inv: StudySourceInventory, verify: () => void, busy: bool
       ),
     ),
     ...(inv.complete ? [] : [h('p', { class: 'field-hint' }, 'Algumas pastas ou atalhos não foram percorridos.')]),
-    sorted.length ? h('ul', { class: 'study-inv-list' }, ...sorted.map(inventoryRow)) : h('p', { class: 'field-hint' }, 'Nenhum arquivo na pasta.'),
+    ...(sorted.length ? inventoryGroups(sorted) : [h('p', { class: 'field-hint' }, 'Nenhum arquivo na pasta.')]),
   ]
+}
+
+const NO_SUBJECT = 'Sem disciplina'
+
+/** The subject is the folder under "course materials" / "textbooks" (study sources/<kind>/<subject>/…). */
+const subjectOf = (path: string): string => {
+  const parts = path.split(/[\\/]/)
+  return parts.length > 3 ? parts[2] : NO_SUBJECT
+}
+
+/** Sources split by subject, subjects A–Z with the unfiled ones last; the order inside each is kept. */
+function inventoryGroups(sources: StudySourceInfo[]): HTMLElement[] {
+  const groups = new Map<string, StudySourceInfo[]>()
+  for (const s of sources) {
+    const key = subjectOf(s.path)
+    groups.set(key, [...(groups.get(key) ?? []), s])
+  }
+  const names = [...groups.keys()].sort((a, b) => (a === NO_SUBJECT ? 1 : b === NO_SUBJECT ? -1 : a.localeCompare(b, 'pt-BR')))
+  return names.flatMap((name) => [
+    h('h3', { class: 'study-inv-subject' }, name, h('span', { class: 'field-hint' }, ` ${groups.get(name)!.length}`)),
+    h('ul', { class: 'study-inv-list' }, ...groups.get(name)!.map(inventoryRow)),
+  ])
 }
 
 /** Cora's ranked list for one request, best to worst, or why there is none. */

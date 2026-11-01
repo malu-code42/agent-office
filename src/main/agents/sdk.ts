@@ -314,6 +314,22 @@ export abstract class AgentSdk extends AgentOffice {
     agent.helperReservations?.delete(toolUseId)
   }
 
+  /** Starts a fresh session and re-sends the last message; false when there is nothing to re-send (or it was already tried). */
+  protected restartLostSession(agent: Agent): boolean {
+    const prompt = agent.lastPrompt
+    if (!prompt || !this.agents.has(agent.summary.id)) return false
+    agent.lastPrompt = undefined
+    agent.started = false
+    agent.summary.sessionId = randomUUID()
+    if (agent.query) this.replaced.add(agent.query)
+    agent.input?.close()
+    agent.query?.close()
+    agent.query = undefined
+    this.addLog(agent, 'system', 'A conversa anterior não foi encontrada; comecei uma nova.')
+    this.run(agent, prompt)
+    return true
+  }
+
   protected async consume(agent: Agent, q: Query): Promise<void> {
     try {
       for await (const msg of q) this.handle(agent, msg)
@@ -324,16 +340,7 @@ export abstract class AgentSdk extends AgentOffice {
       this.addLog(agent, 'error', text)
       // The saved conversation is gone (other account folder, moved cwd, cleared ~/.claude):
       // start a fresh session once and re-send the message instead of failing every turn.
-      if (isLostSession(text) && agent.lastPrompt && this.agents.has(agent.summary.id)) {
-        const prompt = agent.lastPrompt
-        agent.lastPrompt = undefined
-        agent.started = false
-        agent.summary.sessionId = randomUUID()
-        agent.query = undefined
-        this.addLog(agent, 'system', 'A conversa anterior não foi encontrada; comecei uma nova.')
-        this.run(agent, prompt)
-        return
-      }
+      if (isLostSession(text) && this.restartLostSession(agent)) return
       if (this.agents.has(agent.summary.id)) {
         this.deliver(agent, {
           text: `Tive um problema e parei:\n\n${text}`,
@@ -441,6 +448,8 @@ export abstract class AgentSdk extends AgentOffice {
             : msg.subtype === 'error_max_budget_usd'
               ? this.budgetText(agent)
               : msg.errors.join('\n') || `Parei: ${msg.subtype}`
+        // The CLI reports a lost session as an error result, not only as a throw: same recovery.
+        if (isError && isLostSession(text) && this.restartLostSession(agent)) return
         agent.summary.costUsd = msg.total_cost_usd
         // Token economy: an hour after this the prompt cache is cold and the next message rewrites it.
         agent.summary.lastTurnAt = Date.now()

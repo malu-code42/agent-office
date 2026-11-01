@@ -364,16 +364,32 @@ export class StudyNotesWriter implements StudyNoteWriter {
   write(input: { id: string; gapQuestionId: string; sourceRef: string; text: string; savedAt?: number }) {
     const { id, gapQuestionId, sourceRef } = input
     const text = input.text.trim()
-    if (!/^sn-[a-z0-9-]{8,150}$/i.test(id) || !/^q-[a-z0-9-]{8,72}$/i.test(gapQuestionId))
-      throw new Error('Identificador de nota inválido.')
+    const savedAt = input.savedAt ?? Date.now()
+    if (!/^q-[a-z0-9-]{8,72}$/i.test(gapQuestionId)) throw new Error('Identificador de nota inválido.')
+    this.append(id, gapQuestionId, sourceRef, text, savedAt)
+    return { id, gapQuestionId, sourceRef, text, savedAt }
+  }
+
+  /** A standalone (authored) note: no task, no study cycle. It lands in the same file, so cards can use it. */
+  writeLoose(title: string, rawText: string): { id: string } {
+    const heading = title.trim()
+    if (!heading || heading.length > 200 || /[\r\n\0]/.test(heading)) throw new Error('Informe um título de uma linha, com até 200 caracteres.')
+    const id = `sn-${randomUUID()}`
+    this.append(id, heading, 'Nota avulsa (autoral)', rawText)
+    return { id }
+  }
+
+  private append(id: string, heading: string, sourceRef: string, rawText: string, at?: number): void {
+    const text = rawText.trim()
+    if (!/^sn-[a-z0-9-]{8,150}$/i.test(id)) throw new Error('Identificador de nota inválido.')
     if (!text || text.length > 10_000 || /\0/.test(text)) throw new Error('A nota deve ter até 10.000 caracteres.')
     if (!sourceRef || sourceRef.length > 1000 || /[\r\n\0]/.test(sourceRef)) throw new Error('Referência de fonte inválida.')
-    const savedAt = input.savedAt ?? Date.now()
+    const savedAt = at ?? Date.now()
     const marker = `<!-- agent-office-study-note:${id} -->`
     const current = this.readCurrent()
-    if (current.includes(marker)) return { ...input, text, savedAt }
+    if (current.includes(marker)) return
     const date = new Date(savedAt).toISOString().slice(0, 10)
-    const append = [marker, `## ${date} · ${gapQuestionId}`, `Fonte: ${sourceRef}`, '', text, ''].join('\n')
+    const append = [marker, `## ${date} · ${heading}`, `Fonte: ${sourceRef}`, '', text, ''].join('\n')
     const prefix = current ? (current.endsWith('\n') ? '\n' : '\n\n') : '# Notas de estudo\n\n'
     if (Buffer.byteLength(current + prefix + append, 'utf8') > 16 * 1024 * 1024)
       throw new Error('O arquivo notas-estudo.md excedeu o limite seguro de 16 MiB.')
@@ -396,7 +412,6 @@ export class StudyNotesWriter implements StudyNoteWriter {
       },
       `.tmp-${randomUUID()}`,
     )
-    return { id, gapQuestionId, sourceRef, text, savedAt }
   }
 
   private readCurrent(): string {
