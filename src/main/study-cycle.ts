@@ -21,7 +21,7 @@ import {
   type StudyPracticeQuestion,
   type StudyCycleState,
 } from '@shared/study-cycle'
-import type { StudyQuestion } from '@shared/study-questions'
+import { studyQuestionText, type StudyQuestion } from '@shared/study-questions'
 import { tutorEvidence, type StudyTutorEvaluator } from './study-cycle-claude'
 import { hashStudyQuestion } from './study-cycle-schema'
 import { StudyCycleStore } from './study-cycle-store'
@@ -174,7 +174,7 @@ export class StudyCycleService {
       if (!evidence) throw new Error('Há questão sem gabarito conferido; ela não pode contar no reteste.')
       const result = await this.evaluate({
         profile: 'verificador',
-        question: question.source.question,
+        question: studyQuestionText(question.source),
         studentAnswer: question.response,
         providedEvidence: evidence,
       })
@@ -217,7 +217,7 @@ export class StudyCycleService {
     if (!evidence) throw new Error('A questão não tem gabarito conferido; ela não pode contar na prática.')
     const result = await this.evaluate({
       profile: 'curador',
-      question: question.source.question,
+      question: studyQuestionText(question.source),
       studentAnswer: question.response,
       providedEvidence: evidence,
     })
@@ -258,7 +258,7 @@ export class StudyCycleService {
     // Content leaves the device only on this explicit per-question action. Never log this payload.
     const result = await this.evaluate({
       profile: 'tutor',
-      question: question.source.question,
+      question: studyQuestionText(question.source),
       studentAnswer: question.response,
       providedEvidence: evidence,
     })

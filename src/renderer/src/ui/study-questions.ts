@@ -1,4 +1,4 @@
-import type { StudyQuestion } from '@shared/study-questions'
+import { studyQuestionText, type StudyQuestion } from '@shared/study-questions'
 import { h } from './dom'
 import { cleanError, modal } from './modals/common'
 
@@ -85,7 +85,7 @@ export function openStudyQuestions(root: HTMLElement, toast: Toast): void {
                 ...(check ? [check] : []),
                 h('strong', {}, `${question.topic} · ${question.originKind.toUpperCase()} · ${question.answerStatus}`),
               ),
-              h('p', {}, question.sourceOnly ? 'Somente metadados e URL; não há trecho de questão salvo.' : question.question),
+              h('p', { style: 'white-space: pre-wrap' }, question.sourceOnly ? 'Somente metadados e URL; não há trecho de questão salvo.' : studyQuestionText(question)),
               h(
                 'p',
                 { class: 'field-hint' },

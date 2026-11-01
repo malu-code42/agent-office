@@ -8,7 +8,7 @@ import {
   type StudyCycleQuestion,
   type StudyCycleState,
 } from '@shared/study-cycle'
-import type { StudyQuestion } from '@shared/study-questions'
+import { studyOptionLetter, type StudyQuestion } from '@shared/study-questions'
 import type { StudyLibraryHit, StudyLibrarySearch } from '@shared/study-library'
 import type { StudyPracticeQuestion } from '@shared/study-cycle'
 import { studyTopicStart, topicName, trailTopicOf, type StudyTrail, type StudyTrailTopic } from '@shared/study-trail'
@@ -125,15 +125,22 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
       dirty = true
       if (controls.verifyButton) controls.verifyButton.disabled = true
     }
-    const response = h('textarea', {
-      class: 'input study-cycle-answer',
-      rows: '3',
-      maxlength: '20000',
-      'aria-label': `Sua resposta para ${item.id}`,
-      value: item.response,
-      disabled: busy || cycle.stage !== 'diagnosis' || undefined,
-      oninput: markDirty,
-    }) as HTMLTextAreaElement
+    const response =
+      choiceControl(item.source, {
+        label: `Sua resposta para ${item.id}`,
+        value: item.response,
+        disabled: busy || cycle.stage !== 'diagnosis',
+        onchange: markDirty,
+      }) ??
+      (h('textarea', {
+        class: 'input study-cycle-answer',
+        rows: '3',
+        maxlength: '20000',
+        'aria-label': `Sua resposta para ${item.id}`,
+        value: item.response,
+        disabled: busy || cycle.stage !== 'diagnosis' || undefined,
+        oninput: markDirty,
+      }) as HTMLTextAreaElement)
     const uncertain = h(
       'select',
       {
@@ -206,7 +213,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
         { class: 'study-cycle-source' },
         `${originLabel[item.source.originKind]} · ${item.source.sourceTitle}${item.source.answerStatus !== 'verified' ? ' · gabarito não conferido' : ''}`,
       ),
-      h('p', { class: 'study-cycle-prompt' }, item.source.question),
+      ...questionBlock(item.source),
       h('label', { class: 'study-cycle-field' }, h('span', { class: 'field-label' }, 'Sua resposta'), response),
       h('label', { class: 'study-cycle-field' }, h('span', { class: 'field-label' }, 'Incerteza'), uncertain),
       h('label', { class: 'study-cycle-field' }, h('span', { class: 'field-label' }, 'Trecho de apoio para o Tutor (opcional)'), excerpt),
@@ -391,7 +398,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
             'article',
             { class: 'study-cycle-gap' },
             h('h4', {}, `${gap.assessment?.kind === 'incorrect' ? 'Erro' : 'Dúvida'} · ${topicName(gap.source.topic) || topicName(cycle.topic)}`),
-            h('p', { class: 'study-cycle-prompt' }, gap.source.question),
+            ...questionBlock(gap.source, true),
             sources(gapSources.get(gap.id)),
           ),
         ),
@@ -431,7 +438,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
         'article',
         { class: 'study-cycle-gap' },
         h('h4', {}, `Erro ou dúvida · ${topicName(gap.source.topic) || topicName(cycle.topic)}`),
-        h('p', { class: 'study-cycle-prompt' }, gap.source.question),
+        ...questionBlock(gap.source, true),
         h('p', { class: 'study-cycle-source' }, `Sua resposta: ${gap.response}${gap.uncertain ? ' · Você marcou dúvida' : ''}`),
         h('label', { class: 'study-cycle-field' }, h('span', { class: 'field-label' }, 'O que causou a dificuldade?'), cause),
         h('label', { class: 'study-cycle-field' }, h('span', { class: 'field-label' }, 'Qual é o próximo passo?'), nextStep),
@@ -673,18 +680,21 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
   const practiceQuestionForm = (item: StudyPracticeQuestion): HTMLElement => {
     let dirty = false
     const controls: { verifyButton?: HTMLButtonElement } = {}
-    const response = h('textarea', {
-      class: 'input study-cycle-answer',
-      rows: '3',
-      maxlength: '20000',
-      'aria-label': `Resposta da prática ${item.id}`,
-      value: item.response,
-      disabled: busy || undefined,
-      oninput: () => {
-        dirty = true
-        if (controls.verifyButton) controls.verifyButton.disabled = true
-      },
-    }) as HTMLTextAreaElement
+    const markDirty = () => {
+      dirty = true
+      if (controls.verifyButton) controls.verifyButton.disabled = true
+    }
+    const response =
+      choiceControl(item.source, { label: `Resposta da prática ${item.id}`, value: item.response, disabled: busy, onchange: markDirty }) ??
+      (h('textarea', {
+        class: 'input study-cycle-answer',
+        rows: '3',
+        maxlength: '20000',
+        'aria-label': `Resposta da prática ${item.id}`,
+        value: item.response,
+        disabled: busy || undefined,
+        oninput: markDirty,
+      }) as HTMLTextAreaElement)
     const saveButton = h(
       'button',
       {
@@ -709,7 +719,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
       'article',
       { class: 'study-cycle-question' },
       h('h4', {}, `${topicName(item.source.topic)} · prática nova`),
-      h('p', { class: 'study-cycle-prompt' }, item.source.question),
+      ...questionBlock(item.source),
       h('p', { class: 'study-cycle-source' }, `Gabarito conferido · vinculado a ${item.gapQuestionIds.join(', ')}`),
       h('label', { class: 'study-cycle-field' }, h('span', { class: 'field-label' }, 'Sua resposta'), response),
       item.assessment
@@ -887,35 +897,39 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
   }
 
   const retestQuestionForm = (item: StudyCycleQuestion, locked: boolean): HTMLElement => {
-    const response = h('textarea', {
-      class: 'input study-cycle-answer',
-      rows: '3',
-      maxlength: '20000',
-      'aria-label': `Resposta do reteste ${item.id}`,
-      value: item.response,
-      disabled: busy || locked || undefined,
-    }) as HTMLTextAreaElement
+    const saveButton = h(
+      'button',
+      {
+        class: 'btn btn-small',
+        type: 'button',
+        disabled: busy || !item.response || undefined,
+        onclick: () => void save(() => window.office.answerStudyRetest(item.id, response.value), 'Resposta do reteste salva localmente.'),
+      },
+      'Salvar resposta',
+    )
+    const response =
+      choiceControl(item.source, {
+        label: `Resposta do reteste ${item.id}`,
+        value: item.response,
+        disabled: busy || locked,
+        onchange: () => (saveButton.disabled = busy),
+      }) ??
+      (h('textarea', {
+        class: 'input study-cycle-answer',
+        rows: '3',
+        maxlength: '20000',
+        'aria-label': `Resposta do reteste ${item.id}`,
+        value: item.response,
+        disabled: busy || locked || undefined,
+        oninput: () => (saveButton.disabled = busy),
+      }) as HTMLTextAreaElement)
     return h(
       'article',
       { class: 'study-cycle-question' },
       h('h4', {}, `${topicName(item.source.topic)} · ${originLabel[item.source.originKind]}`),
-      h('p', { class: 'study-cycle-prompt' }, item.source.question),
+      ...questionBlock(item.source),
       h('label', { class: 'study-cycle-field' }, h('span', { class: 'field-label' }, 'Sua resposta, sem consulta'), response),
-      ...(locked
-        ? []
-        : [
-            h(
-              'button',
-              {
-                class: 'btn btn-small',
-                type: 'button',
-                disabled: busy || !response.value.trim() || undefined,
-                onclick: () =>
-                  void save(() => window.office.answerStudyRetest(item.id, response.value), 'Resposta do reteste salva localmente.'),
-              },
-              'Salvar resposta',
-            ),
-          ]),
+      ...(locked ? [] : [saveButton]),
     )
   }
 
@@ -1124,6 +1138,44 @@ function assessmentLabel(kind: 'correct' | 'incorrect' | 'uncertain' | 'pending'
 
 function normalizePrompt(prompt: string): string {
   return prompt.toLocaleLowerCase('pt-BR').replace(/\s+/g, ' ').trim()
+}
+
+/** What the student reads before answering: the passage ("segundo o texto…"), the statement and, read-only, the alternatives. */
+function questionBlock(source: StudyQuestion, withOptions = false): (HTMLElement | null)[] {
+  return [
+    source.passage ? h('blockquote', { class: 'study-cycle-passage' }, source.passage) : null,
+    h('p', { class: 'study-cycle-prompt' }, source.question),
+    withOptions && source.options
+      ? h('ol', { class: 'study-cycle-options-list' }, ...source.options.map((option, i) => h('li', { 'data-letter': studyOptionLetter(i) }, option)))
+      : null,
+  ]
+}
+
+/**
+ * Radio group for multiple choice questions, or null for open ones. It exposes `value` (the chosen letter, '' when none)
+ * like the textarea it replaces, so the forms read the answer the same way.
+ */
+function choiceControl(
+  source: StudyQuestion,
+  init: { label: string; value: string; disabled: boolean; onchange?: () => void },
+): HTMLTextAreaElement | null {
+  if (!source.options) return null
+  const name = `choice-${source.id}-${Math.random().toString(36).slice(2, 8)}`
+  const inputs = source.options.map((_, i) => {
+    const letter = studyOptionLetter(i)
+    const input = h('input', { type: 'radio', name, value: letter, disabled: init.disabled || undefined, onchange: () => init.onchange?.() })
+    input.checked = init.value === letter
+    return input
+  })
+  const group = h(
+    'div',
+    { class: 'study-cycle-options', role: 'radiogroup', 'aria-label': init.label },
+    ...source.options.map((option, i) =>
+      h('label', { class: 'study-cycle-option' }, inputs[i]!, h('span', { class: 'study-cycle-option-letter' }, `${studyOptionLetter(i)})`), option),
+    ),
+  )
+  Object.defineProperty(group, 'value', { get: () => inputs.find((input) => input.checked)?.value ?? '' })
+  return group as unknown as HTMLTextAreaElement
 }
 
 function practiceGateMessage(
