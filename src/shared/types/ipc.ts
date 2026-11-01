@@ -342,6 +342,8 @@ export interface OfficeAPI {
   completeStudyRetest(): Promise<StudyCycleState>
   /** Lê as notas de estudo editáveis e seus hashes de versão, sem enviar conteúdo a modelos. */
   readStudyNotes(): Promise<StudyNotesRead>
+  /** Salva uma nota autoral em notas-estudo.md, sem tarefa nem ciclo de estudos. */
+  saveLooseStudyNote(title: string, text: string): Promise<void>
   /** Gera um rascunho somente das notas escolhidas; o main guarda os snapshots sob um token curto. */
   generateStudyCardDraft(noteIds: string[]): Promise<{ token: string; draft: StudyCardDraft } | null>
   /** Salva o rascunho aprovado pela estudante como cartão Markdown no Obsidian. */
