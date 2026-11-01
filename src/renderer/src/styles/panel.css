@@ -5,7 +5,8 @@
   top: 16px;
   right: 16px;
   bottom: 84px;
-  width: 400px;
+  /* wider for reading the chat, still docked right; never wider than the window allows */
+  width: min(520px, calc(100vw - 32px));
   display: flex;
   flex-direction: column;
   overflow: hidden;
