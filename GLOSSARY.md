@@ -85,7 +85,7 @@ Questões do vault usadas pelos ciclos, montadas pela IA a partir dos livros loc
 _Avoid_: Candidatas para revisão, questões da web sem fonte
 
 **Verificada por agentes**:
-Selo da questão aprovada pela cadeia autor, conferência da citação, semelhança, resolvedor cego e verificador. Não existe selo de revisão manual.
+Selo da questão de múltipla escolha (cinco alternativas, uma correta) aprovada pela cadeia autor, conferência da citação, semelhança, resolvedor cego e verificador. Não existe selo de revisão manual.
 _Avoid_: Revisada, aprovada pela usuária
 
 **Questão respondida**:

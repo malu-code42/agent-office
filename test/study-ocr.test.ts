@@ -33,7 +33,11 @@ describe('OCR de PDF escaneado', () => {
   it('a leitura de um PDF escaneado entra na fila e o cache guarda o texto reconhecido', async () => {
     const dir = tmp()
     const jobs: PdfOcrJob[] = []
-    const cache = new PdfTextCache(dir, async () => ['', TEXT], (job) => jobs.push(job))
+    const cache = new PdfTextCache(
+      dir,
+      async () => ['', TEXT],
+      (job) => jobs.push(job),
+    )
     const info = { mtimeMs: 1, size: 10 }
     expect(await cache.pages('/a.pdf', info, () => Buffer.from('x'))).toEqual(['', TEXT])
     expect(jobs).toHaveLength(1)
@@ -47,7 +51,11 @@ describe('OCR de PDF escaneado', () => {
 
   it('um PDF com texto não vai para o OCR', async () => {
     const jobs: PdfOcrJob[] = []
-    const cache = new PdfTextCache(tmp(), async () => [TEXT, TEXT], (job) => jobs.push(job))
+    const cache = new PdfTextCache(
+      tmp(),
+      async () => [TEXT, TEXT],
+      (job) => jobs.push(job),
+    )
     await cache.pages('/b.pdf', { mtimeMs: 1, size: 1 }, () => Buffer.from('x'))
     expect(jobs).toHaveLength(0)
   })

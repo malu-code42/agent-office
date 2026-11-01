@@ -8,7 +8,7 @@ import {
   type StudyBankTopicResult,
 } from '@shared/study-bank'
 import type { StudyLibraryHit } from '@shared/study-library'
-import { STUDY_QUESTION_LIMITS, type StudyQuestion } from '@shared/study-questions'
+import { isChoiceQuestion, STUDY_QUESTION_LIMITS, type StudyQuestion } from '@shared/study-questions'
 import type { StudyTrail, StudyTrailTopic } from '@shared/study-trail'
 import { askClaude, generateGroundedQuestion, type AskJson, type GroundedFailure } from './study-questions-grounded'
 
@@ -86,7 +86,8 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
     const disciplineId = disciplineIdOf(topic.id)
     const bank = deps.bank.read().questions
     const onTopic = bank.filter((q) => q.topic === topic.title)
-    const have = onTopic.filter((q) => !deps.isAnswered?.(q))
+    // only multiple-choice questions not answered yet count toward the goal
+    const have = onTopic.filter((q) => isChoiceQuestion(q) && !deps.isAnswered?.(q))
     const start: StudyBankTopicResult = {
       id: topic.id,
       topic: topic.title,

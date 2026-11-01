@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { decodeStudyBank, encodeStudyQuestion, rankStudyQuestions, STUDY_BANK_LINE_LIMIT, type StudyQuestion } from '../src/shared/study-questions'
+import {
+  choiceOf,
+  decodeStudyBank,
+  encodeStudyQuestion,
+  gradeChoice,
+  isChoiceQuestion,
+  rankStudyQuestions,
+  STUDY_BANK_LINE_LIMIT,
+  type StudyQuestion,
+} from '../src/shared/study-questions'
 import {
   closeSync,
   existsSync,
@@ -43,6 +52,44 @@ describe('study question bank codec', () => {
     expect(decoded.unknownLines).toEqual(['Texto manual que não conheço'])
     expect(again.questions).toEqual([question()])
     expect(again.unknownLines).toEqual(['Texto manual que não conheço'])
+  })
+
+  it('round-trips a multiple-choice question and checks its alternatives', () => {
+    const choice = question({ choices: ['1/4', '1/2', '1/3', '1', '0'], correct: 'B', answer: '1/2' })
+    const again = decodeStudyBank(encodeStudyQuestion(choice)).questions[0]!
+    expect(again).toEqual(choice)
+    expect(isChoiceQuestion(again)).toBe(true)
+    expect(isChoiceQuestion(question())).toBe(false)
+    expect(() => encodeStudyQuestion(question({ choices: ['a', 'b'], correct: 'A' }))).toThrow(/cinco/)
+    expect(() => encodeStudyQuestion(question({ choices: ['a', 'a', 'b', 'c', 'd'], correct: 'A' }))).toThrow(/diferentes/)
+    expect(() => encodeStudyQuestion(question({ choices: ['a', 'b', 'c', 'd', 'e'], correct: 'A', answer: 'b' }))).toThrow(/gabarito/)
+  })
+
+  it('grades a multiple-choice answer by its letter, with no model', () => {
+    const choice = question({ choices: ['1/4', '1/2', '1/3', '1', '0'], correct: 'B', answer: '1/2' })
+    expect(choiceOf(' b) ')).toBe('B')
+    expect(choiceOf('Errado')).toBeNull()
+    expect(gradeChoice(choice, 'B')?.kind).toBe('correct')
+    expect(gradeChoice(choice, 'C')).toMatchObject({ kind: 'incorrect', rationale: expect.stringContaining('B) 1/2') })
+    expect(gradeChoice(question(), 'B')).toBeNull()
+  })
+
+  it('removes the open questions from the bank file after a backup, keeping the rest', () => {
+    const vault = mkdtempSync(join(tmpdir(), 'study-bank-'))
+    try {
+      const choice = question({ id: 'q-choice01', choices: ['1/4', '1/2', '1/3', '1', '0'], correct: 'B', answer: '1/2' })
+      const text = `# Banco\n\nNota manual\n\n${encodeStudyQuestion(question())}\n${encodeStudyQuestion(choice)}\n`
+      writeFileSync(join(vault, 'questoes-estudo.md'), text)
+      const service = new StudyQuestionService(vault, { webSearch: async () => [] })
+      expect(service.removeOpenQuestions()).toBe(1)
+      const after = decodeStudyBank(readFileSync(join(vault, 'questoes-estudo.md'), 'utf8'))
+      expect(after.questions.map((q) => q.id)).toEqual(['q-choice01'])
+      expect(after.unknownLines).toEqual(['Nota manual'])
+      expect(readdirSync(join(vault, '.agent-office-backups'))).toHaveLength(1)
+      expect(service.removeOpenQuestions()).toBe(0)
+    } finally {
+      rmSync(vault, { recursive: true, force: true })
+    }
   })
 
   it('rejects duplicate ids and unsafe urls', () => {

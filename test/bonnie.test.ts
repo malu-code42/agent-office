@@ -42,6 +42,8 @@ const bankQuestion = (id: string, topic: string): StudyQuestion => ({
   tags: [],
   question: `Pergunta sintética sobre ${topic}?`,
   answer: 'Resposta secreta do gabarito',
+  choices: ['Resposta secreta do gabarito', 'b', 'c', 'd', 'e'],
+  correct: 'A',
   answerStatus: 'verified',
   originKind: 'enem',
   sourceTitle: 'Banco',

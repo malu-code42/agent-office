@@ -200,6 +200,8 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const trail = parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE))
     const library = studyLibrary()
     const bank = studyService()
+    // The bank is multiple choice only: the open questions left from before go out (with a backup).
+    if (bankJobs.status()?.status !== 'running') bank.removeOpenQuestions()
     return bankJobs.start(trail, request, (t, options) =>
       buildStudyBank(
         t,

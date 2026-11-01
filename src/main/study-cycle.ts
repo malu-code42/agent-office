@@ -23,6 +23,7 @@ import {
   type StudyPracticeQuestion,
   type StudyCycleState,
 } from '@shared/study-cycle'
+import { gradeChoice } from '@shared/study-questions'
 import type { StudyQuestion } from '@shared/study-questions'
 import { tutorEvidence, type StudyTutorEvaluator } from './study-cycle-claude'
 import { hashStudyQuestion } from './study-cycle-schema'
@@ -182,12 +183,15 @@ export class StudyCycleService {
       if (question.assessment && question.assessment.kind !== 'pending' && question.assessment.kind !== 'uncertain') continue
       const evidence = tutorEvidence(question)
       if (!evidence) throw new Error('Há questão sem gabarito conferido; ela não pode contar no reteste.')
-      const result = await this.evaluate({
-        profile: 'verificador',
-        question: question.source.question,
-        studentAnswer: question.response,
-        providedEvidence: evidence,
-      })
+      // Multiple choice is graded by its letter here; nothing goes to Claude.
+      const result =
+        gradeChoice(question.source, question.response) ??
+        (await this.evaluate({
+          profile: 'verificador',
+          question: question.source.question,
+          studentAnswer: question.response,
+          providedEvidence: evidence,
+        }))
       const latest = this.store.read()
       const latestCycle = activeStudyCycle(latest)
       const latestAttempt = latestCycle?.retests.at(-1)
@@ -225,12 +229,15 @@ export class StudyCycleService {
     if (!cycle || !round || !question?.response) throw new Error('Salve uma resposta antes de pedir a verificação do Tutor.')
     const evidence = tutorEvidence(question)
     if (!evidence) throw new Error('A questão não tem gabarito conferido; ela não pode contar na prática.')
-    const result = await this.evaluate({
-      profile: 'curador',
-      question: question.source.question,
-      studentAnswer: question.response,
-      providedEvidence: evidence,
-    })
+    // Multiple choice is graded by its letter here; nothing goes to Claude.
+    const result =
+      gradeChoice(question.source, question.response) ??
+      (await this.evaluate({
+        profile: 'curador',
+        question: question.source.question,
+        studentAnswer: question.response,
+        providedEvidence: evidence,
+      }))
     const latest = this.store.read()
     const latestCycle = activeStudyCycle(latest)
     const latestRound = latestCycle?.practiceRounds.at(-1)
@@ -266,12 +273,15 @@ export class StudyCycleService {
       return next
     }
     // Content leaves the device only on this explicit per-question action. Never log this payload.
-    const result = await this.evaluate({
-      profile: 'tutor',
-      question: question.source.question,
-      studentAnswer: question.response,
-      providedEvidence: evidence,
-    })
+    // Multiple choice is graded by its letter here; nothing goes to Claude.
+    const result =
+      gradeChoice(question.source, question.response) ??
+      (await this.evaluate({
+        profile: 'tutor',
+        question: question.source.question,
+        studentAnswer: question.response,
+        providedEvidence: evidence,
+      }))
     const latest = this.store.read()
     const latestCycle = activeStudyCycle(latest)
     const latestQuestion = latestCycle?.questions.find((item) => item.id === questionId)

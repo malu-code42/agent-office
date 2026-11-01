@@ -1,5 +1,5 @@
 import { isAgentVerified } from './study-bank'
-import type { AnswerStatus, StudyOriginKind, StudyQuestion } from './study-questions'
+import { isChoiceQuestion, type AnswerStatus, type StudyOriginKind, type StudyQuestion } from './study-questions'
 import type { StudyTrailTopic } from './study-trail'
 
 export const NO_DISCIPLINE = 'Sem disciplina'
@@ -36,6 +36,8 @@ export interface StudyBankStats {
   byAnswer: Record<AnswerStatus, number>
   /** Questions checked by the agent chain, and the ones without its seal. */
   byReview: { agents: number; none: number }
+  /** Open questions left from before multiple choice: never offered, removed at the next Montar banco. */
+  open: number
   goal: number
   /** Trail topics below the goal, in the whole bank. */
   below: number
@@ -101,6 +103,7 @@ export function studyBankStats(
   const byAnswer: Record<AnswerStatus, number> = { verified: 0, unverified: 0, missing: 0 }
   const byReview = { agents: 0, none: 0 }
   let answered = 0
+  let open = 0
   type Row = { id?: string | null; count: number; fresh: number; trail: boolean; ids: string[] }
   const groups = new Map<string, Map<string, Row>>()
   const row = (discipline: string, topic: string, id?: string | null, trail = false): Row => {
@@ -121,11 +124,13 @@ export function studyBankStats(
     else byReview.none++
     const done = !!options.isAnswered?.(question)
     if (done) answered++
+    const choice = isChoiceQuestion(question)
+    if (!choice) open++
     const match = find(question.topic)
     const target = match ? row(match.discipline, match.title, match.id, true) : row(NO_DISCIPLINE, question.topic.trim() || NO_TOPIC)
     target.count++
     target.ids.push(question.id)
-    if (!done) target.fresh++
+    if (!done && choice) target.fresh++
   }
 
   let below = 0
@@ -153,5 +158,5 @@ export function studyBankStats(
     }
   })
   disciplines.sort(byCount((d) => d.discipline))
-  return { total: questions.length, answered, byOrigin, byAnswer, byReview, goal, below, disciplines }
+  return { total: questions.length, answered, byOrigin, byAnswer, byReview, open, goal, below, disciplines }
 }

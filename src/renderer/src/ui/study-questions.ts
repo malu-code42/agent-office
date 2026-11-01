@@ -145,6 +145,7 @@ function bankView(
       h('span', { class: 'study-bank-cap' }, 'Selo'),
       chip('verificadas por agentes', stats.byReview.agents, 'agents'),
       stats.byReview.none ? chip('sem conferência', stats.byReview.none, 'missing') : null,
+      stats.open ? chip('abertas · saem na próxima montagem', stats.open, 'missing') : null,
     ),
     h(
       'div',

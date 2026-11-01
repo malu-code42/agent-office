@@ -81,12 +81,15 @@ export function studyQuestionCard(question: StudyQuestion, answered: boolean, di
     question.sourceOnly
       ? h('p', { class: 'qc-q' }, 'Somente a referência da fonte; sem enunciado guardado.')
       : h('p', { class: 'qc-q' }, question.question),
+    question.choices
+      ? h('ol', { class: 'qc-choices', type: 'A' }, ...question.choices.map((choice) => h('li', {}, choice)))
+      : h('p', { class: 'qc-open' }, 'Questão aberta, de antes da múltipla escolha: não é oferecida e sai na próxima montagem.'),
     question.answer || quote
       ? h(
           'details',
           { class: 'qc-block', open: answered || undefined },
           h('summary', { class: 'qc-label' }, answered ? 'Resposta e trecho' : 'Ver resposta e trecho (revela a resposta)'),
-          question.answer ? h('p', {}, h('b', {}, 'Resposta: '), question.answer) : null,
+          question.answer ? h('p', {}, h('b', {}, 'Resposta: '), question.correct ? `${question.correct}) ` : '', question.answer) : null,
           rationale ? h('p', {}, h('b', {}, 'Justificativa: '), rationale) : null,
           quote ? h('span', { class: 'qc-label' }, `Trecho do livro${place ? ` · ${place}` : ''}`) : null,
           quote ? h('blockquote', { class: 'qc-quote' }, `“${quote}”`) : null,

@@ -20,6 +20,31 @@ export interface StudyQuestion {
   sourceOnly?: true
   verifiedByUser?: true
   verifiedAt?: string
+  /** Multiple choice: the five alternatives, A to E, and the right one. `answer` is the right alternative's text. */
+  choices?: string[]
+  correct?: StudyChoiceLetter
+}
+
+export type StudyChoiceLetter = 'A' | 'B' | 'C' | 'D' | 'E'
+export const STUDY_CHOICE_LETTERS: readonly StudyChoiceLetter[] = ['A', 'B', 'C', 'D', 'E']
+
+/** Every question of the bank is multiple choice (decision of 2026-11-01); open ones are left over from before. */
+export const isChoiceQuestion = (q: Pick<StudyQuestion, 'choices' | 'correct'>): boolean => !!q.choices?.length && !!q.correct
+
+/** The letter of an answer ("C", "c)", " C ") or null. */
+export function choiceOf(response: string): StudyChoiceLetter | null {
+  const letter = /^\s*([A-Ea-e])(?![\p{L}\p{N}])/u.exec(response)?.[1]?.toUpperCase()
+  return (letter as StudyChoiceLetter | undefined) ?? null
+}
+
+/** Grades a multiple-choice answer by its letter, with no model: null for an open question. */
+export function gradeChoice(q: StudyQuestion, response: string): { kind: 'correct' | 'incorrect'; rationale: string } | null {
+  if (!isChoiceQuestion(q)) return null
+  const picked = choiceOf(response)
+  const right = `${q.correct}) ${q.choices![STUDY_CHOICE_LETTERS.indexOf(q.correct!)]}`
+  return picked === q.correct
+    ? { kind: 'correct', rationale: `Alternativa ${picked}, a correta.` }
+    : { kind: 'incorrect', rationale: `Você marcou ${picked ?? 'nenhuma'}; a correta é ${right}.` }
 }
 
 export interface DecodedStudyBank {
@@ -78,6 +103,17 @@ export function validateStudyQuestion(raw: unknown): StudyQuestion {
   else throw new Error('Enunciado inválido.')
   if (sourceOnly && (answer || rationale || row.answerStatus !== 'missing'))
     throw new Error('Um registro somente de metadados não pode guardar enunciado, resposta, justificativa ou gabarito.')
+  let choices: string[] | undefined
+  let correct: StudyChoiceLetter | undefined
+  if (row.choices !== undefined || row.correct !== undefined) {
+    if (!Array.isArray(row.choices) || row.choices.length !== 5 || !row.choices.every((c) => typeof c === 'string'))
+      throw new Error('A questão de múltipla escolha precisa de cinco alternativas.')
+    choices = row.choices.map((c) => cleanLine(c as string, 'Alternativa', 2000))
+    if (new Set(choices.map((c) => c.toLocaleLowerCase('pt-BR'))).size !== 5) throw new Error('As alternativas precisam ser diferentes.')
+    if (!STUDY_CHOICE_LETTERS.includes(row.correct as StudyChoiceLetter)) throw new Error('Alternativa correta inválida.')
+    correct = row.correct as StudyChoiceLetter
+    if (answer && answer !== choices[STUDY_CHOICE_LETTERS.indexOf(correct)]) throw new Error('O gabarito não é a alternativa correta.')
+  }
   const verifiedByUser = row.verifiedByUser === true
   const verifiedAt = typeof row.verifiedAt === 'string' ? cleanLine(row.verifiedAt, 'Data de revisão', 40) : undefined
   if (
@@ -90,8 +126,9 @@ export function validateStudyQuestion(raw: unknown): StudyQuestion {
     topic: typeof row.topic === 'string' ? cleanLine(row.topic, 'Tópico', 200) : '',
     tags,
     question,
-    ...(answer ? { answer } : {}),
+    ...(answer || choices ? { answer: answer || choices![STUDY_CHOICE_LETTERS.indexOf(correct!)]! } : {}),
     ...(rationale ? { rationale } : {}),
+    ...(choices ? { choices, correct } : {}),
     answerStatus: row.answerStatus as AnswerStatus,
     originKind: row.originKind as StudyOriginKind,
     sourceTitle: typeof row.sourceTitle === 'string' ? cleanLine(row.sourceTitle, 'Título da fonte', 300) : '',
@@ -124,6 +161,8 @@ export function encodeStudyQuestion(raw: StudyQuestion): string {
     `- Procedência revisada pela usuária: ${q.verifiedByUser ? `sim — ${q.verifiedAt}` : 'não'}`,
     `- Estado do gabarito: ${q.answerStatus}`,
     `- Enunciado: ${q.question}`,
+    ...(q.choices ? q.choices.map((choice, i) => `- Alternativa ${STUDY_CHOICE_LETTERS[i]}: ${choice}`) : []),
+    ...(q.correct ? [`- Alternativa correta: ${q.correct}`] : []),
     `- Resposta: ${q.answer ?? '—'}`,
     `- Justificativa: ${q.rationale ?? '—'}`,
     '',
@@ -169,6 +208,8 @@ export function decodeStudyBank(source: string): DecodedStudyBank {
     const sourceOnly = get('Somente metadados') === 'sim'
     const verification = get('Procedência revisada pela usuária')
     const verificationDate = verification?.startsWith('sim — ') ? verification.slice('sim — '.length) : undefined
+    const choices = STUDY_CHOICE_LETTERS.map((letter) => get(`Alternativa ${letter}`))
+    const hasChoices = choices.some((c) => c !== undefined) || get('Alternativa correta') !== undefined
     const question = validateStudyQuestion({
       id,
       topic: get('Tópico'),
@@ -186,6 +227,7 @@ export function decodeStudyBank(source: string): DecodedStudyBank {
       license: get('Licença'),
       ...(sourceOnly ? { sourceOnly: true } : {}),
       ...(verificationDate ? { verifiedByUser: true, verifiedAt: verificationDate } : {}),
+      ...(hasChoices ? { choices: choices.filter((c) => c !== undefined), correct: get('Alternativa correta') } : {}),
     })
     if (ids.has(question.id)) throw new Error(`Identificador duplicado: ${question.id}.`)
     ids.add(question.id)

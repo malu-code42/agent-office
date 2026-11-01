@@ -10,7 +10,7 @@ import {
   type StudyPracticeQuestion,
   unansweredStudyQuestions,
 } from '@shared/study-cycle'
-import type { StudyQuestion } from '@shared/study-questions'
+import { choiceOf, isChoiceQuestion, STUDY_CHOICE_LETTERS, type StudyQuestion } from '@shared/study-questions'
 import type { StudyLibrarySearch } from '@shared/study-library'
 import { disciplineIdOf, splitStudyRationale, type StudyBankRequest } from '@shared/study-bank'
 import { studyTopicStart, topicName, trailTopicOf, type StudyTrail, type StudyTrailTopic } from '@shared/study-trail'
@@ -98,6 +98,58 @@ const passageOf = (q: StudyQuestion): HTMLElement | null => {
     h('blockquote', {}, `“${quote}”`),
   )
 }
+/** "C) the text" for a multiple-choice answer; the answer as written for an open one left from before. */
+const answerText = (q: StudyQuestion, response: string): string => {
+  const letter = isChoiceQuestion(q) ? choiceOf(response) : null
+  return letter ? `${letter}) ${q.choices![STUDY_CHOICE_LETTERS.indexOf(letter)]}` : response
+}
+
+/**
+ * The five alternatives as a radio group; an open question left from before gets a text box. With
+ * `reveal` (after grading) the right alternative and a wrong pick are marked.
+ */
+function answerControl(
+  q: StudyQuestion,
+  value: string,
+  onChange: (value: string) => void,
+  opts: { disabled?: boolean; reveal?: boolean; label: string },
+): HTMLElement {
+  if (!isChoiceQuestion(q)) {
+    const area = h('textarea', {
+      class: 'input sk-answer',
+      maxlength: '20000',
+      'aria-label': opts.label,
+      disabled: opts.disabled || undefined,
+      oninput: (event: Event) => onChange((event.currentTarget as HTMLTextAreaElement).value),
+    })
+    area.value = value
+    return area
+  }
+  const picked = choiceOf(value)
+  return h(
+    'div',
+    { class: 'sk-choices', role: 'radiogroup', 'aria-label': opts.label },
+    ...q.choices!.map((text, i) => {
+      const letter = STUDY_CHOICE_LETTERS[i]!
+      const mark = opts.reveal ? (letter === q.correct ? ' sk-opt-right' : letter === picked ? ' sk-opt-wrong' : '') : ''
+      return h(
+        'label',
+        { class: `sk-opt${mark}` },
+        h('input', {
+          type: 'radio',
+          name: `opt-${q.id}`,
+          value: letter,
+          checked: picked === letter || undefined,
+          disabled: opts.disabled || undefined,
+          onchange: () => onChange(letter),
+        }),
+        h('span', { class: 'sk-opt-letter' }, letter),
+        h('span', { class: 'sk-opt-text' }, text),
+      )
+    }),
+  )
+}
+
 const verifiedQuestion = (q: StudyQuestion) => !q.sourceOnly && !!q.question.trim() && q.answerStatus === 'verified' && !!q.answer
 
 export interface StudyCycleOptions {
@@ -149,7 +201,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
   }
 
   /** The bank without the questions already answered (in any cycle): those are never offered again. */
-  const fresh = (): StudyQuestion[] => unansweredStudyQuestions(bank, state)
+  const fresh = (): StudyQuestion[] => unansweredStudyQuestions(bank, state).filter(isChoiceQuestion)
 
   let topic = activeStudyCycle(state)?.topic ?? options.topic ?? ''
   /** The diagnosis questions Bonnie picked for the chosen topic (the user may change them). */
@@ -585,8 +637,27 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
               ),
             ),
             h('p', { class: 'sk-prompt' }, item.source.question),
-            h('label', {}, studyLabel('Sua resposta'), response),
-            h('label', {}, studyLabel('Trecho de apoio para o Tutor (opcional)'), excerpt),
+            isChoiceQuestion(item.source)
+              ? h(
+                  'div',
+                  {},
+                  studyLabel('Sua resposta'),
+                  answerControl(
+                    item.source,
+                    draft.response,
+                    (value) => {
+                      draft.response = value
+                      keep()
+                    },
+                    {
+                      disabled: busy || !open,
+                      reveal: !!item.assessment && item.assessment.kind !== 'pending',
+                      label: `Alternativas da questão ${index + 1}`,
+                    },
+                  ),
+                )
+              : h('label', {}, studyLabel('Sua resposta'), response),
+            isChoiceQuestion(item.source) ? null : h('label', {}, studyLabel('Trecho de apoio para o Tutor (opcional)'), excerpt),
           ),
           studyPanel(
             'Marcar incerteza · obrigatório',
@@ -612,7 +683,11 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
             ),
             h('span', { class: 'sk-grow' }),
             open ? btn('Salvar', () => saveAnswer(false)) : null,
-            open ? btn('Salvar e verificar com Tutor', () => saveAnswer(true), { primary: true }) : null,
+            open
+              ? btn(isChoiceQuestion(item.source) ? 'Salvar e conferir' : 'Salvar e verificar com Tutor', () => saveAnswer(true), {
+                  primary: true,
+                })
+              : null,
             btn(
               'Próxima questão',
               () => {
@@ -801,8 +876,8 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
                   h(
                     'p',
                     { class: 'sk-small' },
-                    `Sua resposta: ${gap.response}${gap.uncertain ? ' (com dúvida)' : ''}`,
-                    gap.source.answer ? ` · Gabarito: ${gap.source.answer}` : '',
+                    `Sua resposta: ${answerText(gap.source, gap.response)}${gap.uncertain ? ' (com dúvida)' : ''}`,
+                    gap.source.answer ? ` · Gabarito: ${gap.source.correct ? `${gap.source.correct}) ` : ''}${gap.source.answer}` : '',
                   ),
                   passageOf(gap.source),
                 ),
@@ -1062,7 +1137,11 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
               studyChip(`${originLabel[gap.source.originKind]} · ${gap.source.sourceTitle}`, 'info'),
             ),
             h('p', { class: 'sk-prompt' }, gap.source.question),
-            h('p', { class: 'sk-small' }, `Sua resposta: ${gap.response}${gap.uncertain ? ' · você marcou dúvida' : ''}`),
+            h(
+              'p',
+              { class: 'sk-small' },
+              `Sua resposta: ${answerText(gap.source, gap.response)}${gap.uncertain ? ' · você marcou dúvida' : ''}`,
+            ),
             gap.assessment?.rationale ? h('p', { class: 'sk-small' }, `Tutor: ${gap.assessment.rationale}`) : null,
             passageOf(gap.source),
           ),
@@ -1195,7 +1274,22 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
           ),
         ),
         h('p', { class: 'sk-prompt' }, item.source.question),
-        h('label', {}, studyLabel('Sua resposta'), area),
+        isChoiceQuestion(item.source)
+          ? h(
+              'div',
+              {},
+              studyLabel('Sua resposta'),
+              answerControl(
+                item.source,
+                draft.response,
+                (value) => {
+                  draft.response = value
+                  drafts.set(item.id, draft)
+                },
+                { disabled: busy, reveal: !!item.assessment && item.assessment.kind !== 'pending', label: 'Alternativas da prática' },
+              ),
+            )
+          : h('label', {}, studyLabel('Sua resposta'), area),
         item.assessment
           ? h('div', { class: 'sk-row' }, kindChip(item.assessment.kind), h('span', { class: 'sk-small' }, item.assessment.rationale))
           : null,
@@ -1205,7 +1299,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
           { class: 'sk-row' },
           h('span', { class: 'sk-grow' }),
           btn('Salvar', () => send(false)),
-          btn('Salvar e verificar com Curador', () => send(true), { primary: true }),
+          btn(isChoiceQuestion(item.source) ? 'Salvar e conferir' : 'Salvar e verificar com Curador', () => send(true), { primary: true }),
         ),
       )
     }
@@ -1523,7 +1617,22 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
               h('span', { class: 'sk-small' }, `${item.source.sourceTitle} · gabarito conferido`),
             ),
             h('p', { class: 'sk-prompt' }, item.source.question),
-            h('label', {}, studyLabel('Sua resposta'), area),
+            isChoiceQuestion(item.source)
+              ? h(
+                  'div',
+                  {},
+                  studyLabel('Sua resposta'),
+                  answerControl(
+                    item.source,
+                    draft.response,
+                    (value) => {
+                      draft.response = value
+                      drafts.set(item.id, draft)
+                    },
+                    { disabled: busy || locked, reveal: score !== null, label: `Alternativas da questão ${index + 1} do reteste` },
+                  ),
+                )
+              : h('label', {}, studyLabel('Sua resposta'), area),
           ),
           h(
             'div',

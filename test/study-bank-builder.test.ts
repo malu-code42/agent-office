@@ -37,11 +37,12 @@ function setup(options: { verdict?: string; failAsk?: boolean; bank?: StudyQuest
   let n = 0
   const ask = vi.fn(async (system: string) => {
     if (options.failAsk) throw new Error('Claude Code não encontrado.')
-    if (system.includes('write one study question')) {
+    if (system.includes('write one multiple-choice study question')) {
       const question = QUESTIONS[n++ % QUESTIONS.length]!
-      return { question, answer: '0 e 1', rationale: 'Definição.', quote: 'só existem os dígitos 0 e 1' }
+      const choices = ['0 e 1', '0 a 9', '0 a 7', '1 e 2', '0 a F']
+      return { question, choices, correct: 'A', rationale: 'Definição.', quote: 'só existem os dígitos 0 e 1' }
     }
-    if (system.includes('Answer the study question')) return { answer: '0 e 1' }
+    if (system.includes('Answer the multiple-choice study question')) return { answer: 'A' }
     return { verdict: options.verdict ?? 'ok', reason: 'ambígua' }
   })
   const appendChecked = vi.fn((rows: StudyQuestion[]) => (bank.push(...rows), { added: rows.length, skipped: 0 }))
@@ -67,6 +68,20 @@ describe('buildStudyBank', () => {
     expect(search).toHaveBeenCalledWith('Sistemas de numeração', ['study sources/textbooks/Introdução à Ciência da Computação/'])
     expect(bank.map((q) => q.tags)).toEqual([['Introdução à Ciência da Computação'], ['Introdução à Ciência da Computação']])
     expect(bank.every((q) => q.answerStatus === 'verified' && !q.verifiedByUser)).toBe(true)
+    expect(bank.every((q) => q.choices?.length === 5 && q.correct === 'A')).toBe(true)
+  })
+
+  it('does not count an open question (from before multiple choice) toward the goal', async () => {
+    const open = {
+      id: 'q-open-00000001',
+      topic: 'Sistemas de numeração',
+      tags: [],
+      question: 'Aberta?',
+      answer: 'Sim',
+    } as unknown as StudyQuestion
+    const { deps } = setup({ bank: [open] })
+    const { results } = await buildStudyBank(trail, deps, { perTopic: 1, discipline: 'P1-ICC' })
+    expect(results[0]).toMatchObject({ had: 0, added: 1 })
   })
 
   it('skips a topic that already has its questions and backs up the bank once per run', async () => {
