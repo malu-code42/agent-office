@@ -33,19 +33,25 @@ def desk(L, x, y, w=30, d=14, h=12, col=WOOD, leg=WOODD):
 
 
 PANEL = T('4a4f5c', '363a46', '262932')
-# per state: screen background, accent lines and the power LED on the back
-_SCREEN = {'green': (H('1b3b3a'), GREEN, H('7be07f')), 'amber': (H('3b2f1e'), AMBER, H('f4bb55')),
-           'red': (H('3b1f24'), H('d0504a'), H('ff5a4a')), 'off': (H('14161b'), None, H('6b6f73'))}
-# lateral start, width, bottom z (above the desk) and height of each panel, per variant
-_PANELS = [[(0, 7, 3, 9), (7, 7, 3, 9)],                  # two monitors side by side
-           [(0, 4, 3, 7), (4, 6, 3, 9), (10, 4, 3, 7)],   # a main monitor with one on each side
-           [(0, 10, 4, 7), (10, 4, 3, 10)]]               # ultrawide and a vertical one
+BEZEL = H('5b6173')
+# per state: screen background, the code lines on it (bright first) and the power LED on the back
+_SCREEN = {'green': (H('4cb892'), [H('e4fbe0'), H('1d5a4a'), H('b9efc4')], H('7be07f')),
+           'amber': (H('d9a441'), [H('fff0c4'), H('6b4a14'), H('ffe08a')], H('f4bb55')),
+           'red': (H('d0605a'), [H('ffd8d4'), H('6e1f24'), H('f6a8a2')], H('ff5a4a')),
+           'off': (H('1c1f26'), None, H('6b6f73'))}
+# lateral start, width, bottom z (above the desk) and height of each panel, per variant: two monitors,
+# an ultrawide, a main monitor with a vertical one (the setups of the original office)
+_PANELS = [[(0, 6, 3, 12), (7, 6, 3, 12)],
+           [(0, 13, 4, 10)],
+           [(0, 9, 3, 11), (10, 4, 3, 15)]]
+# the code on a screen: indent and length of each line (cut to the panel's width)
+_CODE = [(0, 5), (1, 4), (2, 5), (1, 3), (0, 4), (2, 3)]
 
 
 def crt(L, x, y, z, face='+y', screen='green', variant=None):
     """modern workstation, a row of flat monitors ~14 wide on a thin stand. (x,y) = footprint corner
     (14x10, or 10x14 for +x/-x). The back of the monitors (face -y/-x) shows the power LED of the state."""
-    bg, accent, led = _SCREEN[screen]
+    bg, lines, led = _SCREEN[screen]
     if variant is None:
         variant = (x * 7 + y * 13) % len(_PANELS)
     along_x = face in ('+y', '-y')
@@ -73,10 +79,13 @@ def crt(L, x, y, z, face='+y', screen='green', variant=None):
         box(u0 + w // 2 - 1, 8, 1, 2, 2, zb, PANEL)  # neck
         box(u0, 8, zb, w, 2, h, PANEL)
         if face in ('+y', '+x'):
+            L.begin(); plane(u0, u0 + w, zb, zb + h, BEZEL); L.end(False)
             L.begin(); plane(u0 + 1, u0 + w - 1, zb + 1, zb + h - 1, bg); L.end(False)
-            if accent:
+            if lines:
                 for i, zz in enumerate(range(zb + h - 3, zb + 1, -2)):
-                    plane(u0 + 1, u0 + w - 1 - i % 2, zz, zz + 1, accent)
+                    ind, ln = _CODE[(i + u0) % len(_CODE)]
+                    a0, a1 = u0 + 1 + min(ind, w - 4), u0 + 1 + min(ind + ln, w - 3)
+                    plane(a0 + 1, a1 + 1, zz, zz + 1, lines[(i + u0) % len(lines)])
     if face == '-y':
         L.dot(*[int(v) for v in L.P(x + 7, y + 2, z + 4)], led)
     elif face == '-x':
