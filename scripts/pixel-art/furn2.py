@@ -241,6 +241,32 @@ def notebook(L, x, y, z):
     L.qz(z + 1, x + 3, y, x + 4, y + 5, H('d65a5a'))
 
 
+def laptop(L, x, y, z, face='+y', screen='6fd0e0'):
+    """open laptop on a table; `face` is the way its screen looks (the sitter is on that side).
+    (x,y) = footprint corner: 8x6 for +y/-y, 6x8 for +x/-x. A screen facing -y/-x shows its lid back."""
+    body, lid = T('dfe2e4', 'c2c7cc', 'a2a9b0'), T('8a9098', '6f757d', '565b63')
+    if face in ('+y', '-y'):
+        ly = y if face == '+y' else y + 5
+        if face == '+y':
+            L.pbox(x, ly, z + 1, 8, 1, 5, lid)
+        L.pbox(x, y, z, 8, 6, 1, body)
+        if face == '-y':
+            L.pbox(x, ly, z + 1, 8, 1, 5, lid)
+        else:
+            L.begin(); L.qy(ly + 1, x + 1, x + 7, z + 2, z + 6, H('23262e')); L.end(False)
+            L.qy(ly + 1, x + 2, x + 6, z + 3, z + 5, H(screen))
+    else:
+        lx = x if face == '+x' else x + 5
+        if face == '+x':
+            L.pbox(lx, y, z + 1, 1, 8, 5, lid)
+        L.pbox(x, y, z, 6, 8, 1, body)
+        if face == '-x':
+            L.pbox(lx, y, z + 1, 1, 8, 5, lid)
+        else:
+            L.begin(); L.qx(lx + 1, y + 1, y + 7, z + 2, z + 6, H('23262e')); L.end(False)
+            L.qx(lx + 1, y + 2, y + 6, z + 3, z + 5, H(screen))
+
+
 def arcade_x(L, x, y, body=T('8a7ad0', '6f5fb8', '574a96'), screen=H('6fd0e0')):
     """cabinet against a west wall, screen on +x."""
     L.pbox(x, y, 0, 10, 12, 30, body)

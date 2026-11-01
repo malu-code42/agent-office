@@ -27,8 +27,8 @@ ROOMS = [  # ry0, h, carpet, name, screen, coordinator, members (None = individu
 ELEVATOR = (268, 292)
 # turned once more, to the left: Emi sits east of her desk facing the west wall (-x) and her monitor, the
 # visitors west of it, clear of the doors to the meeting room (west wall, rows 15-16) and to the lounge (back wall, x 318-336)
-EMI_DESK = (322, 176, 44)
-EMI_VISITORS = [(304, 186), (304, 206)]
+EMI_DESK = (332, 188, 44)
+EMI_VISITORS = [(314, 198), (314, 218)]
 # meeting chairs: (x, y, the way the sitter looks)
 MEETING_SEATS = [(200, cy, '+x') for cy in (170, 196, 222)] + [(242, cy, '-x') for cy in (170, 196, 222)]
 

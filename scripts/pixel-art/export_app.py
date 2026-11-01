@@ -414,7 +414,8 @@ def casa(L, place, items, seat):
     C.half_wall(sc, 0)
     C.half_wall(sc, 1)
     C.sala(sc)
-    sc.add(C.TABLE[:2] + (C.TABLE[0] + C.TABLE[2], C.TABLE[1] + C.TABLE[3]), lambda: C.table_top(L))
+    for dx, dy in C.DESKS:
+        sc.add((dx, dy, dx + C.DESK_W, dy + 14), lambda dx=dx, dy=dy: C.work_desk(L, dx, dy), True)
     x, y, w = C.VOCE_DESK
     ws_front_y(sc, x, y, None, 'green', w=w)
     sc.rec.pop()  # the user's chair is a seat below
@@ -445,7 +446,7 @@ def casa(L, place, items, seat):
         'Filmes': [233, 133, 34], 'Jogos': [233, 238, 38], 'Gastos': [218, 0, 54], 'Alarme': [168, 0, 54],
     })
     # Luna's chair first, then the residents' in the order the approved art fills them
-    seats = [seat(f'casa/table{i}', *C.TABLE_SEATS[i], wood=True) for i in C.SEAT_ORDER]
+    seats = [seat(f'casa/table{i}', *C.TABLE_SEATS[i]) for i in C.SEAT_ORDER]
     walls = sc.walls
     blocked = blocked_by([it['fp'] for it in static if not it.get('wall')])
     ex0, ex1 = C.ELEVATOR

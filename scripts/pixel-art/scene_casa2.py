@@ -22,13 +22,17 @@ ELEVATOR = (180, 204)
 HALF_WALLS = [(160, [(56, 88), (176, 208)]), (224, [(56, 88), (176, 208)])]
 # the boards on the back wall: x0, x1, action, name
 BOARDS = [(8, 42, 'agenda', 'Agenda'), (54, 90, 'goals', 'Objetivos'), (102, 138, 'personal-routines', 'Rotinas pessoais')]
-# Luna's table (x, y, w, d) and its chairs (x, y, the way the sitter looks); Luna takes the first
-TABLE = (44, 132, 36, 26)
-TABLE_SEATS = [(50, 120, '+y'), (66, 120, '+y'), (30, 146, '+x'), (84, 141, '-x'), (50, 162, '-y'), (66, 162, '-y')]
+# the six work desks (x, y; each 30 x 14, the sitter north of it looking +y); Luna takes the first,
+# then the residents fill them in order
+DESK_W = 30
+DESKS = [(26, 124), (76, 124), (26, 156), (76, 156), (26, 188), (76, 188)]
+# the chair of each desk: x, y, the way the sitter looks
+TABLE_SEATS = [(x + 10, y - 12, '+y') for x, y in DESKS]
+# the bounding box of the desks (x, y, w, d): its middle is where the group looks at
+TABLE = (26, 112, 80, 90)
 # who sits where in the preview (variant, or None for an empty chair)
 TABLE_PEOPLE = [6, 1, 2, None, 7, None]
-# Luna's chair, then the residents' chairs in the order the preview fills them
-SEAT_ORDER = [0, 1, 2, 4, 3, 5]
+SEAT_ORDER = [0, 1, 2, 3, 4, 5]
 # the user's desk (x, y, width), against the front wall
 VOCE_DESK = (70, 266, 36)
 # footprints of the clickable furniture (export_app.py tags the items with these)
@@ -98,7 +102,6 @@ def shell(L):
     F.frame_x(L, 0, 70, 84, 26, 40)
     F.frame_x(L, 0, 88, 98, 30, 42, art=('9cc4dc', 'f6e27a', '8cc477'))
     F.frame_x(L, 0, 112, 132, 22, 44, art=('f2c58a', 'fbf3e0', 'e86a5a'), fr='5f7fb4')
-    F.rug(L, 22, 106, 104, 186, H('c9d6e8'), H('a8b8d0'), H('f4f0e6'))
     F.rug(L, 232, 16, 292, 70, H('d9a0a0'), H('b87a7a'), H('f6dcd0'))
     F.rug(L, 230, 100, 330, 168, H('a9b8d8'), H('8698c0'), H('e4eaf6'))
     F.rug(L, 230, 210, 300, 280, H('f2d6a0'), H('dcb880'), H('fbf3e0'))
@@ -127,37 +130,27 @@ def sala(sc):
     add((4, 110, 14, 120), lambda: F.plant(L, 4, 110, seed=5), True)
 
 
-def table_top(L):
-    tx, ty, tw, td = TABLE
-    F.small_table(L, tx, ty, tw, td)
-    F.mug(L, tx + 6, ty + 6, 12); F.papers(L, tx + 14, ty + 10, 12); F.mug(L, tx + 26, ty + 8, 12, 'a9d6ec')
+def work_desk(L, x, y):
+    """a desk with an open laptop (screen to the sitter, so we see the lid) and a mug."""
+    F.desk(L, x, y, DESK_W, 14)
+    G.laptop(L, x + 4, y + 4, 12, '-y')
+    F.mug(L, x + 20, y + 8, 12)
 
 
 def luna_table(sc):
-    """the approved art's table: one item, chairs and sitters drawn in a fixed order."""
+    """the six work desks: each one item, chair and sitter drawn after it."""
     L = sc.L
-    tx, ty = TABLE[:2]
-
-    def sit(i):
-        cx, cy, face = TABLE_SEATS[i]
+    for i, (x, y) in enumerate(DESKS):
+        cx, cy, _face = TABLE_SEATS[i]
         vi = TABLE_PEOPLE[i]
-        d, fr = {'+y': ('FL', 'sitF'), '+x': ('FR', 'sitF'), '-x': ('BL', 'sitB'), '-y': ('BR', 'sitB')}[face]
-        F.wood_chair(L, cx, cy, face, 'seat')
-        if face in ('+y', '+x'):
-            F.wood_chair(L, cx, cy, face, 'back')
-        if vi is not None:
-            F.seated_wood(L, sprite(vi, d, fr), cx, cy)
-        if face in ('-y', '-x'):
-            F.wood_chair(L, cx, cy, face, 'back')
 
-    def group():
-        for i in (0, 1, 2):
-            sit(i)
-        table_top(L)
-        for i in (3, 4, 5):
-            sit(i)
-    sc.add((tx - 14, ty - 12, tx + 48, ty + 38), group)
-    px, py = L.P(tx + 10, ty - 8, 8)
+        def chair(cx=cx, cy=cy, vi=vi):
+            F.chair(L, cx, cy, '+y')
+            if vi is not None:
+                F.seated(L, sprite(vi, 'FL', 'sitF'), cx, cy)
+        sc.add((x, y, x + DESK_W, y + 14), lambda x=x, y=y: work_desk(L, x, y), True)
+        sc.add((cx, cy, cx + 10, cy + 10), chair)
+    px, py = L.P(TABLE_SEATS[0][0] + 5, TABLE_SEATS[0][1] + 5, 7)
     sc.heads['luna'] = (int(px) + 3 * L.S, int(py) - 24 * L.S)
 
 
