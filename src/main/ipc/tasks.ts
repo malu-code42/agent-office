@@ -99,7 +99,9 @@ export function registerTasksIpc(ctx: IpcContext): void {
   // pdf.js runs in a worker thread, so a first read of a big library never freezes the window.
   const extractPdf = workerPdfExtractor()
   // Scanned PDFs (pages without text) are read by OCR, one at a time in the background; local only.
-  const ocrPdf = pdfOcrQueue(pdfCacheDir, workerOcrRunner(join(ctx.store.dataDirectory, 'ocr-lang')))
+  const ocrPdf = pdfOcrQueue(pdfCacheDir, workerOcrRunner(join(ctx.store.dataDirectory, 'ocr-lang')), (state) =>
+    ctx.broadcast({ type: 'study-ocr', state }),
+  )
   const read = (vaultPath: unknown) => {
     const board = readTasksAt(writer, vaultPath)
     fillCompletions(board.lists, ctx.planning.completions())

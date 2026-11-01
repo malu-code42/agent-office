@@ -113,3 +113,6 @@ export function studySnippet(text: string, query: StudyQuery, max = 320): string
   const cut = clean.slice(start, start + max).trim()
   return `${start > 0 ? '…' : ''}${cut}${start + max < clean.length ? '…' : ''}`
 }
+
+/** The background OCR as the corner notice shows it; null when idle. */
+export type StudyOcrState = { name: string; done: number; total: number; waiting: number } | null

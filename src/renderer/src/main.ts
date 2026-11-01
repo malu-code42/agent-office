@@ -25,7 +25,7 @@ import { BONNIE_AGENT_ID } from '@shared/bonnie'
 import { openStudyCards } from './ui/study-cards'
 import { openStudyQuestions } from './ui/study-questions'
 import { openStudyLibrary } from './ui/study-library'
-import { mountStudyBankChip, openStudyBankBuilder } from './ui/study-bank'
+import { mountStudyBankChip, mountStudyOcrChip, openStudyBankBuilder } from './ui/study-bank'
 import type { StudyBankRequest } from '@shared/study-bank'
 import { openStudySchedule } from './ui/study-schedule'
 import { openTasksBoard } from './ui/tasks-board'
@@ -90,6 +90,7 @@ async function boot(): Promise<void> {
   const openBankBuilder = (preset?: StudyBankRequest): void =>
     void openStudyBankBuilder(ui, toast, { openLibrary: (topic) => openStudyLibrary(ui, toast, topic), openBank }, preset)
   mountStudyBankChip(ui, () => openBankBuilder())
+  mountStudyOcrChip(ui)
 
   /** Asks, then stops the claude process behind a terminal agent. Returns true if it closed. */
   const closeTerminal = async (id: string): Promise<boolean> => {

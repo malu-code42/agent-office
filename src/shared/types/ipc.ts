@@ -38,6 +38,7 @@ import type { WritingVersion } from '../writing'
 import type { DecodedStudyBank, StudyQuestion } from '../study-questions'
 import type { StudyCycleState } from '../study-cycle'
 import type { StudyBankJob, StudyBankRequest } from '../study-bank'
+import type { StudyOcrState } from '../study-library'
 import type { StudyTrail } from '../study-trail'
 import type { ClassScheduleView } from '../class-schedule'
 import type { StudyLibrarySearch, StudySourceInventory } from '../study-library'
@@ -192,6 +193,7 @@ export type OfficeEvent =
   | { type: 'agent:upsert'; agent: AgentSummary }
   /** Andamento da montagem do banco de questões (null: relatório dispensado). */
   | { type: 'study-bank'; job: StudyBankJob | null }
+  | { type: 'study-ocr'; state: StudyOcrState }
   | { type: 'agent:removed'; agentId: string }
   | { type: 'agent:log'; agentId: string; entry: LogEntry }
   /** New log entries of the agent's subagents, grouped: one event per agent every ~250 ms at most. */
