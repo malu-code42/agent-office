@@ -29,6 +29,7 @@ import type { StudyTrail } from '../study-trail'
 import type { ClassScheduleView } from '../class-schedule'
 import type { StudyLibrarySearch } from '../study-library'
 import type { StudySourceRecommendations } from '../study-sources'
+import type { Dictation } from '../voice'
 import type { StudyCardDraft, StudyCardSummary, StudyCardsRead, StudyNotesRead } from '../study-cards'
 
 export interface StudyQuestionCandidates {
@@ -630,5 +631,10 @@ export interface OfficeAPI {
   macJobLog(label: string): Promise<string>
   /** Opens a Mac job's log in the default app. */
   openMacJobLog(label: string): Promise<void>
+  // ---------- Modo voz ----------
+  /** O macOS pergunta pelo microfone uma vez; false quando foi recusado nos Ajustes. True nos outros sistemas. */
+  micAccess(): Promise<boolean>
+  /** Uma gravação do botão de voz (webm/opus) como texto, pelo transcritor local deste computador. */
+  transcribe(audio: Uint8Array): Promise<Dictation>
   onEvent(cb: (e: OfficeEvent) => void): () => void
 }

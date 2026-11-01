@@ -8,6 +8,7 @@ import { AgentPanel } from './ui/panel'
 import { Dialog } from './ui/dialog'
 import { Hud, type ToastAction } from './ui/hud'
 import { Radio } from './ui/radio'
+import { VoiceButton } from './ui/voice'
 import { holdsRoom, type DataNotice, type ProjectFloor } from '@shared/types'
 import { DEFAULT_VIDEO, effectiveVideo, frameInterval } from '@shared/video'
 import { openAccounts } from './ui/accounts'
@@ -357,6 +358,8 @@ async function boot(): Promise<void> {
   )
 
   radio.attach({ corners: () => game.tvCorners() })
+  // Modo voz: canto inferior esquerdo, fala em texto pelo transcritor local.
+  new VoiceButton(ui)
 
   const panel = new AgentPanel(ui, state, {
     goTo: (id) => game.goToAgent(id),

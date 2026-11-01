@@ -3,7 +3,8 @@
 .toasts {
   position: fixed;
   left: 18px;
-  bottom: 18px;
+  /* acima do botão de voz e do cartão dele (--voice-h, definido por voice.ts) */
+  bottom: calc(var(--voice-h, 48px) + 26px);
   display: flex;
   flex-direction: column;
   gap: 8px;

@@ -193,6 +193,8 @@ const api: OfficeAPI = {
   runMacJobNow: (label) => ipcRenderer.invoke('office:runMacJobNow', label),
   macJobLog: (label) => ipcRenderer.invoke('office:macJobLog', label),
   openMacJobLog: (label) => ipcRenderer.invoke('office:openMacJobLog', label),
+  micAccess: () => ipcRenderer.invoke('office:micAccess'),
+  transcribe: (audio) => ipcRenderer.invoke('office:transcribe', audio),
   onEvent: (cb) => {
     const listener = (_e: unknown, ev: OfficeEvent) => cb(ev)
     ipcRenderer.on('office:event', listener)
