@@ -3,13 +3,13 @@ import { MAX_REVIEW_ROUNDS, newApprovalGate } from '@shared/types/project-orches
 import type {
   ApprovalGate,
   AgentEngine,
-  GrillArtifact,
-  GrillDecision,
+  BrainstormArtifact,
+  BrainstormDecision,
+  DesignArtifact,
   OrchestrationErrorCode,
   ProjectArtifact,
   RedistributionChange,
   SquadProposalMember,
-  SpecArtifact,
   TicketsArtifact,
 } from '@shared/types'
 import type { Actor } from '@shared/types/tickets'
@@ -34,13 +34,13 @@ function requireApproved(artifact: ProjectArtifact, what: string): void {
   }
 }
 
-/** Cria o rascunho do grill. Nada é aprovado ainda. */
-export function createGrill(projectId: string, goal: string): GrillArtifact {
+/** Cria o rascunho do brainstorm. Nada é aprovado ainda. */
+export function createBrainstorm(projectId: string, goal: string): BrainstormArtifact {
   const created = now()
   return {
-    id: `grill-${randomUUID().slice(0, 8)}`,
+    id: `brainstorm-${randomUUID().slice(0, 8)}`,
     projectId,
-    kind: 'grill',
+    kind: 'brainstorm',
     goal: goal.trim(),
     decisions: [],
     gate: newApprovalGate(),
@@ -49,22 +49,22 @@ export function createGrill(projectId: string, goal: string): GrillArtifact {
   }
 }
 
-/** Registra uma decisão esclarecida no grill. */
-export function recordGrillDecision(
-  grill: GrillArtifact,
-  decision: Pick<GrillDecision, 'question' | 'answer' | 'decidedBy'>,
+/** Registra uma decisão esclarecida no brainstorm. */
+export function recordBrainstormDecision(
+  brainstorm: BrainstormArtifact,
+  decision: Pick<BrainstormDecision, 'question' | 'answer' | 'decidedBy'>,
 ): void {
   if (!decision.question || !decision.answer || !decision.decidedBy) {
     throw new Error('Informe a pergunta, a resposta e quem decidiu.')
   }
-  grill.decisions.push({
+  brainstorm.decisions.push({
     id: `dec-${randomUUID().slice(0, 8)}`,
     question: decision.question.trim(),
     answer: decision.answer.trim(),
     decidedBy: decision.decidedBy,
     decidedAt: now(),
   })
-  grill.updatedAt = now()
+  brainstorm.updatedAt = now()
 }
 
 /** Submete o artefato a uma revisão. Achados não vazios bloqueiam a aprovação. */
@@ -102,17 +102,17 @@ export function approveArtifact(artifact: ProjectArtifact, by: Actor): void {
   artifact.updatedAt = now()
 }
 
-/** Constrói o spec a partir de um grill já aprovado. */
-export function buildSpec(grill: GrillArtifact): SpecArtifact {
-  requireApproved(grill, 'O grill')
+/** Constrói o rascunho do design a partir de um brainstorm já aprovado. */
+export function buildDesign(brainstorm: BrainstormArtifact): DesignArtifact {
+  requireApproved(brainstorm, 'O brainstorm')
   const created = now()
   return {
-    id: `spec-${randomUUID().slice(0, 8)}`,
-    projectId: grill.projectId,
-    kind: 'spec',
-    grillId: grill.id,
-    goal: grill.goal,
-    criteria: grill.decisions.map((decision) => decision.answer).filter((text) => text.length > 0),
+    id: `design-${randomUUID().slice(0, 8)}`,
+    projectId: brainstorm.projectId,
+    kind: 'design',
+    brainstormId: brainstorm.id,
+    goal: brainstorm.goal,
+    criteria: brainstorm.decisions.map((decision) => decision.answer).filter((text) => text.length > 0),
     scope: '',
     gate: newApprovalGate(),
     createdAt: created,
@@ -120,17 +120,17 @@ export function buildSpec(grill: GrillArtifact): SpecArtifact {
   }
 }
 
-/** Constrói os tickets a partir de um spec já aprovado. */
-export function buildTickets(spec: SpecArtifact): TicketsArtifact {
-  requireApproved(spec, 'O spec')
+/** Constrói os tickets a partir de um design doc já aprovado. */
+export function buildTickets(design: DesignArtifact): TicketsArtifact {
+  requireApproved(design, 'O design')
   const created = now()
   return {
     id: `tickets-${randomUUID().slice(0, 8)}`,
-    projectId: spec.projectId,
+    projectId: design.projectId,
     kind: 'tickets',
-    specId: spec.id,
-    goal: spec.goal,
-    criteria: [...spec.criteria],
+    designId: design.id,
+    goal: design.goal,
+    criteria: [...design.criteria],
     tickets: [],
     gate: newApprovalGate(),
     createdAt: created,

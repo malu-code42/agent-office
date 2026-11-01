@@ -78,7 +78,7 @@ export function openNewFloor(
         h(
           'div',
           { class: 'field-hint' },
-          'Todo agente que você contratar ou chamar nesse andar trabalha na pasta do projeto. O andar já vem com a Emi: converse com ela para levar a ideia do grill aos tickets e montar os squads do projeto.',
+          'Todo agente que você contratar ou chamar nesse andar trabalha na pasta do projeto. O andar já vem com a Emi: converse com ela para levar a ideia do brainstorm ao design doc revisado, aos tickets e aos squads do projeto (Elephant-Goldfish Model).',
         ),
         field('Pasta do projeto', h('div', { class: 'path-row' }, label, pick), hint),
         field('Nome do andar', name),

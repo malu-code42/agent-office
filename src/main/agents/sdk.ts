@@ -6,9 +6,8 @@ import { describeTool, toolDetail } from '@shared/describe'
 import { MAIN_ACCOUNT } from '@shared/accounts'
 import { HELPER_MAX, helperLimit, helperLimitReason } from '@shared/subagents'
 import { queryBudget } from '@shared/economy'
-import { homedir } from 'node:os'
 import { accountEnv } from '../accounts'
-import { agentPlugins } from '../agent-plugins'
+import { EGM_PLUGIN, agentPlugins } from '../agent-plugins'
 import { LUNA_PROMPT } from '../luna-prompt'
 import { LUNA_SERVER } from '../luna-tools'
 import { emiPrompt } from '../emi-prompt'
@@ -200,9 +199,10 @@ export abstract class AgentSdk extends AgentOffice {
         plugins: bonnie
           ? []
           : agentPlugins(
-              join(homedir(), '.claude'),
+              this.claudeHome,
               join(this.store.dataDirectory, 'agent-skills'),
-              limits.agentPluginsOff ?? [],
+              // Emi always gets the EGM plugin when it is installed: her project workflow follows it.
+              (limits.agentPluginsOff ?? []).filter((name) => !emiFloor || name !== EGM_PLUGIN),
               limits.agentSkills ?? [],
             ),
         // Subagent text comes too (not only tools), for the helper's own log (AO-46).
@@ -222,7 +222,7 @@ export abstract class AgentSdk extends AgentOffice {
             : bonnie
               ? BONNIE_PROMPT
               : emiFloor
-                ? emiPrompt(emiFloor)
+                ? emiPrompt(emiFloor, this.egmRoot())
                 : `Your name in this office is ${s.name}. Your final message for each task is handed to the user in person as a report: ` +
                   'open with the outcome in one or two sentences, then list the key details. Reply in the language the user wrote in. ' +
                   'The office has a kanban board of tickets (keys like AO-12); use the mcp__office__ tools to read, open, comment on and move tickets when asked or when you are working on one.' +

@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { app } from 'electron'
@@ -26,7 +26,22 @@ async function office(projects: ProjectFloor[]) {
   const { AgentManager } = await import('../src/main/agents')
   const store = new Store()
   store.settings = { ...store.settings, projects }
-  return { Store, AgentManager, store, manager: new AgentManager(store) }
+  const manager = new AgentManager(store)
+  // Never the real ~/.claude: plugins come from a synthetic Claude folder.
+  manager.claudeHome = mkdtempSync(join(tmpdir(), 'ao-emi-claude-'))
+  return { Store, AgentManager, store, manager }
+}
+
+/** Installs a synthetic EGM plugin in the Claude folder of the test. */
+function installEgm(claudeHome: string): string {
+  const root = join(claudeHome, 'plugins', 'cache', 'egm', 'egm', '1.0.0')
+  mkdirSync(join(root, 'skills', 'egm-brainstorm'), { recursive: true })
+  writeFileSync(join(root, 'skills', 'egm-brainstorm', 'SKILL.md'), '# sintético')
+  writeFileSync(
+    join(claudeHome, 'plugins', 'installed_plugins.json'),
+    JSON.stringify({ version: 2, plugins: { 'egm@egm': [{ scope: 'user', installPath: root }] } }),
+  )
+  return root
 }
 
 describe('a Emi de cada andar', () => {
@@ -64,6 +79,37 @@ describe('a Emi de cada andar', () => {
     expect(Object.keys(options.mcpServers as object)).toEqual(['emi'])
     expect(manager.emiTools).toHaveBeenCalledWith('p1')
     manager.shutdown()
+    store.flush()
+  })
+
+  it('sem o plugin EGM, o prompt ensina a instalar; com ele, a Emi recebe o plugin mesmo desligado para os outros', async () => {
+    const p1 = floor('p1')
+    const { manager, store } = await office([p1])
+    const { emiPrompt, EGM_INSTALL_HINT } = await import('../src/main/emi-prompt')
+    manager.emiTools = vi.fn(() => ({ type: 'sdk', name: 'emi' }) as never)
+    sdk.calls.length = 0
+    await manager.sendMessage(emiAgentId('p1'), 'Oi')
+    await vi.waitFor(() => expect(sdk.calls).toHaveLength(1))
+    const without = (sdk.calls[0]!.options.systemPrompt as { append: string }).append
+    expect(without).toContain(EGM_INSTALL_HINT)
+    expect(without).toContain('claude plugin install egm@egm')
+    expect(without).not.toMatch(/pocock|grill|to-prd/i)
+    manager.shutdown()
+
+    const root = installEgm(manager.claudeHome)
+    const again = await office([p1])
+    again.manager.claudeHome = manager.claudeHome
+    again.store.settings = { ...again.store.settings, agentPluginsOff: ['egm@egm'] }
+    again.manager.emiTools = vi.fn(() => ({ type: 'sdk', name: 'emi' }) as never)
+    sdk.calls.length = 0
+    await again.manager.sendMessage(emiAgentId('p1'), 'Oi')
+    await vi.waitFor(() => expect(sdk.calls).toHaveLength(1))
+    const options = sdk.calls[0]!.options
+    expect((options.systemPrompt as { append: string }).append).toBe(emiPrompt(p1, root))
+    expect((options.systemPrompt as { append: string }).append).toContain(join(root, 'skills', 'egm-brainstorm', 'SKILL.md'))
+    expect(options.plugins).toContainEqual({ type: 'local', path: root })
+    again.manager.shutdown()
+    again.store.flush()
     store.flush()
   })
 

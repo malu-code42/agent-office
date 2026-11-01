@@ -1,0 +1,36 @@
+{
+  "workflows": [
+    {
+      "projectId": "loja",
+      "goal": "Busca acessível na loja",
+      "grill": "Decisões: busca por produto e categoria; fora do escopo: busca por voz.",
+      "grillApprovedAt": 1760000000000,
+      "spec": "# Busca\nResultados paginados, navegação por teclado.",
+      "criteria": ["Navegação por teclado", "20 resultados por página"],
+      "specApprovedAt": 1760000100000,
+      "ticketIds": ["t-1", "t-2"],
+      "ticketDrafts": [],
+      "ticketsApprovedAt": 1760000200000,
+      "assignments": { "t-1": "sala-1", "t-2": null },
+      "redistributionProposal": {
+        "changes": [{ "ticketId": "t-2", "fromSquad": null, "toSquad": "sala-1" }],
+        "proposedAt": 1760000300000,
+        "approvedAt": null
+      },
+      "updatedAt": 1760000300000
+    },
+    {
+      "projectId": "blog",
+      "goal": "Newsletter semanal",
+      "grill": "Perguntas em aberto: frequência e provedor de e-mail.",
+      "grillApprovedAt": null,
+      "spec": "",
+      "criteria": [],
+      "specApprovedAt": null,
+      "ticketIds": [],
+      "ticketsApprovedAt": null,
+      "assignments": {},
+      "updatedAt": 1760000400000
+    }
+  ]
+}

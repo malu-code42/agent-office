@@ -109,14 +109,18 @@ export function describePermission(tool: string, input: Record<string, unknown> 
         detail: [
           `Objetivo: ${String(input.goal ?? '')}`,
           `Tickets: ${list(input.tickets).join(', ')}`,
+          ...(input.bootstrap ? [`Bootstrap EGM: ${input.bootstrap === 'done' ? 'feito' : 'pulado'}`] : []),
           'Critérios de aceite:',
           ...list(input.criteria).map((c) => `- ${c}`),
           '',
-          'Grill:',
-          String(input.grill ?? ''),
+          'Brainstorm:',
+          String(input.brainstorm ?? ''),
           '',
-          'Especificação:',
-          String(input.spec ?? ''),
+          `Rascunho do design${input.designPath ? ` (${String(input.designPath)})` : ''}:`,
+          String(input.design ?? ''),
+          '',
+          'Revisão Goldfish:',
+          String(input.review ?? ''),
         ].join('\n'),
       }
     case 'mcp__emi__squad_create': {

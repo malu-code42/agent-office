@@ -8,11 +8,11 @@ import {
   assertCanDistribute,
   assertClaudeOnly,
   assertIndependentReviewer,
-  buildSpec,
+  buildDesign,
   buildTickets,
   canFormSquad,
-  createGrill,
-  recordGrillDecision,
+  createBrainstorm,
+  recordBrainstormDecision,
   redistribute,
   resolveFindings,
   submitForReview,
@@ -28,146 +28,146 @@ const team = (): SquadProposalMember[] => [
 const isOrchestrationError = (err: unknown): err is ProjectOrchestrationError =>
   err instanceof ProjectOrchestrationErrorClass && typeof (err as ProjectOrchestrationError).code === 'string'
 
-describe('project orchestration — grill → spec → tickets (ticket #58)', () => {
-  it('cria o grill como rascunho não aprovado', () => {
-    const grill = createGrill('p1', 'Reestruturar a busca da loja')
-    expect(grill.kind).toBe('grill')
-    expect(grill.goal).toBe('Reestruturar a busca da loja')
-    expect(grill.gate.approved).toBe(false)
-    expect(grill.decisions).toEqual([])
+describe('project orchestration — brainstorm → design → tickets (ticket #58)', () => {
+  it('cria o brainstorm como rascunho não aprovado', () => {
+    const brainstorm = createBrainstorm('p1', 'Reestruturar a busca da loja')
+    expect(brainstorm.kind).toBe('brainstorm')
+    expect(brainstorm.goal).toBe('Reestruturar a busca da loja')
+    expect(brainstorm.gate.approved).toBe(false)
+    expect(brainstorm.decisions).toEqual([])
   })
 
-  it('registra decisões esclarecidas no grill', () => {
-    const grill = createGrill('p1', 'Busca da loja')
-    recordGrillDecision(grill, {
+  it('registra decisões esclarecidas no brainstorm', () => {
+    const brainstorm = createBrainstorm('p1', 'Busca da loja')
+    recordBrainstormDecision(brainstorm, {
       question: 'Qual o escopo da primeira entrega?',
       answer: 'Busca por produto com filtro de categoria.',
       decidedBy: 'Malu',
     })
-    expect(grill.decisions).toHaveLength(1)
-    expect(grill.decisions[0]!.answer).toBe('Busca por produto com filtro de categoria.')
-    expect(grill.decisions[0]!.decidedBy).toBe('Malu')
-    expect(grill.decisions[0]!.id).toMatch(/^dec-/)
-    expect(grill.decisions[0]!.decidedAt).toBeGreaterThanOrEqual(grill.createdAt)
-    expect(grill.updatedAt).toBeGreaterThanOrEqual(grill.createdAt)
+    expect(brainstorm.decisions).toHaveLength(1)
+    expect(brainstorm.decisions[0]!.answer).toBe('Busca por produto com filtro de categoria.')
+    expect(brainstorm.decisions[0]!.decidedBy).toBe('Malu')
+    expect(brainstorm.decisions[0]!.id).toMatch(/^dec-/)
+    expect(brainstorm.decisions[0]!.decidedAt).toBeGreaterThanOrEqual(brainstorm.createdAt)
+    expect(brainstorm.updatedAt).toBeGreaterThanOrEqual(brainstorm.createdAt)
   })
 
-  it('não constrói o spec antes de o grill ser aprovado', () => {
-    const grill = createGrill('p1', 'Busca da loja')
-    expect(() => buildSpec(grill)).toThrow(/não foi aprovado/)
+  it('não constrói o design antes de o brainstorm ser aprovado', () => {
+    const brainstorm = createBrainstorm('p1', 'Busca da loja')
+    expect(() => buildDesign(brainstorm)).toThrow(/não foi aprovado/)
   })
 
-  it('constrói o spec a partir do grill aprovado', () => {
-    const grill = createGrill('p1', 'Busca da loja')
-    recordGrillDecision(grill, {
+  it('constrói o design a partir do brainstorm aprovado', () => {
+    const brainstorm = createBrainstorm('p1', 'Busca da loja')
+    recordBrainstormDecision(brainstorm, {
       question: 'Critério de aceite',
       answer: 'Retorna até 20 resultados por página.',
       decidedBy: 'Malu',
     })
-    approveArtifact(grill, player)
-    const spec = buildSpec(grill)
-    expect(spec.kind).toBe('spec')
-    expect(spec.goal).toBe('Busca da loja')
-    expect(spec.grillId).toBe(grill.id)
-    expect(spec.criteria).toContain('Retorna até 20 resultados por página.')
-    expect(spec.gate.approved).toBe(false)
+    approveArtifact(brainstorm, player)
+    const design = buildDesign(brainstorm)
+    expect(design.kind).toBe('design')
+    expect(design.goal).toBe('Busca da loja')
+    expect(design.brainstormId).toBe(brainstorm.id)
+    expect(design.criteria).toContain('Retorna até 20 resultados por página.')
+    expect(design.gate.approved).toBe(false)
   })
 
-  it('não constrói os tickets antes de o spec ser aprovado', () => {
-    const grill = createGrill('p1', 'Busca da loja')
-    approveArtifact(grill, player)
-    const spec = buildSpec(grill)
-    expect(() => buildTickets(spec)).toThrow(/não foi aprovado/)
+  it('não constrói os tickets antes de o design ser aprovado', () => {
+    const brainstorm = createBrainstorm('p1', 'Busca da loja')
+    approveArtifact(brainstorm, player)
+    const design = buildDesign(brainstorm)
+    expect(() => buildTickets(design)).toThrow(/não foi aprovado/)
   })
 
-  it('constrói os tickets a partir do spec aprovado', () => {
-    const grill = createGrill('p1', 'Busca da loja')
-    approveArtifact(grill, player)
-    const spec = buildSpec(grill)
-    approveArtifact(spec, player)
-    const tickets = buildTickets(spec)
+  it('constrói os tickets a partir do design aprovado', () => {
+    const brainstorm = createBrainstorm('p1', 'Busca da loja')
+    approveArtifact(brainstorm, player)
+    const design = buildDesign(brainstorm)
+    approveArtifact(design, player)
+    const tickets = buildTickets(design)
     expect(tickets.kind).toBe('tickets')
     expect(tickets.goal).toBe('Busca da loja')
-    expect(tickets.criteria).toEqual(spec.criteria)
-    expect(tickets.specId).toBe(spec.id)
+    expect(tickets.criteria).toEqual(design.criteria)
+    expect(tickets.designId).toBe(design.id)
     expect(tickets.gate.approved).toBe(false)
   })
 })
 
 describe('project orchestration — aprovação e limite de duas revisões', () => {
   it('submete a revisão inicial com achados e não aprova', () => {
-    const grill = createGrill('p1', 'Busca da loja')
-    submitForReview(grill, ['O escopo está muito amplo.'])
-    expect(grill.gate.reviewRounds).toBe(1)
-    expect(grill.gate.findings).toEqual(['O escopo está muito amplo.'])
-    expect(grill.gate.approved).toBe(false)
+    const brainstorm = createBrainstorm('p1', 'Busca da loja')
+    submitForReview(brainstorm, ['O escopo está muito amplo.'])
+    expect(brainstorm.gate.reviewRounds).toBe(1)
+    expect(brainstorm.gate.findings).toEqual(['O escopo está muito amplo.'])
+    expect(brainstorm.gate.approved).toBe(false)
   })
 
   it('não aprova enquanto houver achados abertos', () => {
-    const grill = createGrill('p1', 'Busca da loja')
-    submitForReview(grill, ['Ajustar o escopo.'])
-    expect(() => approveArtifact(grill, player)).toThrow(/achados abertos/)
-    expect(grill.gate.approved).toBe(false)
+    const brainstorm = createBrainstorm('p1', 'Busca da loja')
+    submitForReview(brainstorm, ['Ajustar o escopo.'])
+    expect(() => approveArtifact(brainstorm, player)).toThrow(/achados abertos/)
+    expect(brainstorm.gate.approved).toBe(false)
   })
 
   it('aprova depois de resolver os achados', () => {
-    const grill = createGrill('p1', 'Busca da loja')
-    submitForReview(grill, ['Ajustar o escopo.'])
-    resolveFindings(grill)
-    approveArtifact(grill, player)
-    expect(grill.gate.approved).toBe(true)
-    expect(grill.gate.approvedBy).toBe('Malu')
-    expect(grill.gate.approvedAt).toBeGreaterThan(0)
+    const brainstorm = createBrainstorm('p1', 'Busca da loja')
+    submitForReview(brainstorm, ['Ajustar o escopo.'])
+    resolveFindings(brainstorm)
+    approveArtifact(brainstorm, player)
+    expect(brainstorm.gate.approved).toBe(true)
+    expect(brainstorm.gate.approvedBy).toBe('Malu')
+    expect(brainstorm.gate.approvedAt).toBeGreaterThan(0)
   })
 
   it('permite uma re-revisão após correções (segunda rodada)', () => {
-    const grill = createGrill('p1', 'Busca da loja')
-    submitForReview(grill, ['Primeiro achado.'])
-    resolveFindings(grill)
-    submitForReview(grill, ['Segundo achado.'])
-    expect(grill.gate.reviewRounds).toBe(2)
-    expect(grill.gate.findings).toEqual(['Segundo achado.'])
+    const brainstorm = createBrainstorm('p1', 'Busca da loja')
+    submitForReview(brainstorm, ['Primeiro achado.'])
+    resolveFindings(brainstorm)
+    submitForReview(brainstorm, ['Segundo achado.'])
+    expect(brainstorm.gate.reviewRounds).toBe(2)
+    expect(brainstorm.gate.findings).toEqual(['Segundo achado.'])
   })
 
   it('bloqueia uma terceira revisão com achados e pede decisão humana', () => {
-    const grill = createGrill('p1', 'Busca da loja')
-    submitForReview(grill, ['Achado 1.'])
-    resolveFindings(grill)
-    submitForReview(grill, ['Achado 2.'])
-    expect(() => submitForReview(grill, ['Achado 3.'])).toThrow(
+    const brainstorm = createBrainstorm('p1', 'Busca da loja')
+    submitForReview(brainstorm, ['Achado 1.'])
+    resolveFindings(brainstorm)
+    submitForReview(brainstorm, ['Achado 2.'])
+    expect(() => submitForReview(brainstorm, ['Achado 3.'])).toThrow(
       /já passou por 2 revisões/,
     )
-    expect(grill.gate.reviewRounds).toBe(2)
-    expect(grill.gate.approved).toBe(false)
+    expect(brainstorm.gate.reviewRounds).toBe(2)
+    expect(brainstorm.gate.approved).toBe(false)
   })
 
   it('não aprova quando a segunda revisão ainda tem achados (limite esgotado)', () => {
-    const grill = createGrill('p1', 'Busca da loja')
-    submitForReview(grill, ['Achado 1.'])
-    submitForReview(grill, ['Achado 2.']) // segunda rodada, achados ainda presentes
-    expect(() => approveArtifact(grill, player)).toThrow(/achados abertos/)
-    expect(grill.gate.approved).toBe(false)
+    const brainstorm = createBrainstorm('p1', 'Busca da loja')
+    submitForReview(brainstorm, ['Achado 1.'])
+    submitForReview(brainstorm, ['Achado 2.']) // segunda rodada, achados ainda presentes
+    expect(() => approveArtifact(brainstorm, player)).toThrow(/achados abertos/)
+    expect(brainstorm.gate.approved).toBe(false)
     // uma terceira revisão com achados pede decisão humana
-    expect(() => submitForReview(grill, ['Achado 3.'])).toThrow(
+    expect(() => submitForReview(brainstorm, ['Achado 3.'])).toThrow(
       /já passou por 2 revisões/,
     )
-    expect(grill.gate.reviewRounds).toBe(2)
+    expect(brainstorm.gate.reviewRounds).toBe(2)
   })
 
   it('não permite terceira rodada mesmo após re-revisão sem achados', () => {
-    const grill = createGrill('p1', 'Busca da loja')
-    submitForReview(grill, ['Achado 1.'])
-    resolveFindings(grill)
-    submitForReview(grill, [])
-    expect(() => submitForReview(grill, [])).toThrow(/2 revisões/)
-    expect(grill.gate.reviewRounds).toBe(2)
-    expect(grill.gate.approved).toBe(false)
+    const brainstorm = createBrainstorm('p1', 'Busca da loja')
+    submitForReview(brainstorm, ['Achado 1.'])
+    resolveFindings(brainstorm)
+    submitForReview(brainstorm, [])
+    expect(() => submitForReview(brainstorm, [])).toThrow(/2 revisões/)
+    expect(brainstorm.gate.reviewRounds).toBe(2)
+    expect(brainstorm.gate.approved).toBe(false)
   })
 
   it('exposa o código do erro de portão', () => {
-    const grill = createGrill('p1', 'Busca da loja')
+    const brainstorm = createBrainstorm('p1', 'Busca da loja')
     try {
-      buildSpec(grill)
+      buildDesign(brainstorm)
     } catch (err) {
       expect(isOrchestrationError(err)).toBe(true)
       if (isOrchestrationError(err)) {
@@ -181,39 +181,39 @@ describe('project orchestration — aprovação e limite de duas revisões', () 
 
 describe('project orchestration — distribuição e squads (ticket #58)', () => {
   it('não forma squad a partir de tickets não aprovados', () => {
-    const grill = createGrill('p1', 'Busca da loja')
-    approveArtifact(grill, player)
-    const spec = buildSpec(grill)
-    approveArtifact(spec, player)
-    const tickets = buildTickets(spec)
+    const brainstorm = createBrainstorm('p1', 'Busca da loja')
+    approveArtifact(brainstorm, player)
+    const design = buildDesign(brainstorm)
+    approveArtifact(design, player)
+    const tickets = buildTickets(design)
     expect(canFormSquad(tickets)).toBe(false)
   })
 
   it('forma squad somente a partir de tickets aprovados', () => {
-    const grill = createGrill('p1', 'Busca da loja')
-    approveArtifact(grill, player)
-    const spec = buildSpec(grill)
-    approveArtifact(spec, player)
-    const tickets = buildTickets(spec)
+    const brainstorm = createBrainstorm('p1', 'Busca da loja')
+    approveArtifact(brainstorm, player)
+    const design = buildDesign(brainstorm)
+    approveArtifact(design, player)
+    const tickets = buildTickets(design)
     approveArtifact(tickets, player)
     expect(canFormSquad(tickets)).toBe(true)
   })
 
   it('exige aprovação antes de distribuir', () => {
-    const grill = createGrill('p1', 'Busca da loja')
-    approveArtifact(grill, player)
-    const spec = buildSpec(grill)
-    approveArtifact(spec, player)
-    const tickets = buildTickets(spec)
+    const brainstorm = createBrainstorm('p1', 'Busca da loja')
+    approveArtifact(brainstorm, player)
+    const design = buildDesign(brainstorm)
+    approveArtifact(design, player)
+    const tickets = buildTickets(design)
     expect(() => assertCanDistribute(tickets)).toThrow(/antes da distribuição/)
   })
 
   it('redistribui subtarefas sem alterar objetivo nem critérios aprovados', () => {
-    const grill = createGrill('p1', 'Busca da loja')
-    approveArtifact(grill, player)
-    const spec = buildSpec(grill)
-    approveArtifact(spec, player)
-    const tickets = buildTickets(spec)
+    const brainstorm = createBrainstorm('p1', 'Busca da loja')
+    approveArtifact(brainstorm, player)
+    const design = buildDesign(brainstorm)
+    approveArtifact(design, player)
+    const tickets = buildTickets(design)
     tickets.tickets.push('AO-10', 'AO-11')
     tickets.assignments = { 'AO-10': null, 'AO-11': 'sala-1' }
     approveArtifact(tickets, player)
@@ -229,11 +229,11 @@ describe('project orchestration — distribuição e squads (ticket #58)', () =>
   })
 
   it('aplica mudanças de atribuição quando redistribui subtarefas aprovadas', () => {
-    const grill = createGrill('p1', 'Busca da loja')
-    approveArtifact(grill, player)
-    const spec = buildSpec(grill)
-    approveArtifact(spec, player)
-    const tickets = buildTickets(spec)
+    const brainstorm = createBrainstorm('p1', 'Busca da loja')
+    approveArtifact(brainstorm, player)
+    const design = buildDesign(brainstorm)
+    approveArtifact(design, player)
+    const tickets = buildTickets(design)
     tickets.tickets.push('AO-10')
     tickets.assignments = { 'AO-10': 'sala-1' }
     approveArtifact(tickets, player)
@@ -244,11 +244,11 @@ describe('project orchestration — distribuição e squads (ticket #58)', () =>
   })
 
   it('não redistribui tickets que não pertencem ao conjunto aprovado', () => {
-    const grill = createGrill('p1', 'Busca da loja')
-    approveArtifact(grill, player)
-    const spec = buildSpec(grill)
-    approveArtifact(spec, player)
-    const tickets = buildTickets(spec)
+    const brainstorm = createBrainstorm('p1', 'Busca da loja')
+    approveArtifact(brainstorm, player)
+    const design = buildDesign(brainstorm)
+    approveArtifact(design, player)
+    const tickets = buildTickets(design)
     tickets.tickets.push('AO-10')
     approveArtifact(tickets, player)
     expect(() => redistribute(tickets, [{ ticketId: 'AO-99', fromSquad: null, toSquad: 'sala-1' }])).toThrow(

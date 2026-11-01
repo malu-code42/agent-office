@@ -617,16 +617,22 @@ export const squadRenameSchema = z.object({ id: idSchema, name: z.string().trim(
 export const squadApprovalSchema = z.object({ id: idSchema, name: z.string().trim().min(1).max(SQUAD_NAME_MAX) })
 /** Project orchestration accepts only bounded text and identifier arrays from the renderer. */
 export const projectWorkflowProjectIdSchema = z.string().trim().min(1).max(40)
-export const projectWorkflowGrillArgsSchema = z.tuple([
+/** The brief may be empty while saving (Emi drafts it from the goal); approval requires it. */
+export const projectWorkflowBrainstormArgsSchema = z.tuple([
   projectWorkflowProjectIdSchema,
   z.string().trim().min(1).max(1000),
-  z.string().trim().min(1).max(20_000),
+  z.string().trim().max(20_000),
 ])
-export const projectWorkflowSpecArgsSchema = z.tuple([
+export const projectWorkflowDesignArgsSchema = z.tuple([
   projectWorkflowProjectIdSchema,
   z.string().trim().min(1).max(20_000),
   z.array(z.string().trim().min(1).max(1000)).min(1).max(50),
+  z.string().trim().max(300).optional(),
 ])
+export const projectWorkflowReviewArgsSchema = z.tuple([projectWorkflowProjectIdSchema, z.string().trim().min(1).max(20_000)])
+export const projectWorkflowBootstrapArgsSchema = z.tuple([projectWorkflowProjectIdSchema, z.enum(['pending', 'done', 'skipped'])])
+/** What Emi (tool-free, one turn) may draft for the "Preparar trabalho" window. */
+export const projectWorkflowDraftKindSchema = z.enum(['brainstorm', 'design', 'review', 'tickets', 'redistribution', 'drift'])
 export const projectWorkflowTicketsArgsSchema = z.tuple([projectWorkflowProjectIdSchema, z.array(idSchema).min(1).max(50)])
 
 /** Files sent with a message. buildMessage checks the bytes and the limits with friendly messages. */

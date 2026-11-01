@@ -22,9 +22,12 @@ import {
   squadProposalRequestSchema,
   squadRenameSchema,
   parse,
-  projectWorkflowGrillArgsSchema,
+  projectWorkflowBootstrapArgsSchema,
+  projectWorkflowBrainstormArgsSchema,
+  projectWorkflowDesignArgsSchema,
+  projectWorkflowDraftKindSchema,
   projectWorkflowProjectIdSchema,
-  projectWorkflowSpecArgsSchema,
+  projectWorkflowReviewArgsSchema,
   projectWorkflowTicketsArgsSchema,
 } from '../validate'
 import { confirmPermissionOverride, type IpcContext } from './context'
@@ -122,24 +125,25 @@ export function registerSquadsIpc(ctx: IpcContext): void {
     return project
   }
   ipcMain.handle('office:getProjectWorkflow', (_e, raw: unknown) => ctx.projectWorkflows.get(workflowProject(raw).id))
-  ipcMain.handle('office:saveProjectWorkflowGrill', (_e, ...raw: unknown[]) => {
-    const [projectId, goal, grill] = parse(projectWorkflowGrillArgsSchema, raw, 'Rascunho do grill inválido.')
-    const project = workflowProject(projectId)
-    return ctx.projectWorkflows.saveGrill(project.id, goal, grill)
+  ipcMain.handle('office:setProjectWorkflowBootstrap', (_e, ...raw: unknown[]) => {
+    const [projectId, status] = parse(projectWorkflowBootstrapArgsSchema, raw, 'Estado do bootstrap inválido.')
+    return ctx.projectWorkflows.setBootstrap(workflowProject(projectId).id, status)
   })
-  ipcMain.handle('office:approveProjectWorkflowGrill', (_e, raw: unknown) => {
-    const project = workflowProject(raw)
-    return ctx.projectWorkflows.approveGrill(project.id)
+  ipcMain.handle('office:saveProjectWorkflowBrainstorm', (_e, ...raw: unknown[]) => {
+    const [projectId, goal, brainstorm] = parse(projectWorkflowBrainstormArgsSchema, raw, 'Rascunho do brainstorm inválido.')
+    return ctx.projectWorkflows.saveBrainstorm(workflowProject(projectId).id, goal, brainstorm)
   })
-  ipcMain.handle('office:saveProjectWorkflowSpec', (_e, ...raw: unknown[]) => {
-    const [projectId, spec, criteria] = parse(projectWorkflowSpecArgsSchema, raw, 'Rascunho da especificação inválido.')
-    const project = workflowProject(projectId)
-    return ctx.projectWorkflows.saveSpec(project.id, spec, criteria)
+  ipcMain.handle('office:approveProjectWorkflowBrainstorm', (_e, raw: unknown) => ctx.projectWorkflows.approveBrainstorm(workflowProject(raw).id))
+  ipcMain.handle('office:saveProjectWorkflowDesign', (_e, ...raw: unknown[]) => {
+    const [projectId, design, criteria, designPath] = parse(projectWorkflowDesignArgsSchema, raw, 'Rascunho do design inválido.')
+    return ctx.projectWorkflows.saveDesign(workflowProject(projectId).id, design, criteria, designPath)
   })
-  ipcMain.handle('office:approveProjectWorkflowSpec', (_e, raw: unknown) => {
-    const project = workflowProject(raw)
-    return ctx.projectWorkflows.approveSpec(project.id)
+  ipcMain.handle('office:approveProjectWorkflowDesign', (_e, raw: unknown) => ctx.projectWorkflows.approveDesign(workflowProject(raw).id))
+  ipcMain.handle('office:saveProjectWorkflowReview', (_e, ...raw: unknown[]) => {
+    const [projectId, review] = parse(projectWorkflowReviewArgsSchema, raw, 'Resultado da Revisão Goldfish inválido.')
+    return ctx.projectWorkflows.saveReview(workflowProject(projectId).id, review)
   })
+  ipcMain.handle('office:approveProjectWorkflowReview', (_e, raw: unknown) => ctx.projectWorkflows.approveReview(workflowProject(raw).id))
   const assertFloorTickets = (project: ProjectFloor, ticketIds: string[]) => {
     for (const id of ticketIds) {
       const ticket = ctx.board.get(id)
@@ -172,14 +176,21 @@ export function registerSquadsIpc(ctx: IpcContext): void {
           const t = ctx.board.get(id)
           return `- ${t ? `${t.key} · ${t.title}` : id}${w.assignments[id] ? ` · squad ${w.assignments[id]}` : ''}`
         }
-        if (!w.goal && !w.ticketIds.length) return 'Este andar ainda não tem plano aprovado.'
+        const bootstrap = { pending: 'pendente', done: 'feito', skipped: 'pulado' }[w.bootstrap]
+        const ok = (at: number | null) => (at ? 'aprovado' : 'não aprovado')
+        if (!w.goal && !w.ticketIds.length) return `Este andar ainda não tem plano aprovado. Bootstrap EGM: ${bootstrap}.`
         return [
           `Objetivo: ${w.goal || '(sem objetivo)'}`,
-          `Grill: ${w.grillApprovedAt ? 'aprovado' : 'não aprovado'} · Spec: ${w.specApprovedAt ? 'aprovada' : 'não aprovada'} · Tickets: ${w.ticketsApprovedAt ? 'aprovados' : 'não aprovados'}`,
+          `Bootstrap: ${bootstrap} · Brainstorm: ${ok(w.brainstormApprovedAt)} · Design: ${ok(w.designApprovedAt)} · ` +
+            `Revisão Goldfish: ${ok(w.reviewApprovedAt)} · Tickets: ${w.ticketsApprovedAt ? 'aprovados' : 'não aprovados'}`,
           '',
-          w.spec ? `Especificação:\n${w.spec}` : 'Sem especificação.',
+          w.design ? `Design doc${w.designPath ? ` (${w.designPath})` : ''}:\n${w.design}` : 'Sem design doc.',
+          w.review ? `Revisão Goldfish:\n${w.review}` : '',
           w.criteria.length ? `Critérios:\n${w.criteria.map((c) => `- ${c}`).join('\n')}` : '',
           w.ticketIds.length ? `Tickets do plano:\n${w.ticketIds.map(ticket).join('\n')}` : 'Sem tickets no plano.',
+          w.driftReport
+            ? `\nÚltimo relatório de drift (${new Date(w.driftReport.at).toISOString().slice(0, 10)}):\n${w.driftReport.summary}`
+            : '',
         ].join('\n')
       },
       approvePlan: (plan) => {
@@ -188,13 +199,20 @@ export function registerSquadsIpc(ctx: IpcContext): void {
         assertFloorTickets(project, ids)
         // The same steps the "Fluxo do projeto" window takes, one after the other, after the user's card.
         const w = ctx.projectWorkflows
-        w.saveGrill(project.id, plan.goal, plan.grill)
-        w.approveGrill(project.id)
-        w.saveSpec(project.id, plan.spec, plan.criteria)
-        w.approveSpec(project.id)
+        if (plan.bootstrap) w.setBootstrap(project.id, plan.bootstrap)
+        w.saveBrainstorm(project.id, plan.goal, plan.brainstorm)
+        w.approveBrainstorm(project.id)
+        w.saveDesign(project.id, plan.design, plan.criteria, plan.designPath ?? '')
+        w.approveDesign(project.id)
+        w.saveReview(project.id, plan.review)
+        w.approveReview(project.id)
         w.saveTickets(project.id, ids)
         w.approveTickets(project.id)
         return `Plano do andar ${project.name} aprovado, com ${ids.length} ticket${ids.length === 1 ? '' : 's'}.`
+      },
+      saveDrift: (summary) => {
+        ctx.projectWorkflows.saveDriftReport(floor().id, summary)
+        return 'Relatório de drift registrado no fluxo do andar. Nada foi alterado: a usuária decide se atualiza o design doc ou o código.'
       },
       createSquad: async (req) => {
         const project = floor()
@@ -262,12 +280,13 @@ export function registerSquadsIpc(ctx: IpcContext): void {
 
   ipcMain.handle('office:generateProjectWorkflowDraft', async (_e, projectIdRaw: unknown, kindRaw: unknown) => {
     const project = workflowProject(projectIdRaw)
-    const kind = z.enum(['grill', 'spec', 'tickets', 'redistribution']).parse(kindRaw)
+    const kind = parse(projectWorkflowDraftKindSchema, kindRaw, 'Etapa inválida.')
     const workflow = ctx.projectWorkflows.get(project.id)
-    if (kind === 'grill' && !workflow.goal.trim()) throw new Error('Informe o objetivo antes de pedir o grill à Emi.')
-    if (kind === 'spec' && !workflow.grillApprovedAt) throw new Error('Aprove o grill antes de gerar a especificação.')
-    if ((kind === 'tickets' || kind === 'redistribution') && !workflow.specApprovedAt)
-      throw new Error('Aprove a especificação antes de continuar.')
+    if (kind === 'brainstorm' && !workflow.goal.trim()) throw new Error('Informe o objetivo antes de pedir o brainstorm à Emi.')
+    if (kind === 'design' && !workflow.brainstormApprovedAt) throw new Error('Aprove o brainstorm antes de gerar o rascunho do design.')
+    if ((kind === 'review' || kind === 'drift') && !workflow.designApprovedAt) throw new Error('Aprove o rascunho do design antes de continuar.')
+    if ((kind === 'tickets' || kind === 'redistribution') && !workflow.reviewApprovedAt)
+      throw new Error('Aprove a Revisão Goldfish antes de continuar.')
     const docs = (() => {
       if (store.settings.vaultPath) {
         try {
@@ -301,15 +320,23 @@ export function registerSquadsIpc(ctx: IpcContext): void {
             })
           : undefined,
     })
-    if (kind === 'grill') {
-      const parsed = z.object({ grill: z.string().trim().min(1).max(20_000) }).parse(result)
-      return ctx.projectWorkflows.saveGrill(project.id, workflow.goal, parsed.grill)
+    if (kind === 'brainstorm') {
+      const parsed = z.object({ brainstorm: z.string().trim().min(1).max(20_000) }).parse(result)
+      return ctx.projectWorkflows.saveBrainstorm(project.id, workflow.goal, parsed.brainstorm)
     }
-    if (kind === 'spec') {
+    if (kind === 'design') {
       const parsed = z
-        .object({ spec: z.string().trim().min(1).max(20_000), criteria: z.array(z.string().trim().min(1).max(500)).min(1).max(15) })
+        .object({ design: z.string().trim().min(1).max(20_000), criteria: z.array(z.string().trim().min(1).max(500)).min(1).max(15) })
         .parse(result)
-      return ctx.projectWorkflows.saveSpec(project.id, parsed.spec, parsed.criteria)
+      return ctx.projectWorkflows.saveDesign(project.id, parsed.design, parsed.criteria, workflow.designPath)
+    }
+    if (kind === 'review') {
+      const parsed = z.object({ review: z.string().trim().min(1).max(20_000) }).parse(result)
+      return ctx.projectWorkflows.saveReview(project.id, parsed.review)
+    }
+    if (kind === 'drift') {
+      const parsed = z.object({ drift: z.string().trim().min(1).max(20_000) }).parse(result)
+      return ctx.projectWorkflows.saveDriftReport(project.id, parsed.drift)
     }
     if (kind === 'tickets') {
       const parsed = z

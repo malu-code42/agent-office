@@ -15,9 +15,30 @@ const ticketKeys = z.array(z.string().min(1).max(40)).min(1).max(30)
 
 export const emiPlanShape = {
   goal: z.string().trim().min(1).max(2000),
-  grill: z.string().trim().min(1).max(20_000).describe('Summary of the grill: decisions, scope, constraints, open questions'),
-  spec: z.string().trim().min(1).max(20_000).describe('The PRD/spec in Markdown'),
+  bootstrap: z
+    .enum(['done', 'skipped'])
+    .optional()
+    .describe('EGM bootstrap of this project (READMEs + docs/designs/SITEMAP.md): done, or skipped by the user'),
+  brainstorm: z
+    .string()
+    .trim()
+    .min(1)
+    .max(20_000)
+    .describe('Summary of the EGM brainstorm (concepts_brief.md): problem, decisions, scope, risks, open questions'),
+  design: z.string().trim().min(1).max(20_000).describe('The design doc in Markdown (or its summary, with the implementation plan)'),
+  designPath: z
+    .string()
+    .trim()
+    .max(300)
+    .optional()
+    .describe('Relative path of the design doc in the project, under docs/designs/ (e.g. docs/designs/busca.md)'),
   criteria: z.array(z.string().trim().min(1).max(500)).min(1).max(15),
+  review: z
+    .string()
+    .trim()
+    .min(1)
+    .max(20_000)
+    .describe('Outcome of the Goldfish review: the findings the user chose to act on and how each was resolved'),
   tickets: ticketKeys.describe('Keys of open tickets of this floor, e.g. AO-12, in the order they should be worked'),
 }
 export type EmiPlan = { [K in keyof typeof emiPlanShape]: z.infer<(typeof emiPlanShape)[K]> }
@@ -34,10 +55,12 @@ export type EmiSquad = { [K in keyof typeof emiSquadShape]: z.infer<(typeof emiS
 export interface EmiToolDeps {
   /** Squads of the floor, as the office reads them. */
   squads(): SquadInfo[]
-  /** The floor's plan (goal, grill, spec, tickets, assignments) as text. */
+  /** The floor's plan (goal, EGM stages, design doc, tickets, assignments) as text. */
   plan(): string
   /** Records and approves the whole plan; returns a pt-BR summary. */
   approvePlan(plan: EmiPlan): string
+  /** Records the latest drift report (design docs vs code); changes no stage. */
+  saveDrift(summary: string): string
   /** Proposes and approves the squad through the "Criar squad" path; returns the created squad. */
   createSquad(squad: EmiSquad): Promise<SquadInfo>
 }
@@ -53,8 +76,8 @@ export function emiTools(deps: EmiToolDeps): McpSdkServerConfigWithInstance {
     name: EMI_SERVER,
     version: '1.0.0',
     instructions:
-      'Plano e squads deste andar. plan_get e squads_list leem o estado atual; plan_approve e squad_create ' +
-      'mostram um cartão à usuária e só valem depois que ela aprovar.',
+      'Plano EGM e squads deste andar. plan_get e squads_list leem o estado atual; drift_report_save registra o relatório de drift; ' +
+      'plan_approve e squad_create mostram um cartão à usuária e só valem depois que ela aprovar.',
     tools: emiToolDefs(deps),
   })
 }
@@ -82,7 +105,7 @@ export function emiToolDefs(deps: EmiToolDeps) {
     ),
     tool(
       'plan_get',
-      'Mostra o plano do andar: objetivo, grill, spec, critérios, tickets aprovados e atribuições.',
+      'Mostra o plano EGM do andar: objetivo, bootstrap, brainstorm, design doc, Revisão Goldfish, critérios, tickets aprovados, atribuições e o último relatório de drift.',
       {},
       () => run(deps.plan)(),
       {
@@ -91,9 +114,15 @@ export function emiToolDefs(deps: EmiToolDeps) {
     ),
     tool(
       'plan_approve',
-      'Registra e aprova o plano do andar (grill, spec, critérios e tickets). A usuária confirma no cartão antes de valer; substitui o plano anterior.',
+      'Registra e aprova o plano EGM do andar (brainstorm, design doc, Revisão Goldfish, critérios e tickets). A usuária confirma no cartão antes de valer; substitui o plano anterior.',
       emiPlanShape,
       (args) => run(() => deps.approvePlan(args))(),
+    ),
+    tool(
+      'drift_report_save',
+      'Registra no fluxo do andar o resumo do relatório de drift (design docs × código). Não muda etapas nem arquivos: a usuária decide se atualiza o doc ou o código.',
+      { summary: z.string().trim().min(1).max(20_000).describe('The drift report summary: each divergence, its files, and the suggested fix (doc or code)') },
+      (args) => run(() => deps.saveDrift(args.summary))(),
     ),
     tool(
       'squad_create',

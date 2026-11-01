@@ -78,9 +78,12 @@ describe('ferramentas da Emi', () => {
     board.create({ title, description: 'x', acceptance: [], cwd: project.cwd }, { kind: 'player', name: 'Malu' })
   const plan = (tickets: string[]) => ({
     goal: 'Busca melhor',
-    grill: 'Decidimos refazer a busca.',
-    spec: '# Busca\nResultados em menos de 1 s.',
+    bootstrap: 'skipped' as const,
+    brainstorm: 'Decidimos refazer a busca.',
+    design: '# Busca\nResultados em menos de 1 s.',
+    designPath: 'docs/designs/busca.md',
     criteria: ['Busca responde em menos de 1 s'],
+    review: 'Tratado: o zoom-out pediu limite de resultados.',
     tickets,
   })
 
@@ -88,11 +91,14 @@ describe('ferramentas da Emi', () => {
     const a = ticket('Indexar produtos')
     const b = ticket('Tela de busca')
     expect((await call(deps, 'squads_list')).text).toBe('Este andar ainda não tem squads.')
-    expect((await call(deps, 'plan_get')).text).toBe('Este andar ainda não tem plano aprovado.')
+    expect((await call(deps, 'plan_get')).text).toBe('Este andar ainda não tem plano aprovado. Bootstrap EGM: pendente.')
 
     const approved = await call(deps, 'plan_approve', plan([a.key, b.key]))
     expect(approved).toEqual({ isError: false, text: 'Plano do andar Loja Aurora aprovado, com 2 tickets.' })
-    expect((await call(deps, 'plan_get')).text).toContain(`${a.key} · Indexar produtos`)
+    const shown = (await call(deps, 'plan_get')).text
+    expect(shown).toContain(`${a.key} · Indexar produtos`)
+    expect(shown).toContain('Bootstrap: pulado · Brainstorm: aprovado · Design: aprovado · Revisão Goldfish: aprovado · Tickets: aprovados')
+    expect(shown).toContain('Design doc (docs/designs/busca.md):')
 
     const created = await call(deps, 'squad_create', {
       name: 'Equipe da busca',
@@ -111,7 +117,7 @@ describe('ferramentas da Emi', () => {
     const a = ticket('Indexar produtos')
     const early = await call(deps, 'squad_create', { name: 'X', brief: 'Y', tickets: [a.key], members: team() })
     expect(early.isError).toBe(true)
-    expect(early.text).toMatch(/Aprove o grill/)
+    expect(early.text).toMatch(/Aprove o brainstorm, o design, a Revisão Goldfish/)
 
     await call(deps, 'plan_approve', plan([a.key]))
     const twoImplementers = team().map((m) => ({ ...m, role: 'implementer' as const }))
@@ -119,6 +125,25 @@ describe('ferramentas da Emi', () => {
     expect(bad.isError).toBe(true)
     expect(creation.list()).toEqual([])
     expect(existsSync(join(project.cwd, 'squads'))).toBe(false)
+  })
+
+  it('o relatório de drift fica registrado sem cartão e sem mudar etapas', async () => {
+    const a = ticket('Indexar produtos')
+    expect((await call(deps, 'drift_report_save', { summary: 'Busca sem limite de resultados.' })).isError).toBe(true)
+    await call(deps, 'plan_approve', plan([a.key]))
+    const saved = await call(deps, 'drift_report_save', { summary: 'Busca sem limite de resultados.' })
+    expect(saved).toEqual({ isError: false, text: expect.stringContaining('Relatório de drift registrado') })
+    const shown = (await call(deps, 'plan_get')).text
+    expect(shown).toContain('Último relatório de drift')
+    expect(shown).toContain('Tickets: aprovados')
+    expect(EMI_CONFIRM_TOOLS.has('mcp__emi__drift_report_save')).toBe(false)
+  })
+
+  it('o cartão do plano mostra as etapas do EGM inteiras', () => {
+    const card = describePermission('mcp__emi__plan_approve', plan(['AO-1']))
+    expect(card.detail).toContain('Bootstrap EGM: pulado')
+    expect(card.detail).toContain('Rascunho do design (docs/designs/busca.md):')
+    expect(card.detail).toContain('Revisão Goldfish:\nTratado: o zoom-out pediu limite de resultados.')
   })
 
   it('ticket desconhecido ou de outro andar é recusado no plano', async () => {

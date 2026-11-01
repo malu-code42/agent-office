@@ -7,6 +7,7 @@ import { isProfileMemoryData } from '@shared/profile-memory'
 import { isPersonalRoutineData } from './personal-routines-store'
 import { isStudyCycleState } from './study-cycle-schema'
 import { isAudioDictionaryData } from './audio-dictionary'
+import { isStoredWorkflow } from './project-workflows'
 
 /**
  * Copies of the app's data in userData/backups/. No Electron here (the folder comes in),
@@ -130,29 +131,9 @@ export const DATA_SHAPES: Record<DataFile, (v: unknown) => boolean> = {
   'squad-proposals.json': (v) => isObj(v) && (v.proposals === undefined || Array.isArray(v.proposals)),
   // The queue of each squad: the ticket it works on and the ones waiting.
   'squad-queues.json': (v) => isObj(v) && isMap(v.queues),
-  // AO-58: user-authored project artifacts and their approval gates.
-  'project-workflows.json': (v) =>
-    isObj(v) &&
-    Array.isArray(v.workflows) &&
-    v.workflows.every((workflow) => {
-      if (!isObj(workflow)) return false
-      return (
-        typeof workflow.projectId === 'string' &&
-        typeof workflow.goal === 'string' &&
-        typeof workflow.grill === 'string' &&
-        (workflow.grillApprovedAt === null || typeof workflow.grillApprovedAt === 'number') &&
-        typeof workflow.spec === 'string' &&
-        Array.isArray(workflow.criteria) &&
-        workflow.criteria.every((item) => typeof item === 'string') &&
-        (workflow.specApprovedAt === null || typeof workflow.specApprovedAt === 'number') &&
-        Array.isArray(workflow.ticketIds) &&
-        workflow.ticketIds.every((item) => typeof item === 'string') &&
-        (workflow.ticketsApprovedAt === null || typeof workflow.ticketsApprovedAt === 'number') &&
-        isMap(workflow.assignments) &&
-        Object.values(workflow.assignments ?? {}).every((item) => item === null || typeof item === 'string') &&
-        typeof workflow.updatedAt === 'number'
-      )
-    }),
+  // AO-58: user-authored project artifacts and their approval gates, in the EGM shape or the
+  // older grill/spec one (the store migrates it on load, so old backups still restore).
+  'project-workflows.json': (v) => isObj(v) && Array.isArray(v.workflows) && v.workflows.every(isStoredWorkflow),
   // AO-43: one short summary per profile, written by the user — never raw prompts.
   'profile-memory.json': isProfileMemoryData,
   'personal-routines.json': isPersonalRoutineData,

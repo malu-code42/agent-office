@@ -79,3 +79,14 @@ export function agentPlugins(claudeHome: string, skillsDir: string, off: string[
   }
   return out
 }
+
+/** Google's Elephant-Goldfish Model plugin, which Emi's project workflow follows when installed. */
+export const EGM_PLUGIN = 'egm@egm'
+
+/** Folders of the EGM plugin its skills and reviewer subagents read (personas, standards, skills). */
+export const EGM_READ_FOLDERS = ['agents', 'docs', 'resources', 'skills'] as const
+
+/** Install folder of the EGM plugin, or null when the user has not installed it. */
+export function egmPluginRoot(claudeHome: string): string | null {
+  return installedPlugins(claudeHome).get(EGM_PLUGIN) ?? null
+}
