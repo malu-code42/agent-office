@@ -54,10 +54,6 @@ export abstract class GameBase {
    */
   protected unplacedMembers = new Map<string, string[]>()
   protected pcTag: Tag
-  /** An account is at its limit (the Casa's alarm counts every account). */
-  protected alarm = false
-  /** Over the Casa's alarm. */
-  protected alarmTag: Tag
   /** Over the Casa's spending board. */
   protected moneyTag: Tag
   /** Seconds until the boards and alarms are checked again (limits expire on their own). */
@@ -143,7 +139,6 @@ export abstract class GameBase {
     this.totem = { tag: totemTag, view: null }
     this.pcTag = this.casaTag('Novo agente', () => hooks.onComputer())
     this.pcTag.setDot('term')
-    this.alarmTag = this.alarmTagFor(this.casaAnchor('Alarme'))
     this.moneyTag = this.moneyTagFor(this.casaAnchor('Gastos'))
     for (const [name, action] of CASA_TAGS) this.casaTag(name, () => hooks.onHomeAction(action)).el.title = `Abrir ${name}`
     // Luna sits at her chair: her tag as low as a sitter's
@@ -291,13 +286,6 @@ export abstract class GameBase {
     if (floor === this.player.floor) this.wake(1800)
   }
 
-  protected alarmTagFor(anchor: Point3): Tag {
-    const tag = this.overlays.add(new Tag(anchor, ''))
-    tag.el.classList.add('tag-alarm')
-    tag.setDot('error')
-    tag.hidden = true
-    return tag
-  }
 
   protected moneyTagFor(anchor: Point3): Tag {
     const tag = this.overlays.add(new Tag(anchor, ''))
