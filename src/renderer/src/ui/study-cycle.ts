@@ -7,6 +7,7 @@ import {
   type StudyCycle,
   type StudyCycleQuestion,
   type StudyCycleState,
+  unansweredStudyQuestions,
 } from '@shared/study-cycle'
 import type { StudyQuestion } from '@shared/study-questions'
 import type { StudyLibraryHit, StudyLibrarySearch } from '@shared/study-library'
@@ -78,10 +79,13 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
     return
   }
 
+  /** The bank without the questions already answered (in any cycle): those are never offered again. */
+  const fresh = (): StudyQuestion[] => unansweredStudyQuestions(bank, state)
+
   let topic = activeStudyCycle(state)?.topic ?? options.topic ?? ''
   // A topic chosen on the trail board comes with its bank questions ticked; the user can change them.
   const selected = new Set<string>(
-    !activeStudyCycle(state) && options.topic ? questionsForTopic(bank, options.topic).map((question) => question.id) : [],
+    !activeStudyCycle(state) && options.topic ? questionsForTopic(fresh(), options.topic).map((question) => question.id) : [],
   )
   /** Cora's sources for each wrong question (by question id), asked once per opening. */
   const gapSources = new Map<string, StudySourceRecommendations | 'loading' | 'error'>()
@@ -585,7 +589,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
       )
     const canPlan = !round || !roundComplete || practiceScore(round) < 80
     const rows = canPlan
-      ? bank
+      ? fresh()
           .filter((question) => !question.sourceOnly && !used.has(question.id) && question.answerStatus === 'verified' && !!question.answer)
           .map((question) => {
             const selectedGap = selectedPracticeGaps.get(question.id) ?? gaps[0]?.id ?? ''
@@ -647,7 +651,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
                   h(
                     'p',
                     { class: 'field-hint' },
-                    'Não há questões novas com gabarito conferido no banco; adicione questões antes de continuar.',
+                    'Não há questões novas com gabarito conferido no banco. Monte mais questões na estante de questões (“Montar banco”).',
                   ),
                 ]),
             h(
@@ -738,7 +742,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
         usedPrompts.add(normalizePrompt(question.source.question))
       }
     }
-    const candidates = bank.filter(
+    const candidates = fresh().filter(
       (question) =>
         !question.sourceOnly &&
         question.question.trim() &&
@@ -782,7 +786,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
             h(
               'p',
               { class: 'field-hint' },
-              'Não há dez questões novas com gabarito conferido no banco. Adicione questões antes de iniciar o reteste.',
+              'Não há dez questões novas com gabarito conferido no banco. Monte mais questões na estante de questões (“Montar banco”).',
             ),
           ]),
       h(
@@ -1006,9 +1010,9 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
       },
     }) as HTMLInputElement
     showPlace()
-    const visible = bank.filter((question) => !question.sourceOnly && question.question.trim())
+    const visible = fresh().filter((question) => !question.sourceOnly && question.question.trim())
     return [
-      h('p', {}, 'Selecione questões já salvas no banco local. Este início não busca nem gera questões.'),
+      h('p', {}, 'Selecione questões do banco local. As que você já respondeu não aparecem: nenhuma questão se repete.'),
       h(
         'p',
         { class: 'field-hint' },

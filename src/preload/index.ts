@@ -12,6 +12,10 @@ const api: OfficeAPI = {
   readTasks: () => ipcRenderer.invoke('office:readTasks'),
   readStudyQuestions: () => ipcRenderer.invoke('office:readStudyQuestions'),
   searchStudyQuestions: (topic, limit) => ipcRenderer.invoke('office:searchStudyQuestions', topic, limit ?? 20),
+  startStudyBank: (request) => ipcRenderer.invoke('office:startStudyBank', request),
+  studyBankStatus: () => ipcRenderer.invoke('office:studyBankStatus'),
+  cancelStudyBank: () => ipcRenderer.invoke('office:cancelStudyBank'),
+  dismissStudyBank: () => ipcRenderer.invoke('office:dismissStudyBank'),
   generateStudyQuestions: (token) => ipcRenderer.invoke('office:generateStudyQuestions', token),
   saveStudyQuestions: (token, selection, reviewConfirmed) =>
     ipcRenderer.invoke('office:saveStudyQuestions', token, selection, reviewConfirmed),

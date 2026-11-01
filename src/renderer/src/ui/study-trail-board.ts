@@ -140,7 +140,12 @@ export async function openStudyTrailBoard(root: HTMLElement, toast: Toast, onSta
     h(
       'button',
       { class: 'tk-lbtn', type: 'button', 'data-list': list.key, onclick: () => ((chosenList = list.key), paint()) },
-      h('span', { class: 'grow trail-lname' }, h('span', {}, list.discipline), h('span', { class: 'tk-sub' }, list.period)),
+      h(
+        'span',
+        { class: 'grow trail-lname', title: `${list.discipline} · ${list.period}` },
+        h('span', { class: 'trail-lname-text' }, list.discipline),
+        h('span', { class: 'tk-sub trail-lperiod' }, list.period),
+      ),
       list.current ? h('span', { class: 'tk-lbadge today' }, 'atual') : null,
       h('span', { class: 'tk-lcount', title: 'Tópicos em aberto' }, String(list.open)),
     )
@@ -149,7 +154,7 @@ export async function openStudyTrailBoard(root: HTMLElement, toast: Toast, onSta
   const openTotal = lists.reduce((sum, list) => sum + list.open, 0)
   const board = h(
     'div',
-    { class: 'board tasks-board study-trail-board', tabindex: '-1', 'data-study-trail-board': 'true' },
+    { class: 'board tasks-board study-trail-board study-popup', tabindex: '-1', 'data-study-trail-board': 'true' },
     h(
       'div',
       { class: 'board-head' },

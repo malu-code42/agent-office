@@ -28,8 +28,9 @@ export interface DecodedStudyBank {
   unknownLines: string[]
 }
 
-export const STUDY_QUESTION_LIMITS = { count: 100, text: 20_000, tags: 20, tag: 80 } as const
-export const STUDY_BANK_LINE_LIMIT = 20_000
+/** 3000 questions: the whole trail (122 topics) at the default 20 per topic fits, with room for the old questions. */
+export const STUDY_QUESTION_LIMITS = { count: 3000, text: 20_000, tags: 20, tag: 80 } as const
+export const STUDY_BANK_LINE_LIMIT = 60_000
 export const STUDY_BANK_LINE_BYTES = 30_000
 const ORIGINS: readonly StudyOriginKind[] = ['enem', 'concurso', 'livro', 'web', 'ia']
 const ANSWER_STATUSES: readonly AnswerStatus[] = ['verified', 'unverified', 'missing']
