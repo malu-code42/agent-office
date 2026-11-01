@@ -1,4 +1,4 @@
-import type { StudyLibrarySearch, StudySourceInfo, StudySourceInventory, StudySourceStatus } from '@shared/study-library'
+import type { StudyLibrarySearch, StudyOcrStatus, StudySourceInfo, StudySourceInventory, StudySourceStatus } from '@shared/study-library'
 import type { StudySourceRecommendation, StudySourceRecommendations } from '@shared/study-sources'
 import { announce } from './a11y'
 import { h } from './dom'
@@ -285,4 +285,30 @@ export function openStudyLibrary(root: HTMLElement, toast: Toast, topic = ''): v
   query.focus()
   void check(false)
   if (query.value.trim()) void ask()
+}
+
+/** The small notice in the corner while the OCR reads scanned PDFs in the background. */
+export function mountStudyOcrChip(root: HTMLElement): void {
+  const render = (status: StudyOcrStatus | null) => {
+    root.querySelector('[data-study-ocr-chip]')?.remove()
+    if (!status) return
+    const percent = status.total ? Math.floor((status.done / status.total) * 100) : 0
+    root.append(
+      h(
+        'div',
+        { class: 'bk-hud bk-hud-fixed study-ocr-chip', role: 'status', 'data-study-ocr-chip': 'true', title: status.file },
+        h('span', { class: 'bk-dot', 'aria-hidden': 'true' }),
+        h('b', {}, 'OCR'),
+        ` ${status.file.replace(/\.pdf$/i, '').slice(0, 40)} · ${status.done}/${status.total} páginas (${percent}%) `,
+        status.queued ? h('small', {}, `+${status.queued} na fila`) : null,
+      ),
+    )
+  }
+  void window.office
+    .studyOcrStatus()
+    .then(render)
+    .catch(() => {})
+  window.office.onEvent((event) => {
+    if (event.type === 'study-ocr') render(event.status)
+  })
 }

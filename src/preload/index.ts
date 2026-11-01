@@ -31,6 +31,7 @@ const api: OfficeAPI = {
   readStudyTrail: () => ipcRenderer.invoke('office:readStudyTrail'),
   readClassSchedule: () => ipcRenderer.invoke('office:readClassSchedule'),
   studySourceInventory: (verify) => ipcRenderer.invoke('office:studySourceInventory', verify),
+  studyOcrStatus: () => ipcRenderer.invoke('office:studyOcrStatus'),
   searchStudyLibrary: (query) => ipcRenderer.invoke('office:searchStudyLibrary', query),
   recommendStudySources: (queries) => ipcRenderer.invoke('office:recommendStudySources', queries),
   openStudySource: (path, page) => ipcRenderer.invoke('office:openStudySource', path, page),

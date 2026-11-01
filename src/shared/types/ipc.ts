@@ -40,7 +40,7 @@ import type { StudyCycleState } from '../study-cycle'
 import type { StudyBankJob, StudyBankRequest } from '../study-bank'
 import type { StudyTrail } from '../study-trail'
 import type { ClassScheduleView } from '../class-schedule'
-import type { StudyLibrarySearch, StudySourceInventory } from '../study-library'
+import type { StudyLibrarySearch, StudyOcrStatus, StudySourceInventory } from '../study-library'
 import type { StudySourceRecommendations } from '../study-sources'
 import type { Dictation } from '../voice'
 import type { StudyCardDraft, StudyCardSummary, StudyCardsRead, StudyNotesRead } from '../study-cards'
@@ -192,6 +192,8 @@ export type OfficeEvent =
   | { type: 'agent:upsert'; agent: AgentSummary }
   /** Andamento da montagem do banco de questões (null: relatório dispensado). */
   | { type: 'study-bank'; job: StudyBankJob | null }
+  /** Andamento do OCR dos PDFs escaneados (null: fila vazia). */
+  | { type: 'study-ocr'; status: StudyOcrStatus | null }
   | { type: 'agent:removed'; agentId: string }
   | { type: 'agent:log'; agentId: string; entry: LogEntry }
   /** New log entries of the agent's subagents, grouped: one event per agent every ~250 ms at most. */
@@ -329,6 +331,8 @@ export interface OfficeAPI {
   searchStudyLibrary(query: string): Promise<StudyLibrarySearch>
   /** Todos os arquivos de "study sources" e o que a Cora faz com cada um; com `verify`, termina de ler os PDFs e manda os escaneados ao OCR. */
   studySourceInventory(verify: boolean): Promise<StudySourceInventory>
+  /** O OCR em curso agora (null: nada na fila). O andamento chega pelo evento 'study-ocr'. */
+  studyOcrStatus(): Promise<StudyOcrStatus | null>
   /**
    * Fontes da Cora para cada tema, da melhor para a pior, com página (slide ou seção) de início e de fim.
    * Só leitura local dos arquivos de "study sources"; nada é enviado a modelos.

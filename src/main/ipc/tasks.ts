@@ -33,6 +33,7 @@ import { StudyCycleService } from '../study-cycle'
 import { StudyCycleStore } from '../study-cycle-store'
 import { claudeStudyTutor } from '../study-cycle-claude'
 import { StudyLibrary, StudyNotesWriter } from '../study-library'
+import type { StudyOcrStatus } from '@shared/study-library'
 import { workerPdfExtractor } from '../study-pdf-pool'
 import { StudyCardsService } from '../study-cards'
 import { claudeStudyCardInterpreter } from '../study-cards-claude'
@@ -99,7 +100,12 @@ export function registerTasksIpc(ctx: IpcContext): void {
   // pdf.js runs in a worker thread, so a first read of a big library never freezes the window.
   const extractPdf = workerPdfExtractor()
   // Scanned PDFs (pages without text) are read by OCR, one at a time in the background; local only.
-  const ocrPdf = pdfOcrQueue(pdfCacheDir, workerOcrRunner(join(ctx.store.dataDirectory, 'ocr-lang')))
+  // The window follows it by 'study-ocr' events.
+  let ocrStatus: StudyOcrStatus | null = null
+  const ocrPdf = pdfOcrQueue(pdfCacheDir, workerOcrRunner(join(ctx.store.dataDirectory, 'ocr-lang')), (status) => {
+    ocrStatus = status
+    ctx.broadcast({ type: 'study-ocr', status })
+  })
   const read = (vaultPath: unknown) => {
     const board = readTasksAt(writer, vaultPath)
     fillCompletions(board.lists, ctx.planning.completions())
@@ -258,6 +264,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const [verify] = parse(studySourceInventoryArgsSchema, args, 'Pedido de inventário da Cora inválido.')
     return studyLibrary().inventory(verify)
   })
+  ipcMain.handle('office:studyOcrStatus', () => ocrStatus)
   ipcMain.handle('office:searchStudyLibrary', (_e, ...args: unknown[]) => {
     const [query] = parse(searchStudyLibraryArgsSchema, args, 'Busca local da Cora inválida.')
     return studyLibrary().search(query)

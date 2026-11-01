@@ -739,3 +739,8 @@ summary.qc-label {
 .study-bank-disciplines {
   max-height: min(48vh, 460px);
 }
+
+/* The OCR notice sits above the bank's, so both fit when they run together. */
+.study-ocr-chip {
+  bottom: 136px;
+}

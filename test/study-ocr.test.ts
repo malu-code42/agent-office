@@ -102,4 +102,24 @@ describe('OCR de PDF escaneado', () => {
     await flush()
     expect(finish).toHaveBeenCalledWith(['ok'])
   })
+
+  it('informa o arquivo, as páginas lidas e a fila, e avisa quando a fila esvazia', async () => {
+    const onStatus = vi.fn()
+    const run: OcrRunner = async (_p, pages, onPage) => {
+      await flush()
+      pages.forEach((i) => onPage(i, 'ok'))
+    }
+    const queue = pdfOcrQueue(tmp(), run, onStatus)
+    queue({ key: 'k4', path: '/livros/f.pdf', pages: ['', TEXT, ''], finish: vi.fn() })
+    queue({ key: 'k5', path: '/livros/g.pdf', pages: [''], finish: vi.fn() })
+    for (let i = 0; i < 4; i++) await flush()
+    expect(onStatus.mock.calls.map(([s]) => s)).toEqual([
+      { file: 'f.pdf', done: 0, total: 2, queued: 0 },
+      { file: 'f.pdf', done: 1, total: 2, queued: 1 },
+      { file: 'f.pdf', done: 2, total: 2, queued: 1 },
+      { file: 'g.pdf', done: 0, total: 1, queued: 0 },
+      { file: 'g.pdf', done: 1, total: 1, queued: 0 },
+      null,
+    ])
+  })
 })

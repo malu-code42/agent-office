@@ -1,7 +1,8 @@
 /// <reference types="electron-vite/node" />
 import { existsSync, readFileSync, unlinkSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import type { Worker } from 'node:worker_threads'
+import type { StudyOcrStatus } from '@shared/study-library'
 import { writeFileAtomic } from './fs-safe'
 import { pagesWithoutText, type PdfOcrJob } from './study-pdf'
 import createOcrWorker from './study-ocr-worker?nodeWorker'
@@ -20,8 +21,13 @@ const MAX_PAGE_TEXT = 64 * 1024
  * kept in `<key>.ocr-progress.json` next to the PDF cache, so a closed app picks up where it
  * stopped. When a file is done its cache entry is rewritten with the recognised text (pages that
  * had text keep it). Nothing leaves the computer except the one-time download of the language data.
+ * `onStatus` follows the work: the file and page being read, or null when the queue is empty.
  */
-export function pdfOcrQueue(cacheDir: string, run: OcrRunner): (job: PdfOcrJob) => void {
+export function pdfOcrQueue(
+  cacheDir: string,
+  run: OcrRunner,
+  onStatus: (status: StudyOcrStatus | null) => void = () => {},
+): (job: PdfOcrJob) => void {
   const queued = new Set<string>()
   const jobs: PdfOcrJob[] = []
   let busy = false
@@ -38,7 +44,10 @@ export function pdfOcrQueue(cacheDir: string, run: OcrRunner): (job: PdfOcrJob) 
 
   const work = async (job: PdfOcrJob): Promise<void> => {
     const progress = readProgress(job.key)
-    const todo = pagesWithoutText(job.pages).filter((i) => progress[i] === undefined)
+    const blank = pagesWithoutText(job.pages)
+    const todo = blank.filter((i) => progress[i] === undefined)
+    const status = { file: basename(job.path), done: blank.length - todo.length, total: blank.length, queued: jobs.length }
+    onStatus({ ...status })
     let sinceSave = 0
     const save = () => {
       try {
@@ -51,6 +60,7 @@ export function pdfOcrQueue(cacheDir: string, run: OcrRunner): (job: PdfOcrJob) 
       if (todo.length)
         await run(job.path, todo, (index, text) => {
           progress[index] = text.replace(/\s+\n/g, '\n').slice(0, MAX_PAGE_TEXT)
+          onStatus({ ...status, done: ++status.done, queued: jobs.length })
           if (++sinceSave >= 5) {
             sinceSave = 0
             save()
@@ -72,7 +82,7 @@ export function pdfOcrQueue(cacheDir: string, run: OcrRunner): (job: PdfOcrJob) 
   const next = (): void => {
     if (busy) return
     const job = jobs.shift()
-    if (!job) return
+    if (!job) return onStatus(null)
     busy = true
     void work(job).finally(() => {
       queued.delete(job.key)

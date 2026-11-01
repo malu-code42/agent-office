@@ -32,6 +32,14 @@ export interface StudySourceInventory {
   ocrQueued: number
 }
 
+/** The background OCR right now: the file being read, its pages read so far, and the files waiting. */
+export interface StudyOcrStatus {
+  file: string
+  done: number
+  total: number
+  queued: number
+}
+
 export interface StudyLibrarySearch {
   token: string
   query: string
