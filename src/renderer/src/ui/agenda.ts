@@ -39,7 +39,7 @@ function entryToEv(entry: AgendaEntry): DayEv | null {
     at: entry.time,
     t: entry.kind === 'task' ? (entry.text ?? 'tarefa não encontrada') : entry.kind === 'done' ? entry.text : entry.title,
     kind,
-    conflict: !!entry.conflict,
+    conflict: entry.kind !== 'done' && !!entry.conflict,
   }
 }
 

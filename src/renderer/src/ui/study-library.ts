@@ -102,7 +102,7 @@ function inventoryView(inv: StudySourceInventory, verify: () => void, busy: bool
         busy ? 'Verificando…' : pending ? `Verificar e integrar (${pending})` : 'Verificar de novo',
       ),
     ),
-    inv.complete ? null : h('p', { class: 'field-hint' }, 'Algumas pastas ou atalhos não foram percorridos.'),
+    ...(inv.complete ? [] : [h('p', { class: 'field-hint' }, 'Algumas pastas ou atalhos não foram percorridos.')]),
     sorted.length ? h('ul', { class: 'study-inv-list' }, ...sorted.map(inventoryRow)) : h('p', { class: 'field-hint' }, 'Nenhum arquivo na pasta.'),
   ]
 }
