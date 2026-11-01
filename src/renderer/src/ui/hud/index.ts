@@ -11,7 +11,9 @@ import { elevatorFloorLabel } from '../board/model'
 import { formatCost, h, icon, timeAgo } from '../dom'
 import { isFocusPopupOpen, onFocusPopup } from '../focus-state'
 import { isTimerPopupOpen, onTimerPopup } from '../timer-state'
-import { contextLevel, helpersChip } from '../panel'
+import { helpersChip } from '../panel'
+import { memoryLevel } from '@shared/economy'
+import { tokensLabel, warnTokens } from '../economy-text'
 import { portrait } from '../portrait'
 import type { Radio } from '../radio'
 import { InfoCard } from './info'
@@ -579,7 +581,10 @@ export class Hud {
         a.context
           ? h(
               'div',
-              { class: `ctx-mini ctx-${contextLevel(a.context.percent)}`, title: `Contexto: ${a.context.percent}%` },
+              {
+                class: `ctx-mini ctx-${memoryLevel(a.context, warnTokens(this.state.settings))}`,
+                title: `Contexto: ${a.context.percent}% · ${tokensLabel(a.context.used)}`,
+              },
               h('div', { class: 'ctx-fill', style: `width:${Math.min(100, a.context.percent)}%` }),
             )
           : null,

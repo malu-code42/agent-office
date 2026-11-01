@@ -569,3 +569,17 @@
     animation: none;
   }
 }
+
+/* Token economy (reports/economy.ts): tips and the advice under an agent's name. */
+.eco-tip {
+  align-items: flex-start;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.eco-tip svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--amber);
+}

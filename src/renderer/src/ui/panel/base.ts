@@ -11,6 +11,8 @@ export abstract class PanelBase {
   readonly el: HTMLDivElement
   protected head: HTMLDivElement
   protected banner: HTMLDivElement
+  /** Token economy: the best move for the agent's memory (clear, compact), when there is one. */
+  protected adviceEl: HTMLDivElement
   protected feed: HTMLDivElement
   protected composer: HTMLDivElement
   protected input: HTMLTextAreaElement
@@ -52,6 +54,7 @@ export abstract class PanelBase {
   ) {
     this.head = h('div', { class: 'panel-head' })
     this.banner = h('div', { class: 'panel-banner hidden' })
+    this.adviceEl = h('div', { class: 'panel-banner hidden', role: 'status' })
     this.feed = h('div', { class: 'panel-feed' })
     this.feed.addEventListener('click', (e) => {
       const card = (e.target as HTMLElement).closest('.final-open')?.closest<HTMLElement>('.entry-final')
@@ -150,6 +153,7 @@ export abstract class PanelBase {
       { class: 'panel card hidden', 'data-tour': 'panel', role: 'region', 'aria-label': 'Painel do agente' },
       this.head,
       this.banner,
+      this.adviceEl,
       this.helpersEl,
       this.tools,
       this.searchBar,

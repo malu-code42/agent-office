@@ -7,7 +7,10 @@ import { renderHelpers } from '../panel-helpers'
 import { osText } from '../os-text'
 import { portrait } from '../portrait'
 import { saveAgentAsTemplate } from '../templates'
-import { BADGE_OPEN_KEY, branchChip, contextLevel, helpersChip, modelLabel, shortPath } from './helpers'
+import { adviseAgent, memoryLevel } from '@shared/economy'
+import { warnTokens } from '../economy-text'
+import { adviceBanner } from './economy'
+import { BADGE_OPEN_KEY, branchChip, helpersChip, modelLabel, shortPath } from './helpers'
 import { PanelSearch } from './search'
 
 /** The agent badge: photo with the memory ring, details, memory menu and the rarer actions. */
@@ -31,6 +34,7 @@ export abstract class PanelHead extends PanelSearch {
         h('button', { class: 'btn btn-small', onclick: () => this.actions.openItem(a.id, result.id) }, 'Ver resultado'),
       )
     } else this.banner.className = 'panel-banner hidden'
+    this.renderAdvice(a)
 
     const terminal = a.source === 'terminal'
     this.terminal = terminal
@@ -63,7 +67,7 @@ export abstract class PanelHead extends PanelSearch {
     const office = a.source === 'office'
     const open = this.badgeOpen
     const ctx = office ? a.context : undefined
-    const level = ctx ? contextLevel(ctx.percent) : 'ok'
+    const level = ctx ? memoryLevel(ctx, warnTokens(this.state.settings)) : 'ok'
     // A pending permission rides on the LED, so the name keeps its room.
     const led = (withLabel: boolean) =>
       h(
@@ -373,7 +377,7 @@ export abstract class PanelHead extends PanelSearch {
   /** How full the agent's memory is, in ten blocks, with ways to free it. */
   protected memoryBlocks(a: AgentSummary, busy: boolean): HTMLElement {
     const c = a.context!
-    const level = contextLevel(c.percent)
+    const level = memoryLevel(c, warnTokens(this.state.settings))
     const lit = Math.min(10, Math.round(c.percent / 10))
     const hint =
       level === 'full'
@@ -418,6 +422,15 @@ export abstract class PanelHead extends PanelSearch {
     )
   }
 
+  /** Token economy warning; also redrawn every minute, since an idle agent goes cold with no event. */
+  protected renderAdvice(a: AgentSummary): void {
+    const advice = this.helper ? null : adviseAgent(a, warnTokens(this.state.settings))
+    this.adviceEl.className = advice ? `panel-banner banner-advice advice-${advice.kind}` : 'panel-banner hidden'
+    this.adviceEl.replaceChildren(
+      ...(advice ? adviceBanner(a, advice, { clear: () => void this.clear(a), compact: () => window.office.compact(a.id) }) : []),
+    )
+  }
+
   protected toggleBadge(): void {
     this.badgeOpen = !this.badgeOpen
     localStorage.setItem(BADGE_OPEN_KEY, this.badgeOpen ? '1' : '0')
@@ -439,8 +452,12 @@ export abstract class PanelHead extends PanelSearch {
       this.actions.toast(cleanError(err), 'err')
       return
     }
-    // The stored log stays; the view restarts at the cut (summary.clearedAt).
-    if (this.agentId !== a.id || this.helper) return
+    this.restartAtCut(a.id)
+  }
+
+  /** The stored log stays; the view restarts at the cut (summary.clearedAt). */
+  protected restartAtCut(agentId: string): void {
+    if (this.agentId !== agentId || this.helper) return
     this.feed.replaceChildren()
     this.lastTool = null
     this.lastEntry = undefined

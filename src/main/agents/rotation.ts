@@ -1,8 +1,9 @@
 import type { Settings } from '@shared/types'
+import { dailyCapHit } from '@shared/economy'
 import { CONTINUE_PROMPT, clock, usd, type Agent } from './types'
 import { AgentSdk } from './sdk'
 
-/** Fixed-account quota pauses and the per-agent spending cap. */
+/** Fixed-account quota pauses and the spending caps (per agent and per day). */
 export abstract class AgentRotation extends AgentSdk {
   private limitWaiters = new Map<string, NodeJS.Timeout>()
 
@@ -176,16 +177,27 @@ export abstract class AgentRotation extends AgentSdk {
   /** The agent already spent its cap: hands a card saying so instead of starting. */
   protected overBudget(agent: Agent): boolean {
     const cap = this.store.settings.agentBudgetUsd
-    if (!(cap > 0) || (agent.summary.spentUsd ?? 0) < cap) return false
+    if (!this.dailyCapHit() && (!(cap > 0) || (agent.summary.spentUsd ?? 0) < cap)) return false
     this.deliver(agent, { text: this.budgetText(agent), isError: true, costUsd: agent.summary.costUsd, durationMs: 0, turns: 0 })
     return true
   }
 
+  /** The office spent its daily cap (Configurações › Economia de tokens); it resets at local midnight. */
+  protected dailyCapHit(): boolean {
+    return dailyCapHit(this.store.settings.dailyBudgetUsd, this.book?.spentToday() ?? 0)
+  }
+
   protected budgetText(agent: Agent): string {
+    if (this.dailyCapHit()) {
+      return (
+        `Parei: o escritório chegou ao teto de custo do dia (${usd(this.store.settings.dailyBudgetUsd)}). O teto zera à meia-noite.\n\n` +
+        'Para eu continuar hoje, aumente o teto em Configurações › Economia de tokens, ou deixe em 0 para tirar o limite.'
+      )
+    }
     const cap = this.store.settings.agentBudgetUsd
     return (
       `Parei: cheguei ao teto de custo por agente (${usd(cap)}). Já gastei ${usd(agent.summary.spentUsd ?? 0)} neste escritório.\n\n` +
-      'Para eu continuar, aumente o teto em Configurações › Limites dos agentes, ou deixe em 0 para tirar o limite.'
+      'Para eu continuar, aumente o teto em Configurações › Economia de tokens, ou deixe em 0 para tirar o limite.'
     )
   }
 }
