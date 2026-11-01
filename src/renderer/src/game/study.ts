@@ -19,7 +19,7 @@ import { Walker } from '../world2d/walker'
 import { sitterTagY, TAG_LIFT } from './types'
 
 /** Height (tiles) of a standing teacher's tag anchor, as an Avatar's. */
-const STAND_TAG_Y = 1.55
+const STAND_TAG_Y = 0.55
 
 /** The tags over the study floor's clickable things, by the name estudos.json gives their spot. */
 const OBJECT_TAGS: [string, StudyAct][] = [

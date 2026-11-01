@@ -24,7 +24,7 @@ describe('Avatar 2D (sem three.js)', () => {
     expect(av.pose).toBe('stand')
     av.update(1)
     expect(av.anchor.x).toBeCloseTo(av.position.x)
-    expect(av.anchor.y).toBeGreaterThan(1)
+    expect(av.anchor.y).toBeGreaterThan(0.5)
   })
 
   it('a caveira derruba: fica no chão, a tag desce e levanta de novo', () => {

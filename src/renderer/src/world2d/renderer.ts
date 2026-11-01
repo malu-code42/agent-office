@@ -1,7 +1,8 @@
 import type { Look } from '@shared/types'
 import type { TotemView } from '@shared/routines'
 import type { ScreenMode } from './floor'
-import type { CasaAct, CasaFlat } from './casa'
+import type { CasaAct, CasaFlat, CasaLayout } from './casa'
+import { skyPeriod, skyPixels } from './window-sky'
 import type { EstudosFlat, StudyAct } from './estudos'
 import { sharedAtlas } from './atlas'
 import { depthSort, type Footprint } from './depth'
@@ -141,6 +142,8 @@ interface PersonItem extends Item {
 }
 
 const ZOOM_MAX = 3
+/** Native pixels the pixel bubbles rise, to clear the name tag that sits right over the head. */
+const BUBBLE_RAISE = 14
 const LED_COLORS: Record<TotemView['led'], string> = { ok: '#2ee86b', wait: '#ffc02e', fail: '#ff3b4a', none: '#6b6a7d' }
 /** 3x5 glyphs of the routines board's screen, rows top to bottom, '1' = lit. */
 const GLYPHS: Record<string, string> = {
@@ -447,7 +450,7 @@ export class Renderer2d {
 
   /** What the cache shows: the desks, their monitors, the rooms' lights. */
   private staticKey(view: FlatView): string {
-    if (view.floor.kind === 'casa') return JSON.stringify(['casa', view.totem?.screen ?? null, view.totem?.led ?? null])
+    if (view.floor.kind === 'casa') return JSON.stringify(['casa', view.totem?.screen ?? null, view.totem?.led ?? null, skyPeriod(new Date().getHours())])
     if (view.floor.kind !== 'project') return view.floor.kind
     const { plan, crts } = view.floor
     return JSON.stringify([
@@ -484,6 +487,10 @@ export class Renderer2d {
     this.cache.height = ch
     const c = this.cctx
     c.drawImage(this.baseOf(view), 0, 0)
+    if (view.floor.kind === 'casa') {
+      const glass = this.windowGlass(view.floor.layout)
+      c.drawImage(glass.img, glass.x, glass.y)
+    }
     for (const item of this.items) for (const sp of item.sprites) this.put(c, sp)
     this.shades(c, view)
     this.cacheKey = key
@@ -587,7 +594,8 @@ export class Renderer2d {
       if (!kind) return null
       const f = `bubble/${kind}`
       const a = this.atlas.anchors[f] ?? [0, 0]
-      return { f, x: x - a[0], y: y - a[1] }
+      // above the name tag, which now sits close to the head
+      return { f, x: x - a[0], y: y - a[1] - BUBBLE_RAISE }
     }
     const push = (p: Person2d, fp: Footprint, sprites: Sprite[], char: Sprite, bubble: Sprite | null, seat?: SeatArt) => {
       const box = this.bounds(sprites)
@@ -817,6 +825,35 @@ export class Renderer2d {
       }
     })
     return { f: 'totem/screen', x: left, y: top(0), img: c }
+  }
+
+  /**
+   * The glass of the window on the west wall (plane x=0), painted for the hour: each column of the
+   * wall steps down half a pixel, like the routines board's screen. One pixel inside the frame.
+   */
+  private windowGlass(layout: CasaLayout): { x: number; y: number; img: HTMLCanvasElement } {
+    const c = document.createElement('canvas')
+    const [wy0, wy1, wz0, wz1] = layout.window
+    const y0 = wy0 + 1
+    const y1 = wy1 - 1
+    const z0 = wz0 + 1
+    const z1 = wz1 - 1
+    const w = y1 - y0
+    const zh = z1 - z0
+    const top = (u: number) => Math.floor(layout.origin[1] + (y0 + u) / 2 - z1)
+    c.width = w
+    c.height = zh + top(w - 1) - top(0) + 1
+    const g = c.getContext('2d')!
+    const sky = skyPixels(skyPeriod(new Date().getHours()), w, zh)
+    for (let u = 0; u < w; u++) {
+      // y grows to the lower left: the first column of the canvas is the last of the wall
+      const k = w - 1 - u
+      for (let v = 0; v < zh; v++) {
+        g.fillStyle = sky[v]![u]!
+        g.fillRect(k, top(u) - top(0) + v, 1, 1)
+      }
+    }
+    return { x: layout.origin[0] - y1 + 1, y: top(0), img: c }
   }
 
   private hoverRect(view: FlatView): Rect {

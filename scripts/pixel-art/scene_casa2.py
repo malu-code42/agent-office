@@ -34,8 +34,10 @@ VOCE_DESK = (70, 266, 36)
 # footprints of the clickable furniture (export_app.py tags the items with these)
 SKULL = (146, 20, 154, 28)
 RADIO = (2, 30, 14, 64)
-# the 'Rotinas de agentes' board: in the back corner of Luna's table room, by the half wall, clear of the doors and chairs
-TOTEM = (142, 100, 156, 110)
+# the 'Rotinas de agentes' board: against the west wall of Luna's table room, clear of the doors, chairs and the window
+TOTEM = (6, 176, 20, 186)
+# the window on the west wall by the user's corner: y0, y1, z0, z1 (the glass is drawn by the app: morning, day, evening, night)
+WINDOW = (192, 262, 20, 50)
 WRITING = (306, 14, 322, 50)
 FILMS_TV = (228, 120, 238, 146)
 ARCADES = [(228, 216, 238, 228), (228, 232, 238, 244), (228, 248, 238, 260)]
@@ -71,6 +73,15 @@ def totem(L, x, y):
         L.qy(y + 5, x + 5, x + 12, zz + 1, zz + 2, H('8a7a6a'))
 
 
+def window_frame(L):
+    """the wood frame and sill of the west-wall window; the app paints the glass for the time of day."""
+    y0, y1, z0, z1 = WINDOW
+    L.begin(); L.qx(0, y0 - 3, y1 + 3, z0 - 3, z1 + 3, H('8a6448')); L.end()
+    L.qx(0, y0 - 1, y1 + 1, z0 - 1, z1 + 1, H('b98c5f'))
+    L.qx(0, y0, y1, z0, z1, H('24304a'))
+    L.pbox(0, y0 - 5, z0 - 6, 5, y1 - y0 + 10, 3, T('b98c5f', '8a6448', '73563f'))
+
+
 def board(L, x0, x1):
     F.corkboard_y(L, 0, x0, x1, 22, 42)
 
@@ -86,6 +97,7 @@ def shell(L):
     F.rug(L, 20, 18, 104, 86, H('e7c39a'), H('cf9f72'), H('fbe9c8'))
     # wall decor (west wall of the sala de estar)
     G.wall_shelf_x(L, 0, 4, 24, 30)
+    window_frame(L)
     G.clock_x(L, 0, 46, 44)
     F.frame_x(L, 0, 70, 84, 26, 40)
     F.frame_x(L, 0, 88, 98, 30, 42, art=('9cc4dc', 'f6e27a', '8cc477'))
@@ -206,7 +218,7 @@ def build():
     half_wall(sc, 1)
     media(sc)
     # plaques of the preview (the app shows names on hover instead)
-    sc.label('Rotinas de agentes', 149, 104, 40)
+    sc.label('Rotinas de agentes', TOTEM[0] + 7, TOTEM[1] + 4, 40)
     sc.label('Entrada', 192, 284)
     for a_, b_, _act, n in BOARDS:
         sc.label(n, (a_ + b_) / 2, 0, WALL_H + 2, dy=-6)

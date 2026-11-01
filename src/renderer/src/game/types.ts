@@ -8,7 +8,7 @@ import type { HelperReturn } from './helper-return'
 import type { HomeAction } from '../world2d/home-layout'
 import type { StudyAct, Teacher } from '../world2d/estudos'
 
-export type Goal = 'desk' | 'boss' | 'meeting' | 'hang' | 'home' | 'leave' | 'chat'
+export type Goal = 'desk' | 'boss' | 'meeting' | 'hang' | 'home' | 'leave' | 'chat' | 'seat'
 
 export interface Actor {
   id: string
@@ -158,10 +158,10 @@ export interface GameHooks {
   onStudy?(act: StudyAct, teacher?: Teacher): void
 }
 
-/** How much higher (tiles) the HTML tags float than their anchors: over the sprites' pixel bubbles. */
+/** How much higher (tiles) the HTML tags float than their anchors (with the avatar's own anchor they sit just over the head). */
 export const TAG_LIFT = 1.2
-/** Height (tiles) of a sitter's tag: low over the head, above the pixel bubble while one shows. */
-export const sitterTagY = (bubble: unknown): number => (bubble ? 1.7 : 0.35)
+/** Height (tiles) of a sitter's tag: low over the head; the pixel bubble goes above it (renderer BUBBLE_RAISE), the tag never climbs. */
+export const sitterTagY = (_bubble?: unknown): number => 0.35
 /** Seconds the camera gets to reach a dismissed agent before the skull drops. */
 export const STRIKE_AFTER_S = 0.6
 /** An idle agent waits at its desk this long before wandering off to the lounge. */

@@ -15,7 +15,7 @@ export interface Uniform {
 
 const SNAP = Math.PI / 4
 /** Height of the name tag over the feet (tiles). */
-const TAG_Y = 1.55
+const TAG_Y = 0.55
 
 /** Where the name tag of an avatar floats: over its head, low while it is knocked out. */
 class TagAnchor {
