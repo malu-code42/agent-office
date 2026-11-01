@@ -44,6 +44,8 @@ import { openShortcuts } from './ui/shortcuts'
 import { Tour } from './ui/tour'
 import { enhanceSelects } from './ui/dropdown'
 import { autoStart, tourDone } from './ui/tour-plan'
+import { openBackstage, remindForgottenCopies } from './ui/backstage'
+import { mountQuitBanner } from './ui/quit'
 import { cleanError, confirmDialog, openCreateSquad, openNewAgent, openNewFloor, openResume, openRunSquad, openSettings } from './ui/modals'
 import { osText } from './ui/os-text'
 
@@ -315,6 +317,17 @@ async function boot(): Promise<void> {
     if (kickoff) await window.office.send(LUNA_AGENT_ID, 'Vamos fazer a revisão do dia.').catch((err) => toast(cleanError(err), 'err'))
   }
 
+  /** Bastidores (B, the dock): "Ver agente" opens the agent's panel like the roster does. */
+  function openBackstageHere(): void {
+    openBackstage(ui, state, {
+      toast,
+      openAgent: (id) => {
+        void showAgent(id)
+        if (!state.agents.get(id)?.builtIn) game.focusAgent(id)
+      },
+    })
+  }
+
   const hud = new Hud(
     ui,
     state,
@@ -341,6 +354,8 @@ async function boot(): Promise<void> {
       focus: () => void openFocusPopup(ui, state, toast),
       tasks: () => void openTasksBoard(ui, state, toast),
       timer: () => void openTimerPopup(ui, state, toast),
+      backstage: () => openBackstageHere(),
+      quit: () => void window.office.quitApp().catch((err) => toast(cleanError(err), 'err')),
       board: (ticketId) => {
         if (ticketId) board.open(ticketId)
         else board.toggle()
@@ -360,6 +375,8 @@ async function boot(): Promise<void> {
   radio.attach({ corners: () => game.tvCorners() })
   // Modo voz: canto inferior esquerdo, fala em texto pelo transcritor local.
   new VoiceButton(ui)
+  mountQuitBanner(ui, state, toast)
+  remindForgottenCopies(toast)
 
   const panel = new AgentPanel(ui, state, {
     goTo: (id) => game.goToAgent(id),
@@ -427,6 +444,14 @@ async function boot(): Promise<void> {
       e.preventDefault()
       void newAgent()
     }
+  })
+
+  // B opens Bastidores (the agent copies), unless a text field has the focus or another dialog is open.
+  window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() !== 'b' || e.metaKey || e.ctrlKey || e.altKey || e.repeat || isTyping() || board.isOpen) return
+    if (ui.querySelector('.backdrop, [aria-modal="true"]')) return
+    e.preventDefault()
+    openBackstageHere()
   })
 
   // F opens "Tarefas em foco", unless a text field has the focus or another dialog is open (the inbox does not count).

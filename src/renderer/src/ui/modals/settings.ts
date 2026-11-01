@@ -214,6 +214,22 @@ export function openSettings(
               icon('x', 15),
             )
             const set = (patch: Partial<ProjectFloor>) => (floors[i] = { ...floors[i], ...patch })
+            // Bastidores (B) has the same switch, next to the floor's copies.
+            const wtBox = h('input', { type: 'checkbox' }) as HTMLInputElement
+            wtBox.checked = p.worktrees !== false
+            wtBox.addEventListener('change', () => {
+              const { worktrees: _w, ...rest } = floors[i]
+              floors[i] = wtBox.checked ? rest : { ...rest, worktrees: false }
+            })
+            const worktreeDefault = h(
+              'label',
+              {
+                class: 'check',
+                title: 'Em projetos com git, cada agente novo ganha um branch numa cópia própria. Ao contratar dá para mudar caso a caso.',
+              },
+              wtBox,
+              'Agentes novos em cópia isolada (worktree)',
+            )
             const floorMode = h(
               'select',
               { class: 'input' },
@@ -356,6 +372,7 @@ export function openSettings(
                   h('legend', {}, 'Projeto'),
                   field('Nome do andar', nameIn),
                   h('span', { class: 'floor-row-path', title: p.cwd }, p.cwd),
+                  worktreeDefault,
                   h(
                     'span',
                     { class: 'field-hint' },

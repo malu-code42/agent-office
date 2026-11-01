@@ -1,0 +1,65 @@
+/* ---------- Bastidores (B): agent copies (worktrees), built on the resume center's list ---------- */
+
+.backdrop-backstage .modal {
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100vh - 80px);
+}
+
+.bs-intro {
+  margin: 0 0 10px;
+}
+
+.bs-filters {
+  margin-bottom: 8px;
+}
+
+.bs-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bs-default {
+  margin-left: auto;
+  font-family: var(--font);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.bs-row .resume-meta {
+  flex-wrap: wrap;
+  white-space: normal;
+}
+
+.bs-none {
+  padding: 8px 4px;
+  text-align: left;
+}
+
+/* ---------- "saindo quando terminarem" ---------- */
+
+.quit-banner {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 32px);
+  padding: 8px 10px 8px 14px;
+  transform: translateX(-50%);
+  background: var(--warn-bg);
+  color: var(--amber-text);
+  font-weight: 600;
+}
+
+.quit-banner.hidden {
+  display: none;
+}
+
+.quit-text {
+  min-width: 0;
+}

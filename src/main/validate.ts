@@ -794,6 +794,8 @@ export function cleanProjects(raw: unknown, previous: ProjectFloor[]): ProjectFl
       ...modeField,
       ...(rules.length ? { alwaysAllow: rules } : {}),
       ...cleanBrand(p),
+      // Bastidores → Worktrees: only an explicit false is stored; on is the default.
+      ...(p.worktrees === false ? { worktrees: false as const } : {}),
     })
     if (out.length === MAX_PROJECT_FLOORS) break
   }

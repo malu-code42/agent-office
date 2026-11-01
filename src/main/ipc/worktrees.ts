@@ -1,6 +1,28 @@
 import { dialog, ipcMain, shell } from 'electron'
 import { existsSync } from 'node:fs'
-import { commitChanges, discardChanges, fileDiff, insideRoot, openInEditor, openPullRequest, pendingLoss, pullRequestRemoteIdentity, pullRequestRemoteIdentityForRepo, removeWorktree, worktreeState } from '../git'
+import { resolve, sep } from 'node:path'
+import type { WorktreeFloor } from '@shared/types'
+import { projectFor } from '@shared/projects'
+import {
+  commitChanges,
+  discardChanges,
+  fileDiff,
+  folderSize,
+  insideRoot,
+  isForgotten,
+  listRepoWorktrees,
+  openInEditor,
+  openPullRequest,
+  pendingLoss,
+  pullRequestRemoteIdentity,
+  pullRequestRemoteIdentityForRepo,
+  removeLooseFolder,
+  removeWorktree,
+  repoRoot,
+  worktreeState,
+  WORKTREES_DIR,
+  type FoundWorktree,
+} from '../git'
 import { changedPathSchema, commitMessageSchema, prTitleSchema, uuidSchema, parse } from '../validate'
 import { isSquadTicketResultAgent } from '@shared/squad-ticket-result'
 import { id, type IpcContext } from './context'
@@ -8,7 +30,7 @@ import { isPullRequestUrl } from '@shared/pull-request-url'
 
 /** Worktrees (AO-33) and the result card's changed files (AO-34). */
 export function registerWorktreesIpc(ctx: IpcContext): void {
-  const { win, manager, nameOf } = ctx
+  const { win, manager, nameOf, store } = ctx
   // ---------- worktrees (AO-33) ----------
   // What the player chose in the native dialog of prepareFire. Only that dialog can
   // authorize removing a worktree: the renderer never sends "remove".
@@ -74,6 +96,148 @@ export function registerWorktreesIpc(ctx: IpcContext): void {
     const now = await worktreeState(wt).catch(() => null)
     const force = pendingLoss(choice) > 0 && !!now && now.fingerprint === choice.fingerprint
     return removeWorktree(wt, force).catch((err) => `Não consegui remover a cópia: ${err instanceof Error ? err.message : String(err)}`)
+  })
+
+  // ---------- Bastidores → Worktrees ----------
+  const size = (n: number) => (n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(1).replace('.', ',')} GB` : `${Math.max(1, Math.round(n / 1024 ** 2))} MB`)
+  const key = (p: string) => (process.platform === 'win32' ? resolve(p).toLowerCase() : resolve(p))
+  const inside = (root: string, p: string | undefined) => !!p && (key(p) === key(root) || key(p).startsWith(key(root) + sep))
+  /** The repos to look in: every floor's, plus any repo an agent works in. */
+  const knownRepos = async (): Promise<string[]> => {
+    const repos = new Map<string, string>()
+    const add = (r: string | null | undefined) => r && repos.set(key(r), resolve(r))
+    for (const p of store.settings.projects) add(existsSync(p.cwd) ? await repoRoot(p.cwd) : null)
+    for (const a of manager.list()) if (a.worktree) add(a.worktree.repo)
+    return [...repos.values()]
+  }
+  /**
+   * Who uses each copy: an office agent with it as worktree, any session (terminal ones
+   * too) running inside it, or a squad cycle that keeps it between tickets.
+   */
+  const withOwners = (items: FoundWorktree[]) => {
+    const agents = manager.list()
+    const cycles = ctx.creation?.queues?.() ?? []
+    for (const w of items) {
+      const a = agents.find((x) => (x.worktree && key(x.worktree.root) === key(w.root)) || inside(w.root, x.cwd))
+      if (a) Object.assign(w, { agentId: a.id, agentName: a.name })
+      else {
+        const q = cycles.find((c) => c.cycle?.worktree && key(c.cycle.worktree.root) === key(w.root))
+        if (q) Object.assign(w, { agentId: `squad:${q.code}`, agentName: `O ciclo do squad ${q.code}` })
+      }
+    }
+    return items
+  }
+  /** One copy, read again from disk: only roots the office listed can be removed. */
+  const findCopy = async (raw: unknown): Promise<FoundWorktree> => {
+    const root = typeof raw === 'string' && raw.length < 4096 ? raw : ''
+    const marker = `${sep}${WORKTREES_DIR}${sep}`
+    const at = root.indexOf(marker)
+    const repo = at > 0 ? root.slice(0, at) : ''
+    if (!repo || !(await knownRepos()).some((r) => key(r) === key(repo))) throw new Error('Essa cópia não é de nenhum andar do escritório.')
+    const w = withOwners(await listRepoWorktrees(repo)).find((x) => key(x.root) === key(root))
+    if (!w) throw new Error('Essa cópia já não existe. Atualize a lista.')
+    return w
+  }
+  const lossLine = (w: FoundWorktree) =>
+    [
+      w.dirty ? plural(w.dirty, 'arquivo com mudanças não commitadas', 'arquivos com mudanças não commitadas') : '',
+      w.ignored
+        ? plural(w.ignored, 'arquivo ou pasta ignorado pelo git (node_modules, .env)', 'arquivos ou pastas ignorados pelo git (node_modules, .env)')
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' e ')
+  /** Removes a copy already confirmed; forced only if its files are the ones the player saw. */
+  const removeCopy = async (w: FoundWorktree): Promise<string> => {
+    if (w.broken) {
+      await removeLooseFolder(w.repo, w.root)
+      return 'Pasta solta apagada.'
+    }
+    const wt = { path: w.root, root: w.root, repo: w.repo, branch: w.branch, base: w.base }
+    const now = await worktreeState(wt).catch(() => null)
+    const force = !!w.state && pendingLoss(w.state) > 0 && !!now && now.fingerprint === w.state.fingerprint
+    return removeWorktree(wt, force)
+  }
+
+  ipcMain.handle('office:listWorktrees', async (): Promise<WorktreeFloor[]> => {
+    const floors: WorktreeFloor[] = []
+    for (const repo of await knownRepos()) {
+      const items = withOwners(await listRepoWorktrees(repo).catch(() => []))
+      // Measuring node_modules takes a moment: all copies at once.
+      await Promise.all(items.map(async (w) => (w.size = w.exists ? await folderSize(w.root) : 0)))
+      const floor = projectFor(store.settings.projects, repo)
+      floors.push({
+        floorId: floor?.id,
+        name: floor?.name ?? repo.split(/[\\/]/).filter(Boolean).pop() ?? repo,
+        repo,
+        worktrees: floor?.worktrees !== false,
+        items: items.map(({ state: _s, base: _b, ...entry }) => entry),
+      })
+    }
+    // Elevator order, then the repos outside the floors.
+    const order = (f: WorktreeFloor) => (f.floorId ? store.settings.projects.findIndex((p) => p.id === f.floorId) : 99)
+    return floors.sort((a, b) => order(a) - order(b))
+  })
+
+  ipcMain.handle('office:removeWorktreeAt', async (_e, raw: unknown) => {
+    const w = await findCopy(raw)
+    if (w.agentId) throw new Error(`${w.agentName} ainda trabalha nessa cópia. Dispense o agente para remover.`)
+    if (w.foreign) throw new Error('Essa cópia foi criada fora do escritório (outro branch). Remova pelo git.')
+    const loss = pendingLoss(w)
+    const kept = w.unique
+      ? `\n\nO branch tem ${plural(w.unique, 'commit que não está', 'commits que não estão')} em nenhum outro branch nem remoto: ele fica no repositório, só a pasta sai.`
+      : ''
+    const { response } = await dialog.showMessageBox(win()!, {
+      type: w.broken || w.dirty ? 'warning' : 'question',
+      buttons: ['Remover a cópia', 'Cancelar'],
+      // Anything to lose: Enter keeps the copy.
+      defaultId: w.broken || loss || w.unique ? 1 : 0,
+      cancelId: 1,
+      message: w.broken ? 'Apagar essa pasta solta?' : `Remover a cópia ${w.branch}?`,
+      detail: w.broken
+        ? `${w.root}\n\nO git não conhece mais essa pasta como cópia de agente. Ela só ocupa espaço${w.size ? ` (${size(w.size)})` : ''}. Tudo dentro dela é apagado e não dá para desfazer.`
+        : `${w.root}${w.size ? ` · ${size(w.size)}` : ''}${kept}${loss ? `\n\nSomem junto: ${lossLine(w)}. Não dá para desfazer.` : ''}`,
+    })
+    if (response !== 0) return null
+    return removeCopy(w)
+  })
+
+  ipcMain.handle('office:cleanWorktrees', async (_e, raw: unknown) => {
+    const floorId = typeof raw === 'string' ? raw : undefined
+    const all: FoundWorktree[] = []
+    for (const repo of await knownRepos()) {
+      if (floorId && projectFor(store.settings.projects, repo)?.id !== floorId) continue
+      all.push(...withOwners(await listRepoWorktrees(repo).catch(() => [])))
+    }
+    const safe = all.filter((w) => isForgotten(w))
+    if (!safe.length) return 'Nenhuma cópia para limpar: as que sobraram têm agente, trabalho guardado só nelas ou são de hoje.'
+    const sizes = await Promise.all(safe.map((w) => (w.exists ? folderSize(w.root) : 0)))
+    const total = sizes.reduce<number>((n, s) => n + (s ?? 0), 0)
+    const ignored = safe.filter((w) => w.ignored).length
+    const { response } = await dialog.showMessageBox(win()!, {
+      type: 'question',
+      buttons: [`Remover ${safe.length === 1 ? 'a cópia' : `as ${safe.length} cópias`}`, 'Cancelar'],
+      defaultId: 0,
+      cancelId: 1,
+      message: `Remover ${plural(safe.length, 'cópia esquecida', 'cópias esquecidas')}?`,
+      detail:
+        `Libera cerca de ${size(total)}. Nenhuma tem agente, mudança sem commit ou commit que só exista nela.\n\n` +
+        safe.map((w) => `• ${w.branch || w.root}`).join('\n') +
+        (ignored ? `\n\n${ignored === 1 ? 'Uma delas tem' : `${ignored} delas têm`} arquivos ignorados pelo git (node_modules, .env), que somem junto.` : ''),
+    })
+    if (response !== 0) return null
+    let done = 0
+    const failed: string[] = []
+    for (const w of safe) {
+      try {
+        await removeCopy(w)
+        if (!existsSync(w.root)) done++
+        else failed.push(w.branch)
+      } catch {
+        failed.push(w.branch || w.root)
+      }
+    }
+    return `Removi ${plural(done, 'cópia', 'cópias')}.${failed.length ? ` Ficaram ${failed.length} que mudaram nesse meio-tempo: ${failed.join(', ')}.` : ''}`
   })
 
   // ---------- result card: changed files (AO-34) ----------
