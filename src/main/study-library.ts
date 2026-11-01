@@ -206,7 +206,7 @@ export class StudyLibrary {
   }
 
   /** Walks the study sources folder and reads what Cora can read (within the limits). Null when there is no folder. */
-  private async scan(coldBudgetMs = PDF_COLD_BUDGET_MS): Promise<SourceScan | null> {
+  private async scan(coldBudgetMs = PDF_COLD_BUDGET_MS, ocr = false): Promise<SourceScan | null> {
     const root = this.checkedSourceRoot()
     if (!root) return null
     const { paths, complete: walked } = walkSources(root)
@@ -236,7 +236,7 @@ export class StudyLibrary {
             // A PDF counts by the text taken out of it: its images weigh on disk, not in the search.
             const info = statSync(path)
             if (info.size > MAX_PDF_BYTES) throw new Error(TOO_BIG)
-            const pages = await this.pdf.pagesBy(path, info, () => readLocalStudyFile(path, root, MAX_PDF_BYTES).buffer, deadline)
+            const pages = await this.pdf.pagesBy(path, info, () => readLocalStudyFile(path, root, MAX_PDF_BYTES).buffer, deadline, ocr)
             if (pages === 'pending') {
               pending++
               file.status = 'lendo'
@@ -282,7 +282,7 @@ export class StudyLibrary {
    * parsed to the end (instead of in the background), which also hands the scanned ones to the OCR.
    */
   async inventory(verify = false): Promise<StudySourceInventory> {
-    const scan = await this.scan(verify ? VERIFY_BUDGET_MS : PDF_COLD_BUDGET_MS)
+    const scan = await this.scan(verify ? VERIFY_BUDGET_MS : PDF_COLD_BUDGET_MS, verify)
     if (!scan) return { sources: [], complete: true, missingFolder: true, ocrQueued: 0 }
     let ocrQueued = 0
     const sources = scan.files.map((file): StudySourceInfo => {

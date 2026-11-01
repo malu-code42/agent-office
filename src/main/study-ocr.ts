@@ -108,6 +108,9 @@ export function workerOcrRunner(langDir: string): OcrRunner {
           w.off('message', onMessage)
           w.off('error', stop)
           w.off('exit', onExit)
+          // Ends the worker with the file: Tesseract and pdf.js hold hundreds of MB while idle.
+          if (worker === w) worker = null
+          void w.terminate()
           if (message.type === 'done') resolve()
           else reject(new Error(message.message))
         }
