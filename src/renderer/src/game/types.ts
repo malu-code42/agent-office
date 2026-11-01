@@ -47,10 +47,6 @@ export interface Upper {
   scene: ProjectFloor2d
   /** One "Passo 3/6 · Texto" line over each squad room that has a coordinator. */
   stepTags: Tag[]
-  /** An account of this floor is at its limit. */
-  alarm: boolean
-  /** Over the alarm, while an account of this floor is at its limit. */
-  alarmTag: Tag
   /** What does not fit on this floor (more squads than rooms); null when everything fits. */
   issueTag: Tag | null
   /** Over the elevator, while a squad proposal waits for the approval. */
