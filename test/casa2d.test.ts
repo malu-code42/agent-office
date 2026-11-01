@@ -198,7 +198,7 @@ describe('clique na Casa 2D', () => {
   it('o chão vazio e os móveis sem ação não abrem nada', () => {
     const floor = artToScreen(CASA.origin, 340, 200)
     expect(actAt(items, CASA.hot, floor, solid)).toBeNull()
-    const sofa = CASA.static.find((s) => s.fp[0] === 262 && s.fp[1] === 10)!
+    const sofa = CASA.static.find((s) => s.fp[0] === 290 && s.fp[1] === 10)!
     expect(actAt(items, CASA.hot, { x: sofa.x + 10, y: sofa.y + 10 }, solid)).toBeNull()
   })
 

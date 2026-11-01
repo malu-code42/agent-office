@@ -40,17 +40,25 @@ def ws_back(sc, x, y, vi, state, head=None, d_=26, col=F.CHAIR):
     return cx + 5, cy + 5
 
 
-def ws_front_y(sc, x, y, vi, state, w=34, head=None, col=F.CHAIR):
-    """desk long along x at (x,y) w x 14; agent north of it facing +y (FL); monitor (back to us) in front of the wall side."""
+def ws_front_shift(w, centered):
+    """how far west the set of ws_front_y moves to sit in the middle of the desk."""
+    return int(w / 2 - 8) if centered else 0
+
+
+def ws_front_y(sc, x, y, vi, state, w=34, head=None, col=F.CHAIR, centered=False):
+    """desk long along x at (x,y) w x 14; agent north of it facing +y (FL); monitor (back to us) in front of the wall side.
+    centered: the monitor, keyboard and chair in the middle of the desk instead of at its east end."""
     L = sc.L
+    x0 = x
+    x = x - ws_front_shift(w, centered)
 
     def d():
-        graphite(L, x, y, w, 14)
+        graphite(L, x0, y, w, 14)
         F.crt(L, x + w - 14, y + 8, 12, '-y', state, 1)
         G.laptop(L, x + w - 24, y + 5, 12, '-y', '82aaff')
         F.keyboard(L, x + w - 13, y + 2, 12)
         F.mug(L, x + w - 16, y + 2, 12)
-    sc.add((x, y, x + w, y + 14), d, True)
+    sc.add((x0, y, x0 + w, y + 14), d, True)
     cx, cy = x + w - 13, y - 12
 
     def c():

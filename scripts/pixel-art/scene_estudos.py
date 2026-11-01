@@ -276,12 +276,12 @@ def build():
     library_walls(sc)
     library(sc)
     x, y, w = CORA_DESK
-    ws_front_y(sc, x, y, 5, LOOK['cora'][1], w=w, head='cora', col=F.CHAIRS[LOOK['cora'][0]])
+    ws_front_y(sc, x, y, 5, LOOK['cora'][1], w=w, head='cora', col=F.CHAIRS[LOOK['cora'][0]], centered=True)
     library_plant(sc)
     diretoria_walls(sc)
     diretoria(sc)
     x, y, w = BONNIE_DESK
-    ws_front_y(sc, x, y, 3, LOOK['bonnie'][1], w=w, head='bonnie', col=F.CHAIRS[LOOK['bonnie'][0]])
+    ws_front_y(sc, x, y, 3, LOOK['bonnie'][1], w=w, head='bonnie', col=F.CHAIRS[LOOK['bonnie'][0]], centered=True)
     diretoria_front(sc)
     teachers_walls(sc)
     teachers_room(sc)
