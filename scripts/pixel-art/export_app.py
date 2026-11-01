@@ -31,7 +31,7 @@ from floorkit import SW, SH, OX, OY, TS, W, D, WALL_H, PART_H, Scene, new_layer,
 import scene_projeto as P
 import scene_casa2 as C
 import scene_estudos as E
-from desks import ws_back, ws_front_x, ws_front_y
+from desks import ws_back, ws_front_x, ws_front_y, ws_front_shift
 from chars import sprite, VARIANTS, palette
 
 APP = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
@@ -416,7 +416,7 @@ def casa(L, place, items, seat):
     for i, (dx, dy) in enumerate(C.DESKS):
         sc.add((dx, dy, dx + 14, dy + C.DESK_D), lambda dx=dx, dy=dy, i=i: C.work_desk(L, dx, dy, C.TABLE_LOOK[i][1]), True)
     x, y, w = C.VOCE_DESK
-    ws_front_y(sc, x, y, None, C.VOCE_LOOK[1], w=w)
+    ws_front_y(sc, x, y, None, C.VOCE_LOOK[1], w=w, centered=True)
     sc.rec.pop()  # the user's chair is a seat below
     C.voce_corner(sc)
     C.media(sc, people=False)
@@ -441,7 +441,7 @@ def casa(L, place, items, seat):
     tags = {n: [(a + b) / 2, 0, 46] for a, b, _act, n in C.BOARDS}
     tags.update({
         'Claude FM': [C.RADIO[0] + 6, C.RADIO[1] + 17, 34], 'Caveira': [150, 24, 34], 'Rotinas de agentes': [2, 176, 46],
-        'Novo agente': [80, 270, 40], 'Livros': [306, 4, 44], 'Escrita': [(C.WRITING[0] + C.WRITING[2]) / 2, C.WRITING[1] + 18, 30],
+        'Novo agente': [70, 270, 40], 'Livros': [306, 4, 44], 'Escrita': [(C.WRITING[0] + C.WRITING[2]) / 2, C.WRITING[1] + 18, 30],
         'Filmes': [233, 133, 34], 'Jogos': [233, 238, 38], 'Gastos': [218, 0, 54], 'Alarme': [168, 0, 54],
     })
     # Luna's chair first, then the residents' in the order the approved art fills them
@@ -478,7 +478,7 @@ def casa(L, place, items, seat):
         'tags': tags,
         'tv': tv,
         'table': {'center': [C.TABLE[0] + C.TABLE[2] / 2, C.TABLE[1] + C.TABLE[3] / 2], 'seats': seats},
-        'voce': {'seat': seat('casa/voce', x + w - 13, y - 12, '+y', col=F.CHAIRS[C.VOCE_LOOK[0]]), 'desk': [x, y, x + w, y + 14]},
+        'voce': {'seat': seat('casa/voce', x + w - 13 - ws_front_shift(w, True), y - 12, '+y', col=F.CHAIRS[C.VOCE_LOOK[0]]), 'desk': [x, y, x + w, y + 14]},
         'hang': [{'at': [hx, hy], 'look': list(look), 'kind': kind} for hx, hy, look, kind in C.HANG],
         'zones': [{'name': n, 'rect': list(r)} for n, r in C.ZONES],
         'elevator': {'tile': [ex0 // TS, 1], 'point': [(ex0 + ex1) / 2 / TS, 0.45], 'door': [ex0, ex1, 40],
