@@ -23,6 +23,12 @@ ROOMS = [  # ry0, h, carpet, name, screen, coordinator, members (None = individu
     (96, 96, WARMG, 'Dev Beta · aguardando', 'amber', 4, [0, 2, 'ind']),
     (192, 96, SAGE, 'Conteúdo · bloqueado', 'red', 1, [3, 5]),
 ]
+# chair colours per room, mixed from its carpet: the six member desks, then the coordinator's; and Emi's
+# (the screens keep the state colours)
+ROOM_CHAIRS = [['slate', 'sky', 'steel', 'blue', 'sand', 'mustard', 'blue'],
+               ['terra', 'sand', 'mustard', 'steel', 'rose', 'slate', 'terra'],
+               ['sage', 'mint', 'green', 'sand', 'lilac', 'steel', 'sage']]
+EMI_CHAIR = 'mustard'
 # the elevator door on the back wall (x0, x1) and the Emi desk (x, y, width)
 ELEVATOR = (268, 292)
 # turned once more, to the left: Emi sits east of her desk facing the west wall (-x) and her monitor, the
@@ -140,7 +146,7 @@ def diretoria(sc, people=True, state='green'):
     diretoria_walls(sc)
     diretoria_back(sc)
     x, y, w = EMI_DESK
-    ws_back(sc, x, y, 7 if people else None, state, 'papers', head='emi', boss=True, d_=w)
+    ws_back(sc, x, y, 7 if people else None, state, head='emi', d_=w, col=F.CHAIRS[EMI_CHAIR])
     diretoria_front(sc)
     sc.label('Diretoria · Emi', 336, 282)
 
@@ -176,18 +182,18 @@ def squad_room(sc, idx, ry0, h, carpet, name, screen, coord, members):
     room_walls(sc, ry0, h)
     room_shelf(sc, ry0, h)
     # coordinator: west, facing the members (+x)
-    ws_front_x(sc, *coordinator_at(ry0, h), coord, screen)
+    ws_front_x(sc, *coordinator_at(ry0, h), coord, screen, col=F.CHAIRS[ROOM_CHAIRS[idx][6]])
     px, py = L.P(23, ry0 + h // 2 + 13, 40)
     sc.labels.append(('Coordenação', px, int(py) - 6))
     # members (face -x, toward the coordinator)
     for i, vi in enumerate(members):
         x, y = slots(ry0, h)[i]
         if vi == 'ind':
-            cx, cy = ws_back(sc, x, y, 5, 'green', 'papers')
+            cx, cy = ws_back(sc, x, y, 5, 'green', col=F.CHAIRS[ROOM_CHAIRS[idx][i]])
             pxx, pyy = L.P(cx + 6, cy + 6, 30)
             sc.labels.append(('Agente individual', pxx + 26, int(pyy) + 2))
         else:
-            ws_back(sc, x, y, vi, screen, 'mug' if i % 2 else 'papers', head='ABC'[idx] if i == 0 else None)
+            ws_back(sc, x, y, vi, screen, head='ABC'[idx] if i == 0 else None, col=F.CHAIRS[ROOM_CHAIRS[idx][i]])
     px, py = L.P(0, ry0 + h // 2, WALL_H + 2)
     sc.labels.append((name, px, int(py) - 6))
 
