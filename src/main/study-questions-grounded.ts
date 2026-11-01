@@ -20,6 +20,7 @@ const AUTHOR_PROMPT = [
   'Return ONLY a JSON object: {"question","choices","correct","rationale","quote"}. "choices" is an array of exactly five different alternatives (text only, no letters);',
   '"correct" is the letter of the only right one, "A" to "E" (vary its position). The four wrong ones are plausible but clearly wrong by the excerpt.',
   'Every other value is a single line of plain text. "quote" is one passage copied VERBATIM from the excerpt that proves the right alternative.',
+  '"avoid" lists questions that already exist: ask about a DIFFERENT fact or part of the excerpt, not the same idea reworded or sharing its key terms.',
   'If the excerpt cannot support a question on the topic, return {"error":"unsupported"}.',
 ].join(' ')
 
@@ -65,9 +66,11 @@ export async function generateGroundedQuestion(
 ): Promise<GroundedResult> {
   let reason = 'A fonte não sustenta uma questão sobre o tópico.'
   let code: GroundedFailure = 'unsupported'
+  // drafts rejected as too similar join the list, so the next attempt cannot repeat them
+  const avoid = [...(source.avoid ?? [])]
   for (let attempt = 0; attempt < attempts; attempt++) {
     onStep?.('author')
-    const draft = asRecord(await ask(AUTHOR_PROMPT, { topic: source.topic, excerpt: source.excerpt, avoid: source.avoid ?? [] }))
+    const draft = asRecord(await ask(AUTHOR_PROMPT, { topic: source.topic, excerpt: source.excerpt, avoid }))
     if (!draft || draft.error) return { ok: false, reason, code }
     const { question, rationale, quote } = draft
     const choices = Array.isArray(draft.choices) ? draft.choices.map((c) => (typeof c === 'string' ? c.trim() : '')) : []
@@ -91,7 +94,8 @@ export async function generateGroundedQuestion(
       continue
     }
     onStep?.('similar')
-    if ((source.avoid ?? []).some((other) => tooSimilar(other, question as string))) {
+    if (avoid.some((other) => tooSimilar(other, question as string))) {
+      avoid.push(question as string)
       reason = 'A questão é parecida demais com outra do mesmo tópico.'
       code = 'similar'
       continue

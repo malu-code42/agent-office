@@ -74,6 +74,17 @@ describe('generateGroundedQuestion', () => {
     expect(ask).toHaveBeenCalledTimes(3)
   })
 
+  it('feeds a too-similar draft back to the author so the retry asks something else', async () => {
+    const other = { ...draft, question: 'Quantos bits tem um dígito binário?' }
+    const ask: AskJson = vi.fn(async (_system, payload) => {
+      const { avoid, correct, choices } = payload as { avoid?: string[]; correct?: string; choices?: string[] }
+      if (avoid) return avoid.length > 1 ? other : draft
+      return correct ? { verdict: 'ok', reason: '' } : choices ? solved : null
+    })
+    const out = await generateGroundedQuestion({ ...source, avoid: ['Quais são os dígitos que existem no sistema binário?'] }, ask)
+    expect(out.ok && out.question.question).toBe(other.question)
+  })
+
   it('tells similar from different questions', () => {
     expect(tooSimilar('Qual a base do sistema octal?', 'Qual é a base do sistema octal?')).toBe(true)
     expect(tooSimilar('Qual a base do sistema octal?', 'Como converter binário para hexadecimal?')).toBe(false)
