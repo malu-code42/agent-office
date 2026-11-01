@@ -9,7 +9,7 @@ import furn as F
 import furn2 as G
 from furn import T
 from floorkit import (W, D, new_layer, save2, Scene, region_floor, OAK, planks, back_walls, CASA_WALL, draw_floor, WALL_H)
-from desks import ws_front_y
+from desks import ws_front_y, graphite, east_set
 from chars import sprite
 
 WARM = planks([H('e2b989'), H('d8ad7c'), H('dcb384')], H('b98c5f'), H('c39769'))
@@ -22,17 +22,19 @@ ELEVATOR = (180, 204)
 HALF_WALLS = [(160, [(56, 88), (176, 208)]), (224, [(56, 88), (176, 208)])]
 # the boards on the back wall: x0, x1, action, name
 BOARDS = [(8, 42, 'agenda', 'Agenda'), (54, 90, 'goals', 'Objetivos'), (102, 138, 'personal-routines', 'Rotinas pessoais')]
-# the six work desks (x, y; each 30 x 14, the sitter north of it looking +y); Luna takes the first,
+# the four work desks (x, y; each 14 x 30, the sitter east of it looking -x); Luna takes the first,
 # then the residents fill them in order
-DESK_W = 30
-DESKS = [(26, 124), (76, 124), (26, 156), (76, 156), (26, 188), (76, 188)]
+DESK_D = 30
+DESKS = [(30, 124), (76, 124), (30, 160), (76, 160)]
 # the chair of each desk: x, y, the way the sitter looks
-TABLE_SEATS = [(x + 10, y - 12, '+y') for x, y in DESKS]
+TABLE_SEATS = [(x + 16, y + 10, '-x') for x, y in DESKS]
+# the rug under the desks: x0, y0, x1, y1
+DESK_RUG = (20, 114, 112, 196)
 # the bounding box of the desks (x, y, w, d): its middle is where the group looks at
-TABLE = (26, 112, 80, 90)
+TABLE = (30, 124, 82, 66)
 # who sits where in the preview (variant, or None for an empty chair)
-TABLE_PEOPLE = [6, 1, 2, None, 7, None]
-SEAT_ORDER = [0, 1, 2, 3, 4, 5]
+TABLE_PEOPLE = [6, 1, 2, None]
+SEAT_ORDER = [0, 1, 2, 3]
 # the user's desk (x, y, width), against the front wall
 VOCE_DESK = (70, 266, 36)
 # footprints of the clickable furniture (export_app.py tags the items with these)
@@ -70,7 +72,12 @@ ZONES = [
 def totem(L):
     """'Rotinas de agentes' board on the west wall (plane x=0): the frame; the app paints the screen."""
     y0, y1, z0, z1 = TOTEM_WALL
-    L.qx(0, y0, y1, z0, z1, H('7b5a44'))
+    fr = H('5f4533')
+    # a ring only: the app draws the screen first and this sprite sorts over it
+    L.qx(0, y0 - 1, y1 + 1, z1, z1 + 1, fr)
+    L.qx(0, y0 - 1, y1 + 1, z0 - 1, z0, fr)
+    L.qx(0, y0 - 1, y0, z0, z1, fr)
+    L.qx(0, y1, y1 + 1, z0, z1, fr)
 
 
 def window_frame(L):
@@ -102,6 +109,7 @@ def shell(L):
     F.frame_x(L, 0, 70, 84, 26, 40)
     F.frame_x(L, 0, 88, 98, 30, 42, art=('9cc4dc', 'f6e27a', '8cc477'))
     F.frame_x(L, 0, 112, 132, 22, 44, art=('f2c58a', 'fbf3e0', 'e86a5a'), fr='5f7fb4')
+    F.rug(L, *DESK_RUG, H('9fb7d6'), H('809cc2'), H('e4eaf6'))
     F.rug(L, 232, 16, 292, 70, H('d9a0a0'), H('b87a7a'), H('f6dcd0'))
     F.rug(L, 230, 100, 330, 168, H('a9b8d8'), H('8698c0'), H('e4eaf6'))
     F.rug(L, 230, 210, 300, 280, H('f2d6a0'), H('dcb880'), H('fbf3e0'))
@@ -130,25 +138,31 @@ def sala(sc):
     add((4, 110, 14, 120), lambda: F.plant(L, 4, 110, seed=5), True)
 
 
-def work_desk(L, x, y):
-    """a desk with an open laptop (screen to the sitter, so we see the lid) and a mug."""
-    F.desk(L, x, y, DESK_W, 14)
-    G.laptop(L, x + 4, y + 4, 12, '-y')
-    F.mug(L, x + 20, y + 8, 12)
+# the work desks' look, mixed from the floor's palette: (chair, screen) of each table desk and of the user's desk
+TABLE_LOOK = [('terra', 'blue'), ('green', 'lilac'), ('blue', 'rose'), ('mustard', 'mint')]
+VOCE_LOOK = ('lilac', 'green')
+
+
+def work_desk(L, x, y, screen):
+    """a graphite desk: an ultrawide set back toward the wall, a laptop, a keyboard and a mug (the sitter is east of it)."""
+    graphite(L, x, y, 14, DESK_D)
+    east_set(L, x, y, screen)
 
 
 def luna_table(sc):
-    """the six work desks: each one item, chair and sitter drawn after it."""
+    """the four work desks: each one item, chair and sitter drawn after it."""
     L = sc.L
     for i, (x, y) in enumerate(DESKS):
         cx, cy, _face = TABLE_SEATS[i]
         vi = TABLE_PEOPLE[i]
+        col = F.CHAIRS[TABLE_LOOK[i][0]]
 
-        def chair(cx=cx, cy=cy, vi=vi):
-            F.chair(L, cx, cy, '+y')
+        def chair(cx=cx, cy=cy, vi=vi, col=col):
+            F.chair(L, cx, cy, '-x', 'seat', col)
             if vi is not None:
-                F.seated(L, sprite(vi, 'FL', 'sitF'), cx, cy)
-        sc.add((x, y, x + DESK_W, y + 14), lambda x=x, y=y: work_desk(L, x, y), True)
+                F.seated(L, sprite(vi, 'BL', 'sitB'), cx, cy)
+            F.chair(L, cx, cy, '-x', 'back', col)
+        sc.add((x, y, x + 14, y + DESK_D), lambda x=x, y=y, i=i: work_desk(L, x, y, TABLE_LOOK[i][1]), True)
         sc.add((cx, cy, cx + 10, cy + 10), chair)
     px, py = L.P(TABLE_SEATS[0][0] + 5, TABLE_SEATS[0][1] + 5, 7)
     sc.heads['luna'] = (int(px) + 3 * L.S, int(py) - 24 * L.S)
@@ -202,7 +216,7 @@ def build():
     sala(sc)
     luna_table(sc)
     x, y, w = VOCE_DESK
-    ws_front_y(sc, x, y, 0, 'green', w=w, head='voce')
+    ws_front_y(sc, x, y, 0, VOCE_LOOK[1], w=w, head='voce', col=F.CHAIRS[VOCE_LOOK[0]])
     voce_corner(sc)
     half_wall(sc, 1)
     media(sc)
