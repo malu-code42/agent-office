@@ -80,6 +80,18 @@ _Avoid_: Ticket, lote, tarefa pessoal
 Percurso de diagnóstico, revisão de erros/dúvidas, prática e fontes direcionadas e reteste de um tópico, até o critério escolhido e a confirmação de Malu.
 _Avoid_: Atividade dos agentes como aprendizado, projeto final obrigatório
 
+**Banco de questões**:
+Questões do vault usadas pelos ciclos, montadas pela IA a partir dos livros locais de cada disciplina e conferidas por uma cadeia de agentes antes de entrar. A usuária não revisa questão por questão.
+_Avoid_: Candidatas para revisão, questões da web sem fonte
+
+**Verificada por agentes**:
+Selo da questão aprovada pela cadeia autor, conferência da citação, semelhança, resolvedor cego e verificador. Não existe selo de revisão manual.
+_Avoid_: Revisada, aprovada pela usuária
+
+**Questão respondida**:
+Questão do banco que a usuária já respondeu em qualquer etapa de qualquer ciclo. Fica registrada e nunca volta a ser oferecida, nem com outro id e o mesmo enunciado.
+_Avoid_: Questão para repetir, revisão espaçada
+
 **Nota de estudo**:
 Registro identificável produzido ou editado durante o estudo, inclusive fora de um ciclo, que pode ser escolhido como origem de cartões. Não comprova aprendizado por sua simples existência.
 _Avoid_: Cartão pronto, transcrição inteira como nota única

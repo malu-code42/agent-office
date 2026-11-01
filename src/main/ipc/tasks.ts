@@ -24,6 +24,9 @@ import { createTaskWriter, type TaskWriter } from '../tasks-write'
 import { createCompletionUndo } from '../tasks-undo'
 import { PersonalRoutineStore } from '../personal-routines-store'
 import { personalRoutineTaskFingerprintFromLine, personalRoutineTaskFingerprintFromTask } from '../personal-routine-fingerprint'
+import { buildStudyBank } from '../study-bank-builder'
+import { StudyBankJobs } from '../study-bank-job'
+import { answeredStudyQuestions, isStudyQuestionAnswered } from '@shared/study-cycle'
 import { StudyQuestionService } from '../study-questions'
 import { claudeStudyQuestionProviders } from '../study-questions-claude'
 import { StudyCycleService } from '../study-cycle'
@@ -51,6 +54,7 @@ import {
   vaultPathSchema,
   studyQuestionSearchArgsSchema,
   studyQuestionSaveArgsSchema,
+  studyBankBuildArgsSchema,
   studyQuestionGenerateArgsSchema,
   startStudyCycleArgsSchema,
   answerStudyCycleArgsSchema,
@@ -189,6 +193,29 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const [token] = parse(studyQuestionGenerateArgsSchema, args, 'Geração de questões inválida.')
     return studyService().generate(token)
   })
+  // The bank build runs in the background, one at a time; the window follows it by 'study-bank' events.
+  const bankJobs = new StudyBankJobs(ctx.store.dataDirectory, (job) => ctx.broadcast({ type: 'study-bank', job }))
+  ipcMain.handle('office:startStudyBank', async (_e, ...args: unknown[]) => {
+    const [request] = parse(studyBankBuildArgsSchema, args, 'Montagem do banco inválida.')
+    const trail = parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE))
+    const library = studyLibrary()
+    const bank = studyService()
+    return bankJobs.start(trail, request, (t, options) =>
+      buildStudyBank(
+        t,
+        {
+          library,
+          bank,
+          // Read at each topic: what the user answers meanwhile stops counting toward the goal.
+          isAnswered: (question) => isStudyQuestionAnswered(answeredStudyQuestions(studyCycleStore.read()), question),
+        },
+        options,
+      ),
+    )
+  })
+  ipcMain.handle('office:studyBankStatus', () => bankJobs.status())
+  ipcMain.handle('office:cancelStudyBank', () => bankJobs.cancel())
+  ipcMain.handle('office:dismissStudyBank', () => bankJobs.dismiss())
   ipcMain.handle('office:saveStudyQuestions', async (_e, ...args: unknown[]) => {
     const [token, selection, reviewConfirmed] = parse(studyQuestionSaveArgsSchema, args, 'Seleção de questões inválida.')
     studyService().save(token, selection, reviewConfirmed)
@@ -304,6 +331,10 @@ export function registerTasksIpc(ctx: IpcContext): void {
     return studyCycleService().completeRetest()
   })
   ipcMain.handle('office:readStudyNotes', () => studyCardsService().readNotes())
+  ipcMain.handle('office:saveLooseStudyNote', (_e, title: unknown, text: unknown) => {
+    if (typeof title !== 'string' || typeof text !== 'string') throw new Error('Nota avulsa inválida.')
+    new StudyNotesWriter(requireVault()).writeLoose(title, text)
+  })
   ipcMain.handle('office:generateStudyCardDraft', async (_e, ...args: unknown[]) => {
     const [noteIds] = parse(generateStudyCardDraftArgsSchema, args, 'Seleção de notas para cartão inválida.')
     const cards = studyCardsService()

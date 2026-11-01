@@ -32,8 +32,9 @@ export interface DecodedStudyBank {
   unknownLines: string[]
 }
 
-export const STUDY_QUESTION_LIMITS = { count: 100, text: 20_000, tags: 20, tag: 80, options: 6, option: 2000 } as const
-
+/** 3000 questions: the whole trail (122 topics) at the default 20 per topic fits, with room for the old questions. */
+export const STUDY_QUESTION_LIMITS = { count: 3000, text: 20_000, tags: 20, tag: 80, options: 6, option: 2000 } as const
+export const STUDY_BANK_LINE_LIMIT = 60_000
 export const studyOptionLetter = (index: number): string => String.fromCharCode(65 + index)
 
 /** What the Tutor (and any reader) sees as the question: passage, statement and lettered alternatives. */
@@ -41,7 +42,6 @@ export function studyQuestionText(q: Pick<StudyQuestion, 'passage' | 'question' 
   const options = (q.options ?? []).map((option, index) => `${studyOptionLetter(index)}) ${option}`).join('\n')
   return [q.passage ? `Trecho:\n${q.passage}` : '', q.question, options].filter(Boolean).join('\n\n')
 }
-export const STUDY_BANK_LINE_LIMIT = 20_000
 export const STUDY_BANK_LINE_BYTES = 30_000
 const ORIGINS: readonly StudyOriginKind[] = ['enem', 'concurso', 'livro', 'web', 'ia']
 const ANSWER_STATUSES: readonly AnswerStatus[] = ['verified', 'unverified', 'missing']

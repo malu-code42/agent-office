@@ -37,6 +37,7 @@ import type { DelegateTarget, Ticket, TicketDraft, TicketPatch, TicketStatus } f
 import type { WritingVersion } from '../writing'
 import type { DecodedStudyBank, StudyQuestion } from '../study-questions'
 import type { StudyCycleState } from '../study-cycle'
+import type { StudyBankJob, StudyBankRequest } from '../study-bank'
 import type { StudyTrail } from '../study-trail'
 import type { ClassScheduleView } from '../class-schedule'
 import type { StudyLibrarySearch, StudySourceInventory } from '../study-library'
@@ -189,6 +190,8 @@ export interface BackupEntry {
 
 export type OfficeEvent =
   | { type: 'agent:upsert'; agent: AgentSummary }
+  /** Andamento da montagem do banco de questões (null: relatório dispensado). */
+  | { type: 'study-bank'; job: StudyBankJob | null }
   | { type: 'agent:removed'; agentId: string }
   | { type: 'agent:log'; agentId: string; entry: LogEntry }
   /** New log entries of the agent's subagents, grouped: one event per agent every ~250 ms at most. */
@@ -287,6 +290,18 @@ export interface OfficeAPI {
   /** Busca no banco primeiro; resultados online/IA são apenas candidatas até seleção explícita. */
   searchStudyQuestions(topic: string, limit?: number): Promise<StudyQuestionCandidates>
   /** Gera candidatas IA somente após a pessoa solicitar, com token de uma busca concluída. */
+  /**
+   * Monta o banco pela trilha, em segundo plano: lê só os livros locais da disciplina e grava, sem revisão
+   * da usuária, o que a cadeia de agentes (autor, citação, semelhança, resolvedor cego, verificador) aprova.
+   * O andamento chega pelo evento 'study-bank'.
+   */
+  startStudyBank(request: StudyBankRequest): Promise<StudyBankJob>
+  /** A montagem em andamento ou a última (relatório ou aviso de interrompida); null se não houver. */
+  studyBankStatus(): Promise<StudyBankJob | null>
+  /** Para depois da chamada em curso; o que terminou fica no banco. */
+  cancelStudyBank(): Promise<void>
+  /** Esquece o relatório ou o aviso da última montagem. */
+  dismissStudyBank(): Promise<void>
   generateStudyQuestions(token: string): Promise<StudyQuestionGeneration>
   /** Salva somente candidatas escolhidas pela pessoa, se o banco não mudou desde a busca. */
   saveStudyQuestions(token: string, selection: StudyQuestion[], reviewConfirmed: boolean): Promise<void>
@@ -342,6 +357,8 @@ export interface OfficeAPI {
   completeStudyRetest(): Promise<StudyCycleState>
   /** Lê as notas de estudo editáveis e seus hashes de versão, sem enviar conteúdo a modelos. */
   readStudyNotes(): Promise<StudyNotesRead>
+  /** Salva uma nota autoral em notas-estudo.md, sem tarefa nem ciclo de estudos. */
+  saveLooseStudyNote(title: string, text: string): Promise<void>
   /** Gera um rascunho somente das notas escolhidas; o main guarda os snapshots sob um token curto. */
   generateStudyCardDraft(noteIds: string[]): Promise<{ token: string; draft: StudyCardDraft } | null>
   /** Salva o rascunho aprovado pela estudante como cartão Markdown no Obsidian. */

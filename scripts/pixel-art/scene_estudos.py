@@ -22,6 +22,8 @@ ELEVATOR = (192, 216)
 # the desks of Cora and Bonnie (x, y, width); the chair is north of the desk
 CORA_DESK = (104, 74, 40)
 BONNIE_DESK = (286, 50, 44)
+# (chair, screen) of each desk, mixed from the floor's palette
+LOOK = {'cora': ('sky', 'mint'), 'bonnie': ('rose', 'blue')}
 # Biblioteca: the nine topic shelves (five on the back wall, three in a row, one on the west wall)
 LIB_SHELVES = [(x, 0, x + 28, 8) for x in (6, 36, 66, 96, 126)] + [(x, 40, x + 28, 48) for x in (8, 38, 68)] + [(2, 58, 10, 86)]
 # Diretoria: the study trail board on the back wall, behind Bonnie (x0, x1, z0, z1)
@@ -274,12 +276,12 @@ def build():
     library_walls(sc)
     library(sc)
     x, y, w = CORA_DESK
-    ws_front_y(sc, x, y, 5, 'green', boss=True, w=w, head='cora')
+    ws_front_y(sc, x, y, 5, LOOK['cora'][1], w=w, head='cora', col=F.CHAIRS[LOOK['cora'][0]], centered=True)
     library_plant(sc)
     diretoria_walls(sc)
     diretoria(sc)
     x, y, w = BONNIE_DESK
-    ws_front_y(sc, x, y, 3, 'green', boss=True, w=w, head='bonnie')
+    ws_front_y(sc, x, y, 3, LOOK['bonnie'][1], w=w, head='bonnie', col=F.CHAIRS[LOOK['bonnie'][0]], centered=True)
     diretoria_front(sc)
     teachers_walls(sc)
     teachers_room(sc)

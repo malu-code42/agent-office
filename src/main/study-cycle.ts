@@ -1,6 +1,7 @@
 import {
   activeStudyCycle,
   advanceStudyCycle,
+  answeredStudyQuestions,
   answerStudyQuestion,
   answerStudyPracticeQuestion,
   answerStudyRetestQuestion,
@@ -9,6 +10,7 @@ import {
   createStudyCycleState,
   assessStudyRetestQuestion,
   completeStudyCycle,
+  isStudyQuestionAnswered,
   recordStudyNote,
   reviewStudyGap,
   resetActiveStudyCycle,
@@ -25,6 +27,8 @@ import { studyQuestionText, type StudyQuestion } from '@shared/study-questions'
 import { tutorEvidence, type StudyTutorEvaluator } from './study-cycle-claude'
 import { hashStudyQuestion } from './study-cycle-schema'
 import { StudyCycleStore } from './study-cycle-store'
+
+const ANSWERED = 'Essa questão já foi respondida em outro momento; escolha questões novas.'
 
 export interface StudyQuestionBank {
   read(): { questions: StudyQuestion[] }
@@ -52,10 +56,12 @@ export class StudyCycleService {
     if (!Array.isArray(questionIds) || questionIds.length < 1 || questionIds.length > 100)
       throw new Error('Selecione de 1 a 100 questões do banco local.')
     const bankQuestions = this.bank.read().questions
+    const answered = answeredStudyQuestions(this.store.read())
     const selected: StudyCycleQuestion[] = questionIds.map((id) => {
       const source = bankQuestions.find((question) => question.id === id)
       if (!source || source.sourceOnly || !source.question.trim())
         throw new Error('Uma questão selecionada não está disponível no banco local.')
+      if (isStudyQuestionAnswered(answered, source)) throw new Error(ANSWERED)
       return {
         id: source.id,
         sourceHash: hashStudyQuestion(source),
@@ -112,10 +118,12 @@ export class StudyCycleService {
     if (!Array.isArray(questionLinks) || questionLinks.length < 1 || questionLinks.length > 100)
       throw new Error('Planeje ao menos uma questão de prática.')
     const bank = this.bank.read().questions
+    const answered = answeredStudyQuestions(this.store.read())
     const questions: StudyPracticeQuestion[] = questionLinks.map(({ id, gapQuestionIds }) => {
       const source = bank.find((question) => question.id === id)
       if (!source || source.sourceOnly || !source.question.trim() || source.answerStatus !== 'verified' || !source.answer)
         throw new Error('A prática aceita somente questões do banco com gabarito conferido.')
+      if (isStudyQuestionAnswered(answered, source)) throw new Error(ANSWERED)
       return {
         id: source.id,
         sourceHash: hashStudyQuestion(source),
@@ -136,10 +144,12 @@ export class StudyCycleService {
     if (!Array.isArray(questionIds) || questionIds.length < 10 || questionIds.length > 100)
       throw new Error('Selecione pelo menos 10 questões novas para o reteste.')
     const bank = this.bank.read().questions
+    const answered = answeredStudyQuestions(this.store.read())
     const questions: StudyCycleQuestion[] = questionIds.map((id) => {
       const source = bank.find((question) => question.id === id)
       if (!source || source.sourceOnly || !source.question.trim() || source.answerStatus !== 'verified' || !source.answer)
         throw new Error('O reteste aceita somente questões do banco com gabarito conferido.')
+      if (isStudyQuestionAnswered(answered, source)) throw new Error(ANSWERED)
       return {
         id: source.id,
         sourceHash: hashStudyQuestion(source),

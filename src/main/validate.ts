@@ -217,6 +217,15 @@ const studyQuestionSchema: z.ZodType<StudyQuestion> = z
   .strict()
 export const studyQuestionSearchArgsSchema = z.tuple([z.string().trim().min(1).max(200), z.number().int().min(1).max(50).optional()])
 export const studyQuestionSaveArgsSchema = z.tuple([z.string().uuid(), z.array(studyQuestionSchema).min(1).max(100), z.boolean()])
+export const studyBankBuildArgsSchema = z.tuple([
+  z
+    .object({
+      discipline: z.string().regex(/^P\d-[A-Z]+$/).optional(),
+      topic: z.string().trim().min(1).max(200).optional(),
+      perTopic: z.number().int().min(1).max(50).optional(),
+    })
+    .strict(),
+])
 export const studyQuestionGenerateArgsSchema = z.tuple([z.string().uuid()])
 const studyBankQuestionIdSchema = z.string().regex(/^q-[a-z0-9-]{8,72}$/i)
 export const startStudyCycleArgsSchema = z.tuple([

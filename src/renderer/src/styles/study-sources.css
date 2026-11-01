@@ -1,26 +1,5 @@
 /* Cora's ranked sources (Pedir fontes, end of the diagnosis) and the study trail board in Bonnie's office. */
 
-.study-library-tabs {
-  display: flex;
-  gap: 4px;
-}
-
-.study-library-tab {
-  padding: 5px 10px;
-  border: 2px solid var(--ctl-line);
-  background: var(--surface-3);
-  color: var(--text);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.study-library-tab[aria-selected='true'] {
-  border-color: var(--accent);
-  background: var(--accent-bg);
-  color: var(--accent-hi);
-}
-
 .study-sources-list {
   margin: 0;
   padding: 0 0 0 20px;
@@ -131,8 +110,23 @@
 
 .trail-lname {
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
+  gap: 8px;
   min-width: 0;
+}
+
+/* One line per discipline: the name gives way (ellipsis), the period stays whole on the right. */
+.trail-lname-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trail-lperiod {
+  flex: none;
+  white-space: nowrap;
 }
 
 .trail-detail {
@@ -165,51 +159,22 @@
   outline-offset: 2px;
 }
 
-/* Cora's library window: wider, with the tabs as a bar, one search row and a scrolling list. */
+/* Cora's library window: wider, one request row and three stacked sections, each list scrolling by itself. */
 .study-library-modal .modal {
   width: min(860px, 94vw);
   max-width: none;
-}
-
-.study-library-tabs {
-  gap: 0;
-  border-bottom: 2px solid var(--ctl-line);
-  margin-bottom: 10px;
-}
-
-.study-library-tab {
-  border: 0;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -2px;
-  background: transparent;
-  padding: 7px 14px;
-}
-
-.study-library-tab:hover {
-  background: var(--surface-3);
-}
-
-.study-library-tab[aria-selected='true'] {
-  border-bottom-color: var(--accent);
-  background: var(--accent-bg);
 }
 
 .study-library-modal .study-cycle-library-search {
   display: flex;
   gap: 8px;
   align-items: stretch;
-  margin: 8px 0 12px;
+  margin: 0;
 }
 
 .study-library-modal .study-cycle-library-search .input {
   flex: 1;
   min-width: 0;
-}
-
-.study-library-modal .study-cycle-content {
-  max-height: min(48vh, 440px);
-  overflow-y: auto;
-  padding-right: 4px;
 }
 
 .study-inv-summary {
@@ -245,6 +210,11 @@
 .study-inv-status-ilegivel {
   color: var(--accent-hi);
   border-color: var(--accent);
+}
+
+.study-inv-subject {
+  margin: 14px 0 6px;
+  font-size: 14px;
 }
 
 .study-inv-list {
@@ -292,4 +262,82 @@
   color: var(--muted);
   font-size: 12.5px;
   white-space: nowrap;
+}
+
+.study-library-modal .study-cycle-library-search .btn {
+  height: 38px;
+}
+
+.study-library-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 2px solid var(--outline);
+}
+
+.study-library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 8px;
+  background: var(--sunken);
+  border: 2px solid var(--outline);
+}
+
+.study-library-list .study-cycle-source-hit {
+  padding: 8px 10px;
+  gap: 4px;
+  box-shadow: none;
+}
+
+.study-library-empty {
+  margin: 0;
+}
+
+/* Trilha de estudos: a wider board, a wider and lower column of disciplines, compact topic cards. */
+.board.tasks-board.study-trail-board {
+  left: max(16px, calc(50% - 520px));
+  width: min(1040px, calc(100vw - 32px));
+}
+
+.study-trail-board .tk-board {
+  grid-template-columns: 380px minmax(0, 1fr);
+}
+
+.study-trail-board .tk-lbtn {
+  min-height: 34px;
+  padding: 0 8px;
+}
+
+.study-trail-board .tk-lbtn.on {
+  border-color: var(--accent);
+}
+
+.study-trail-board .tk-panel-head {
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--outline);
+}
+
+.study-trail-board .tk-cards {
+  gap: 6px;
+}
+
+.study-trail-board .tcard.tk-card {
+  gap: 4px;
+  padding: 7px 10px;
+}
+
+.study-trail-board .tk-title {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+@media (max-width: 760px) {
+  .study-trail-board .tk-board {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
 }

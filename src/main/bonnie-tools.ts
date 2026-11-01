@@ -14,6 +14,7 @@ import {
   studyGaps,
   type StudyCycle,
   type StudyCycleState,
+  unansweredStudyQuestions,
 } from '@shared/study-cycle'
 import type { StudyQuestion } from '@shared/study-questions'
 import { questionsForTopic, type StudySourceRecommendations } from '@shared/study-sources'
@@ -203,10 +204,11 @@ export function bonnieToolDefs(deps: BonnieToolDeps) {
           const plan = studyTopicStart(state, label)
           if (plan.kind === 'open') return `“${label}” já é o ciclo atual.\n\n${cycleStatusText(state, trail)}`
           if (plan.kind === 'resume') return `Ciclo retomado de onde parou.\n\n${cycleStatusText(deps.resume(plan.cycleId), trail)}`
-          const questions = questionsForTopic(deps.bank(), label)
+          // Only questions she has never answered: the bank never repeats a question.
+          const questions = questionsForTopic(unansweredStudyQuestions(deps.bank(), state), label)
           if (!questions.length)
             throw new Error(
-              `O banco local não tem questões sobre “${label}”. Peça à usuária para buscar questões no banco (estante de questões) ou escolher as questões no quadro “Tópico atual”.`,
+              `O banco local não tem questões novas sobre “${label}” (as já respondidas não voltam). Sugira à usuária montar o banco desse tópico na estante de questões (“Montar banco”); as questões entram conferidas pela cadeia de agentes, sem revisão dela.`,
             )
           const next = deps.start(
             label,

@@ -1,220 +1,225 @@
-import { studyQuestionText, type StudyQuestion } from '@shared/study-questions'
+import { STUDY_BANK_DEFAULT_PER_TOPIC, type StudyBankJob, type StudyBankRequest } from '@shared/study-bank'
+import { studyBankStats, type StudyBankStats } from '@shared/study-bank-stats'
+import { answeredStudyQuestions, isStudyQuestionAnswered } from '@shared/study-cycle'
+import { STUDY_QUESTION_LIMITS, type StudyOriginKind, type StudyQuestion } from '@shared/study-questions'
 import { h } from './dom'
 import { cleanError, modal } from './modals/common'
+import { studyMeter, studyQuestionCard } from './study-bank'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
 
-/** Search/review/save surface. Results remain in memory until the explicit save button is activated. */
-export function openStudyQuestions(root: HTMLElement, toast: Toast): void {
-  const topic = h('input', {
-    class: 'input',
-    type: 'search',
-    maxlength: '200',
-    placeholder: 'Ex.: Probabilidade condicional',
-    'aria-label': 'Tópico para buscar questões',
-  })
-  const results = h('div', { class: 'study-question-results', 'aria-live': 'polite' })
-  const search = h('button', { class: 'btn btn-primary', type: 'button' }, 'Buscar questões')
-  const generate = h('button', { class: 'btn', type: 'button', disabled: true }, 'Gerar questões com IA')
-  const save = h('button', { class: 'btn', type: 'button', disabled: true }, 'Salvar seleção no banco')
-  const reviewConsent = h('input', {
-    type: 'checkbox',
-    'aria-label': 'Confirmo que revisei procedência e licença e selecionei apenas conteúdo que posso guardar',
-  })
-  const body = h(
-    'div',
-    {},
-    h(
-      'p',
-      { class: 'field-hint' },
-      'O banco local vem primeiro. WebSearch e IA não verificam procedência, licença ou direitos. Questões ficam como candidatas até revisão e salvamento explícitos.',
+const ORIGIN_LABEL: Record<StudyOriginKind, string> = { enem: 'ENEM', concurso: 'Concurso', livro: 'Livro', web: 'Web', ia: 'IA' }
+
+const chip = (label: string, count: number, kind = ''): HTMLElement =>
+  h('span', { class: `study-bank-chip${kind ? ` study-bank-chip-${kind}` : ''}` }, h('b', {}, count.toLocaleString('pt-BR')), ` ${label}`)
+
+/**
+ * "Banco de questões" (the question shelf): the bank in numbers, every trail topic with its new
+ * questions against the goal, and the questions of a topic as cards. The bank is filled by
+ * "Montar banco" (the agent chain); the user does not review questions one by one.
+ */
+export function openStudyQuestions(root: HTMLElement, toast: Toast, openBuilder: (preset?: StudyBankRequest) => void): void {
+  const content = h('div', { class: 'study-bank-body', role: 'status' }, h('p', { class: 'field-hint' }, 'Lendo o banco…'))
+  const notice = h('div', { class: 'study-bank-notice' })
+  const build = (preset?: StudyBankRequest) => {
+    close()
+    openBuilder(preset)
+  }
+  const close = () => el.remove()
+  const el = modal(
+    'Banco de questões',
+    [
+      h(
+        'div',
+        { class: 'study-questions-body' },
+        notice,
+        h(
+          'section',
+          { class: 'study-bank-stats', 'aria-label': 'Banco em números' },
+          h('h3', { class: 'study-section-title' }, 'Banco em números'),
+          content,
+        ),
+        h(
+          'p',
+          { class: 'field-hint study-note' },
+          'As questões são escritas a partir dos seus livros e conferidas por uma cadeia de agentes antes de entrar; você não precisa revisá-las. As que você já respondeu nunca voltam.',
+        ),
+      ),
+    ],
+    [h('button', { class: 'btn btn-primary', type: 'button', onclick: () => build() }, 'Montar banco…')],
+    close,
+  )
+  el.querySelector('.modal')?.classList.add('study-popup', 'study-questions-modal')
+  el.querySelector('.modal-foot')?.classList.add('study-modal-foot')
+  root.append(el)
+  el.querySelector<HTMLElement>('.modal-foot .btn')?.focus()
+
+  void window.office
+    .studyBankStatus()
+    .then((job) => notice.replaceChildren(...jobNotice(job, () => build())))
+    .catch(() => {})
+  void Promise.all([
+    window.office.readStudyQuestions(),
+    window.office.readStudyTrail().then(
+      (t) => t.topics,
+      () => [],
     ),
-    h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Tópico'), topic),
-    results,
-    // The consent goes with what it is about (the candidates), inside the body: in the footer it
-    // was squeezed out of the modal, over the scene.
+    window.office.readStudyCycle().catch(() => ({ activeId: null, cycles: [] })),
+  ])
+    .then(([bank, topics, cycles]) => {
+      const answered = answeredStudyQuestions(cycles)
+      const isAnswered = (q: StudyQuestion) => isStudyQuestionAnswered(answered, q)
+      const stats = studyBankStats(bank.questions, topics, { goal: STUDY_BANK_DEFAULT_PER_TOPIC, isAnswered })
+      const byId = new Map(bank.questions.map((q) => [q.id, q]))
+      content.replaceChildren(...bankView(stats, byId, isAnswered, build))
+    })
+    .catch((error: unknown) =>
+      content.replaceChildren(h('p', { class: 'field-hint', role: 'alert' }, `Não foi possível ler o banco: ${cleanError(error)}`)),
+    )
+}
+
+/** A run going on, or the last one stopped: a line that leads to it. */
+function jobNotice(job: StudyBankJob | null, open: () => void): HTMLElement[] {
+  if (!job) return []
+  const text =
+    job.status === 'running'
+      ? `Montando o banco: ${job.current?.topic ?? 'preparando'} · ${job.done} de ${job.total} tópicos · ${job.added} novas.`
+      : job.status === 'done'
+        ? `Última montagem: ${job.added} questões novas em ${job.total} tópicos.`
+        : `A última montagem parou no tópico ${Math.min(job.done + 1, job.total)} de ${job.total}.`
+  return [
     h(
-      'label',
-      { class: 'study-questions-consent' },
-      reviewConsent,
+      'div',
+      { class: `bk-line${job.status === 'stopped' ? ' warn' : ''}` },
+      h('span', {}, text),
+      h('button', { class: 'btn btn-small', type: 'button', onclick: open }, job.status === 'running' ? 'Ver andamento' : 'Ver relatório'),
+    ),
+  ]
+}
+
+function bankView(
+  stats: StudyBankStats,
+  byId: Map<string, StudyQuestion>,
+  isAnswered: (q: StudyQuestion) => boolean,
+  build: (preset?: StudyBankRequest) => void,
+): HTMLElement[] {
+  if (!stats.total)
+    return [
+      h(
+        'div',
+        { class: 'st' },
+        h('div', { class: 'st-icon', 'aria-hidden': 'true' }, '?'),
+        h(
+          'div',
+          { class: 'st-body' },
+          h('b', {}, 'O banco está vazio'),
+          h('p', {}, 'Monte o banco pela trilha: o app escreve questões a partir dos seus livros e confere cada uma antes de guardar.'),
+          h(
+            'div',
+            { class: 'st-actions' },
+            h('button', { class: 'btn btn-primary', type: 'button', onclick: () => build() }, 'Montar banco…'),
+          ),
+        ),
+      ),
+    ]
+  return [
+    h(
+      'div',
+      { class: 'study-bank-total' },
+      h('b', {}, stats.total.toLocaleString('pt-BR')),
       h(
         'span',
         {},
-        'Revisei procedência/licença e selecionei apenas conteúdo que posso guardar. Para licença incerta, escolha somente metadados/URL, sem enunciado.',
+        `${stats.total === 1 ? 'questão' : 'questões'} no banco · cabem ${STUDY_QUESTION_LIMITS.count.toLocaleString('pt-BR')}`,
       ),
     ),
-  )
-  let token = ''
-  let candidates: StudyQuestion[] = []
-  let done = false
-  const close = () => {
-    if (!done) {
-      done = true
-      el.remove()
-    }
-  }
-  const el = modal(
-    'Buscar questões',
-    [body],
-    [h('button', { class: 'btn', type: 'button', onclick: close }, 'Fechar'), h('div', { class: 'grow' }), search, generate, save],
-    close,
-  )
-  const renderCandidates = (groups: { label: string; rows: StudyQuestion[]; selectable: boolean }[]) => {
-    const checkboxes: HTMLInputElement[] = []
-    const sections = groups
-      .filter((group) => group.rows.length)
-      .map(({ label, rows, selectable }) =>
+    h(
+      'div',
+      { class: 'study-bank-row', role: 'group', 'aria-label': 'Quem conferiu' },
+      h('span', { class: 'study-bank-cap' }, 'Selo'),
+      chip('verificadas por agentes', stats.byReview.agents, 'agents'),
+      stats.byReview.none ? chip('sem conferência', stats.byReview.none, 'missing') : null,
+    ),
+    h(
+      'div',
+      { class: 'study-bank-row', role: 'group', 'aria-label': 'Por origem' },
+      h('span', { class: 'study-bank-cap' }, 'Origem'),
+      ...(Object.keys(ORIGIN_LABEL) as StudyOriginKind[])
+        .filter((k) => stats.byOrigin[k])
+        .map((k) => chip(ORIGIN_LABEL[k], stats.byOrigin[k])),
+    ),
+    h(
+      'div',
+      { class: 'study-bank-row', role: 'group', 'aria-label': 'Respondidas' },
+      h('span', { class: 'study-bank-cap' }, 'Uso'),
+      chip('novas para você', stats.total - stats.answered),
+      chip('já respondidas (não voltam)', stats.answered, 'missing'),
+    ),
+    h(
+      'div',
+      { class: 'bn-goal' },
+      `Meta de ${stats.goal} questões novas por tópico: `,
+      h('b', {}, String(stats.below)),
+      ` ${stats.below === 1 ? 'tópico abaixo' : 'tópicos abaixo'} da meta`,
+      stats.below ? h('button', { class: 'btn btn-small', type: 'button', onclick: () => build() }, 'Completar…') : null,
+    ),
+    h(
+      'div',
+      { class: 'study-bank-disciplines' },
+      h('span', { class: 'study-bank-cap' }, 'Por disciplina'),
+      ...stats.disciplines.map((d) =>
         h(
-          'section',
-          {},
-          h('h3', {}, label),
-          ...rows.map((question) => {
-            const check = selectable ? h('input', { type: 'checkbox', 'aria-label': `Selecionar questão ${question.id}` }) : null
-            if (check) {
-              checkboxes.push(check)
-              check.onchange = () => {
-                save.disabled = !reviewConsent.checked || !checkboxes.some((item) => item.checked)
-              }
-            }
-            return h(
-              'article',
-              { class: 'study-question-candidate' },
-              h(
-                'label',
-                {},
-                ...(check ? [check] : []),
-                h('strong', {}, `${question.topic} · ${question.originKind.toUpperCase()} · ${question.answerStatus}`),
-              ),
-              h('p', { style: 'white-space: pre-wrap' }, question.sourceOnly ? 'Somente metadados e URL; não há trecho de questão salvo.' : studyQuestionText(question)),
-              h(
-                'p',
-                { class: 'field-hint' },
-                `Fonte: ${question.sourceTitle} · acesso ${question.sourceVisibility} · ${question.sourceUrl ?? question.sourceReference ?? 'sem link'} · ${question.attribution} · Licença informada (não verificada): ${question.license} · ${question.verifiedByUser ? `revisada por você em ${question.verifiedAt}` : 'procedência/licença não revisadas'}`,
-              ),
-              ...(!question.sourceOnly && question.answer
-                ? [
-                    h(
-                      'details',
-                      {},
-                      h('summary', {}, 'Ver gabarito'),
-                      h('p', {}, question.answer),
-                      ...(question.rationale ? [h('p', {}, question.rationale)] : []),
-                    ),
-                  ]
-                : []),
-            )
-          }),
+          'details',
+          { class: 'study-bank-discipline' },
+          h(
+            'summary',
+            {},
+            h(
+              'span',
+              { class: 'study-bank-dname' },
+              d.discipline,
+              d.below ? h('span', { class: 'bk-reason passage' }, `${d.below} abaixo`) : null,
+            ),
+            h('b', { title: `${d.fresh} novas de ${d.count}` }, `${d.fresh}/${d.count}`),
+          ),
+          ...d.topics.map((t) => topicRow(t, stats.goal, byId, isAnswered, d.discipline)),
         ),
-      )
-    results.replaceChildren(...(sections.length ? sections : [h('p', {}, 'Nenhuma questão encontrada para esse tópico.')]))
-    save.disabled = checkboxes.length === 0 || !reviewConsent.checked
-    reviewConsent.onchange = () => {
-      save.disabled = !reviewConsent.checked || !checkboxes.some((item) => item.checked)
-    }
-    save.onclick = async () => {
-      const selected = checkboxes.flatMap((check, index) => (check.checked ? [candidates[index]!] : []))
-      if (!selected.length || !token) return
-      save.disabled = true
-      try {
-        await window.office.saveStudyQuestions(token, selected, reviewConsent.checked)
-        done = true
-        el.remove()
-        toast(`${selected.length} questão(ões) salvas no banco.`, 'ok')
-      } catch (error) {
-        toast(cleanError(error), 'err')
-        save.disabled = false
-      }
-    }
-  }
-  search.onclick = async () => {
-    const query = topic.value.trim()
-    if (!query) {
-      topic.focus()
-      return
-    }
-    search.disabled = true
-    generate.disabled = true
-    save.disabled = true
-    reviewConsent.checked = false
-    token = ''
-    candidates = []
-    results.replaceChildren(h('p', { role: 'status' }, 'Buscando questões…'))
-    try {
-      const response = await window.office.searchStudyQuestions(query)
-      token = response.token
-      candidates = [...response.sourceCandidates, ...response.web]
-      generate.disabled = !response.localScanComplete || !response.canGenerate
-      search.textContent = response.status === 'error' ? 'Tentar novamente' : 'Buscar questões'
-      const statusMessage = h(
-        'p',
-        { class: 'field-hint', role: response.status === 'error' ? 'alert' : 'status' },
-        {
-          found: 'Busca concluída; confira as fontes antes de salvar.',
-          insufficient: 'A busca terminou, mas ainda há poucos resultados.',
-          noResults: 'A busca terminou sem resultados.',
-          error: 'A busca falhou. Tente novamente; não foram geradas questões.',
-          incomplete: 'Busca local incompleta. Refine o tópico ou escolha uma fonte antes de continuar.',
-        }[response.status],
-      )
-      renderCandidates([
-        { label: 'Banco local — priorizado por origem (já salvo)', rows: response.local, selectable: false },
-        {
-          label: 'Trechos locais encontrados — revisar fonte/licença',
-          rows: response.sourceCandidates,
-          selectable: response.localScanComplete,
-        },
-        {
-          label: 'Candidatas da web — URL/licença não verificadas; confirme na fonte',
-          rows: response.web,
-          selectable: response.localScanComplete,
-        },
-      ])
-      results.prepend(statusMessage)
-      if (response.warning) results.insertBefore(h('p', { class: 'field-hint' }, response.warning), statusMessage.nextSibling)
-    } catch (error) {
-      search.textContent = 'Tentar novamente'
-      results.replaceChildren(h('p', { role: 'alert' }, cleanError(error)))
-    } finally {
-      search.disabled = false
-    }
-  }
-  generate.onclick = async () => {
-    if (!token || generate.disabled) return
-    generate.disabled = true
-    save.disabled = true
-    reviewConsent.checked = false
-    results.replaceChildren(h('p', { role: 'status' }, 'Gerando candidatas marcadas como IA…'))
-    try {
-      const response = await window.office.generateStudyQuestions(token)
-      candidates = [...candidates, ...response.generated]
-      generate.disabled = !response.canGenerate
-      generate.textContent = response.status === 'error' ? 'Tentar geração novamente' : 'Gerar questões com IA'
-      const generationStatus = h(
-        'p',
-        { role: response.status === 'error' ? 'alert' : 'status' },
-        response.warning ?? 'Questões de IA geradas; gabaritos não verificados.',
-      )
-      renderCandidates([
-        {
-          label: 'Trechos locais encontrados — revisar fonte/licença',
-          rows: candidates.filter((row) => row.originKind === 'enem' || row.originKind === 'concurso' || row.originKind === 'livro'),
-          selectable: true,
-        },
-        {
-          label: 'Candidatas da web — URL/licença não verificadas; confirme na fonte',
-          rows: candidates.filter((row) => row.originKind === 'web'),
-          selectable: true,
-        },
-        { label: 'Candidatas geradas por IA — gabaritos não verificados', rows: response.generated, selectable: true },
-      ])
-      results.prepend(generationStatus)
-    } catch (error) {
-      generate.disabled = false
-      generate.textContent = 'Tentar geração novamente'
-      results.replaceChildren(h('p', { role: 'alert' }, cleanError(error)))
-    }
-  }
-  el.querySelector('.modal-foot')?.classList.add('study-modal-foot')
-  root.append(el)
-  topic.focus()
+      ),
+    ),
+  ]
+}
+
+/** A trail topic: new questions against the goal; opening it shows its questions. */
+function topicRow(
+  t: StudyBankStats['disciplines'][number]['topics'][number],
+  goal: number,
+  byId: Map<string, StudyQuestion>,
+  isAnswered: (q: StudyQuestion) => boolean,
+  discipline: string,
+): HTMLElement {
+  const cards = h('div', { class: 'bn-cards' })
+  return h(
+    'details',
+    {
+      class: `bn-topic${t.below ? ' short' : ''}`,
+      ontoggle: (event: Event) => {
+        const open = (event.currentTarget as HTMLDetailsElement).open
+        if (!open || cards.childElementCount) return
+        const questions = t.ids.map((id) => byId.get(id)).filter((q): q is StudyQuestion => !!q)
+        cards.replaceChildren(
+          ...(questions.length
+            ? questions.map((q) => studyQuestionCard(q, isAnswered(q), discipline))
+            : [h('p', { class: 'field-hint' }, 'Nenhuma questão ainda. Use “Montar banco” para este tópico.')]),
+        )
+      },
+    },
+    h(
+      'summary',
+      { class: `bn-topic-row${t.below ? ' short' : ''}` },
+      h('span', {}, t.topic),
+      t.id !== undefined ? studyMeter(Math.min(t.fresh, goal), goal) : h('span', {}),
+      h('b', { title: `${t.fresh} novas de ${t.count}` }, String(t.fresh)),
+    ),
+    cards,
+  )
 }

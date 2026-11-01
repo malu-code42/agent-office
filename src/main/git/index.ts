@@ -23,8 +23,11 @@ export {
 export { folderSize, isForgotten, isSafeToRemove, listRepoWorktrees, removeLooseFolder, type FoundWorktree } from './inventory'
 export { changesSince, discardChanges, fileDiff, takeSnapshot, type Snapshot } from './changes'
 export {
+  commitAll,
   commitChanges,
+  dirtyFiles,
   findOnPath,
+  listFiles,
   openInEditor,
   openPullRequest,
   pullRequestForBranch,

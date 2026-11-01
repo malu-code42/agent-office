@@ -5,7 +5,7 @@ import { homeSpot } from '../src/renderer/src/game/home-seats'
 import { casaPlan, zoneAt, type CasaAct, type CasaLayout } from '../src/renderer/src/world2d/casa'
 import { depthSort } from '../src/renderer/src/world2d/depth'
 import { actAt } from '../src/renderer/src/world2d/hit'
-import { artToScreen, headingOf } from '../src/renderer/src/world2d/iso'
+import { artToScreen } from '../src/renderer/src/world2d/iso'
 import { grid2d } from '../src/renderer/src/world2d/layout'
 import { recolour, recolourMap, type Palette } from '../src/renderer/src/world2d/skins'
 import { LUNA_VARIANT } from '../src/renderer/src/world2d/sprites'
@@ -76,16 +76,12 @@ describe('layout 2D da Casa', () => {
     for (const s of CASA.static) expect(ATLAS.frames[s.f], s.f).toBeDefined()
   })
 
-  it('a mesa da Luna tem seis cadeiras, a da Luna primeiro, todas viradas para a mesa', () => {
-    const { seats, center } = CASA.table
-    expect(seats).toHaveLength(6)
-    expect(seats[0].dir).toBe('FL')
-    for (const s of seats) {
-      const face = headingOf(s.dir)
-      const toTable = Math.atan2(center[0] - s.at[0], center[1] - s.at[1])
-      // looks at the table within 90 degrees
-      expect(Math.cos(face - toTable), s.seat.f).toBeGreaterThan(0)
-    }
+  it('as quatro mesas de trabalho têm uma cadeira cada, a da Luna primeiro, todas viradas para a mesa', () => {
+    const { seats } = CASA.table
+    expect(seats).toHaveLength(4)
+    expect(new Set(seats.map((s) => s.at.join())).size).toBe(4)
+    // every sitter faces its desk, which is west of the chair
+    for (const s of seats) expect(s.dir, s.seat.f).toBe('BL')
   })
 
   it('dá para chegar do elevador a toda cadeira, à sua mesa, aos cantos de lazer e às portas', () => {
@@ -141,15 +137,15 @@ describe('plano da Casa 2D', () => {
 
   it('os residentes sentam nas cadeiras livres na ordem da arte, nunca na da Luna', () => {
     const spots = plan.chairs.map((_, n) => homeSpot(grid, n, plan)!)
-    expect(spots).toHaveLength(5)
+    expect(spots).toHaveLength(3)
     expect(spots.every((s) => s.sit)).toBe(true)
     expect(spots.some((s) => s.point.x === plan.luna.x && s.point.z === plan.luna.z)).toBe(false)
-    expect(new Set(spots.map((s) => `${s.point.x},${s.point.z}`)).size).toBe(5)
-    // the approved art fills the two chairs beside Luna's, then the near one
-    expect(spots.slice(0, 3).map((s) => s.tile)).toEqual([
-      [4, 7],
-      [2, 9],
-      [3, 10],
+    expect(new Set(spots.map((s) => `${s.point.x},${s.point.z}`)).size).toBe(3)
+    // the residents fill the desks in order after Luna's
+    expect(spots.map((s) => s.tile)).toEqual([
+      [6, 6],
+      [3, 8],
+      [6, 8],
     ])
     // the same seat number always gives the same chair
     expect(homeSpot(grid, 2, plan)).toEqual(spots[2])
@@ -202,7 +198,7 @@ describe('clique na Casa 2D', () => {
   it('o chão vazio e os móveis sem ação não abrem nada', () => {
     const floor = artToScreen(CASA.origin, 340, 200)
     expect(actAt(items, CASA.hot, floor, solid)).toBeNull()
-    const sofa = CASA.static.find((s) => s.fp[0] === 62 && s.fp[1] === 28)!
+    const sofa = CASA.static.find((s) => s.fp[0] === 290 && s.fp[1] === 10)!
     expect(actAt(items, CASA.hot, { x: sofa.x + 10, y: sofa.y + 10 }, solid)).toBeNull()
   })
 

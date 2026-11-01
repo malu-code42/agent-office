@@ -7,6 +7,15 @@ WOOD = T('e8c592', 'd2a46e', 'b38253')
 WOODD = T('c0915e', 'a37548', '855b37')
 CRT = T('efe7d2', 'dbcfb2', 'bfb193')
 CHAIR = T('5a5a66', '42424d', '31313a')
+# the graphite work desk and the chair colours of the floors' palettes
+DESK_TOP = T('4a4d5c', '363846', '262833')
+DESK_LEG = T('2b2d38', '20222b', '181a21')
+CHAIRS = {'green': T('3f9a7a', '2f7d62', '22604b'), 'blue': T('5f86b8', '4a6c9a', '385479'),
+          'terra': T('d98a6a', 'b86e52', '94553f'), 'rose': T('d39486', 'b87a6d', '95604f'),
+          'mustard': T('e0b85a', 'c49c44', 'a07e30'), 'lilac': T('9a86c4', '7e6aa8', '63528a'),
+          'sage': T('8fb084', '719568', '587853'), 'slate': T('6f8bb0', '586f94', '445777'),
+          'sand': T('c9b79a', 'ae9c80', '8c7d65'), 'steel': T('7d8896', '646f7c', '4e5863'),
+          'mint': T('7fc4ae', '62a690', '4a8571'), 'sky': T('7fb3d8', '6396bc', '4a7a9e')}
 METAL = T('dfe2e4', 'c2c7cc', 'a2a9b0')
 POT = T('e7a174', 'cc7c53', 'ad6240')
 LEAF = [H('4f8a4c'), H('69a65c'), H('8cc477'), H('b3df92')]
@@ -32,42 +41,68 @@ def desk(L, x, y, w=30, d=14, h=12, col=WOOD, leg=WOODD):
     L.pbox(x, y, h - 2, w, d, 2, col)
 
 
-def crt(L, x, y, z, face='+y', screen='green'):
-    """CRT ~14 wide. (x,y) = footprint corner (14x10)."""
-    sc = {'green': GREEN, 'amber': AMBER, 'red': H('d0504a'), 'off': None}[screen]
-    if face in ('+y', '-y'):
-        front, rear = (y + 5, y) if face == '+y' else (y, y + 5)
-        parts = [(x + 3, rear, z + 1, 8, 5, 8), (x, front, z, 14, 5, 12)]
-        if face == '-y':
-            parts.reverse()
-        for p in parts:
-            L.pbox(*p, CRT)
+PANEL = T('4a4f5c', '363a46', '262932')
+BEZEL = H('5b6173')
+# per state: screen background, the code lines on it (bright first) and the power LED on the back
+_SCREEN = {'green': (H('4cb892'), [H('e4fbe0'), H('1d5a4a'), H('b9efc4')], H('7be07f')),
+           'amber': (H('d9a441'), [H('fff0c4'), H('6b4a14'), H('ffe08a')], H('f4bb55')),
+           'red': (H('d0605a'), [H('ffd8d4'), H('6e1f24'), H('f6a8a2')], H('ff5a4a')),
+           'blue': (H('6f95c2'), [H('e4eefb'), H('24456b'), H('b9d3f0')], H('8fb3dc')),
+           'rose': (H('d98a8a'), [H('ffe4e0'), H('7a3438'), H('f6bcb6')], H('f2a0a0')),
+           'lilac': (H('a58fd0'), [H('efe8fb'), H('46346e'), H('cfc2ec')], H('b9a6e0')),
+           'mint': (H('7fd0a0'), [H('eafbef'), H('2a6a48'), H('c4efd2')], H('9fe0b8')),
+           'off': (H('1c1f26'), None, H('6b6f73'))}
+# lateral start, width, bottom z (above the desk) and height of each panel, per variant: two monitors,
+# an ultrawide, a main monitor with a vertical one (the setups of the original office)
+_PANELS = [[(0, 6, 3, 12), (7, 6, 3, 12)],
+           [(0, 13, 4, 10)],
+           [(0, 9, 3, 11), (10, 4, 3, 15)]]
+# the code on a screen: indent and length of each line (cut to the panel's width)
+_CODE = [(0, 5), (1, 4), (2, 5), (1, 3), (0, 4), (2, 3)]
+
+
+def crt(L, x, y, z, face='+y', screen='green', variant=None):
+    """modern workstation, a row of flat monitors ~14 wide on a thin stand. (x,y) = footprint corner
+    (14x10, or 10x14 for +x/-x). The back of the monitors (face -y/-x) shows the power LED of the state."""
+    bg, lines, led = _SCREEN[screen]
+    if variant is None:
+        variant = (x * 7 + y * 13) % len(_PANELS)
+    along_x = face in ('+y', '-y')
+
+    def box(u, v, zz, wu, wv, hz, col):
+        # u runs along the desk, v toward the side the screens look at (0..10)
         if face == '+y':
-            yf = y + 10
-            L.begin(); L.qy(yf, x + 2, x + 12, z + 2, z + 10, SCREEN); L.end(False)
-            if sc:
-                lines = [(x + 3, x + 9, z + 8), (x + 3, x + 11, z + 6), (x + 3, x + 7, z + 4)]
-                if screen in ('amber', 'red'):
-                    lines = [(x + 4, x + 10, z + 7), (x + 4, x + 6, z + 4), (x + 7, x + 9, z + 4)]
-                for a, b, zz in lines:
-                    L.qy(yf, a, b, zz, zz + 1, sc)
-            L.begin(); L.box(x + 11, yf - 1, z + 1, 1, 1, 1, (H('7be07f'),) * 3); L.end(False)
-    else:
-        front, rear = (x + 5, x) if face == '+x' else (x, x + 5)
-        parts = [(rear, y + 3, z + 1, 5, 8, 8), (front, y, z, 5, 14, 12)]
-        if face == '-x':
-            parts.reverse()
-        for p in parts:
-            L.pbox(*p, CRT)
-        if face == '+x':
-            xf = x + 10
-            L.begin(); L.qx(xf, y + 2, y + 12, z + 2, z + 10, SCREEN); L.end(False)
-            if sc:
-                lines = [(y + 3, y + 9, z + 8), (y + 3, y + 11, z + 6), (y + 3, y + 7, z + 4)]
-                if screen in ('amber', 'red'):
-                    lines = [(y + 4, y + 10, z + 7), (y + 4, y + 6, z + 4), (y + 7, y + 9, z + 4)]
-                for a, b, zz in lines:
-                    L.qx(xf, a, b, zz, zz + 1, sc)
+            L.pbox(x + u, y + v, z + zz, wu, wv, hz, col)
+        elif face == '-y':
+            L.pbox(x + u, y + 10 - v - wv, z + zz, wu, wv, hz, col)
+        elif face == '+x':
+            L.pbox(x + v, y + u, z + zz, wv, wu, hz, col)
+        else:
+            L.pbox(x + 10 - v - wv, y + u, z + zz, wv, wu, hz, col)
+
+    def plane(a, b, za, zb, col):
+        # a quad on the screen plane (v = 10) between lateral a..b; only the +y / +x sides are seen
+        if face == '+y':
+            L.qy(y + 10, x + a, x + b, z + za, z + zb, col)
+        else:
+            L.qx(x + 10, y + a, y + b, z + za, z + zb, col)
+
+    box(2, 5, 0, 10, 5, 1, PANEL)  # foot
+    for u0, w, zb, h in _PANELS[variant]:
+        box(u0 + w // 2 - 1, 8, 1, 2, 2, zb, PANEL)  # neck
+        box(u0, 8, zb, w, 2, h, PANEL)
+        if face in ('+y', '+x'):
+            L.begin(); plane(u0, u0 + w, zb, zb + h, BEZEL); L.end(False)
+            L.begin(); plane(u0 + 1, u0 + w - 1, zb + 1, zb + h - 1, bg); L.end(False)
+            if lines:
+                for i, zz in enumerate(range(zb + h - 3, zb + 1, -2)):
+                    ind, ln = _CODE[(i + u0) % len(_CODE)]
+                    a0, a1 = u0 + 1 + min(ind, w - 4), u0 + 1 + min(ind + ln, w - 3)
+                    plane(a0 + 1, a1 + 1, zz, zz + 1, lines[(i + u0) % len(lines)])
+    if face == '-y':
+        L.dot(*[int(v) for v in L.P(x + 7, y + 2, z + 4)], led)
+    elif face == '-x':
+        L.dot(*[int(v) for v in L.P(x + 2, y + 7, z + 4)], led)
 
 
 def keyboard(L, x, y, z, along='x'):
@@ -84,17 +119,17 @@ def papers(L, x, y, z):
     L.pbox(x, y, z, 5, 4, 1, T('fbf8f0', 'e2ddd0', 'cfc8b8'))
 
 
-def chair(L, x, y, face='-y', part='all'):
+def chair(L, x, y, face='-y', part='all', col=CHAIR):
     """office swivel chair, seat 10x10 at (x,y). face = direction occupant looks."""
     if part in ('all', 'seat'):
-        L.pbox(x + 2, y + 4, 0, 6, 2, 1, CHAIR)
-        L.pbox(x + 4, y + 2, 0, 2, 6, 1, CHAIR)
+        L.pbox(x + 2, y + 4, 0, 6, 2, 1, col)
+        L.pbox(x + 4, y + 2, 0, 2, 6, 1, col)
         L.pbox(x + 4, y + 4, 1, 2, 2, 4, CHAIR, outline=False)
-        L.pbox(x, y, 5, 10, 10, 2, CHAIR)
+        L.pbox(x, y, 5, 10, 10, 2, col)
     back = {'-y': (x, y + 9, 7, 10, 2, 9), '+y': (x, y - 1, 7, 10, 2, 9),
             '-x': (x + 9, y, 7, 2, 10, 9), '+x': (x - 1, y, 7, 2, 10, 9)}[face]
     if part == 'all' or part == 'back':
-        L.pbox(*back, CHAIR)
+        L.pbox(*back, col)
 
 
 def seated(L, spr, x, y):

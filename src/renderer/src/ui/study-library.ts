@@ -103,8 +103,30 @@ function inventoryView(inv: StudySourceInventory, verify: () => void, busy: bool
       ),
     ),
     ...(inv.complete ? [] : [h('p', { class: 'field-hint' }, 'Algumas pastas ou atalhos não foram percorridos.')]),
-    sorted.length ? h('ul', { class: 'study-inv-list' }, ...sorted.map(inventoryRow)) : h('p', { class: 'field-hint' }, 'Nenhum arquivo na pasta.'),
+    ...(sorted.length ? inventoryGroups(sorted) : [h('p', { class: 'field-hint' }, 'Nenhum arquivo na pasta.')]),
   ]
+}
+
+const NO_SUBJECT = 'Sem disciplina'
+
+/** The subject is the folder under "course materials" / "textbooks" (study sources/<kind>/<subject>/…). */
+const subjectOf = (path: string): string => {
+  const parts = path.split(/[\\/]/)
+  return parts.length > 3 ? parts[2] : NO_SUBJECT
+}
+
+/** Sources split by subject, subjects A–Z with the unfiled ones last; the order inside each is kept. */
+function inventoryGroups(sources: StudySourceInfo[]): HTMLElement[] {
+  const groups = new Map<string, StudySourceInfo[]>()
+  for (const s of sources) {
+    const key = subjectOf(s.path)
+    groups.set(key, [...(groups.get(key) ?? []), s])
+  }
+  const names = [...groups.keys()].sort((a, b) => (a === NO_SUBJECT ? 1 : b === NO_SUBJECT ? -1 : a.localeCompare(b, 'pt-BR')))
+  return names.flatMap((name) => [
+    h('h3', { class: 'study-inv-subject' }, name, h('span', { class: 'field-hint' }, ` ${groups.get(name)!.length}`)),
+    h('ul', { class: 'study-inv-list' }, ...groups.get(name)!.map(inventoryRow)),
+  ])
 }
 
 /** Cora's ranked list for one request, best to worst, or why there is none. */
@@ -123,84 +145,72 @@ export function studySourceList(result: StudySourceRecommendations, toast: Toast
   )
 }
 
+/** One stacked part of the library: a title, what it is for and its own scrolling list. */
+function librarySection(title: string, note: string, list: HTMLElement): HTMLElement {
+  return h(
+    'section',
+    { class: 'study-library-section', 'aria-label': title },
+    h('h3', { class: 'study-section-title' }, title),
+    h('p', { class: 'field-hint study-note' }, note),
+    list,
+  )
+}
+
 /**
- * Cora's library, opened from her desk or the shelves of the study floor. Two modes, both local
- * (nothing goes to Claude): "Pedir fontes" ranks the sources for a study request, best to worst,
- * with the start and end page of each; "Pesquisar trechos" finds passages. Linking a passage to a
- * gap stays in the study cycle, where the gap is.
+ * Cora's library, opened from her desk or the shelves of the study floor. One request, all local
+ * (nothing goes to Claude), fills two lists at once: "Pedir fontes" ranks the sources best to
+ * worst, with the start and end page of each; "Pesquisar trechos" finds passages. Below them,
+ * "Fontes disponíveis" is the inventory of the folder. Linking a passage to a gap stays in the
+ * study cycle, where the gap is.
  */
-export function openStudyLibrary(root: HTMLElement, toast: Toast, topic = '', mode: 'sources' | 'search' | 'inventory' = 'sources'): void {
+export function openStudyLibrary(root: HTMLElement, toast: Toast, topic = ''): void {
   let inventory: StudySourceInventory | null = null
   let result: StudyLibrarySearch | null = null
   let sources: StudySourceRecommendations | null = null
-  let busy = false
+  let asking = false
+  let checking = false
   const query = h('input', {
     class: 'input',
     maxlength: '200',
     value: topic.replace(/^\s*\[[^\]]+\]\s*/, ''),
+    placeholder: 'Ex.: fila, estrutura de dados, introdução para iniciante',
     'aria-label': 'Pedido para a Cora',
   }) as HTMLInputElement
-  const button = h('button', { class: 'btn btn-small btn-primary', type: 'submit' }) as HTMLButtonElement
-  const list = h('div', { class: 'study-cycle-content', role: 'status' })
-  const hint = h('p', { class: 'field-hint' })
-  const tabs = (['sources', 'search', 'inventory'] as const).map(
-    (m) =>
-      h(
-        'button',
-        {
-          class: 'study-library-tab',
-          type: 'button',
-          role: 'tab',
-          onclick: () => {
-            mode = m
-            render()
-            query.focus()
-          },
-        },
-        m === 'sources' ? 'Pedir fontes' : m === 'search' ? 'Pesquisar trechos' : 'Fontes disponíveis',
-      ) as HTMLButtonElement,
-  )
+  const button = h('button', { class: 'btn btn-primary', type: 'submit' }) as HTMLButtonElement
+  const sourcesList = h('div', { class: 'study-library-list', role: 'status' })
+  const hitsList = h('div', { class: 'study-library-list', role: 'status' })
+  const inventoryList = h('div', { class: 'study-library-list study-library-inventory', role: 'status' })
+
+  const empty = (text: string) => h('p', { class: 'field-hint study-library-empty' }, text)
 
   const render = () => {
-    tabs.forEach((tab, i) => tab.setAttribute('aria-selected', String(i === ['sources', 'search', 'inventory'].indexOf(mode))))
-    form.hidden = mode === 'inventory'
-    if (mode === 'inventory') {
-      hint.textContent =
-        'Tudo o que há em “study sources” e o que a Cora consegue fazer com cada arquivo. “Verificar e integrar” termina de ler os PDFs novos e manda os escaneados para o OCR, que roda em segundo plano; depois volte aqui para ver o resultado.'
-      list.replaceChildren(...(inventory ? inventoryView(inventory, () => void check(true), busy) : [h('p', { class: 'field-hint' }, 'Lendo a pasta…')]))
-      if (!inventory && !busy) void check(false)
-      return
-    }
-    query.placeholder = mode === 'sources' ? 'Ex.: fila, estrutura de dados, introdução para iniciante' : 'Ex.: fila, estrutura de dados'
-    hint.textContent =
-      mode === 'sources'
-        ? 'Diga o tema e o que você precisa. Cora ordena as fontes locais da mais para a menos relevante, com a página (slide ou seção) de início e de fim. Lê .md, .txt, .pptx e .pdf de “study sources”; nada vai ao Claude.'
-        : 'Busca trechos nos arquivos locais em “study sources” (.md, .txt, .pptx e .pdf; outros formatos pelo nome). Separe termos com vírgula. O conteúdo não é enviado ao Claude.'
-    button.disabled = busy
-    button.textContent = busy ? 'Procurando…' : mode === 'sources' ? 'Pedir fontes à Cora' : 'Pesquisar com Cora'
-    if (mode === 'sources') {
-      list.replaceChildren(...(sources ? [studySourceList(sources, toast)] : []))
-      return
-    }
-    if (!result) return list.replaceChildren()
-    const hits = result.hits.map((hit) =>
-      h(
-        'article',
-        { class: 'study-cycle-source-hit' },
-        h('b', {}, hit.title),
-        h('p', {}, hit.excerpt),
-        h('span', { class: 'field-hint' }, hit.line ? `${hit.sourceRef} · linha ${hit.line}` : hit.sourceRef),
-      ),
+    button.disabled = asking
+    button.textContent = asking ? 'Procurando…' : 'Pedir à Cora'
+    sourcesList.replaceChildren(
+      sources ? studySourceList(sources, toast) : empty(asking ? 'Procurando fontes…' : 'Faça um pedido para ver as fontes em ordem.'),
     )
-    list.replaceChildren(
-      ...(result.warning ? [h('p', { class: 'field-hint' }, result.warning)] : []),
-      ...(hits.length ? hits : [h('p', { class: 'field-hint' }, 'Cora não encontrou trechos locais correspondentes.')]),
-    )
+    if (!result) hitsList.replaceChildren(empty(asking ? 'Procurando trechos…' : 'Os trechos encontrados aparecem aqui.'))
+    else {
+      const hits = result.hits.map((hit) =>
+        h(
+          'article',
+          { class: 'study-cycle-source-hit' },
+          h('b', {}, hit.title),
+          h('p', {}, hit.excerpt),
+          h('span', { class: 'field-hint' }, hit.line ? `${hit.sourceRef} · linha ${hit.line}` : hit.sourceRef),
+        ),
+      )
+      hitsList.replaceChildren(
+        ...(result.warning ? [h('p', { class: 'field-hint' }, result.warning)] : []),
+        ...(hits.length ? hits : [empty('Cora não encontrou trechos locais correspondentes.')]),
+      )
+    }
+    inventoryList.replaceChildren(...(inventory ? inventoryView(inventory, () => void check(true), checking) : [empty('Lendo a pasta…')]))
   }
 
   const check = async (verify: boolean) => {
-    if (busy) return
-    busy = true
+    if (checking) return
+    checking = true
     render()
     try {
       inventory = await window.office.studySourceInventory(verify)
@@ -209,30 +219,31 @@ export function openStudyLibrary(root: HTMLElement, toast: Toast, topic = '', mo
     } catch (error) {
       toast(cleanError(error), 'err')
     } finally {
-      busy = false
+      checking = false
       render()
     }
   }
 
   const ask = async () => {
     const q = query.value.trim()
-    if (!q || busy) return
-    busy = true
+    if (!q || asking) return
+    asking = true
+    sources = null
+    result = null
     render()
-    try {
-      if (mode === 'sources') {
-        sources = (await window.office.recommendStudySources([q]))[0] ?? null
-        announce(`${sources?.recommendations.length ?? 0} fontes recomendadas.`)
-      } else {
-        result = await window.office.searchStudyLibrary(q)
-        announce(`${result.hits.length} trechos encontrados.`)
-      }
-    } catch (error) {
+    const fail = (error: unknown) => {
       toast(cleanError(error), 'err')
-    } finally {
-      busy = false
-      render()
+      return null
     }
+    const [found, hits] = await Promise.all([
+      window.office.recommendStudySources([q]).then((list) => list[0] ?? null, fail),
+      window.office.searchStudyLibrary(q).catch(fail),
+    ])
+    sources = found
+    result = hits
+    announce(`${sources?.recommendations.length ?? 0} fontes recomendadas e ${result?.hits.length ?? 0} trechos encontrados.`)
+    asking = false
+    render()
   }
 
   const form: HTMLElement = h(
@@ -249,13 +260,29 @@ export function openStudyLibrary(root: HTMLElement, toast: Toast, topic = '', mo
   )
   const el = modal(
     'Biblioteca · Cora',
-    [h('div', { class: 'study-library-tabs', role: 'tablist', 'aria-label': 'O que pedir à Cora' }, ...tabs), hint, form, list],
+    [
+      h(
+        'p',
+        { class: 'field-hint study-note' },
+        'Diga o tema e o que você precisa: Cora ordena as fontes de “study sources” (.md, .txt, .pptx e .pdf) com a página de início e de fim e procura trechos nelas. Nada vai ao Claude.',
+      ),
+      form,
+      librarySection('Pedir fontes', 'Da mais para a menos relevante, com onde começar e onde parar.', sourcesList),
+      librarySection('Pesquisar trechos', 'Passagens dos arquivos locais que falam do pedido. Separe termos com vírgula.', hitsList),
+      librarySection(
+        'Fontes disponíveis',
+        '“Verificar e integrar” termina de ler os PDFs novos e manda os escaneados para o OCR, em segundo plano.',
+        inventoryList,
+      ),
+    ],
     [h('div', { class: 'grow' }), h('button', { class: 'btn', type: 'button', onclick: () => el.remove() }, 'Fechar')],
     () => el.remove(),
   )
   el.classList.add('study-library-modal')
+  el.querySelector('.modal')?.classList.add('study-popup')
   root.append(el)
   render()
   query.focus()
+  void check(false)
   if (query.value.trim()) void ask()
 }
