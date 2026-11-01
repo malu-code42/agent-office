@@ -229,7 +229,7 @@ def main():
             out.append(it)
         return out
 
-    def seat(name, x, y, face, wood=False):
+    def seat(name, x, y, face, wood=False, col=None):
         """a chair as two frames (seat, back) and where its sitter is drawn."""
         draw = F.wood_chair if wood else F.chair
         size = 8 if wood else 10
@@ -240,8 +240,8 @@ def main():
         return {
             'at': [cx, cy],
             'fp': list(fp),
-            'seat': place(f'{name}/seat', lambda: draw(L, x, y, face, 'seat'), fp),
-            'back': place(f'{name}/back', lambda: draw(L, x, y, face, 'back'), fp),
+            'seat': place(f'{name}/seat', lambda: draw(L, x, y, face, 'seat', *([col] if col else [])), fp),
+            'back': place(f'{name}/back', lambda: draw(L, x, y, face, 'back', *([col] if col else [])), fp),
             # the backrest hides the sitter when it stands on the near side
             'front': face in ('-x', '-y'),
             'sit': [int(px - 12), int(py - 28)],
@@ -414,8 +414,8 @@ def casa(L, place, items, seat):
     C.half_wall(sc, 0)
     C.half_wall(sc, 1)
     C.sala(sc)
-    for dx, dy in C.DESKS:
-        sc.add((dx, dy, dx + C.DESK_W, dy + 14), lambda dx=dx, dy=dy: C.work_desk(L, dx, dy), True)
+    for i, (dx, dy) in enumerate(C.DESKS):
+        sc.add((dx, dy, dx + 14, dy + C.DESK_D), lambda dx=dx, dy=dy, i=i: C.work_desk(L, dx, dy, i % 3), True)
     x, y, w = C.VOCE_DESK
     ws_front_y(sc, x, y, None, 'green', w=w)
     sc.rec.pop()  # the user's chair is a seat below
@@ -446,7 +446,7 @@ def casa(L, place, items, seat):
         'Filmes': [233, 133, 34], 'Jogos': [233, 238, 38], 'Gastos': [218, 0, 54], 'Alarme': [168, 0, 54],
     })
     # Luna's chair first, then the residents' in the order the approved art fills them
-    seats = [seat(f'casa/table{i}', *C.TABLE_SEATS[i]) for i in C.SEAT_ORDER]
+    seats = [seat(f'casa/table{i}', *C.TABLE_SEATS[i], col=C.SEAT_COL) for i in C.SEAT_ORDER]
     walls = sc.walls
     blocked = blocked_by([it['fp'] for it in static if not it.get('wall')])
     ex0, ex1 = C.ELEVATOR

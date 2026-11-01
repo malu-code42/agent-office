@@ -205,6 +205,8 @@ export class Renderer2d {
   private extras: Extra[] = []
   private shown = new Map<string, { sig: string; area: Rect }>()
   private totemCanvas = document.createElement('canvas')
+  /** Painted over the base in the cache (window glass, routines screen): a redraw of a box has to put them back. */
+  private wallArt: { sp: Sprite; box: Rect; act?: string }[] = []
   private hoverBox: Rect | null = null
   private highlight: string | null = null
   private screenKey = ''
@@ -487,10 +489,13 @@ export class Renderer2d {
     this.cache.height = ch
     const c = this.cctx
     c.drawImage(this.baseOf(view), 0, 0)
+    this.wallArt = []
     if (view.floor.kind === 'casa') {
       const glass = this.windowGlass(view.floor.layout)
-      c.drawImage(glass.img, glass.x, glass.y)
-      this.put(c, this.totemScreen(view))
+      for (const [sp, act] of [[{ f: 'window/glass', x: glass.x, y: glass.y, img: glass.img }, undefined], [this.totemScreen(view), 'totem']] as const) {
+        this.wallArt.push({ sp, box: this.bounds([sp]), act })
+        this.put(c, sp)
+      }
     }
     for (const item of this.items) for (const sp of item.sprites) this.put(c, sp)
     this.shades(c, view)
@@ -685,6 +690,12 @@ export class Renderer2d {
           f.drawImage(base, ...hot.box, ...hot.box)
           f.filter = 'none'
         }
+    for (const a of this.wallArt)
+      if (hits(a.box, r)) {
+        if (lit && a.act === lit) f.filter = LIT
+        this.put(f, a.sp)
+        f.filter = 'none'
+      }
     for (const e of this.extras) if (e.under && hits(e.area, r)) e.draw(f)
     for (const item of depthSort(items)) {
       if (lit && item.act === lit) f.filter = LIT

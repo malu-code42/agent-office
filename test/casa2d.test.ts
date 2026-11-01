@@ -76,12 +76,12 @@ describe('layout 2D da Casa', () => {
     for (const s of CASA.static) expect(ATLAS.frames[s.f], s.f).toBeDefined()
   })
 
-  it('as seis mesas de trabalho têm uma cadeira cada, a da Luna primeiro, todas viradas para a mesa', () => {
+  it('as quatro mesas de trabalho têm uma cadeira cada, a da Luna primeiro, todas viradas para a mesa', () => {
     const { seats } = CASA.table
-    expect(seats).toHaveLength(6)
-    expect(new Set(seats.map((s) => s.at.join())).size).toBe(6)
-    // every sitter faces its desk, which is south of the chair
-    for (const s of seats) expect(s.dir, s.seat.f).toBe('FL')
+    expect(seats).toHaveLength(4)
+    expect(new Set(seats.map((s) => s.at.join())).size).toBe(4)
+    // every sitter faces its desk, which is west of the chair
+    for (const s of seats) expect(s.dir, s.seat.f).toBe('BL')
   })
 
   it('dá para chegar do elevador a toda cadeira, à sua mesa, aos cantos de lazer e às portas', () => {
@@ -137,15 +137,15 @@ describe('plano da Casa 2D', () => {
 
   it('os residentes sentam nas cadeiras livres na ordem da arte, nunca na da Luna', () => {
     const spots = plan.chairs.map((_, n) => homeSpot(grid, n, plan)!)
-    expect(spots).toHaveLength(5)
+    expect(spots).toHaveLength(3)
     expect(spots.every((s) => s.sit)).toBe(true)
     expect(spots.some((s) => s.point.x === plan.luna.x && s.point.z === plan.luna.z)).toBe(false)
-    expect(new Set(spots.map((s) => `${s.point.x},${s.point.z}`)).size).toBe(5)
+    expect(new Set(spots.map((s) => `${s.point.x},${s.point.z}`)).size).toBe(3)
     // the residents fill the desks in order after Luna's
-    expect(spots.slice(0, 3).map((s) => s.tile)).toEqual([
-      [5, 7],
-      [2, 9],
-      [5, 9],
+    expect(spots.map((s) => s.tile)).toEqual([
+      [6, 8],
+      [3, 10],
+      [6, 10],
     ])
     // the same seat number always gives the same chair
     expect(homeSpot(grid, 2, plan)).toEqual(spots[2])
