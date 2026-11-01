@@ -457,37 +457,3 @@
   border: 1px dashed var(--blue);
   color: var(--blue);
 }
-
-.study-cycle-passage {
-  margin: 0;
-  padding: 6px 10px;
-  border-left: 3px solid var(--muted);
-  color: var(--muted);
-  white-space: pre-wrap;
-}
-
-.study-cycle-options,
-.study-cycle-options-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.study-cycle-option {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  cursor: pointer;
-}
-
-.study-cycle-option-letter,
-.study-cycle-options-list li::before {
-  font-weight: bold;
-}
-
-.study-cycle-options-list li::before {
-  content: attr(data-letter) ') ';
-}
