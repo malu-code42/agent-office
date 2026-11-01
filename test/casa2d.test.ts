@@ -5,7 +5,7 @@ import { homeSpot } from '../src/renderer/src/game/home-seats'
 import { casaPlan, zoneAt, type CasaAct, type CasaLayout } from '../src/renderer/src/world2d/casa'
 import { depthSort } from '../src/renderer/src/world2d/depth'
 import { actAt } from '../src/renderer/src/world2d/hit'
-import { artToScreen, headingOf } from '../src/renderer/src/world2d/iso'
+import { artToScreen } from '../src/renderer/src/world2d/iso'
 import { grid2d } from '../src/renderer/src/world2d/layout'
 import { recolour, recolourMap, type Palette } from '../src/renderer/src/world2d/skins'
 import { LUNA_VARIANT } from '../src/renderer/src/world2d/sprites'
@@ -143,9 +143,9 @@ describe('plano da Casa 2D', () => {
     expect(new Set(spots.map((s) => `${s.point.x},${s.point.z}`)).size).toBe(3)
     // the residents fill the desks in order after Luna's
     expect(spots.map((s) => s.tile)).toEqual([
+      [6, 6],
+      [3, 8],
       [6, 8],
-      [3, 10],
-      [6, 10],
     ])
     // the same seat number always gives the same chair
     expect(homeSpot(grid, 2, plan)).toEqual(spots[2])
@@ -198,7 +198,7 @@ describe('clique na Casa 2D', () => {
   it('o chão vazio e os móveis sem ação não abrem nada', () => {
     const floor = artToScreen(CASA.origin, 340, 200)
     expect(actAt(items, CASA.hot, floor, solid)).toBeNull()
-    const sofa = CASA.static.find((s) => s.fp[0] === 62 && s.fp[1] === 28)!
+    const sofa = CASA.static.find((s) => s.fp[0] === 262 && s.fp[1] === 10)!
     expect(actAt(items, CASA.hot, { x: sofa.x + 10, y: sofa.y + 10 }, solid)).toBeNull()
   })
 
