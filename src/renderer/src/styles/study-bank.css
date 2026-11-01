@@ -12,6 +12,7 @@
 
 .bk-row {
   display: flex;
+  align-items: flex-end;
   gap: 12px;
 }
 
@@ -20,7 +21,12 @@
 }
 
 .bk-row > .field.bk-narrow {
-  flex: 0 0 140px;
+  flex: 0 0 180px;
+}
+
+/* labels on one line, so both boxes sit on the same line */
+.bk-row .field-label {
+  white-space: nowrap;
 }
 
 .bk-estimate {
