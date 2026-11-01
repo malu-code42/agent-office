@@ -40,11 +40,11 @@ describe('fase 4 no layout da Casa', () => {
     }
   })
 
-  it('o quadro de rotinas tem a tela na face dele, e o elevador abre em dois quadros', () => {
-    const [x0, x1, y, z0, z1] = CASA.totem
-    expect(x1 - x0).toBeGreaterThanOrEqual(11) // three 3x5 glyphs
+  it('o quadro de rotinas fica na parede oeste, ao lado da janela, e o elevador abre em dois quadros', () => {
+    const [y0, y1, z0, z1] = CASA.totem
+    expect(y1 - y0).toBeGreaterThanOrEqual(11) // three 3x5 glyphs
     expect(z1 - z0).toBeGreaterThan(7)
-    expect(y).toBeGreaterThan(0)
+    expect(y1).toBeLessThan(CASA.window[0])
     expect(CASA.elevator.open).toHaveLength(2)
     for (const d of CASA.elevator.open) expect(ATLAS.frames[d.f]).toBeTruthy()
   })

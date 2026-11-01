@@ -1,4 +1,5 @@
-import { goalProgress, type Goal } from '@shared/goals'
+import { goalProgress, type Goal, type GoalMilestone } from '@shared/goals'
+import { topicName } from '@shared/study-trail'
 import { h, icon } from './dom'
 import { cleanError, modal } from './modals/common'
 import './goals.css'
@@ -17,13 +18,37 @@ function daysLeft(deadline: string): string {
 function goalItem(goal: Goal, completedTaskIds: ReadonlySet<string>): HTMLElement {
   const progress = goalProgress(goal, completedTaskIds)
   const pct = progress.percent
-  const milestoneMarks = goal.milestones.map((milestone) =>
+  const row = (done: boolean, text: string) =>
     h(
       'li',
-      { class: milestone.done ? 'ok' : '' },
-      h('span', { class: 'tl-mk', 'aria-hidden': 'true' }, milestone.done ? '✓' : ''),
-      h('span', { class: 'sr-only' }, milestone.done ? 'Concluído: ' : 'Pendente: '),
-      h('span', {}, milestone.text),
+      { class: done ? 'ok' : '' },
+      h('span', { class: 'tl-mk', 'aria-hidden': 'true' }, done ? '✓' : ''),
+      h('span', { class: 'sr-only' }, done ? 'Concluído: ' : 'Pendente: '),
+      h('span', {}, text),
+    )
+  // A marco written "Grupo › item" folds under its group, like the trail disciplines; the others stay as plain rows.
+  const groups = new Map<string, { text: string; done: boolean }[]>()
+  const plain: GoalMilestone[] = []
+  for (const milestone of goal.milestones) {
+    const [group, ...rest] = milestone.text.split(' › ')
+    if (rest.length) groups.set(group!, [...(groups.get(group!) ?? []), { text: rest.join(' › '), done: milestone.done }])
+    else plain.push(milestone)
+  }
+  for (const topic of goal.trailTopics ?? [])
+    groups.set(topic.discipline, [...(groups.get(topic.discipline) ?? []), { text: topicName(topic.label), done: topic.done }])
+  const milestoneMarks = plain.map((milestone) => row(milestone.done, milestone.text))
+  const trailMarks = [...groups].map(([name, items]) =>
+    h(
+      'details',
+      { class: 'tl-disc' },
+      h(
+        'summary',
+        {},
+        h('span', {}, name),
+        h('span', { class: 'tl-disc-bar', 'aria-hidden': 'true' }, h('i', { style: `width:${Math.floor((items.filter((item) => item.done).length / items.length) * 100)}%` })),
+        h('span', { class: 'tl-sub tl-disc-pct' }, `${items.filter((item) => item.done).length} de ${items.length} · ${Math.floor((items.filter((item) => item.done).length / items.length) * 100)}%`),
+      ),
+      h('ul', { class: 'tl-marcos' }, ...items.map((item) => row(item.done, item.text))),
     ),
   )
   return h(
@@ -33,7 +58,7 @@ function goalItem(goal: Goal, completedTaskIds: ReadonlySet<string>): HTMLElemen
       'div',
       { class: 'tl-goal-when' },
       h('span', { class: 'agenda-time' }, goal.deadline ? brDate(goal.deadline) : 'Sem prazo'),
-      h('span', { class: 'tl-sub' }, goal.achieved ? 'Alcançado' : goal.deadline ? daysLeft(goal.deadline) : ''),
+      h('span', { class: 'tl-sub' }, goal.achieved ? (goal.achievedDate ? `Alcançado em ${brDate(goal.achievedDate)}` : 'Alcançado') : goal.deadline ? daysLeft(goal.deadline) : ''),
     ),
     h(
       'div',
@@ -59,8 +84,11 @@ function goalItem(goal: Goal, completedTaskIds: ReadonlySet<string>): HTMLElemen
       ),
       goal.simple
         ? h('div', { class: 'tl-sub' }, h('b', {}, goal.achieved ? 'Concluído' : 'Em aberto'))
-        : h('div', { class: 'tl-sub' }, h('b', {}, `${pct}%`), ` · ${progress.complete} de ${progress.total} marcos`),
+        : progress.total === 0
+          ? h('div', { class: 'tl-sub' }, 'Sem marcos nem tarefas ligadas: o progresso ainda não é medido.')
+          : h('div', { class: 'tl-sub' }, h('b', {}, `${pct}%`), ` · ${progress.complete} de ${progress.total} ${goal.trail ? 'itens' : 'marcos'}`),
       h('ul', { class: 'tl-marcos' }, ...milestoneMarks),
+      ...trailMarks,
     ),
   )
 }

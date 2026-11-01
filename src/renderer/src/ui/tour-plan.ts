@@ -123,7 +123,7 @@ export function tourSteps(platform: string): TourStep[] {
     {
       id: 'camera',
       title: 'Câmera',
-      text: 'WASD ou setas andam, o botão direito arrasta e a roda dá zoom. A casinha leva você de volta à sua mesa.',
+      text: 'WASD ou setas andam, o botão direito arrasta e os botões de lupa, no canto inferior direito, dão zoom. A casinha leva você de volta à sua mesa.',
       targets: [{ hud: 'home' }],
       place: 'top',
     },

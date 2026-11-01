@@ -55,10 +55,10 @@ export abstract class PanelHead extends PanelSearch {
     const attachButton = this.composer.querySelector<HTMLButtonElement>('.composer-row > .btn-icon')
     if (attachButton) {
       attachButton.hidden = a.builtIn !== undefined && a.builtIn !== 'luna'
-      attachButton.title = a.builtIn === 'luna' ? 'Anexar áudio para transcrição local' : 'Anexar arquivos'
+      attachButton.title = a.builtIn === 'luna' ? 'Anexar áudio (transcrição local) ou imagem' : 'Anexar arquivos'
     }
     this.picker.disabled = a.builtIn !== undefined && a.builtIn !== 'luna'
-    this.picker.accept = a.builtIn === 'luna' ? 'audio/*,.wav,.mp3,.m4a,.mp4,.ogg,.oga,.opus,.webm,.flac,.aac,.wma' : ''
+    this.picker.accept = a.builtIn === 'luna' ? 'image/*,audio/*,.wav,.mp3,.m4a,.mp4,.ogg,.oga,.opus,.webm,.flac,.aac,.wma' : ''
   }
 
   /** The agent's badge: photo ringed by memory use, name, and an LED with what it is doing. Opens for details. */

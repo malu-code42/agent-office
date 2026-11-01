@@ -2,7 +2,11 @@ import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { dialog, ipcMain } from 'electron'
 import { parseTasksFile } from '@shared/tasks'
+import type { Goal } from '@shared/goals'
 import { createGoalsWriter } from '../goals-write'
+import { achievedDates } from '../goal-dates'
+import { StudyCycleStore } from '../study-cycle-store'
+import { parseStudyTrail, STUDY_TRAIL_FILE, trailGoalTopics } from '@shared/study-trail'
 import { createGoalSchema, goalIdArgsSchema, linkGoalTaskSchema, parse, setGoalMilestoneSchema, vaultPathSchema } from '../validate'
 import type { IpcContext } from './context'
 
@@ -42,9 +46,24 @@ export function registerGoalsIpc(ctx: IpcContext): void {
     }
   }
 
+  const readTrail = (path: string): string | null => {
+    try {
+      return readFileSync(join(path, STUDY_TRAIL_FILE), 'utf8')
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null
+      throw err
+    }
+  }
+
   ipcMain.handle('office:readGoals', async () => {
     const path = vault()
-    return { goals: writer.read(path).goals, tasks: tasksAt(path) }
+    const goals = writer.read(path).goals
+    const dates = achievedDates(ctx.store.dataDirectory, goals, new Date())
+    // Trail-linked goals count the topics of their disciplines; a topic is done when its study cycle concluded.
+    const trail = parseStudyTrail(readTrail(path))
+    const cycles = new StudyCycleStore(ctx.store.dataDirectory).read()
+    const withTopics = (goal: Goal): Goal => (goal.trail ? { ...goal, trailTopics: trailGoalTopics(trail, cycles, goal.trail) } : goal)
+    return { goals: goals.map((goal) => withTopics(dates.has(goal.id) ? { ...goal, achievedDate: dates.get(goal.id) } : goal)), tasks: tasksAt(path) }
   })
 
   ipcMain.handle('office:createGoal', async (_event, raw: unknown) => {

@@ -24,12 +24,14 @@ describe('Horário de aula: grade semanal de aulas.md', () => {
     expect(splitClassTitle('Leitura livre')).toEqual({ topic: 'Leitura livre', detail: '' })
   })
 
-  it('builds Monday to Saturday by time, with today marked', () => {
+  it('builds Monday to Friday by time, with today marked; Saturday only when it has a class', () => {
     const view = buildClassSchedule(AULAS, SATURDAY)
     expect(view.found).toBe(true)
-    expect(view.days.map((day) => day.label)).toEqual(['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'])
+    expect(view.days.map((day) => day.label)).toEqual(['Seg', 'Ter', 'Qua', 'Qui', 'Sex'])
     expect(view.days.map((day) => day.date)[0]).toBe('2026-10-26')
-    expect(view.days.filter((day) => day.today).map((day) => day.label)).toEqual(['Sáb'])
+    expect(view.days.filter((day) => day.today)).toEqual([])
+    const withSaturday = buildClassSchedule(`${AULAS}\n- id: sab | dia: sábado | hora: 09:00 | título: Monitoria`, SATURDAY)
+    expect(withSaturday.days.filter((day) => day.today).map((day) => day.label)).toEqual(['Sáb'])
     expect(view.times).toEqual(['10:00', '19:00', '20:00'])
     expect(view.days[0]!.classes).toEqual([{ id: 'ed-seg', time: '19:00', topic: 'Estrutura de Dados', detail: 'Filas com o tutor' }])
     expect(view.warnings).toEqual([expect.stringMatching(/não reconhecido/)])

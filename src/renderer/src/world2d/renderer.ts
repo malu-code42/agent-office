@@ -470,7 +470,7 @@ export class Renderer2d {
     const chair = (seat: SeatArt) => add(seat.fp, [place(seat.seat), place(seat.back)], seat)
     if (view.floor.kind === 'casa') {
       const { layout } = view.floor
-      for (const p of layout.static) add(p.fp, p.act === 'totem' ? [place(p), this.totemScreen(view)] : [place(p)], undefined, p.act)
+      for (const p of layout.static) add(p.fp, [place(p)], undefined, p.act)
       for (const seat of layout.table.seats) chair(seat)
       chair(layout.voce.seat)
     } else if (view.floor.kind === 'estudos') {
@@ -490,6 +490,7 @@ export class Renderer2d {
     if (view.floor.kind === 'casa') {
       const glass = this.windowGlass(view.floor.layout)
       c.drawImage(glass.img, glass.x, glass.y)
+      this.put(c, this.totemScreen(view))
     }
     for (const item of this.items) for (const sp of item.sprites) this.put(c, sp)
     this.shades(c, view)
@@ -787,27 +788,33 @@ export class Renderer2d {
   }
 
   /**
-   * The routines board's screen, drawn on its face (a wall plane, so each column steps down
-   * half a pixel): the LED colour on top and the countdown (or a symbol) below, like the old 3D totem.
+   * The routines board, hung on the west wall (plane x=0) beside the window; each column steps
+   * down half a pixel, and y grows to the lower left, so the first canvas column is the last of
+   * the wall: a frame, the LED colour on top and the countdown (or a symbol) below.
    */
   private totemScreen(view: FlatView): Sprite {
     const c = this.totemCanvas
     if (view.floor.kind !== 'casa') return { f: 'totem/screen', x: 0, y: 0, img: c }
     const { origin, totem } = view.floor.layout
-    const [x0, x1, y, z0, z1] = totem
-    const w = x1 - x0
-    const top = (u: number) => Math.floor(origin[1] + (x0 + u + y) / 2 - z1)
-    const left = origin[0] + x0 - y
+    const [y0, y1, z0, z1] = totem
+    const w = y1 - y0
+    const zh = z1 - z0
+    const top = (u: number) => Math.floor(origin[1] + (y0 + u) / 2 - z1)
+    const left = origin[0] - y1 + 1
     c.width = w
-    c.height = z1 - z0 + top(w - 1) - top(0) + 1
+    c.height = zh + top(w - 1) - top(0) + 1
     const g = c.getContext('2d')!
-    const row = (u: number) => top(u) - top(0)
+    const row = (k: number) => top(w - 1 - k) - top(0)
     const t = view.totem
-    for (let u = 0; u < w; u++) {
+    for (let k = 0; k < w; k++) {
+      const edge = k === 0 || k === w - 1
+      g.fillStyle = '#7b5a44'
+      g.fillRect(k, row(k), 1, zh)
+      if (edge) continue
       g.fillStyle = '#0e1018'
-      g.fillRect(u, row(u), 1, z1 - z0)
+      g.fillRect(k, row(k) + 1, 1, zh - 2)
       g.fillStyle = LED_COLORS[t?.led ?? 'none']
-      g.fillRect(u, row(u), 1, 2)
+      g.fillRect(k, row(k) + 1, 1, 2)
     }
     const sc = t?.screen ?? { kind: 'idle' as const }
     let text = sc.kind === 'count' ? sc.text : { wait: '!', run: '>', add: '+', idle: '-' }[sc.kind]
@@ -815,13 +822,14 @@ export class Renderer2d {
     if (text.length > 3) text = text.replace(/\d+$/, '').slice(0, 3)
     g.fillStyle = sc.kind === 'wait' ? '#ffc02e' : sc.kind === 'count' ? '#ffb347' : '#b3b1cb'
     const u0 = Math.floor((w - (text.length * 4 - 1)) / 2)
-    const v0 = Math.floor((z1 - z0 - 5) / 2) + 1
+    const v0 = Math.floor((zh - 5) / 2) + 1
     ;[...text].forEach((ch, i) => {
       const glyph = GLYPHS[ch] ?? GLYPHS['-']
-      for (let k = 0; k < 15; k++) {
-        if (glyph[k] !== '1') continue
-        const u = u0 + i * 4 + (k % 3)
-        g.fillRect(u, row(u) + v0 + Math.floor(k / 3), 1, 1)
+      for (let n = 0; n < 15; n++) {
+        if (glyph[n] !== '1') continue
+        // the wall runs the other way: the glyph reads left to right on screen
+        const k = u0 + i * 4 + (n % 3)
+        g.fillRect(k, row(k) + v0 + Math.floor(n / 3), 1, 1)
       }
     })
     return { f: 'totem/screen', x: left, y: top(0), img: c }

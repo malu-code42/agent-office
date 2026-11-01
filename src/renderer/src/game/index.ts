@@ -28,7 +28,7 @@ export class Game extends GameInput {
   constructor(container: HTMLElement, overlayRoot: HTMLElement, state: State, hooks: GameHooks) {
     super(container, overlayRoot, state, hooks)
     this.setProjects(state.settings.projects, state.squads, state.squadProposals, false)
-    for (const a of state.agents.values()) if (!a.builtIn) this.addActor(a, false)
+    for (const a of state.agents.values()) if (!a.builtIn || a.builtIn === 'luna') this.addActor(a, false)
     state.onChange(() => {
       this.sync()
       this.wake()
@@ -172,13 +172,13 @@ export class Game extends GameInput {
     const people: Person2d[] = []
     // the second frame of the typing loop, for everyone typing at once
     const alt = !this.reducedEffects && Math.floor(this.time * TYPE_FPS) % 2 === 1
-    const add = (key: string, av: Avatar, bubble: Person2d['bubble'] = null) => {
+    const add = (key: string, av: Avatar, bubble: Person2d['bubble'] = null, variant?: number) => {
       if (av.floor !== view || !av.visible) return
       const seated = !av.isWalking && (av.pose === 'sit' || av.pose === 'type' || av.pose === 'relax')
       const look = av.worn
       people.push({
         key,
-        variant: variantOf(look),
+        variant: variant ?? variantOf(look),
         look,
         x: av.x + av.shake,
         z: av.z,
@@ -196,7 +196,7 @@ export class Game extends GameInput {
       const a = this.state.agents.get(actor.id)
       const items = a ? this.state.itemsFor(a.id) : null
       const result = items?.results[0] ? (items.results[0].isError ? 'error' : 'ok') : null
-      add(actor.id, actor.avatar, a && items && !actor.down ? agentBubble(a.status, items.permissions.length > 0, result) : null)
+      add(actor.id, actor.avatar, a && items && !actor.down ? agentBubble(a.status, items.permissions.length > 0, result) : null, actor.id === LUNA_AGENT_ID ? LUNA_VARIANT : undefined)
     }
     for (const h of this.helpers.values()) if (!h.gone || h.returning) add(`helper:${h.id}`, h.avatar)
     for (const m of this.members.values())
@@ -207,22 +207,25 @@ export class Game extends GameInput {
   /** The Casa this frame: its people, Luna at her chair in her saved look, and the routines board. */
   private casaView(): FlatView {
     const people = this.flatPeople()
-    const luna = this.state.agents.get(LUNA_AGENT_ID)
-    const seat = this.casa2d.flat.layout.table.seats[0]
-    people.push({
-      key: 'luna',
-      variant: LUNA_VARIANT,
-      look: luna?.look,
-      x: seat.at[0] / 16,
-      z: seat.at[1] / 16,
-      heading: headingOf(seat.dir),
-      stride: null,
-      seated: true,
-      bubble: luna ? agentBubble(luna.status, this.state.itemsFor(luna.id).permissions.length > 0, null) : null,
-    })
-    // Her tag climbs over the pixel bubble while one shows, so the name never covers it.
-    const lunaAnchor = this.lunaTag.anchor
-    if (lunaAnchor instanceof Point3) lunaAnchor.y = sitterTagY(people[people.length - 1]!.bubble)
+    // Luna is one of the walking people once she has her actor; before that she is drawn at her chair.
+    if (!this.actors.has(LUNA_AGENT_ID)) {
+      const luna = this.state.agents.get(LUNA_AGENT_ID)
+      const seat = this.casa2d.flat.layout.table.seats[0]
+      people.push({
+        key: 'luna',
+        variant: LUNA_VARIANT,
+        look: luna?.look,
+        x: seat.at[0] / 16,
+        z: seat.at[1] / 16,
+        heading: headingOf(seat.dir),
+        stride: null,
+        seated: true,
+        bubble: luna ? agentBubble(luna.status, this.state.itemsFor(luna.id).permissions.length > 0, null) : null,
+      })
+      // Her tag climbs over the pixel bubble while one shows, so the name never covers it.
+      const lunaAnchor = this.lunaTag.anchor
+      if (lunaAnchor instanceof Point3) lunaAnchor.y = sitterTagY(people[people.length - 1]!.bubble)
+    }
     return {
       ...this.common(),
       floor: this.casa2d.flat,

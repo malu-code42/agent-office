@@ -34,7 +34,7 @@ const STUDY_TITLES: Record<StudyAct, string> = {
   bonnie: 'Bonnie · conversar sobre os estudos',
 }
 
-/** Camera and input: keys, drag to pan, wheel to zoom, clicks and the hover outline. */
+/** Camera and input: keys, drag to pan, clicks and the hover outline. */
 export abstract class GameInput extends GameMovement {
   // ---------- input ----------
 
@@ -55,7 +55,7 @@ export abstract class GameInput extends GameMovement {
     window.addEventListener('blur', () => this.keys.clear())
 
     // any touch on the scene draws at full rate for a moment (hover outline, drag, zoom)
-    for (const type of ['pointermove', 'pointerdown', 'pointerup', 'pointerleave', 'wheel'] as const)
+    for (const type of ['pointermove', 'pointerdown', 'pointerup', 'pointerleave'] as const)
       el.addEventListener(type, () => this.wake(), { passive: true })
     window.addEventListener('keydown', () => this.wake())
 
@@ -91,18 +91,6 @@ export abstract class GameInput extends GameMovement {
       this.studyHot = null
       document.body.style.cursor = ''
     })
-    el.addEventListener(
-      'wheel',
-      (e) => {
-        e.preventDefault()
-        this.wheelAcc += e.deltaY
-        if (Math.abs(this.wheelAcc) > 40) {
-          this.zoom(this.wheelAcc > 0 ? -1 : 1)
-          this.wheelAcc = 0
-        }
-      },
-      { passive: false },
-    )
   }
 
   /** Helpers answer with their parent's id, plus their own in `helper`. */

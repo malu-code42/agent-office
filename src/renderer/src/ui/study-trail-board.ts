@@ -72,7 +72,7 @@ export async function openStudyTrailBoard(root: HTMLElement, toast: Toast, onSta
         class: `tcard tk-card trail-card trail-${item.state}`,
         tabindex: '0',
         'data-focus-key': topic.label,
-        'aria-label': `${topic.label}. ${STUDY_TRAIL_STATE_LABEL[item.state]}. Tópico ${topic.index} de ${topic.total}.`,
+        'aria-label': `${topic.title}. ${STUDY_TRAIL_STATE_LABEL[item.state]}. Tópico ${topic.index} de ${topic.total}.`,
         onkeydown: (event: Event) => {
           if ((event as KeyboardEvent).key === 'Enter' && event.target === event.currentTarget) {
             event.preventDefault()
@@ -87,7 +87,6 @@ export async function openStudyTrailBoard(root: HTMLElement, toast: Toast, onSta
         h('span', { class: `tk-state trail-state-${item.state}` }, STUDY_TRAIL_STATE_LABEL[item.state]),
         item.cycleStage && item.state !== 'completed' ? h('span', { class: 'tk-sub' }, STAGE[item.cycleStage] ?? item.cycleStage) : null,
         h('span', { class: 'grow' }),
-        topic.id ? h('span', { class: 'tk-sub trail-id' }, topic.id) : null,
       ),
       h('div', { class: 'tcard-title tk-title' }, topic.title),
       h(

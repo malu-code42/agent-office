@@ -13,8 +13,9 @@ export abstract class GameActors extends GameBoards {
 
   protected sync(): void {
     for (const a of this.state.agents.values()) {
-      if (a.builtIn) continue
-      if (!this.actors.has(a.id)) this.addActor(a, true)
+      if (a.builtIn && a.builtIn !== 'luna') continue
+      // Luna starts at her chair; she only walks when she has something for the player.
+      if (!this.actors.has(a.id)) this.addActor(a, a.builtIn !== 'luna')
     }
     for (const actor of this.actors.values()) {
       if (!this.state.agents.has(actor.id) && actor.goal !== 'leave') this.leave(actor)
@@ -32,7 +33,7 @@ export abstract class GameActors extends GameBoards {
 
   protected addActor(a: AgentSummary, animate: boolean): void {
     const avatar = new Avatar(a.look, a.id)
-    const tag = this.overlays.add(new Tag(avatar.anchor, a.name, false, () => this.hooks.onAgentClick(a.id)))
+    const tag = this.overlays.add(new Tag(avatar.anchor, a.name, false, () => (a.builtIn === 'luna' ? this.hooks.onLunaReview() : this.hooks.onAgentClick(a.id))))
     const actor: Actor = {
       id: a.id,
       avatar,
@@ -109,8 +110,10 @@ export abstract class GameActors extends GameBoards {
   }
 
   protected desired(actor: Actor, a: AgentSummary): Goal {
-    if (a.homeResident) return 'home'
     const items = this.state.itemsFor(a.id)
+    // Luna comes to the player with a question, a permission or a result, and goes back to her chair after.
+    if (a.builtIn === 'luna') return items.permissions.length || items.results.length ? 'boss' : 'seat'
+    if (a.homeResident) return 'home'
     if (items.permissions.length || a.status === 'waiting') return 'boss'
     if (items.results.length) return resultDestination(a, !!this.upperOf(this.homeFloor(a))) === 'meeting' ? 'meeting' : 'boss'
     if (a.role === 'orchestrator') {
@@ -160,6 +163,7 @@ export abstract class GameActors extends GameBoards {
       else if (goal === 'boss') this.goBoss(actor, instant)
       else if (goal === 'meeting') this.goMeeting(actor, instant)
       else if (goal === 'home') this.goHomeResident(actor, instant)
+      else if (goal === 'seat') this.goLunaSeat(actor, instant)
       else this.goHang(actor, instant)
     } else if (actor.arrived) {
       this.pose(actor, a)
@@ -190,6 +194,24 @@ export abstract class GameActors extends GameBoards {
         actor.avatar.placeAt(spot.point.x, spot.point.z)
         arrive()
       } else this.route(actor.avatar, spot.tile, spot.point, arrive)
+    })
+  }
+
+  /** Luna's own chair at her table, where she works and waits between visits to the player. */
+  protected goLunaSeat(actor: Actor, instant: boolean): void {
+    const chair = this.home.luna
+    const arrive = () => {
+      if (actor.goal !== 'seat') return
+      actor.arrived = true
+      const a = this.state.agents.get(actor.id)
+      if (a) this.pose(actor, a)
+    }
+    this.travel(actor, 0, instant || this.reducedEffects, () => {
+      if (actor.goal !== 'seat') return
+      if (instant || this.reducedEffects) {
+        actor.avatar.placeAt(chair.x, chair.z)
+        arrive()
+      } else this.route(actor.avatar, [Math.floor(chair.x), Math.floor(chair.z)], { x: chair.x, z: chair.z }, arrive)
     })
   }
 
@@ -300,6 +322,10 @@ export abstract class GameActors extends GameBoards {
       else if (av.floor === this.player.floor && this.playerInBossRoom()) av.faceTowards(this.player.position.x, this.player.position.z)
       else av.faceTowards(this.home.boss.x, this.home.boss.z)
       av.pose = this.time < actor.waveUntil ? 'wave' : actor.id === this.nearId ? 'talk' : 'stand'
+    } else if (actor.goal === 'seat') {
+      av.setProp('none')
+      av.face(this.home.luna.face)
+      av.pose = a.status === 'working' || a.status === 'starting' ? 'type' : 'sit'
     } else if (actor.goal === 'home') {
       av.setProp('none')
       const spot = actor.homeSeat !== null ? homeSpot(this.floorOf(0).grid, actor.homeSeat, this.home) : null
