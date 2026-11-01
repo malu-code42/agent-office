@@ -59,13 +59,13 @@ def crt(L, x, y, z, face='+y', screen='green', variant=None):
     def box(u, v, zz, wu, wv, hz, col):
         # u runs along the desk, v toward the side the screens look at (0..10)
         if face == '+y':
-            L.pbox(x + u, y + v, zz, wu, wv, hz, col)
+            L.pbox(x + u, y + v, z + zz, wu, wv, hz, col)
         elif face == '-y':
-            L.pbox(x + u, y + 10 - v - wv, zz, wu, wv, hz, col)
+            L.pbox(x + u, y + 10 - v - wv, z + zz, wu, wv, hz, col)
         elif face == '+x':
-            L.pbox(x + v, y + u, zz, wv, wu, hz, col)
+            L.pbox(x + v, y + u, z + zz, wv, wu, hz, col)
         else:
-            L.pbox(x + 10 - v - wv, y + u, zz, wv, wu, hz, col)
+            L.pbox(x + 10 - v - wv, y + u, z + zz, wv, wu, hz, col)
 
     def plane(a, b, za, zb, col):
         # a quad on the screen plane (v = 10) between lateral a..b; only the +y / +x sides are seen
