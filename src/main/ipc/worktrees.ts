@@ -4,12 +4,15 @@ import { resolve, sep } from 'node:path'
 import type { WorktreeFloor } from '@shared/types'
 import { projectFor } from '@shared/projects'
 import {
+  commitAll,
   commitChanges,
+  dirtyFiles,
   discardChanges,
   fileDiff,
   folderSize,
   insideRoot,
   isForgotten,
+  listFiles,
   listRepoWorktrees,
   openInEditor,
   openPullRequest,
@@ -312,6 +315,22 @@ export function registerWorktreesIpc(ctx: IpcContext): void {
       throw new Error('Não consigo validar o remoto atual do ticket; nenhum bloqueio será liberado.')
     if (ticketRemote && (ticketRemote.host.toLowerCase() !== remote.host.toLowerCase() || ticketRemote.repository !== remote.repository))
       throw new Error('O remoto do ticket mudou desde o resultado; não vou abrir um PR no repositório errado.')
+    // Files left over from before the task are not in the result, so "Commitar" skipped them.
+    const left = await dirtyFiles(wt)
+    if (left.length) {
+      const pick = await dialog.showMessageBox(win()!, {
+        type: 'warning',
+        buttons: ['Commitar tudo', 'Cancelar'],
+        defaultId: 1,
+        cancelId: 1,
+        message: `Ficaram ${plural(left.length, 'arquivo', 'arquivos')} sem commit na cópia.`,
+        detail:
+          `${listFiles(left)}\n\nEsses arquivos não fazem parte do resultado. Se algum não deve ir para o PR, cancele e resolva (descarte ou mantenha) antes. ` +
+          `"Commitar tudo" inclui todos no commit "${t}" e segue para a confirmação do PR.`,
+      })
+      if (pick.response !== 0) return null
+      await commitAll(wt, t)
+    }
     const { response } = await dialog.showMessageBox(win()!, {
       type: 'question',
       buttons: ['Enviar e abrir PR', 'Cancelar'],

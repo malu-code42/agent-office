@@ -3,7 +3,7 @@ import { delimiter, join } from 'node:path'
 import type { ResultChanges, WorktreeInfo } from '@shared/types'
 import { gitRemoteHost, gitRemoteRepository, isPullRequestUrl } from '@shared/pull-request-url'
 import { insideRoot } from './repo'
-import { chunked, git, run, runBatch, safeGitEnv } from './run'
+import { chunked, git, run, runBatch, safeGitEnv, zsplit } from './run'
 import { checkWorktree, worktreeState } from './worktrees'
 
 /**
@@ -19,6 +19,24 @@ export async function commitChanges(c: ResultChanges, message: string): Promise<
   await chunked(c.root, ['add', '-A'], paths)
   await git(c.root, ['commit', '-F', '-', '--', ...paths], { timeout: 120_000, input: message })
   return (await git(c.root, ['rev-parse', '--short', 'HEAD'])).trim()
+}
+
+/** Paths with uncommitted changes in the agent's copy (tracked or not, ignored ones left out). */
+export async function dirtyFiles(wt: WorktreeInfo): Promise<string[]> {
+  checkWorktree(wt)
+  const status = zsplit(await git(wt.root, ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--no-renames']))
+  return status.filter((e) => e.length > 3).map((e) => e.slice(3))
+}
+
+/** First 8 paths, then "e mais N". */
+export const listFiles = (files: string[]) => files.slice(0, 8).join(', ') + (files.length > 8 ? ` e mais ${files.length - 8}` : '')
+
+/** "Commitar tudo": commits everything left uncommitted in the copy (not only the result's files). Returns the short sha. */
+export async function commitAll(wt: WorktreeInfo, message: string): Promise<string> {
+  checkWorktree(wt)
+  await git(wt.root, ['add', '-A'])
+  await git(wt.root, ['commit', '-F', '-'], { timeout: 120_000, input: message })
+  return (await git(wt.root, ['rev-parse', '--short', 'HEAD'])).trim()
 }
 
 // ---------- tools on PATH ----------
@@ -69,7 +87,11 @@ export async function openPullRequest(wt: WorktreeInfo, title: string, body: str
   }
   const st = await worktreeState(wt)
   if (!st.exists) throw new Error('A cópia isolada deste agente não existe mais.')
-  if (st.dirty) throw new Error('Tem mudanças não commitadas na cópia. Commite antes de abrir o PR.')
+  if (st.dirty) {
+    throw new Error(
+      `Ficaram arquivos sem commit na cópia: ${listFiles(await dirtyFiles(wt))}. Resolva o conflito (descarte ou mantenha cada um), commite e abra o PR de novo.`,
+    )
+  }
   if (!st.ahead) throw new Error('O branch ainda não tem commits. Commite as mudanças antes.')
   const selected = await selectedRemote(wt.root)
   const { remote, host, repository } = selected
