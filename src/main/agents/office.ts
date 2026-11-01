@@ -216,6 +216,9 @@ export abstract class AgentOffice extends AgentBase {
         same.summary.ticketId = ticketId
         this.watchSquad(same)
       }
+      // Token economy: the squad keeps its memory in files, so re-reading every past cycle only costs tokens.
+      if (this.store.settings.freshSquadCycle !== false)
+        this.freshStart(same.summary.id, 'Ciclo novo, conversa nova: o squad guarda a memória nos arquivos dele.')
       this.sendMessage(same.summary.id, task, display)
       return same.summary
     }
@@ -445,8 +448,22 @@ export abstract class AgentOffice extends AgentBase {
     this.setStatus(agent, 'working', 'Organizando a memória')
   }
 
+  /**
+   * Token economy: clears an agent that already talked, so the next message starts a new
+   * conversation instead of re-reading the old one on every call; `note` says why. Never the fixed
+   * agents (Luna, Emi, Bonnie), nor a busy one, an OpenCode record or a task paused by the quota
+   * (that one must resume on its account; sendMessage explains). Returns true when it cleared.
+   */
+  freshStart(id: string, note: string): boolean {
+    const agent = this.agents.get(id)
+    if (!agent?.started || agent.summary.source !== 'office' || agent.summary.builtIn || agent.summary.engine === 'opencode') return false
+    if (agent.summary.quotaPaused || this.busy(agent)) return false
+    this.clearContext(id, note)
+    return true
+  }
+
   /** Same agent, brand-new conversation: closes the session and starts the next one from zero. */
-  clearContext(id: string): void {
+  clearContext(id: string, note = 'Contexto limpo. A próxima mensagem começa uma conversa nova.'): void {
     const agent = this.agents.get(id)
     if (!agent || agent.summary.source !== 'office') return
     if (agent.summary.engine === 'opencode')
@@ -469,7 +486,8 @@ export abstract class AgentOffice extends AgentBase {
     agent.summary.quotaPaused = undefined
     agent.summary.quotaEnded = undefined
     agent.summary.clearedAt = Date.now()
-    this.addLog(agent, 'system', 'Contexto limpo. A próxima mensagem começa uma conversa nova.')
+    agent.summary.lastTurnAt = undefined
+    this.addLog(agent, 'system', note)
     // AO-43: the memory of the profile is not touched here — nothing is written on its own, and no
     // task receives it; the person read, edits or erases it in Configurações → Memória dos perfis.
     if (hadProfile)

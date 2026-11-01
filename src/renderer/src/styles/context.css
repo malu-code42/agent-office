@@ -69,3 +69,50 @@
   background: rgba(62, 207, 142, 0.12);
   color: var(--green-text);
 }
+
+/* Token economy: the best move for the agent's memory, under the badge (panel/economy.ts).
+   Same banner as the result notice, in the theme's warn/err tokens. */
+.banner-advice {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 8px 10px;
+  font-weight: 400;
+}
+
+.advice-big {
+  background: var(--warn-bg);
+  color: var(--amber-text);
+}
+
+.advice-cold {
+  background: var(--err-bg);
+  color: var(--red-text);
+}
+
+.advice-main {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.advice-main svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.advice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.4;
+}
+
+.advice-text b {
+  font-weight: 600;
+}
+
+.advice-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}

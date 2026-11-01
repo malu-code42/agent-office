@@ -117,6 +117,8 @@ export abstract class AgentBase extends EventEmitter {
             : 'Aguardando instruções',
         subagents: undefined,
         subagentsDone: undefined,
+        // Saved before lastTurnAt existed: the last log line is close enough (token economy, cold memory).
+        lastTurnAt: p.summary.lastTurnAt ?? (p.summary.context ? p.log.at(-1)?.t : undefined),
       }
       // #101: Luna's chat used to run without a Claude session; she gets one on her first message.
       const freshLuna = summary.builtIn === 'luna' && !summary.sessionId

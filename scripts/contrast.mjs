@@ -191,6 +191,8 @@ const PAIRS = [
   ['Painel: filtro escolhido', '.panel-filter.on', ['.panel-filter.on', 'card']],
   ['Seletor: opção escolhida', '.seg-btn.on', ['.seg-btn.on', 'card']],
   ['Painel: resultado final', '.entry-final', ['.entry-final', 'card']],
+  ['Painel: memória grande', '.advice-big', ['.advice-big', 'card']],
+  ['Painel: memória fria', '.advice-cold', ['.advice-cold', 'card']],
   ['Campo de texto', '.input', ['.input', 'card']],
   ['Rótulo de campo', '.field-label', 'card'],
   ['Etiqueta no mundo', '.tag-pill', ['.tag-pill', 'card']],

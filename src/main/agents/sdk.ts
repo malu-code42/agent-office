@@ -5,6 +5,7 @@ import { query, type HookCallbackMatcher, type Query, type SDKMessage } from '@a
 import { describeTool, toolDetail } from '@shared/describe'
 import { MAIN_ACCOUNT } from '@shared/accounts'
 import { HELPER_MAX, helperLimit, helperLimitReason } from '@shared/subagents'
+import { queryBudget } from '@shared/economy'
 import { homedir } from 'node:os'
 import { accountEnv } from '../accounts'
 import { agentPlugins } from '../agent-plugins'
@@ -176,7 +177,8 @@ export abstract class AgentSdk extends AgentOffice {
       this.book?.switched(s, s.sessionId, s.account ?? MAIN_ACCOUNT, before, 'start')
     }
     const limits = this.store.settings
-    const budget = limits.agentBudgetUsd > 0 ? limits.agentBudgetUsd - (s.spentUsd ?? 0) : undefined
+    // Counts only what this query spends, so it gets what is left of the tighter cap (per agent or per day).
+    const budget = queryBudget(limits, s.spentUsd ?? 0, this.book?.spentToday() ?? 0)
     // The cap of the desk, enforced in the runtime: a spawn that would put a fourth
     // helper at the desk is refused, and the reason shows up in the conversation.
     const helperMax = helperLimit(limits.maxSubagents)
@@ -440,6 +442,8 @@ export abstract class AgentSdk extends AgentOffice {
               ? this.budgetText(agent)
               : msg.errors.join('\n') || `Parei: ${msg.subtype}`
         agent.summary.costUsd = msg.total_cost_usd
+        // Token economy: an hour after this the prompt cache is cold and the next message rewrites it.
+        agent.summary.lastTurnAt = Date.now()
         this.readContext(agent)
         // The turn is over, so no foreground subagent can still be running (covers an interrupt that lost its notification).
         for (const sub of agent.summary.subagents ?? []) if (!sub.background) this.retire(agent, sub, 'completed')

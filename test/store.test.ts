@@ -73,6 +73,8 @@ describe('Store: carga e migração das configurações', () => {
     expect(s.ticketAutoCloseDays).toBe(7)
     expect(s.maxSubagents).toBe(10)
     expect(s.agentBudgetUsd).toBe(0)
+    // Token economy: no daily cap, both fresh-conversation switches and the cold question on.
+    expect(s).toMatchObject({ dailyBudgetUsd: 0, freshTicketSession: true, freshSquadCycle: true, contextWarnTokens: 200_000, coldConfirm: true })
     expect(s.video).toEqual(DEFAULT_VIDEO)
     expect(s.defaultEngine).toBe('claude')
   })

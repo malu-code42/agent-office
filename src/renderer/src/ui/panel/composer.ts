@@ -4,6 +4,7 @@ import { h, icon } from '../dom'
 import { cleanError, modal } from '../modals'
 import { isDupOfResult } from '@shared/feed-dedupe'
 import { entryCategory, entryView } from './entries'
+import { sendChecked } from './economy'
 import { toBase64 } from './helpers'
 import { PanelHead } from './head'
 import { AUDIO_MAX_BYTES, isAudioFile } from '@shared/audio'
@@ -185,14 +186,16 @@ export abstract class PanelComposer extends PanelHead {
     try {
       if (this.slashAgent && !files.length && text.startsWith('/') && (await this.panelCommand(agentId, text))) return
       if (this.lunaOpen && !files.length && text.startsWith('/') && (await this.command(agentId, text))) return
-      const attachments: AttachmentInput[] = await Promise.all(
-        files.map(async (f) => {
-          return f.path && !lunaAudio
-            ? { name: f.name, mime: f.file.type, path: f.path }
-            : { name: f.name, mime: f.file.type, dataBase64: await toBase64(f.file) }
-        }),
-      )
-      await window.office.send(agentId, text, attachments)
+      const attachments = (): Promise<AttachmentInput[]> =>
+        Promise.all(
+          files.map(async (f) => {
+            return f.path && !lunaAudio
+              ? { name: f.name, mime: f.file.type, path: f.path }
+              : { name: f.name, mime: f.file.type, dataBase64: await toBase64(f.file) }
+          }),
+        )
+      // Token economy: a cold agent with a big conversation asks first (clear and send, send, cancel).
+      if (!(await sendChecked(this.root, this.state, agentId, text, attachments, () => this.restartAtCut(agentId)))) return
       // Cleared only once it went, so a rejected file can be removed and the rest sent again.
       if (this.input.value.trim() === text) this.input.value = ''
       this.files = this.files.filter((f) => !files.includes(f))
