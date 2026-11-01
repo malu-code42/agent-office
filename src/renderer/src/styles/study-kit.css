@@ -1057,3 +1057,15 @@ button.sk-item:hover {
   font-size: 12.5px;
   color: var(--amber);
 }
+
+/* the reading passage a question refers to ("segundo o texto…"), before the statement */
+.sk-reading,
+.qc-passage {
+  margin: 0;
+  padding: 10px 12px;
+  border: 2px solid var(--outline);
+  background: var(--sunken);
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}

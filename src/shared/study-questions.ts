@@ -6,7 +6,11 @@ export interface StudyQuestion {
   id: string
   topic: string
   tags: string[]
+  /** Text the question refers to ("segundo o texto…"); shown before the statement. Several questions may share it. */
+  passage?: string
   question: string
+  /** Multiple choice: the lettered alternatives, in order. `answer` is then the correct letter. */
+  options?: string[]
   answer?: string
   rationale?: string
   answerStatus: AnswerStatus
@@ -20,31 +24,6 @@ export interface StudyQuestion {
   sourceOnly?: true
   verifiedByUser?: true
   verifiedAt?: string
-  /** Multiple choice: the five alternatives, A to E, and the right one. `answer` is the right alternative's text. */
-  choices?: string[]
-  correct?: StudyChoiceLetter
-}
-
-export type StudyChoiceLetter = 'A' | 'B' | 'C' | 'D' | 'E'
-export const STUDY_CHOICE_LETTERS: readonly StudyChoiceLetter[] = ['A', 'B', 'C', 'D', 'E']
-
-/** Every question of the bank is multiple choice (decision of 2026-11-01); open ones are left over from before. */
-export const isChoiceQuestion = (q: Pick<StudyQuestion, 'choices' | 'correct'>): boolean => !!q.choices?.length && !!q.correct
-
-/** The letter of an answer ("C", "c)", " C ") or null. */
-export function choiceOf(response: string): StudyChoiceLetter | null {
-  const letter = /^\s*([A-Ea-e])(?![\p{L}\p{N}])/u.exec(response)?.[1]?.toUpperCase()
-  return (letter as StudyChoiceLetter | undefined) ?? null
-}
-
-/** Grades a multiple-choice answer by its letter, with no model: null for an open question. */
-export function gradeChoice(q: StudyQuestion, response: string): { kind: 'correct' | 'incorrect'; rationale: string } | null {
-  if (!isChoiceQuestion(q)) return null
-  const picked = choiceOf(response)
-  const right = `${q.correct}) ${q.choices![STUDY_CHOICE_LETTERS.indexOf(q.correct!)]}`
-  return picked === q.correct
-    ? { kind: 'correct', rationale: `Alternativa ${picked}, a correta.` }
-    : { kind: 'incorrect', rationale: `Você marcou ${picked ?? 'nenhuma'}; a correta é ${right}.` }
 }
 
 export interface DecodedStudyBank {
@@ -54,8 +33,43 @@ export interface DecodedStudyBank {
 }
 
 /** 3000 questions: the whole trail (122 topics) at the default 20 per topic fits, with room for the old questions. */
-export const STUDY_QUESTION_LIMITS = { count: 3000, text: 20_000, tags: 20, tag: 80 } as const
+export const STUDY_QUESTION_LIMITS = { count: 3000, text: 20_000, tags: 20, tag: 80, options: 6, option: 2000 } as const
 export const STUDY_BANK_LINE_LIMIT = 60_000
+export const studyOptionLetter = (index: number): string => String.fromCharCode(65 + index)
+
+/** How many alternatives the agent chain writes for a bank question (decision of 2026-11-01). */
+export const STUDY_CHOICE_COUNT = 5
+
+/**
+ * Every question offered in a cycle is multiple choice (decision of 2026-11-01): alternatives and the
+ * right letter as the answer. Open questions are left from before and are not offered.
+ */
+export const isChoiceQuestion = (q: Pick<StudyQuestion, 'options' | 'answer'>): boolean =>
+  !!q.options?.length && !!q.answer && /^[A-Z]$/.test(q.answer) && q.answer.charCodeAt(0) - 65 < q.options.length
+
+/** The letter of an answer ("C", "c)", " C ") or null. */
+export function choiceOf(response: string): string | null {
+  return /^\s*([A-Za-z])(?![\p{L}\p{N}])/u.exec(response)?.[1]?.toUpperCase() ?? null
+}
+
+/** "C) the text" of an alternative of a multiple-choice question. */
+export const studyOptionText = (q: Pick<StudyQuestion, 'options'>, letter: string): string =>
+  `${letter}) ${q.options?.[letter.charCodeAt(0) - 65] ?? ''}`
+
+/** Grades a multiple-choice answer by its letter, with no model: null for an open question. */
+export function gradeChoice(q: StudyQuestion, response: string): { kind: 'correct' | 'incorrect'; rationale: string } | null {
+  if (!isChoiceQuestion(q)) return null
+  const picked = choiceOf(response)
+  return picked === q.answer
+    ? { kind: 'correct', rationale: `Alternativa ${picked}, a correta.` }
+    : { kind: 'incorrect', rationale: `Você marcou ${picked ?? 'nenhuma'}; a correta é ${studyOptionText(q, q.answer!)}.` }
+}
+
+/** What the Tutor (and any reader) sees as the question: passage, statement and lettered alternatives. */
+export function studyQuestionText(q: Pick<StudyQuestion, 'passage' | 'question' | 'options'>): string {
+  const options = (q.options ?? []).map((option, index) => `${studyOptionLetter(index)}) ${option}`).join('\n')
+  return [q.passage ? `Trecho:\n${q.passage}` : '', q.question, options].filter(Boolean).join('\n\n')
+}
 export const STUDY_BANK_LINE_BYTES = 30_000
 const ORIGINS: readonly StudyOriginKind[] = ['enem', 'concurso', 'livro', 'web', 'ia']
 const ANSWER_STATUSES: readonly AnswerStatus[] = ['verified', 'unverified', 'missing']
@@ -78,6 +92,13 @@ export function isSafeStudyUrl(value: string): boolean {
   }
 }
 
+/** Like cleanLine, but line breaks are allowed: a passage can be several lines when each one carries data the question needs. */
+function cleanPassage(value: string): string {
+  const text = value.replace(/\r\n?/g, '\n').trim()
+  if (!text || text.length > STUDY_QUESTION_LIMITS.text || text.includes('\0')) throw new Error('Trecho inválido.')
+  return text
+}
+
 export function validateStudyQuestion(raw: unknown): StudyQuestion {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Questão inválida.')
   const row = raw as Record<string, unknown>
@@ -94,6 +115,20 @@ export function validateStudyQuestion(raw: unknown): StudyQuestion {
   const answer = row.answer === undefined ? undefined : typeof row.answer === 'string' ? cleanLine(row.answer, 'Gabarito') : ''
   const rationale =
     row.rationale === undefined ? undefined : typeof row.rationale === 'string' ? cleanLine(row.rationale, 'Justificativa') : ''
+  const passage = row.passage === undefined ? undefined : typeof row.passage === 'string' ? cleanPassage(row.passage) : ''
+  let options: string[] | undefined
+  if (row.options !== undefined) {
+    if (
+      !Array.isArray(row.options) ||
+      row.options.length < 2 ||
+      row.options.length > STUDY_QUESTION_LIMITS.options ||
+      !row.options.every((option) => typeof option === 'string')
+    )
+      throw new Error('Alternativas inválidas.')
+    options = row.options.map((option) => cleanLine(option, 'Alternativa', STUDY_QUESTION_LIMITS.option))
+    if (answer && (!/^[A-Z]$/.test(answer) || answer.charCodeAt(0) - 65 >= options.length))
+      throw new Error('O gabarito de múltipla escolha deve ser a letra de uma alternativa.')
+  }
   const sourceOnly = row.sourceOnly === true
   let question: string
   if (sourceOnly) {
@@ -101,19 +136,8 @@ export function validateStudyQuestion(raw: unknown): StudyQuestion {
     question = ''
   } else if (typeof row.question === 'string') question = cleanLine(row.question, 'Enunciado')
   else throw new Error('Enunciado inválido.')
-  if (sourceOnly && (answer || rationale || row.answerStatus !== 'missing'))
+  if (sourceOnly && (passage || options || answer || rationale || row.answerStatus !== 'missing'))
     throw new Error('Um registro somente de metadados não pode guardar enunciado, resposta, justificativa ou gabarito.')
-  let choices: string[] | undefined
-  let correct: StudyChoiceLetter | undefined
-  if (row.choices !== undefined || row.correct !== undefined) {
-    if (!Array.isArray(row.choices) || row.choices.length !== 5 || !row.choices.every((c) => typeof c === 'string'))
-      throw new Error('A questão de múltipla escolha precisa de cinco alternativas.')
-    choices = row.choices.map((c) => cleanLine(c as string, 'Alternativa', 2000))
-    if (new Set(choices.map((c) => c.toLocaleLowerCase('pt-BR'))).size !== 5) throw new Error('As alternativas precisam ser diferentes.')
-    if (!STUDY_CHOICE_LETTERS.includes(row.correct as StudyChoiceLetter)) throw new Error('Alternativa correta inválida.')
-    correct = row.correct as StudyChoiceLetter
-    if (answer && answer !== choices[STUDY_CHOICE_LETTERS.indexOf(correct)]) throw new Error('O gabarito não é a alternativa correta.')
-  }
   const verifiedByUser = row.verifiedByUser === true
   const verifiedAt = typeof row.verifiedAt === 'string' ? cleanLine(row.verifiedAt, 'Data de revisão', 40) : undefined
   if (
@@ -125,10 +149,11 @@ export function validateStudyQuestion(raw: unknown): StudyQuestion {
     id,
     topic: typeof row.topic === 'string' ? cleanLine(row.topic, 'Tópico', 200) : '',
     tags,
+    ...(passage ? { passage } : {}),
     question,
-    ...(answer || choices ? { answer: answer || choices![STUDY_CHOICE_LETTERS.indexOf(correct!)]! } : {}),
+    ...(options ? { options } : {}),
+    ...(answer ? { answer } : {}),
     ...(rationale ? { rationale } : {}),
-    ...(choices ? { choices, correct } : {}),
     answerStatus: row.answerStatus as AnswerStatus,
     originKind: row.originKind as StudyOriginKind,
     sourceTitle: typeof row.sourceTitle === 'string' ? cleanLine(row.sourceTitle, 'Título da fonte', 300) : '',
@@ -160,13 +185,30 @@ export function encodeStudyQuestion(raw: StudyQuestion): string {
     `- Somente metadados: ${q.sourceOnly ? 'sim' : 'não'}`,
     `- Procedência revisada pela usuária: ${q.verifiedByUser ? `sim — ${q.verifiedAt}` : 'não'}`,
     `- Estado do gabarito: ${q.answerStatus}`,
+    `- Trecho: ${q.passage ? passageToLine(q.passage) : '—'}`,
     `- Enunciado: ${q.question}`,
-    ...(q.choices ? q.choices.map((choice, i) => `- Alternativa ${STUDY_CHOICE_LETTERS[i]}: ${choice}`) : []),
-    ...(q.correct ? [`- Alternativa correta: ${q.correct}`] : []),
+    `- Alternativas: ${q.options ? JSON.stringify(q.options) : '—'}`,
     `- Resposta: ${q.answer ?? '—'}`,
     `- Justificativa: ${q.rationale ?? '—'}`,
     '',
   ].join('\n')
+}
+
+/** The bank keeps one field per line, so a passage's line breaks travel as a backslash and n (and a backslash as two). */
+function passageToLine(passage: string): string {
+  return passage.replaceAll('\\', '\\\\').replaceAll('\n', '\\n')
+}
+
+function passageFromLine(line: string): string {
+  return line.replace(/\\([\\n])/g, (_, c: string) => (c === 'n' ? '\n' : '\\'))
+}
+
+function parseOptions(raw: string, line: number): unknown {
+  try {
+    return JSON.parse(raw)
+  } catch {
+    throw new Error(`Alternativas ilegíveis na questão da linha ${line}.`)
+  }
 }
 
 export function decodeStudyBank(source: string): DecodedStudyBank {
@@ -206,15 +248,17 @@ export function decodeStudyBank(source: string): DecodedStudyBank {
     const sourceUrl = get('URL')
     const sourceReference = get('Referência')
     const sourceOnly = get('Somente metadados') === 'sim'
+    const passage = get('Trecho')
+    const optionsRaw = get('Alternativas')
     const verification = get('Procedência revisada pela usuária')
     const verificationDate = verification?.startsWith('sim — ') ? verification.slice('sim — '.length) : undefined
-    const choices = STUDY_CHOICE_LETTERS.map((letter) => get(`Alternativa ${letter}`))
-    const hasChoices = choices.some((c) => c !== undefined) || get('Alternativa correta') !== undefined
     const question = validateStudyQuestion({
       id,
       topic: get('Tópico'),
       tags,
+      ...(passage && passage !== '—' ? { passage: passageFromLine(passage) } : {}),
       question: get('Enunciado'),
+      ...(optionsRaw && optionsRaw !== '—' ? { options: parseOptions(optionsRaw, i + 1) } : {}),
       ...(answer && answer !== '—' ? { answer } : {}),
       ...(rationale && rationale !== '—' ? { rationale } : {}),
       answerStatus: get('Estado do gabarito'),
@@ -227,7 +271,6 @@ export function decodeStudyBank(source: string): DecodedStudyBank {
       license: get('Licença'),
       ...(sourceOnly ? { sourceOnly: true } : {}),
       ...(verificationDate ? { verifiedByUser: true, verifiedAt: verificationDate } : {}),
-      ...(hasChoices ? { choices: choices.filter((c) => c !== undefined), correct: get('Alternativa correta') } : {}),
     })
     if (ids.has(question.id)) throw new Error(`Identificador duplicado: ${question.id}.`)
     ids.add(question.id)

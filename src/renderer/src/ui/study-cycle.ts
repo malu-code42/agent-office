@@ -10,7 +10,7 @@ import {
   type StudyPracticeQuestion,
   unansweredStudyQuestions,
 } from '@shared/study-cycle'
-import { choiceOf, isChoiceQuestion, STUDY_CHOICE_LETTERS, type StudyQuestion } from '@shared/study-questions'
+import { choiceOf, isChoiceQuestion, studyOptionLetter, studyOptionText, type StudyQuestion } from '@shared/study-questions'
 import type { StudyLibrarySearch } from '@shared/study-library'
 import { disciplineIdOf, splitStudyRationale, type StudyBankRequest } from '@shared/study-bank'
 import { studyTopicStart, topicName, trailTopicOf, type StudyTrail, type StudyTrailTopic } from '@shared/study-trail'
@@ -101,7 +101,7 @@ const passageOf = (q: StudyQuestion): HTMLElement | null => {
 /** "C) the text" for a multiple-choice answer; the answer as written for an open one left from before. */
 const answerText = (q: StudyQuestion, response: string): string => {
   const letter = isChoiceQuestion(q) ? choiceOf(response) : null
-  return letter ? `${letter}) ${q.choices![STUDY_CHOICE_LETTERS.indexOf(letter)]}` : response
+  return letter ? studyOptionText(q, letter) : response
 }
 
 /**
@@ -129,9 +129,9 @@ function answerControl(
   return h(
     'div',
     { class: 'sk-choices', role: 'radiogroup', 'aria-label': opts.label },
-    ...q.choices!.map((text, i) => {
-      const letter = STUDY_CHOICE_LETTERS[i]!
-      const mark = opts.reveal ? (letter === q.correct ? ' sk-opt-right' : letter === picked ? ' sk-opt-wrong' : '') : ''
+    ...q.options!.map((text, i) => {
+      const letter = studyOptionLetter(i)
+      const mark = opts.reveal ? (letter === q.answer ? ' sk-opt-right' : letter === picked ? ' sk-opt-wrong' : '') : ''
       return h(
         'label',
         { class: `sk-opt${mark}` },
@@ -149,6 +149,12 @@ function answerControl(
     }),
   )
 }
+
+/** The question as read: the reading passage it refers to (when it has one), then the statement. */
+const promptOf = (q: StudyQuestion): HTMLElement[] => [
+  ...(q.passage ? [h('p', { class: 'sk-reading' }, q.passage)] : []),
+  h('p', { class: 'sk-prompt' }, q.question),
+]
 
 const verifiedQuestion = (q: StudyQuestion) => !q.sourceOnly && !!q.question.trim() && q.answerStatus === 'verified' && !!q.answer
 
@@ -636,7 +642,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
                 `${item.source.sourceTitle}${item.source.answerStatus === 'verified' ? ' · gabarito conferido' : ' · gabarito não conferido'}`,
               ),
             ),
-            h('p', { class: 'sk-prompt' }, item.source.question),
+            ...promptOf(item.source),
             isChoiceQuestion(item.source)
               ? h(
                   'div',
@@ -872,12 +878,12 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
                     h('b', { class: 'sk-mono' }, qLabel(cycle, gap.id)),
                     studyChip(originLabel[gap.source.originKind], 'info'),
                   ),
-                  h('p', { class: 'sk-prompt' }, gap.source.question),
+                  ...promptOf(gap.source),
                   h(
                     'p',
                     { class: 'sk-small' },
                     `Sua resposta: ${answerText(gap.source, gap.response)}${gap.uncertain ? ' (com dúvida)' : ''}`,
-                    gap.source.answer ? ` · Gabarito: ${gap.source.correct ? `${gap.source.correct}) ` : ''}${gap.source.answer}` : '',
+                    gap.source.answer ? ` · Gabarito: ${answerText(gap.source, gap.source.answer)}` : '',
                   ),
                   passageOf(gap.source),
                 ),
@@ -1136,7 +1142,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
               h('b', { class: 'sk-mono' }, qLabel(cycle, gap.id)),
               studyChip(`${originLabel[gap.source.originKind]} · ${gap.source.sourceTitle}`, 'info'),
             ),
-            h('p', { class: 'sk-prompt' }, gap.source.question),
+            ...promptOf(gap.source),
             h(
               'p',
               { class: 'sk-small' },
@@ -1273,7 +1279,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
             `ligada a ${item.gapQuestionIds.map((id) => qLabel(cycle, id)).join(', ')} · gabarito conferido`,
           ),
         ),
-        h('p', { class: 'sk-prompt' }, item.source.question),
+        ...promptOf(item.source),
         isChoiceQuestion(item.source)
           ? h(
               'div',
@@ -1616,7 +1622,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
               studyChip(originLabel[item.source.originKind], 'info'),
               h('span', { class: 'sk-small' }, `${item.source.sourceTitle} · gabarito conferido`),
             ),
-            h('p', { class: 'sk-prompt' }, item.source.question),
+            ...promptOf(item.source),
             isChoiceQuestion(item.source)
               ? h(
                   'div',

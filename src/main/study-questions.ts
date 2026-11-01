@@ -86,6 +86,8 @@ interface LocalSourceResult {
 
 interface SourceQuestionSnippet {
   question: string
+  passage?: string
+  options?: string[]
   topic: string
   tags: string[]
   answer?: string
@@ -612,7 +614,9 @@ export class StudyQuestionService {
               id: `q-${createId(source.name, index)}`,
               topic: snippet.topic,
               tags: snippet.tags,
+              ...(snippet.passage ? { passage: snippet.passage } : {}),
               question: snippet.question,
+              ...(snippet.options ? { options: snippet.options } : {}),
               ...(snippet.answer ? { answer: snippet.answer } : {}),
               ...(snippet.rationale ? { rationale: snippet.rationale } : {}),
               answerStatus: 'unverified',
@@ -769,11 +773,27 @@ function extractRelevantQuestionSnippets(text: string, query: string): SourceQue
     let tags: string[] = []
     let answer: string | undefined
     let rationale: string | undefined
+    let passage: string | undefined
+    const options: string[] = []
+    let inPassage = false
     while (index < lines.length && !/^Questão:\s*/i.test(lines[index]!)) {
+      const passageMatch = /^Trecho:\s*(.+)$/i.exec(lines[index]!)
+      const optionMatch = /^([A-F])[).]\s+(.+)$/.exec(lines[index]!.trim())
+      // Letters must come in order (A, B, C…) so stray lines like "B. Brookshear" are not taken as alternatives.
+      const isOption = !!optionMatch && optionMatch[1] === String.fromCharCode(65 + options.length)
       const topicMatch = /^(?:Tópico|Tema) da questão:\s*(.+)$/i.exec(lines[index]!)
       const tagsMatch = /^(?:Tags|Etiquetas)(?: da questão)?:\s*(.+)$/i.exec(lines[index]!)
       const answerMatch = /^Gabarito:\s*(.+)$/i.exec(lines[index]!)
       const rationaleMatch = /^(?:Justificativa|Explicação):\s*(.+)$/i.exec(lines[index]!)
+      // A passage goes on until a blank line or the next field; its lines are kept because each may carry data the question needs.
+      if (inPassage && lines[index]!.trim() && !passageMatch && !isOption && !topicMatch && !tagsMatch && !answerMatch && !rationaleMatch)
+        passage += `\n${lines[index]!.trim()}`
+      else inPassage = false
+      if (!passage && passageMatch) {
+        passage = passageMatch[1]!.trim()
+        inPassage = true
+      }
+      if (isOption) options.push(optionMatch![2]!.trim())
       if (!itemTopic && topicMatch) itemTopic = topicMatch[1]!.trim()
       if (tagsMatch)
         tags = tagsMatch[1]!
@@ -789,11 +809,16 @@ function extractRelevantQuestionSnippets(text: string, query: string): SourceQue
     const questionTextMatch = hasTopicTerms(question, normalizedQuery)
     if (!itemMetadataMatch && !questionTextMatch) continue
     const matchingTag = tags.find((tag) => hasTopicTerms(tag, normalizedQuery))
+    const isChoice = options.length >= 2
+    // "Gabarito: B) texto" → "B", so the key matches the lettered alternatives.
+    const choiceLetter = isChoice && answer ? /^[A-F](?=[).\s]|$)/.exec(answer)?.[0] : undefined
     snippets.push({
       question,
+      ...(passage ? { passage } : {}),
+      ...(isChoice ? { options } : {}),
       topic: itemTopic || matchingTag || query,
       tags,
-      ...(answer ? { answer } : {}),
+      ...(answer ? { answer: choiceLetter ?? answer } : {}),
       ...(rationale ? { rationale } : {}),
       itemMetadataMatch,
       questionTextMatch,

@@ -7,6 +7,8 @@ import {
   isChoiceQuestion,
   rankStudyQuestions,
   STUDY_BANK_LINE_LIMIT,
+  studyQuestionText,
+  validateStudyQuestion,
   type StudyQuestion,
 } from '../src/shared/study-questions'
 import {
@@ -54,30 +56,43 @@ describe('study question bank codec', () => {
     expect(again.unknownLines).toEqual(['Texto manual que não conheço'])
   })
 
-  it('round-trips a multiple-choice question and checks its alternatives', () => {
-    const choice = question({ choices: ['1/4', '1/2', '1/3', '1', '0'], correct: 'B', answer: '1/2' })
-    const again = decodeStudyBank(encodeStudyQuestion(choice)).questions[0]!
-    expect(again).toEqual(choice)
-    expect(isChoiceQuestion(again)).toBe(true)
-    expect(isChoiceQuestion(question())).toBe(false)
-    expect(() => encodeStudyQuestion(question({ choices: ['a', 'b'], correct: 'A' }))).toThrow(/cinco/)
-    expect(() => encodeStudyQuestion(question({ choices: ['a', 'a', 'b', 'c', 'd'], correct: 'A' }))).toThrow(/diferentes/)
-    expect(() => encodeStudyQuestion(question({ choices: ['a', 'b', 'c', 'd', 'e'], correct: 'A', answer: 'b' }))).toThrow(/gabarito/)
+  it('round-trips a multiple choice question with its passage and checks the key letter', () => {
+    const choice = question({
+      passage: 'A Ciência da Computação estuda algoritmos.',
+      question: 'Segundo o texto, o que a Ciência da Computação estuda?',
+      options: ['Algoritmos', 'Planilhas', 'Redes elétricas'],
+      answer: 'A',
+    })
+    expect(decodeStudyBank(encodeStudyQuestion(choice)).questions).toEqual([choice])
+    expect(studyQuestionText(choice)).toBe(
+      'Trecho:\nA Ciência da Computação estuda algoritmos.\n\nSegundo o texto, o que a Ciência da Computação estuda?\n\nA) Algoritmos\nB) Planilhas\nC) Redes elétricas',
+    )
+    expect(() => validateStudyQuestion({ ...choice, answer: 'D' })).toThrow(/letra/i)
+    expect(() => validateStudyQuestion({ ...choice, options: ['só uma'] })).toThrow(/alternativas/i)
+  })
+
+  it('keeps the line breaks and backslashes of a multi-line passage through the bank file', () => {
+    const multi = question({ passage: 'Dados:\nx = 3\ncaminho C:\\temp\\n', question: 'Quanto vale x?' })
+    const line = encodeStudyQuestion(multi)
+    expect(line.split('\n').filter((row) => row.startsWith('- Trecho:'))).toHaveLength(1)
+    expect(decodeStudyBank(line).questions).toEqual([multi])
   })
 
   it('grades a multiple-choice answer by its letter, with no model', () => {
-    const choice = question({ choices: ['1/4', '1/2', '1/3', '1', '0'], correct: 'B', answer: '1/2' })
+    const choice = question({ options: ['1/4', '1/2', '1/3', '1', '0'], answer: 'B' })
     expect(choiceOf(' b) ')).toBe('B')
     expect(choiceOf('Errado')).toBeNull()
     expect(gradeChoice(choice, 'B')?.kind).toBe('correct')
     expect(gradeChoice(choice, 'C')).toMatchObject({ kind: 'incorrect', rationale: expect.stringContaining('B) 1/2') })
     expect(gradeChoice(question(), 'B')).toBeNull()
+    expect(isChoiceQuestion(choice)).toBe(true)
+    expect(isChoiceQuestion(question())).toBe(false)
   })
 
   it('removes the open questions from the bank file after a backup, keeping the rest', () => {
     const vault = mkdtempSync(join(tmpdir(), 'study-bank-'))
     try {
-      const choice = question({ id: 'q-choice01', choices: ['1/4', '1/2', '1/3', '1', '0'], correct: 'B', answer: '1/2' })
+      const choice = question({ id: 'q-choice01', options: ['1/4', '1/2', '1/3', '1', '0'], answer: 'B' })
       const text = `# Banco\n\nNota manual\n\n${encodeStudyQuestion(question())}\n${encodeStudyQuestion(choice)}\n`
       writeFileSync(join(vault, 'questoes-estudo.md'), text)
       const service = new StudyQuestionService(vault, { webSearch: async () => [] })
@@ -179,6 +194,39 @@ describe('study question bank codec', () => {
       .replace('- Enunciado: Uma moeda é lançada. Qual a chance de cara?', '- Enunciado: Questão editada pela usuária?')
       .replace('- Resposta: 1/2', '- Resposta: 1/4')
     expect(decodeStudyBank(edited).questions[0]).toMatchObject({ question: 'Questão editada pela usuária?', answer: '1/4' })
+  })
+
+  it('reads the passage and lettered alternatives of a local source question', async () => {
+    const vault = mkdtempSync(join(tmpdir(), 'study-bank-'))
+    try {
+      const sources = join(vault, 'study sources')
+      mkdirSync(sources)
+      writeFileSync(
+        join(sources, 'computacao.md'),
+        [
+          'Título: Simulado ENEM sintético',
+          'Origem: enem',
+          'Licença: domínio público',
+          'Atribuição: material sintético',
+          'Tópico: Computação',
+          'Questão: Segundo o texto, qual estudo é a pedra angular da Ciência da Computação?',
+          'Trecho: Os algoritmos são a pedra angular da Ciência da Computação.',
+          'Eles aparecem em todo o livro.',
+          'A) Algoritmos',
+          'B) Planilhas',
+          'Gabarito: A) Algoritmos',
+        ].join('\n'),
+      )
+      const service = new StudyQuestionService(vault, { webSearch: async () => [] })
+      const result = await service.search('Computação', 1)
+      expect(result.sourceCandidates[0]).toMatchObject({
+        passage: 'Os algoritmos são a pedra angular da Ciência da Computação.\nEles aparecem em todo o livro.',
+        options: ['Algoritmos', 'Planilhas'],
+        answer: 'A',
+      })
+    } finally {
+      rmSync(vault, { recursive: true, force: true })
+    }
   })
 
   it('uses approved local source snippets before WebSearch and derives origin from visible metadata', async () => {

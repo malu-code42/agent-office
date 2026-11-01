@@ -365,7 +365,8 @@ export abstract class PanelHead extends PanelSearch {
               'Salvar como modelo',
             )
           : null,
-        a.builtIn
+        // 'Mandar embora da Casa' already covers the Casa residents
+        a.builtIn || (office && a.homeResident)
           ? null
           : office
             ? h('button', { class: 'ab-fire', onclick: () => this.fire(a) }, 'Dispensar agente')

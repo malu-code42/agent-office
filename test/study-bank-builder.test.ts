@@ -68,7 +68,7 @@ describe('buildStudyBank', () => {
     expect(search).toHaveBeenCalledWith('Sistemas de numeração', ['study sources/textbooks/Introdução à Ciência da Computação/'])
     expect(bank.map((q) => q.tags)).toEqual([['Introdução à Ciência da Computação'], ['Introdução à Ciência da Computação']])
     expect(bank.every((q) => q.answerStatus === 'verified' && !q.verifiedByUser)).toBe(true)
-    expect(bank.every((q) => q.choices?.length === 5 && q.correct === 'A')).toBe(true)
+    expect(bank.every((q) => q.options?.length === 5 && q.answer === 'A')).toBe(true)
   })
 
   it('does not count an open question (from before multiple choice) toward the goal', async () => {

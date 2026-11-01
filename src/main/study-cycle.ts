@@ -23,8 +23,7 @@ import {
   type StudyPracticeQuestion,
   type StudyCycleState,
 } from '@shared/study-cycle'
-import { gradeChoice } from '@shared/study-questions'
-import type { StudyQuestion } from '@shared/study-questions'
+import { gradeChoice, studyQuestionText, type StudyQuestion } from '@shared/study-questions'
 import { tutorEvidence, type StudyTutorEvaluator } from './study-cycle-claude'
 import { hashStudyQuestion } from './study-cycle-schema'
 import { StudyCycleStore } from './study-cycle-store'
@@ -188,7 +187,7 @@ export class StudyCycleService {
         gradeChoice(question.source, question.response) ??
         (await this.evaluate({
           profile: 'verificador',
-          question: question.source.question,
+          question: studyQuestionText(question.source),
           studentAnswer: question.response,
           providedEvidence: evidence,
         }))
@@ -234,7 +233,7 @@ export class StudyCycleService {
       gradeChoice(question.source, question.response) ??
       (await this.evaluate({
         profile: 'curador',
-        question: question.source.question,
+        question: studyQuestionText(question.source),
         studentAnswer: question.response,
         providedEvidence: evidence,
       }))
@@ -278,7 +277,7 @@ export class StudyCycleService {
       gradeChoice(question.source, question.response) ??
       (await this.evaluate({
         profile: 'tutor',
-        question: question.source.question,
+        question: studyQuestionText(question.source),
         studentAnswer: question.response,
         providedEvidence: evidence,
       }))

@@ -84,7 +84,6 @@ export async function generateGroundedQuestion(
       code = 'refused'
       continue
     }
-    const answer = choices[right]!
     onStep?.('quote')
     if (!squash(source.excerpt).includes(squash(quote as string))) {
       reason = 'A citação do autor não existe na fonte.'
@@ -127,9 +126,9 @@ export async function generateGroundedQuestion(
           topic: source.topic,
           tags: [],
           question,
-          answer,
-          choices,
-          correct,
+          // the bank's multiple choice: the alternatives and the right letter as the answer
+          options: choices,
+          answer: correct,
           rationale: `${rationale} Trecho da fonte: «${quote}»`,
           // Verified by the agent chain; verifiedByUser stays absent because the user did not review it.
           answerStatus: 'verified',

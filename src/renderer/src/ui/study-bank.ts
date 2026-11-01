@@ -14,7 +14,7 @@ import {
 } from '@shared/study-bank'
 import { studyBankStats } from '@shared/study-bank-stats'
 import { answeredStudyQuestions, isStudyQuestionAnswered, type StudyCycleState } from '@shared/study-cycle'
-import { STUDY_QUESTION_LIMITS, type StudyQuestion } from '@shared/study-questions'
+import { isChoiceQuestion, STUDY_QUESTION_LIMITS, studyOptionText, type StudyQuestion } from '@shared/study-questions'
 import type { StudyTrail, StudyTrailTopic } from '@shared/study-trail'
 import { announce } from './a11y'
 import { h } from './dom'
@@ -80,16 +80,30 @@ export function studyQuestionCard(question: StudyQuestion, answered: boolean, di
     ),
     question.sourceOnly
       ? h('p', { class: 'qc-q' }, 'Somente a referência da fonte; sem enunciado guardado.')
-      : h('p', { class: 'qc-q' }, question.question),
-    question.choices
-      ? h('ol', { class: 'qc-choices', type: 'A' }, ...question.choices.map((choice) => h('li', {}, choice)))
-      : h('p', { class: 'qc-open' }, 'Questão aberta, de antes da múltipla escolha: não é oferecida e sai na próxima montagem.'),
+      : h(
+          'div',
+          {},
+          question.passage ? h('p', { class: 'qc-passage' }, question.passage) : null,
+          h('p', { class: 'qc-q' }, question.question),
+        ),
+    question.options?.length
+      ? h('ol', { class: 'qc-choices', type: 'A' }, ...question.options.map((option) => h('li', {}, option)))
+      : question.sourceOnly
+        ? null
+        : h('p', { class: 'qc-open' }, 'Questão aberta, de antes da múltipla escolha: não é oferecida e sai na próxima montagem.'),
     question.answer || quote
       ? h(
           'details',
           { class: 'qc-block', open: answered || undefined },
           h('summary', { class: 'qc-label' }, answered ? 'Resposta e trecho' : 'Ver resposta e trecho (revela a resposta)'),
-          question.answer ? h('p', {}, h('b', {}, 'Resposta: '), question.correct ? `${question.correct}) ` : '', question.answer) : null,
+          question.answer
+            ? h(
+                'p',
+                {},
+                h('b', {}, 'Resposta: '),
+                isChoiceQuestion(question) ? studyOptionText(question, question.answer) : question.answer,
+              )
+            : null,
           rationale ? h('p', {}, h('b', {}, 'Justificativa: '), rationale) : null,
           quote ? h('span', { class: 'qc-label' }, `Trecho do livro${place ? ` · ${place}` : ''}`) : null,
           quote ? h('blockquote', { class: 'qc-quote' }, `“${quote}”`) : null,

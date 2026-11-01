@@ -30,9 +30,8 @@ describe('generateGroundedQuestion', () => {
     expect(out.ok && out.question.originKind).toBe('livro')
     expect(out.ok && out.question.answerStatus).toBe('verified')
     expect(out.ok && out.question.verifiedByUser).toBeUndefined()
-    expect(out.ok && out.question.choices).toHaveLength(5)
-    expect(out.ok && out.question.correct).toBe('B')
-    expect(out.ok && out.question.answer).toBe('0 e 1')
+    expect(out.ok && out.question.options).toHaveLength(5)
+    expect(out.ok && out.question.answer).toBe('B')
     expect(ask).toHaveBeenCalledTimes(3)
   })
 

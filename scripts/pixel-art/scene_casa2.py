@@ -39,25 +39,26 @@ SEAT_ORDER = [0, 1, 2, 3]
 VOCE_DESK = (70, 266, 36)
 # footprints of the clickable furniture (export_app.py tags the items with these)
 SKULL = (146, 20, 154, 28)
-# Claude FM: in the media room's reading corner, against the half wall, the pink sofa facing it
+# Claude FM: the old living room in the media room's corner: the console on the half wall, the pink
+# sofa facing it, the green armchair, the low table and the cream rug
 RADIO = (228, 12, 240, 46)
-READ_SOFA = (262, 10, 276, 50)
+READ_SOFA = (290, 10, 304, 50)
 # the 'Rotinas de agentes' board hangs on the west wall of Luna's table room (plane x=0): y0, y1, z0, z1, clear of the window
 TOTEM_WALL = (168, 184, 26, 42)
 TOTEM = (0, 168, 2, 184)
 # the window on the west wall by the user's corner: y0, y1, z0, z1 (the glass is drawn by the app: morning, day, evening, night)
 WINDOW = (192, 262, 20, 50)
 # the writing desk: in front of the last bookshelf, its west edge on the shelf's
-WRITING = (352, 10, 368, 46)
+WRITING = (352, 24, 368, 60)
 FILMS_TV = (228, 120, 238, 146)
 ARCADES = [(228, 216, 238, 228), (228, 232, 238, 244), (228, 248, 238, 260)]
 SHELVES = [(x, 0, x + 28, 8) for x in range(232, 380, 30)]
 # where idle agents of the Casa sit or play: x, y (art units), the point they look at, kind
 HANG = [
-    (269, 20, (234, 29), 'sit'), (269, 40, (234, 29), 'sit'),      # reading sofa, facing the Claude FM
+    (297, 20, (234, 29), 'sit'), (297, 40, (234, 29), 'sit'),      # reading sofa, facing the Claude FM
     (299, 124, (233, 133), 'sit'), (299, 144, (233, 133), 'sit'),  # Filmes sofa, facing the TV
     (246, 222, (233, 222), 'play'), (246, 238, (233, 238), 'play'), (246, 254, (233, 254), 'play'),  # arcades
-    (258, 238, (233, 238), 'stand'), (250, 56, (234, 29), 'stand'),
+    (258, 238, (233, 238), 'stand'), (240, 62, (234, 29), 'stand'),
     (26, 150, (9, 149), 'stand'),                                  # coffee corner of the office
 ]
 # names shown when the pointer is over a part of the floor (tiles: x0, y0, x1, y1)
@@ -113,7 +114,7 @@ def shell(L):
     F.frame_x(L, 0, 88, 98, 30, 42, art=('9cc4dc', 'f6e27a', '8cc477'))
     F.frame_x(L, 0, 112, 132, 22, 44, art=('f2c58a', 'fbf3e0', 'e86a5a'), fr='5f7fb4')
     F.rug(L, *DESK_RUG, H('9fb7d6'), H('809cc2'), H('e4eaf6'))
-    F.rug(L, 230, 10, 296, 64, H('d9a0a0'), H('b87a7a'), H('f6dcd0'))
+    F.rug(L, 244, 10, 328, 72, H('e7c39a'), H('cf9f72'), H('fbe9c8'))
     F.rug(L, 230, 100, 330, 168, H('a9b8d8'), H('8698c0'), H('e4eaf6'))
     F.rug(L, 230, 210, 300, 280, H('f2d6a0'), H('dcb880'), H('fbf3e0'))
 
@@ -186,11 +187,12 @@ def media(sc, people=True):
     L, add = sc.L, sc.add
     for fp in SHELVES:
         add(fp, lambda x=fp[0]: F.bookshelf(L, x, 0, 28), True)
-    # reading corner: the Claude FM on the half wall, a low table, the pink sofa facing it
+    # Claude FM corner, as the old living room: console, low table, green armchair, pink sofa, lamp
     add(RADIO, lambda: G.radio_tv(L, *RADIO[:2]), True)
-    add((246, 22, 256, 34), lambda: G.low_table(L, 246, 22, 10, 12), True)
+    add((258, 22, 270, 36), lambda: G.low_table(L, 258, 22, 12, 14), True)
+    add((258, 44, 270, 56), lambda: G.armchair(L, 258, 44, '-y', T('b9d3b0', '9cbf93', '7fa277')), True)
     add(READ_SOFA, lambda: F.sofa_mx(L, *READ_SOFA[:2], T('e7b3a6', 'd39486', 'b87a6d'), 40), True)
-    add((282, 12, 288, 18), lambda: F.lamp(L, 282, 12), True)
+    add((316, 14, 322, 20), lambda: F.lamp(L, 316, 14), True)
     # Escrita: in front of the last bookshelf
     wx, wy = WRITING[:2]
     add(WRITING, lambda: (F.desk(L, wx, wy, 16, 36), G.typewriter(L, wx + 3, wy + 4, 12),
@@ -224,7 +226,7 @@ def build():
     office(sc)
     luna_table(sc)
     x, y, w = VOCE_DESK
-    ws_front_y(sc, x, y, 0, VOCE_LOOK[1], w=w, head='voce', col=F.CHAIRS[VOCE_LOOK[0]])
+    ws_front_y(sc, x, y, 0, VOCE_LOOK[1], w=w, head='voce', col=F.CHAIRS[VOCE_LOOK[0]], centered=True)
     voce_corner(sc)
     half_wall(sc, 1)
     media(sc)
@@ -237,7 +239,7 @@ def build():
     sc.label('Claude FM', 234, 29, 34)
     sc.label('Escritório', 124, 40)
     sc.label('Mesa da Luna', 124, 130)
-    mx, my = L.P(78, 270, 34)
+    mx, my = L.P(68, 270, 34)
     sc.labels.append(('Novo agente', mx + 2, int(my) - 18))
     vx, vy = L.P(98, 262, 0)
     sc.labels.append(('Você', vx + 22, int(vy) - 6))
