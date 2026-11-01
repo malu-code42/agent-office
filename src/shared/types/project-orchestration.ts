@@ -1,6 +1,7 @@
 // ---------- project orchestration (ticket #58) ----------
-// Emi conduz o fluxo grill-with-docs → to-spec → to-tickets. Cada artefato é
-// aprovado pela usuária antes do próximo, e só trabalho aprovado forma squads.
+// Emi conduz o fluxo do Elephant-Goldfish Model: brainstorm → rascunho do design →
+// Revisão Goldfish → tickets. Cada artefato é aprovado pela usuária antes do próximo,
+// e só trabalho aprovado forma squads.
 
 /**
  * Máximo de rodadas de revisão por artefato: a revisão inicial mais uma
@@ -27,8 +28,8 @@ export function newApprovalGate(): ApprovalGate {
   return { approved: false, approvedAt: null, approvedBy: null, reviewRounds: 0, findings: [] }
 }
 
-/** Uma decisão esclarecida no grill: pergunta + resposta registrada. */
-export interface GrillDecision {
+/** Uma decisão esclarecida no brainstorm: pergunta + resposta registrada. */
+export interface BrainstormDecision {
   id: string
   question: string
   answer: string
@@ -36,23 +37,25 @@ export interface GrillDecision {
   decidedAt: number
 }
 
-export interface GrillArtifact {
+/** Brainstorm do EGM: o conceito esclarecido com a usuária, que vira o concepts_brief.md. */
+export interface BrainstormArtifact {
   id: string
   projectId: string
-  kind: 'grill'
+  kind: 'brainstorm'
   goal: string
-  decisions: GrillDecision[]
+  decisions: BrainstormDecision[]
   gate: ApprovalGate
   createdAt: number
   updatedAt: number
 }
 
-export interface SpecArtifact {
+/** Rascunho do design do EGM: o design doc em docs/designs/, construído do brainstorm aprovado. */
+export interface DesignArtifact {
   id: string
   projectId: string
-  kind: 'spec'
-  /** O grill aprovado do qual este spec é construído. */
-  grillId: string
+  kind: 'design'
+  /** O brainstorm aprovado do qual este design é construído. */
+  brainstormId: string
   goal: string
   criteria: string[]
   scope: string
@@ -65,8 +68,8 @@ export interface TicketsArtifact {
   id: string
   projectId: string
   kind: 'tickets'
-  /** O spec aprovado do qual estes tickets são construídos. */
-  specId: string
+  /** O design doc aprovado (e revisado) do qual estes tickets são construídos. */
+  designId: string
   goal: string
   criteria: string[]
   /** Um ticket por linha, na ordem do quadro. */
@@ -85,25 +88,44 @@ export interface RedistributionChange {
   toSquad: string | null
 }
 
-/** User-authored project floor workflow. Each approval unlocks only the next stage. */
+/** Bootstrap do EGM (READMEs + docs/designs/SITEMAP.md): opcional, uma vez por projeto. */
+export type BootstrapStatus = 'pending' | 'done' | 'skipped'
+
+/**
+ * Fluxo do andar de projeto no Elephant-Goldfish Model (EGM): bootstrap → brainstorm →
+ * rascunho do design → Revisão Goldfish → tickets → squads, com relatório de drift sob demanda.
+ * Cada aprovação humana destrava só a etapa seguinte.
+ */
 export interface ProjectWorkflow {
   projectId: string
   goal: string
-  grill: string
-  grillApprovedAt: number | null
-  spec: string
+  /** Bootstrap do contexto do código; opcional e não bloqueia as etapas. */
+  bootstrap: BootstrapStatus
+  bootstrapAt: number | null
+  /** O concepts brief (concepts_brief.md) ou seu resumo. */
+  brainstorm: string
+  brainstormApprovedAt: number | null
+  /** O design doc (ou seu resumo), com o plano de implementação. */
+  design: string
+  /** Caminho relativo do design doc no projeto, em docs/designs/; vazio quando não há arquivo. */
+  designPath: string
   criteria: string[]
-  specApprovedAt: number | null
+  designApprovedAt: number | null
+  /** Resultado da Revisão Goldfish: os achados que a usuária escolheu tratar e como foram resolvidos. */
+  review: string
+  reviewApprovedAt: number | null
   ticketIds: string[]
   /** Claude's unapproved ticket breakdown; converted to board tickets only on approval. */
   ticketDrafts?: Array<{ title: string; description: string; acceptance: string[] }>
   ticketsApprovedAt: number | null
   assignments: Record<string, string | null>
   redistributionProposal?: { changes: RedistributionChange[]; proposedAt: number; approvedAt: number | null }
+  /** Último relatório de drift (design docs × código); sob demanda, sugerido semanalmente. */
+  driftReport?: { summary: string; at: number }
   updatedAt: number
 }
 
-export type ProjectArtifact = GrillArtifact | SpecArtifact | TicketsArtifact
+export type ProjectArtifact = BrainstormArtifact | DesignArtifact | TicketsArtifact
 
 /** Códigos dos erros de portão de orquestração. */
 export type OrchestrationErrorCode =

@@ -12,6 +12,7 @@ import { LUNA_CONFIRM_TOOLS, LUNA_SERVER } from '../luna-tools'
 import { EMI_CONFIRM_TOOLS, EMI_SERVER } from '../emi-tools'
 import { BONNIE_SERVER } from '../bonnie-tools'
 
+/** Read-only tools Luna (her roots) and Emi (the EGM plugin folders) use without a card. */
 const LUNA_READ_TOOLS = new Set(['Read', 'Grep', 'Glob'])
 import { type Agent } from './types'
 import { AgentSubagents } from './subagents'
@@ -97,6 +98,15 @@ export abstract class AgentDecisions extends AgentSubagents {
       !confirm &&
       (LUNA_READ_TOOLS.has(tool) || s.permissionMode === 'auto') &&
       this.lunaRoots().some((cwd) => decide(s.permissionMode, tool, input, { ...scope, cwd }).verdict === 'allow')
+    )
+      return Promise.resolve({ behavior: 'allow', updatedInput: input })
+    // Emi and her Goldfish reviewers read the EGM plugin's personas, standards and skills without
+    // asking (read tools only: never edits there). Everything else follows the floor's policy.
+    if (
+      emi &&
+      !confirm &&
+      LUNA_READ_TOOLS.has(tool) &&
+      this.egmReadRoots().some((cwd) => decide(s.permissionMode, tool, input, { ...scope, cwd }).verdict === 'allow')
     )
       return Promise.resolve({ behavior: 'allow', updatedInput: input })
     // O que pede é o risco classificado (o porquê da política), não a sugestão do CLI.

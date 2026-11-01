@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { randomUUID } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import {
   type McpSdkServerConfigWithInstance,
@@ -26,6 +27,7 @@ import { lunaAgentSummary } from '@shared/luna'
 import { BONNIE_AGENT_ID, BONNIE_LOOK, bonnieAgentSummary } from '@shared/bonnie'
 import { projectFor } from '@shared/projects'
 import { type Accounts } from '../accounts'
+import { EGM_READ_FOLDERS, egmPluginRoot } from '../agent-plugins'
 import type { CostBook } from '../ledger'
 import type { Store } from '../store'
 import { SubagentLogs } from '../subagent-log'
@@ -56,6 +58,8 @@ export abstract class AgentBase extends EventEmitter {
    * talking can be shown (and tested by keyboard, AO-38) without spending tokens.
    */
   simulate?: (agentId: string, prompt: string) => void
+  /** Claude Code's user folder (plugins, skills); tests point it at a fixture. */
+  claudeHome = join(homedir(), '.claude')
 
   constructor(protected store: Store) {
     super()
@@ -191,6 +195,17 @@ export abstract class AgentBase extends EventEmitter {
   /** Folders Luna reads without asking (#101): her home and every project floor. */
   protected lunaRoots(): string[] {
     return [...new Set([this.lunaHome(), ...this.store.settings.projects.map((p) => p.cwd)])]
+  }
+
+  /** Install folder of the EGM plugin Emi follows, or null when it is not installed. */
+  protected egmRoot(): string | null {
+    return egmPluginRoot(this.claudeHome)
+  }
+
+  /** Folders of the EGM plugin Emi and her Goldfish reviewers read without asking; never written. */
+  protected egmReadRoots(): string[] {
+    const root = this.egmRoot()
+    return root ? EGM_READ_FOLDERS.map((folder) => join(root, folder)) : []
   }
 
   /** Bonnie's working folder: an empty folder of the office data, so no study file sits where she runs (#75, #90). */

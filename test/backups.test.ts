@@ -20,6 +20,7 @@ import {
   snapshot,
 } from '../src/main/backups'
 import { emptyStudyCycleState } from '../src/shared/study-cycle'
+import { ProjectWorkflowStore } from '../src/main/project-workflows'
 
 let dir: string
 
@@ -234,6 +235,21 @@ describe('restore', () => {
     expect(read('office.json')).toEqual({ v: 'old' })
     expect(read('tickets.json')).toEqual({ seq: 9, tickets: [] })
     expect(read('tickets-closed.json')).toEqual({ tickets: [{ key: 'AO-8' }] })
+  })
+
+  it('restores a backup of the project workflow from before the EGM stages, migrated on load', () => {
+    put('tickets.json', { seq: 1, tickets: [] })
+    put('project-workflows.json', readFileSync(join(__dirname, 'fixtures', 'project-workflows-legacy.json'), 'utf8'))
+    dailyBackup(dir, new Date(2026, 9, 2))
+    put('project-workflows.json', { workflows: [] })
+    expect(readBackup(dir, '2026-10-02')).toHaveProperty(['project-workflows.json'])
+    restoreBackup(dir, '2026-10-02')
+    expect(new ProjectWorkflowStore(dir).get('loja')).toMatchObject({
+      brainstorm: 'Decisões: busca por produto e categoria; fora do escopo: busca por voz.',
+      brainstormApprovedAt: 1760000000000,
+      designApprovedAt: 1760000100000,
+      ticketsApprovedAt: 1760000200000,
+    })
   })
 
   it('refuses a backup whose file has the wrong shape', () => {

@@ -29,7 +29,10 @@ import type { Proposal } from '../proposals'
 import type { Goal, GoalDraft } from '../goals'
 import type { NewTaskDraft, ParsedBoard, Task, TaskDiscard, TaskMove, TaskRef, TaskReopen, TaskReschedule } from '../tasks'
 import type { PersonalRoutineCreateInput, PersonalRoutineOverview } from '../routine-personal'
-import type { ProjectWorkflow } from './project-orchestration'
+import type { BootstrapStatus, ProjectWorkflow } from './project-orchestration'
+
+/** What Emi drafts in the "Preparar trabalho" window, stage by stage. */
+export type ProjectWorkflowDraftKind = 'brainstorm' | 'design' | 'review' | 'tickets' | 'redistribution' | 'drift'
 import type { DelegateTarget, Ticket, TicketDraft, TicketPatch, TicketStatus } from './tickets'
 import type { WritingVersion } from '../writing'
 import type { DecodedStudyBank, StudyQuestion } from '../study-questions'
@@ -580,14 +583,18 @@ export interface OfficeAPI {
   }): Promise<SquadProposal>
   /** Reads the local, user-authored orchestration state for one project floor. */
   getProjectWorkflow(projectId: string): Promise<ProjectWorkflow>
-  saveProjectWorkflowGrill(projectId: string, goal: string, grill: string): Promise<ProjectWorkflow>
-  approveProjectWorkflowGrill(projectId: string): Promise<ProjectWorkflow>
-  saveProjectWorkflowSpec(projectId: string, spec: string, criteria: string[]): Promise<ProjectWorkflow>
-  approveProjectWorkflowSpec(projectId: string): Promise<ProjectWorkflow>
+  /** Marks the one-time EGM bootstrap (READMEs + SITEMAP) as done, skipped or pending again. */
+  setProjectWorkflowBootstrap(projectId: string, status: BootstrapStatus): Promise<ProjectWorkflow>
+  saveProjectWorkflowBrainstorm(projectId: string, goal: string, brainstorm: string): Promise<ProjectWorkflow>
+  approveProjectWorkflowBrainstorm(projectId: string): Promise<ProjectWorkflow>
+  saveProjectWorkflowDesign(projectId: string, design: string, criteria: string[], designPath?: string): Promise<ProjectWorkflow>
+  approveProjectWorkflowDesign(projectId: string): Promise<ProjectWorkflow>
+  saveProjectWorkflowReview(projectId: string, review: string): Promise<ProjectWorkflow>
+  approveProjectWorkflowReview(projectId: string): Promise<ProjectWorkflow>
   saveProjectWorkflowTickets(projectId: string, ticketIds: string[]): Promise<ProjectWorkflow>
   approveProjectWorkflowTickets(projectId: string): Promise<ProjectWorkflow>
-  /** Asks Emi for one draft stage; the result is saved but never approved automatically. */
-  generateProjectWorkflowDraft(projectId: string, kind: 'grill' | 'spec' | 'tickets' | 'redistribution'): Promise<ProjectWorkflow>
+  /** Asks Emi for one draft stage (or a drift report); the result is saved but never approved automatically. */
+  generateProjectWorkflowDraft(projectId: string, kind: ProjectWorkflowDraftKind): Promise<ProjectWorkflow>
   approveProjectWorkflowRedistribution(projectId: string): Promise<ProjectWorkflow>
   /** Asks for a new proposal with the player's changes; the brief and the tickets stay. */
   adjustSquadProposal(id: string, adjustment: string, name?: string): Promise<SquadProposal>
