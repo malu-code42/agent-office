@@ -48,6 +48,16 @@ export function portrait(look: Look, size = 32): HTMLCanvasElement {
   return c
 }
 
+/** The whole sprite standing, from the front, at a whole-number scale (the reading screen of a result). */
+export function standingSprite(look: Look, scale = 6): HTMLCanvasElement {
+  const c = document.createElement('canvas')
+  c.width = 24 * scale
+  c.height = 32 * scale
+  c.className = 'sprite-standing'
+  paint(c, look, 'FL/idle', scale, [0, 0])
+  return c
+}
+
 /** The look editor's preview: the whole sprite from the front and from the back, at a whole-number scale. */
 export function lookPreview(look: Look, scale = 4): HTMLElement {
   const box = document.createElement('div')

@@ -97,14 +97,5 @@ export function timeAgo(t: number): string {
   return `${Math.floor(s / 86400)} d`
 }
 
-export function formatCost(usd: number): string {
-  if (!usd) return ''
-  return usd < 0.01 ? '<$0,01' : `$${usd.toFixed(2).replace('.', ',')}`
-}
-
-export function formatDuration(ms: number): string {
-  if (!ms) return ''
-  const s = Math.round(ms / 1000)
-  if (s < 60) return `${s}s`
-  return `${Math.floor(s / 60)}min ${s % 60}s`
-}
+// Pure, so code without the DOM (tests, result-reader-model.ts) can use them too.
+export { formatCost, formatDuration } from './format'
