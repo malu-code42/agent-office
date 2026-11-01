@@ -498,20 +498,9 @@
   background: var(--info-bg);
 }
 
-/* You: solid green, check icon, with the date. */
-.seal-you {
-  border: 2px solid var(--green);
-  background: var(--green);
-  color: #0d2416;
-}
-
 .seal-none {
   border: 2px dotted var(--ctl-line);
   color: var(--muted);
-}
-
-.qc.qc-you {
-  border-color: var(--green);
 }
 
 .qc-legend {

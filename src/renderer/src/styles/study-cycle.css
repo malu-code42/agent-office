@@ -457,8 +457,3 @@
   border: 1px dashed var(--blue);
   color: var(--blue);
 }
-
-.study-bank-chip-you {
-  border-color: var(--green);
-  color: var(--green);
-}

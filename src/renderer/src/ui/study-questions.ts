@@ -138,7 +138,6 @@ function bankView(
       { class: 'study-bank-row', role: 'group', 'aria-label': 'Quem conferiu' },
       h('span', { class: 'study-bank-cap' }, 'Selo'),
       chip('verificadas por agentes', stats.byReview.agents, 'agents'),
-      stats.byReview.you ? chip('revisadas por você', stats.byReview.you, 'you') : null,
       stats.byReview.none ? chip('sem conferência', stats.byReview.none, 'missing') : null,
     ),
     h(

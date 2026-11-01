@@ -41,7 +41,7 @@ function svgIcon(paths: string, width = '2'): SVGSVGElement {
   return svg
 }
 
-/** Who checked a question. Agents: blue, dashed, robot. You (old manual review): solid green, check, date. */
+/** The seal of a question: blue, dashed, robot when the agent chain checked it. */
 export function studySeal(question: StudyQuestion): HTMLElement {
   if (isAgentVerified(question))
     return h(
@@ -49,13 +49,6 @@ export function studySeal(question: StudyQuestion): HTMLElement {
       { class: 'seal seal-agents', title: 'Conferida por autor, resolvedor cego e verificador; ninguém leu' },
       svgIcon('<rect x="3" y="5" width="10" height="8"/><path d="M8 2v3M6 9h0M10 9h0"/>'),
       'Verificada por agentes',
-    )
-  if (question.verifiedByUser)
-    return h(
-      'span',
-      { class: 'seal seal-you' },
-      svgIcon('<path d="M3 8l3 3 7-7"/>', '2.5'),
-      `Revisada por você${question.verifiedAt ? ` · ${new Date(question.verifiedAt).toLocaleDateString('pt-BR')}` : ''}`,
     )
   return h('span', { class: 'seal seal-none' }, 'Sem conferência')
 }
@@ -69,7 +62,7 @@ export function studyQuestionCard(question: StudyQuestion, answered: boolean, di
   const place = placeOf(question.sourceReference)
   return h(
     'article',
-    { class: `qc${question.verifiedByUser && !isAgentVerified(question) ? ' qc-you' : ''}` },
+    { class: 'qc' },
     h(
       'div',
       { class: 'qc-top' },

@@ -34,8 +34,8 @@ export interface StudyBankStats {
   answered: number
   byOrigin: Record<StudyOriginKind, number>
   byAnswer: Record<AnswerStatus, number>
-  /** Who checked each question: the agent chain, the user (old manual review), or no one. */
-  byReview: { agents: number; you: number; none: number }
+  /** Questions checked by the agent chain, and the ones without its seal. */
+  byReview: { agents: number; none: number }
   goal: number
   /** Trail topics below the goal, in the whole bank. */
   below: number
@@ -99,7 +99,7 @@ export function studyBankStats(
 
   const byOrigin: Record<StudyOriginKind, number> = { enem: 0, concurso: 0, livro: 0, web: 0, ia: 0 }
   const byAnswer: Record<AnswerStatus, number> = { verified: 0, unverified: 0, missing: 0 }
-  const byReview = { agents: 0, you: 0, none: 0 }
+  const byReview = { agents: 0, none: 0 }
   let answered = 0
   type Row = { id?: string | null; count: number; fresh: number; trail: boolean; ids: string[] }
   const groups = new Map<string, Map<string, Row>>()
@@ -118,7 +118,6 @@ export function studyBankStats(
     byOrigin[question.originKind]++
     byAnswer[question.answerStatus]++
     if (isAgentVerified(question)) byReview.agents++
-    else if (question.verifiedByUser) byReview.you++
     else byReview.none++
     const done = !!options.isAnswered?.(question)
     if (done) answered++

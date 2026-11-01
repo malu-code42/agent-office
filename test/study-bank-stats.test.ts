@@ -91,7 +91,7 @@ describe('studyBankStats', () => {
     const answered = new Set([filas[0]!.id])
     const stats = studyBankStats(filas, TRAIL.topics, { goal: 2, isAnswered: (x) => answered.has(x.id) })
     expect(stats.answered).toBe(1)
-    expect(stats.byReview).toEqual({ agents: 2, you: 1, none: 0 })
+    expect(stats.byReview).toEqual({ agents: 2, none: 1 })
     const ed = stats.disciplines.find((d) => d.discipline === 'Estrutura de Dados')!
     expect(ed.topics.find((t) => t.id === 'P2-ED-05')).toMatchObject({ count: 3, fresh: 2, below: false })
     expect(ed.topics.find((t) => t.id === 'P2-ED-01')).toMatchObject({ count: 0, fresh: 0, below: true })
