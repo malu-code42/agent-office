@@ -43,6 +43,9 @@
   background: var(--accent-solid);
   color: var(--on-accent);
   font-weight: 600;
+  /* the dock grew (worktrees, Sair): the label stays on one line */
+  white-space: nowrap;
+  flex-shrink: 0;
   box-shadow: var(--shadow-sm);
   transition: transform 0.1s, background 0.15s;
 }
