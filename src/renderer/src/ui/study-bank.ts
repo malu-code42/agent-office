@@ -750,3 +750,23 @@ export function mountStudyBankChip(root: HTMLElement, open: () => void): void {
     renderChip()
   })
 }
+
+/** The corner notice while scanned PDFs go through OCR in the background; stays until the queue is empty. */
+export function mountStudyOcrChip(root: HTMLElement): void {
+  window.office.onEvent((event) => {
+    if (event.type !== 'study-ocr') return
+    root.querySelector('[data-study-ocr-chip]')?.remove()
+    const s = event.state
+    if (!s) return
+    root.append(
+      h(
+        'div',
+        { class: 'bk-hud bk-hud-fixed bk-hud-ocr', 'data-study-ocr-chip': 'true', role: 'status', title: s.name },
+        h('span', { class: 'bk-dot', 'aria-hidden': 'true' }),
+        h('b', {}, 'OCR'),
+        ` ${s.name} · ${s.done}/${s.total} páginas `,
+        s.waiting ? h('small', {}, `+${s.waiting} na fila`) : null,
+      ),
+    )
+  })
+}

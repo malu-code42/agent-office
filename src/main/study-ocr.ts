@@ -1,8 +1,9 @@
 /// <reference types="electron-vite/node" />
 import { existsSync, readFileSync, unlinkSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import type { Worker } from 'node:worker_threads'
 import { writeFileAtomic } from './fs-safe'
+import type { StudyOcrState } from '../shared/study-library'
 import { pagesWithoutText, type PdfOcrJob } from './study-pdf'
 import createOcrWorker from './study-ocr-worker?nodeWorker'
 
@@ -21,10 +22,12 @@ const MAX_PAGE_TEXT = 64 * 1024
  * stopped. When a file is done its cache entry is rewritten with the recognised text (pages that
  * had text keep it). Nothing leaves the computer except the one-time download of the language data.
  */
-export function pdfOcrQueue(cacheDir: string, run: OcrRunner): (job: PdfOcrJob) => void {
+export function pdfOcrQueue(cacheDir: string, run: OcrRunner, onState?: (state: StudyOcrState) => void): (job: PdfOcrJob) => void {
   const queued = new Set<string>()
   const jobs: PdfOcrJob[] = []
   let busy = false
+  let current: { name: string; done: number; total: number } | null = null
+  const report = () => onState?.(current ? { ...current, waiting: jobs.length } : null)
 
   const progressFile = (key: string) => join(cacheDir, `${key}.ocr-progress.json`)
   const readProgress = (key: string): Record<string, string> => {
@@ -40,6 +43,9 @@ export function pdfOcrQueue(cacheDir: string, run: OcrRunner): (job: PdfOcrJob) 
     const progress = readProgress(job.key)
     const todo = pagesWithoutText(job.pages).filter((i) => progress[i] === undefined)
     let sinceSave = 0
+    const total = pagesWithoutText(job.pages).length
+    current = { name: basename(job.path), done: total - todo.length, total }
+    report()
     const save = () => {
       try {
         writeFileAtomic(progressFile(job.key), JSON.stringify(progress))
@@ -77,6 +83,8 @@ export function pdfOcrQueue(cacheDir: string, run: OcrRunner): (job: PdfOcrJob) 
     void work(job).finally(() => {
       queued.delete(job.key)
       busy = false
+      current = null
+      report()
       next()
     })
   }
@@ -85,6 +93,7 @@ export function pdfOcrQueue(cacheDir: string, run: OcrRunner): (job: PdfOcrJob) 
     if (queued.has(job.key)) return
     queued.add(job.key)
     jobs.push(job)
+    report()
     next()
   }
 }

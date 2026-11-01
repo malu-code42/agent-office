@@ -676,6 +676,11 @@ summary.qc-label {
   font-size: 13px;
 }
 
+.bk-hud-ocr {
+  bottom: 144px;
+  cursor: default;
+}
+
 .bk-hud-fixed:focus-visible {
   outline: 2px solid var(--accent-hi);
   outline-offset: 2px;
