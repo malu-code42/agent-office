@@ -143,6 +143,7 @@ const PAIRS = [
   ['Chip esperando', '.chip-wait', ['.chip-wait', 'card']],
   ['Chip resultado', '.chip-done', ['.chip-done', 'card']],
   ['Chip erro', '.chip-err', ['.chip-err', 'card']],
+  ['Faixa "saindo"', '.quit-banner', ['.quit-banner', 'card']],
   ['Chip ticket', '.chip-ticket', ['.chip-ticket', 'card']],
   ['Badge pendente', '.badge', ['.badge', 'card']],
   ['Badge revisão', '.badge-review', ['.badge-review', 'card']],

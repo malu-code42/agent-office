@@ -9,6 +9,7 @@ import type { CostBook } from '../ledger'
 import type { MacJobs } from '../mac-jobs'
 import type { PlanningStore } from '../planning'
 import type { RoutineScheduler } from '../routines'
+import type { QuitFlow } from '../quit'
 import type { SquadCreation } from '../squad-creation'
 import type { StatsReader } from '../stats'
 import type { Store } from '../store'
@@ -67,6 +68,8 @@ export interface IpcContext {
   retrySquadPublication(code: string): Promise<void>
   startActiveSquadTicket(code: string): Promise<void>
   onBattery(): boolean
+  /** Leaving on purpose: asks, waits or interrupts. */
+  quit: QuitFlow
 }
 
 // Every argument from the renderer passes through validate.ts first.

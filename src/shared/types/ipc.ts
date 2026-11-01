@@ -1,10 +1,19 @@
 // What crosses the IPC bridge: the full state, the events and window.office.
 
 import type { AccountStatus, PlanUsage } from './accounts'
-import type { AgentBrain, AgentSummary, AgentTemplate, HireRequest, OfficePermissionMode, ResultChanges, SessionEntry } from './agents'
+import type {
+  AgentBrain,
+  AgentSummary,
+  AgentTemplate,
+  HireRequest,
+  OfficePermissionMode,
+  ResultChanges,
+  SessionEntry,
+  WorktreeFloor,
+} from './agents'
 import type { AgentResult, AttachmentInput, LogEntry, PermissionDecision, PermissionRequest } from './conversation'
 import type { Ledger, LedgerQuery, LedgerToday } from './ledger'
-import type { BridgeStatus, Settings, UpdateInstallResult, UpdateStatus } from './settings'
+import type { BridgeStatus, QuitWait, Settings, UpdateInstallResult, UpdateStatus } from './settings'
 import type { SquadInfo } from './squads'
 import type { SquadProposal, SquadProposalMember, SquadQueue } from './squad-proposals'
 import type { MacJob, Routine, RoutineDraft } from './routines'
@@ -218,6 +227,8 @@ export type OfficeEvent =
   | { type: 'routines'; routines: Routine[] }
   /** The Mac's own scheduled jobs changed (read every minute). */
   | { type: 'macJobs'; jobs: MacJob[] }
+  /** Waiting for the agents before quitting; null = not leaving (any more). */
+  | { type: 'quit'; wait: QuitWait | null }
   /** The pending proposals changed: the whole list. */
   | { type: 'proposals'; proposals: Proposal[] }
   /** The review of today was saved or cleared: whether a draft to resume exists. */
@@ -479,6 +490,18 @@ export interface OfficeAPI {
   fire(agentId: string): Promise<string | void>
   /** Whether the folder is inside a git repo (the worktree option starts on). */
   isGitRepo(cwd: string): Promise<boolean>
+  /** "Sair": asks (native dialog), then waits for the agents, interrupts them or stays. */
+  quitApp(): Promise<void>
+  /** On the "saindo" banner: interrupt whoever is still working and quit now. */
+  quitNow(): Promise<void>
+  /** On the "saindo" banner: stay. */
+  cancelQuit(): Promise<void>
+  /** Bastidores → Worktrees: every agent copy, by floor, with size and what removing it would lose. */
+  listWorktrees(): Promise<WorktreeFloor[]>
+  /** Removes one copy after a native confirmation. Null = cancelled; else a line for the toast. */
+  removeWorktreeAt(root: string): Promise<string | null>
+  /** Removes every forgotten copy with nothing to lose (on one floor, or all), after a native confirmation. */
+  cleanWorktrees(floorId?: string): Promise<string | null>
   /** Unified diff of one file listed in a result's changes. */
   resultDiff(resultId: string, path: string): Promise<string>
   /** Opens the result's folder (and a file of it) in Cursor or VS Code. False when neither is installed. */

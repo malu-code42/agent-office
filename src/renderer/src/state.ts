@@ -1,5 +1,6 @@
 import type {
   Account,
+  QuitWait,
   AccountStatus,
   AgentResult,
   AgentSummary,
@@ -65,6 +66,8 @@ export class State {
   routines: Routine[]
   /** The Mac's own scheduled jobs (launchd), beside the routines. */
   macJobs: MacJob[]
+  /** Leaving once the agents finish (the "saindo" banner); null = staying. */
+  quitWait: QuitWait | null = null
   /** Proposals waiting for a confirmation: they count in the caixa de entrada. */
   proposals: Proposal[]
   /** A review of today was started and not confirmed: the caixa de entrada offers to resume it. */
@@ -215,6 +218,9 @@ export class State {
         break
       case 'macJobs':
         this.macJobs = e.jobs
+        break
+      case 'quit':
+        this.quitWait = e.wait
         break
       case 'proposals':
         this.proposals = e.proposals

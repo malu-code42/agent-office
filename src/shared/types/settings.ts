@@ -117,6 +117,18 @@ export interface ProjectFloor {
   brandColor?: string
   /** Its agents wear the company uniform: shirt in the brand color with the logo on the chest. */
   uniform?: boolean
+  /** false = new agents here work straight in the project folder, no worktree by default. */
+  worktrees?: false
+}
+
+/** The app is waiting for the agents to finish before it quits (the "saindo" banner). */
+export interface QuitWait {
+  /** Office agents working or waiting for a permission. */
+  working: number
+  /** Permission requests waiting for you. */
+  pending: number
+  /** Background tasks (subagents) the player chose to wait for. */
+  background: number
 }
 
 /**

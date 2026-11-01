@@ -67,6 +67,9 @@ export function registerAppIpc(ctx: IpcContext): void {
     barTimer: ctx.barTimer.view() ?? null,
     forceTour: process.env.AGENT_OFFICE_TOUR === '1',
   }))
+  ipcMain.handle('office:quitApp', async () => void (await ctx.quit.ask()))
+  ipcMain.handle('office:quitNow', () => ctx.quit.now())
+  ipcMain.handle('office:cancelQuit', () => ctx.quit.cancelWait())
   ipcMain.handle('office:getLedger', (_e, q: unknown) => book.query(cleanLedgerQuery(q)))
   ipcMain.handle('office:refreshUsage', () => usage.refresh())
   ipcMain.handle('office:getStats', () => stats.current())

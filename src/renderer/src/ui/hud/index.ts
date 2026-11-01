@@ -55,6 +55,10 @@ export interface HudActions {
   tasks(): void
   /** Timer: opens the popup of the interval (no keyboard shortcut: it lives on the bar). */
   timer(): void
+  /** Bastidores (B): the agent copies (worktrees) floor by floor. */
+  backstage(): void
+  /** Sair do Agent Office: asks, waits for the agents or interrupts them. */
+  quit(): void
 }
 
 const COMPACT_KEY = 'roster-compact'
@@ -285,8 +289,18 @@ export class Hud {
         icon('history'),
       ),
       h('button', { class: 'dock-btn', 'data-tour': 'home', title: 'Ir para minha sala', onclick: () => actions.goHome() }, icon('home')),
+      h(
+        'button',
+        { class: 'dock-btn', title: 'Bastidores: cópias dos agentes (worktrees) (B)', onclick: () => actions.backstage() },
+        icon('branch'),
+      ),
       radio.button,
       this.gearBtn,
+      h(
+        'button',
+        { class: 'dock-btn', title: 'Sair do Agent Office', 'aria-label': 'Sair do Agent Office', onclick: () => actions.quit() },
+        icon('power'),
+      ),
     )
     // Barra estreita (<= 640 px): a classe acompanha a janela por reactive change, sem esperar re-render.
     const narrowQuery = matchMedia('(max-width: 640px)')

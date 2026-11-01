@@ -38,11 +38,12 @@ import { changesSince, commitChanges, createWorktree, excludeSquadRuntime, openP
 import { publishSquadTicket, publishThenStartNext, SquadPublicationGate } from './squad-ticket-lifecycle'
 import { ticketBrief } from '@shared/tickets'
 import { Updater } from './updater'
-import { captureShots, forceCrash, runBench, seedAgents, quitWithParent } from './dev-hooks'
+import { captureShots, forceCrash, runBench, seedAgents, quitWithParent, parentGone } from './dev-hooks'
 import type { IpcContext } from './ipc/context'
 import { registerAccountsIpc } from './ipc/accounts'
 import { registerAgentsIpc } from './ipc/agents'
 import { registerAppIpc } from './ipc/app'
+import { QuitFlow } from './quit'
 import { registerSessionsIpc } from './ipc/sessions'
 import { registerSettingsIpc } from './ipc/settings'
 import { registerSquadsIpc } from './ipc/squads'
@@ -63,6 +64,8 @@ import { allowPermission } from './mic-permission'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
 let win: BrowserWindow | null = null
+/** Set once the app is ready: closing the last window off macOS asks first, like ⌘Q. */
+let quitFlow: QuitFlow | null = null
 // Screenshot and bench runs (dev only) render in a hidden window so they never steal focus or notify.
 const headless = !!process.env.AGENT_OFFICE_SHOTS || !!process.env.AGENT_OFFICE_BENCH
 
@@ -90,6 +93,8 @@ function createWindow(): BrowserWindow {
   if (!headless) w.once('ready-to-show', () => w.show())
   // Windows: stop blinking the taskbar button once the user looks at the office.
   if (process.platform === 'win32') w.on('focus', () => w.flashFrame(false))
+  // Off macOS closing the window quits the app: with agents working, ask first.
+  if (process.platform !== 'darwin') w.on('close', (e) => void (quitFlow?.intercept() && e.preventDefault()))
   // The window only ever shows our own bundle.
   w.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   w.webContents.on('will-navigate', (e) => e.preventDefault())
@@ -536,6 +541,8 @@ app.whenReady().then(async () => {
       pending: manager.pendingRequests().length,
     }),
     flush: () => {
+      // Called right before it restarts to install: the player already confirmed.
+      quit.allow()
       store.flush()
       board.flush()
       routineStore.flush()
@@ -544,6 +551,26 @@ app.whenReady().then(async () => {
     broadcast,
   })
   updater.start()
+
+  // Leaving on purpose (Sair, ⌘Q, closing the window): asks while agents work, waits or interrupts.
+  const quit = new QuitFlow({
+    win: () => win,
+    working: () =>
+      manager.list().filter((a) => a.source === 'office' && (a.status === 'working' || a.status === 'starting' || a.status === 'waiting')),
+    pending: () => manager.pendingRequests().length,
+    interrupt: (id) => manager.interrupt(id),
+    background: () =>
+      manager
+        .list()
+        .filter((a) => a.source === 'office')
+        .flatMap((a) =>
+          (a.subagents ?? []).filter((s) => s.background && !s.status).map((s) => ({ agentId: a.id, agentName: a.name, description: s.description })),
+        ),
+    holdRoutines: (hold) => (hold ? routines.stop() : routines.start()),
+    broadcast: (wait) => broadcast({ type: 'quit', wait }),
+    headless,
+  })
+  quitFlow = quit
 
   // Durable saves on kill, crash and sleep (AO-26); backups, restore, export and import (AO-25).
   const flushAll = () => {
@@ -607,6 +634,7 @@ app.whenReady().then(async () => {
     retrySquadPublication,
     startActiveSquadTicket,
     onBattery: () => onBattery,
+    quit,
   }
   registerAppIpc(ipc)
   registerAccountsIpc(ipc)
@@ -687,7 +715,12 @@ app.whenReady().then(async () => {
     routineStore.flush()
     profileMemory.flush()
   }
-  app.on('before-quit', stopAll)
+  app.on('before-quit', (e) => {
+    // Agents working: the quit dialog decides (wait, interrupt or stay); stopAll runs on the way out.
+    // The dev terminal was closed: leave at once, nobody is there to answer.
+    if (!parentGone() && quit.intercept()) return e.preventDefault()
+    stopAll()
+  })
 }).catch((err) => {
   // E.g. a corrupt data file that could not be moved aside: stop rather than write over it.
   log.error('Falha ao abrir:', err)
