@@ -413,7 +413,7 @@ def casa(L, place, items, seat):
     C.entrance(sc)
     C.half_wall(sc, 0)
     C.half_wall(sc, 1)
-    C.sala(sc)
+    C.office(sc)
     for i, (dx, dy) in enumerate(C.DESKS):
         sc.add((dx, dy, dx + 14, dy + C.DESK_D), lambda dx=dx, dy=dy, i=i: C.work_desk(L, dx, dy, i % 3), True)
     x, y, w = C.VOCE_DESK
@@ -441,8 +441,8 @@ def casa(L, place, items, seat):
     # tags (HTML) over the clickable things: art units x, y and height
     tags = {n: [(a + b) / 2, 0, 46] for a, b, _act, n in C.BOARDS}
     tags.update({
-        'Claude FM': [8, 47, 34], 'Caveira': [150, 24, 34], 'Rotinas de agentes': [2, 176, 46],
-        'Novo agente': [80, 270, 40], 'Livros': [306, 4, 44], 'Escrita': [314, 32, 30],
+        'Claude FM': [C.RADIO[0] + 6, C.RADIO[1] + 17, 34], 'Caveira': [150, 24, 34], 'Rotinas de agentes': [2, 176, 46],
+        'Novo agente': [80, 270, 40], 'Livros': [306, 4, 44], 'Escrita': [(C.WRITING[0] + C.WRITING[2]) / 2, C.WRITING[1] + 18, 30],
         'Filmes': [233, 133, 34], 'Jogos': [233, 238, 38], 'Gastos': [218, 0, 54], 'Alarme': [168, 0, 54],
     })
     # Luna's chair first, then the residents' in the order the approved art fills them
