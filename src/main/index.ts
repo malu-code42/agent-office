@@ -38,7 +38,7 @@ import { changesSince, commitChanges, createWorktree, excludeSquadRuntime, openP
 import { publishSquadTicket, publishThenStartNext, SquadPublicationGate } from './squad-ticket-lifecycle'
 import { ticketBrief } from '@shared/tickets'
 import { Updater } from './updater'
-import { captureShots, forceCrash, runBench, seedAgents, quitWithParent } from './dev-hooks'
+import { captureShots, forceCrash, runBench, seedAgents, quitWithParent, parentGone } from './dev-hooks'
 import type { IpcContext } from './ipc/context'
 import { registerAccountsIpc } from './ipc/accounts'
 import { registerAgentsIpc } from './ipc/agents'
@@ -717,7 +717,8 @@ app.whenReady().then(async () => {
   }
   app.on('before-quit', (e) => {
     // Agents working: the quit dialog decides (wait, interrupt or stay); stopAll runs on the way out.
-    if (quit.intercept()) return e.preventDefault()
+    // The dev terminal was closed: leave at once, nobody is there to answer.
+    if (!parentGone() && quit.intercept()) return e.preventDefault()
     stopAll()
   })
 }).catch((err) => {

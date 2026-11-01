@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { quitWithParent } from '../src/main/dev-hooks'
+import { parentGone, quitWithParent } from '../src/main/dev-hooks'
 
 describe('quitWithParent (dev)', () => {
   afterEach(() => vi.useRealTimers())
@@ -13,9 +13,12 @@ describe('quitWithParent (dev)', () => {
     const timer = quitWithParent(() => alive)
     vi.advanceTimersByTime(2000)
     expect(quit).not.toHaveBeenCalled()
+    expect(parentGone()).toBe(false)
     alive = false
     vi.advanceTimersByTime(2000)
     expect(quit).toHaveBeenCalled()
+    // the quit dialog is skipped: nobody is left to answer it
+    expect(parentGone()).toBe(true)
     clearInterval(timer!)
   })
 })

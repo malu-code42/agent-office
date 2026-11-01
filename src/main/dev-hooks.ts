@@ -173,6 +173,10 @@ export function forceCrash(w: BrowserWindow, what: string): void {
  * Windows (a GUI process outlives its console), so the app kept running in the background.
  * Quits as soon as the process that started it is gone.
  */
+let parentIsGone = false
+/** The `npm run dev` that started the app is gone: its quit must not stop to ask anything. */
+export const parentGone = (): boolean => parentIsGone
+
 export function quitWithParent(
   isAlive = (pid: number) => {
     try {
@@ -186,7 +190,9 @@ export function quitWithParent(
   if (app.isPackaged) return null
   const parent = process.ppid
   const timer = setInterval(() => {
-    if (!isAlive(parent)) app.quit()
+    if (isAlive(parent)) return
+    parentIsGone = true
+    app.quit()
   }, 2000)
   timer.unref()
   return timer
