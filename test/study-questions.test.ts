@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decodeStudyBank, encodeStudyQuestion, rankStudyQuestions, type StudyQuestion } from '../src/shared/study-questions'
+import { decodeStudyBank, encodeStudyQuestion, rankStudyQuestions, STUDY_BANK_LINE_LIMIT, type StudyQuestion } from '../src/shared/study-questions'
 import {
   closeSync,
   existsSync,
@@ -15,7 +15,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { StudyQuestionService } from '../src/main/study-questions'
+import { STUDY_BANK_BYTE_LIMIT, StudyQuestionService } from '../src/main/study-questions'
 import { tinyPdf } from './helpers/tiny-pdf'
 
 const question = (overrides: Partial<StudyQuestion> = {}): StudyQuestion => ({
@@ -692,11 +692,11 @@ describe('study question bank codec', () => {
     try {
       const path = join(vault, 'questoes-estudo.md')
       const fd = openSync(path, 'w')
-      ftruncateSync(fd, 3 * 1024 * 1024)
+      ftruncateSync(fd, STUDY_BANK_BYTE_LIMIT + 1024 * 1024)
       closeSync(fd)
       expect(() => new StudyQuestionService(vault).read()).toThrow(/grande|limite/i)
-      expect(statSync(path).size).toBe(3 * 1024 * 1024)
-      expect(() => decodeStudyBank(Array.from({ length: 25_002 }, () => 'x').join('\n'))).toThrow(/linhas/i)
+      expect(statSync(path).size).toBe(STUDY_BANK_BYTE_LIMIT + 1024 * 1024)
+      expect(() => decodeStudyBank(Array.from({ length: STUDY_BANK_LINE_LIMIT + 2 }, () => 'x').join('\n'))).toThrow(/linhas/i)
     } finally {
       rmSync(vault, { recursive: true, force: true })
     }

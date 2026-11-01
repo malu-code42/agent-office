@@ -60,6 +60,18 @@ export interface StudyCycle {
 export interface StudyCycleState {
   activeId: string | null
   cycles: StudyCycle[]
+  /**
+   * Every bank question the user has answered, in any cycle, kept even when a cycle is set aside or
+   * dropped: an answered question is never offered again (by id or by the same wording).
+   */
+  answered?: StudyAnsweredQuestion[]
+}
+
+export interface StudyAnsweredQuestion {
+  id: string
+  /** The wording, normalized (studyQuestionKey), so a copy under another id also counts. */
+  key: string
+  at: number
 }
 
 export type StudyGate =
@@ -90,7 +102,7 @@ export function createStudyCycleState(
     notes: [],
     retests: [],
   }
-  return { activeId: cycle.id, cycles: [...(previous?.cycles ?? []), cycle] }
+  return { ...(previous?.answered ? { answered: previous.answered } : {}), activeId: cycle.id, cycles: [...(previous?.cycles ?? []), cycle] }
 }
 
 export function answerStudyQuestion(
@@ -108,15 +120,19 @@ export function answerStudyQuestion(
   if (providedExcerpt.length > 20_000) throw new Error('O trecho de apoio pode ter até 20.000 caracteres.')
   const target = cycle.questions.find((question) => question.id === questionId)
   if (!target) throw new Error('Essa questão não pertence ao ciclo ativo.')
-  return updateCycle(state, {
-    ...cycle,
-    updatedAt: now,
-    questions: cycle.questions.map((question) =>
-      question.id === questionId
-        ? { ...question, response: clean, providedExcerpt: providedExcerpt.trim(), uncertain, assessment: null }
-        : question,
-    ),
-  })
+  return rememberAnswered(
+    updateCycle(state, {
+      ...cycle,
+      updatedAt: now,
+      questions: cycle.questions.map((question) =>
+        question.id === questionId
+          ? { ...question, response: clean, providedExcerpt: providedExcerpt.trim(), uncertain, assessment: null }
+          : question,
+      ),
+    }),
+    target,
+    now,
+  )
 }
 
 export function assessStudyQuestion(
@@ -317,7 +333,11 @@ export function answerStudyPracticeQuestion(
         }
       : item,
   )
-  return updateCycle(state, { ...cycle, practiceRounds: rounds, updatedAt: now })
+  return rememberAnswered(
+    updateCycle(state, { ...cycle, practiceRounds: rounds, updatedAt: now }),
+    round.questions.find((question) => question.id === questionId)!,
+    now,
+  )
 }
 
 export function saveStudyPracticeResponse(state: StudyCycleState, questionId: string, response: string, now = Date.now()): StudyCycleState {
@@ -339,7 +359,11 @@ export function saveStudyPracticeResponse(state: StudyCycleState, questionId: st
         }
       : item,
   )
-  return updateCycle(state, { ...cycle, practiceRounds: rounds, updatedAt: now })
+  return rememberAnswered(
+    updateCycle(state, { ...cycle, practiceRounds: rounds, updatedAt: now }),
+    round.questions.find((question) => question.id === questionId)!,
+    now,
+  )
 }
 
 export function practiceScore(round: StudyPracticeRound): number {
@@ -404,8 +428,9 @@ export function answerStudyRetestQuestion(state: StudyCycleState, questionId: st
   const attempt = cycle.retests.at(-1)
   const clean = response.trim()
   if (!clean || clean.length > 20_000) throw new Error('Escreva uma resposta de até 20.000 caracteres.')
-  if (!attempt?.questions.some((question) => question.id === questionId)) throw new Error('Essa questão não pertence ao reteste atual.')
-  return updateCycle(state, {
+  const target = attempt?.questions.find((question) => question.id === questionId)
+  if (!attempt || !target) throw new Error('Essa questão não pertence ao reteste atual.')
+  return rememberAnswered(updateCycle(state, {
     ...cycle,
     updatedAt: now,
     retests: cycle.retests.map((item) =>
@@ -418,7 +443,7 @@ export function answerStudyRetestQuestion(state: StudyCycleState, questionId: st
           }
         : item,
     ),
-  })
+  }), target, now)
 }
 
 export function assessStudyRetestQuestion(
@@ -508,6 +533,50 @@ export function resumeStudyCycle(state: StudyCycleState, cycleId: string): Study
 }
 
 export const emptyStudyCycleState = (): StudyCycleState => ({ activeId: null, cycles: [] })
+
+/** How a question's wording is compared: case and spacing do not make it new. */
+export const studyQuestionKey = (text: string): string => normalizePrompt(text)
+
+export interface AnsweredStudyQuestions {
+  ids: Set<string>
+  keys: Set<string>
+}
+
+/** The answered register plus every answered question still in the cycles (files written before the register). */
+export function answeredStudyQuestions(state: StudyCycleState): AnsweredStudyQuestions {
+  const ids = new Set<string>()
+  const keys = new Set<string>()
+  for (const item of state.answered ?? []) {
+    ids.add(item.id)
+    keys.add(item.key)
+  }
+  const add = (question: StudyCycleQuestion) => {
+    if (!question.response.trim()) return
+    ids.add(question.id)
+    keys.add(studyQuestionKey(question.source.question))
+  }
+  for (const cycle of state.cycles) {
+    cycle.questions.forEach(add)
+    for (const round of cycle.practiceRounds) round.questions.forEach(add)
+    for (const attempt of cycle.retests) attempt.questions.forEach(add)
+  }
+  return { ids, keys }
+}
+
+export const isStudyQuestionAnswered = (answered: AnsweredStudyQuestions, question: { id: string; question: string }): boolean =>
+  answered.ids.has(question.id) || (!!question.question.trim() && answered.keys.has(studyQuestionKey(question.question)))
+
+/** Bank questions never answered, in bank order. */
+export function unansweredStudyQuestions<T extends { id: string; question: string }>(bank: readonly T[], state: StudyCycleState): T[] {
+  const answered = answeredStudyQuestions(state)
+  return bank.filter((question) => !isStudyQuestionAnswered(answered, question))
+}
+
+function rememberAnswered(state: StudyCycleState, question: StudyCycleQuestion, now: number): StudyCycleState {
+  const list = state.answered ?? []
+  if (list.some((item) => item.id === question.id)) return state
+  return { ...state, answered: [...list, { id: question.id, key: studyQuestionKey(question.source.question), at: now }] }
+}
 
 function activeCycle(state: StudyCycleState): StudyCycle {
   const cycle = activeStudyCycle(state)

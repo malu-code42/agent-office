@@ -212,69 +212,248 @@
   align-items: center;
 }
 
-/* "Buscar questões": the consent sits in the body, under the candidates. */
-.study-questions-consent {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-  margin: 0;
-  padding: 10px 12px;
-  border: 2px solid var(--ctl-line);
+/* Common look of the study popups (Buscar questões, Biblioteca · Cora, Trilha de estudos):
+   an orange strip on top of the window, head and foot framed in --surface-2, hard shadow. */
+.modal.study-popup {
+  position: relative;
+}
+
+.study-popup {
+  border: 3px solid var(--outline);
+  box-shadow: var(--shadow);
+}
+
+.study-popup::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  height: 3px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.study-popup .modal-head,
+.study-popup .board-head {
+  padding: 15px 18px 11px;
   background: var(--surface-2);
+  border-bottom: 2px solid var(--outline);
+}
+
+.study-popup .modal-body {
+  padding: 14px 18px;
+}
+
+.study-popup .modal-foot {
+  padding: 11px 18px;
+  background: var(--surface-2);
+  border-top: 2px solid var(--outline);
+}
+
+.study-popup .modal-foot .btn {
+  height: 38px;
+}
+
+/* One border only: orange when focused, without the second ring. */
+.study-popup .input {
+  border: 2px solid var(--ctl-line);
+}
+
+.study-popup .input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.study-popup .field-label,
+.study-section-title {
   color: var(--muted);
-  font-size: 12.5px;
-  cursor: pointer;
+  font: 500 12px var(--pixel);
+  letter-spacing: 1px;
+  text-transform: uppercase;
 }
 
-.study-questions-consent input {
-  margin-top: 2px;
-  accent-color: var(--accent-solid);
+.study-section-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
 }
 
-.study-question-results {
+/* Hints that explain the window carry a side bar. */
+.study-popup .study-note,
+.study-questions-body > .field-hint {
+  margin: 0;
+  padding: 2px 0 2px 10px;
+  border-left: 3px solid var(--ctl-line);
+}
+
+.modal.study-questions-modal {
+  width: min(640px, calc(100vw - 32px));
+}
+
+.study-questions-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 
-.study-question-results:empty {
+/* "Banco em números" */
+.study-bank-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--sunken);
+  border: 2px solid var(--outline);
+  box-shadow: var(--shadow-sm);
+}
+
+.study-bank-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.study-bank-body p {
+  margin: 0;
+}
+
+.study-bank-total {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.study-bank-total b {
+  color: var(--accent-hi);
+  font: 500 26px var(--pixel);
+  line-height: 1;
+}
+
+.study-bank-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.study-bank-cap {
+  min-width: 76px;
+  color: var(--dim);
+  font: 500 11px var(--pixel);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.study-bank-chip {
+  padding: 1px 7px;
+  border: 1px solid var(--ctl-line);
+  background: var(--surface-3);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.study-bank-chip b {
+  font: 600 12px var(--mono);
+}
+
+.study-bank-chip-verified {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.study-bank-chip-unverified {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+.study-bank-chip-missing {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.study-bank-disciplines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.study-bank-disciplines .study-bank-cap {
+  padding-bottom: 2px;
+}
+
+.study-bank-discipline summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.study-bank-discipline summary::-webkit-details-marker {
   display: none;
 }
 
-.study-question-results section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.study-question-results h3 {
-  margin: 0;
-  font-size: 13px;
+.study-bank-discipline summary::before {
+  content: '\25B8';
+  width: 10px;
   color: var(--muted);
 }
 
-.study-question-results p {
-  margin: 0;
+.study-bank-discipline[open] summary::before {
+  content: '\25BE';
 }
 
-.study-question-candidate {
+.study-bank-discipline summary:hover {
+  background: var(--hover);
+}
+
+.study-bank-discipline summary:focus-visible {
+  outline: 2px solid var(--accent-hi);
+  outline-offset: -2px;
+}
+
+.study-bank-dname {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.study-bank-discipline summary b,
+.study-bank-discipline li b {
+  font: 600 12px var(--mono);
+}
+
+.study-bank-discipline ul {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
-  border: 2px solid var(--line);
-  background: var(--surface-2);
+  gap: 2px;
+  margin: 0 0 4px;
+  padding: 0 6px 0 24px;
+  list-style: none;
+}
+
+.study-bank-discipline li {
+  display: flex;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.study-bank-discipline li span {
+  flex: 1;
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.study-question-candidate label {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-}
-
-.study-question-candidate input {
-  margin-top: 3px;
-  accent-color: var(--accent-solid);
+.study-bank-chip-agents {
+  border: 1px dashed var(--blue);
+  color: var(--blue);
 }

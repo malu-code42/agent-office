@@ -103,7 +103,8 @@ export class StudyLibrary {
     this.pdf = new PdfTextCache(pdf.cacheDir, pdf.extract, pdf.ocr)
   }
 
-  async search(query: string): Promise<StudyLibrarySearch> {
+  /** `scope`: only files whose path inside the vault starts with one of these prefixes (e.g. a discipline's textbook folders). */
+  async search(query: string, scope?: readonly string[]): Promise<StudyLibrarySearch> {
     const parsed = tokenizeStudyQuery(query)
     if (!parsed.terms.length || query.length > 200) throw new Error('Informe um tópico de até 200 caracteres.')
     const scan = await this.scan()
@@ -123,6 +124,7 @@ export class StudyLibrary {
       })
     }
     for (const { path, kind, text } of scan.files) {
+      if (scope && !scope.some((prefix) => relative(this.vault, path).split(sep).join('/').startsWith(prefix))) continue
       // Every file is found by its name and folders ("Estrutura de Dados/Aula 05 Filas.pdf").
       const nameScore = scoreStudyText(relative(root, path), parsed)
       let fileHits = 0
