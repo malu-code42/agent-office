@@ -8,6 +8,8 @@ import { portrait } from './portrait'
 import { isSquadTicketResultAgent } from '@shared/squad-ticket-result'
 import { profileById } from '@shared/profiles'
 import { changeButtons, editorMissingNote } from './result-rules'
+import { ResultReader } from './result-reader'
+import { isTicketResult } from './result-reader-model'
 
 export interface DialogActions {
   reply(agentId: string): void
@@ -47,6 +49,8 @@ export class Dialog {
   private reread = false
   /** Who had the focus before the card took it (AO-38). */
   private focusBack = new FocusReturn()
+  /** "Ler": a tela de leitura de um resultado de ticket (result-reader.ts), com as ações desta carta. */
+  private reader: ResultReader
 
   constructor(
     root: HTMLElement,
@@ -56,6 +60,13 @@ export class Dialog {
     this.el = h('div', { class: 'dialog card hidden' })
     asDialog(this.el)
     root.append(this.el)
+    this.reader = new ResultReader(root, state, {
+      ack: (r) => window.office.ackResult(r.id),
+      discard: (r) => this.discardChanges(r),
+      openPR: (r) => this.openPR(r, (this.changesFor === r.id && this.commitDraft?.trim()) || commitHint(r.text)),
+      toast: (text, kind) => this.actions.toast(text, kind),
+      reply: (id) => this.actions.reply(id),
+    })
     window.addEventListener('keydown', (e) => {
       if (!this.itemId) return
       if (e.key === 'Escape') return this.close()
@@ -189,6 +200,7 @@ export class Dialog {
 
   /** Closes the card if its item was resolved elsewhere (terminal, other window). */
   sync(): void {
+    this.reader.sync()
     if (!this.itemId || this.reread || this.itemId.startsWith(LIMIT_CARD)) return
     if (!this.state.permissions.has(this.itemId) && !this.state.results.has(this.itemId)) this.close()
   }
@@ -595,14 +607,24 @@ export class Dialog {
           'Exportar',
         ),
         h('div', { class: 'grow' }),
+        isTicketResult(agent, r, this.state.settings.projects)
+          ? h('button', { class: 'btn', title: 'Ler em tela cheia', onclick: () => this.read(r.id) }, icon('expand', 15), 'Ler')
+          : null,
         h('button', { class: 'btn btn-primary', title: 'Recebido (Enter)', onclick: ack }, icon('check', 16), 'Recebido'),
       ].filter(Boolean) as HTMLElement[],
       r.isError ? 'err' : 'done',
     )
   }
 
+  /** "Ler": the card gives way to the reading screen of the same result. */
+  private read(resultId: string): void {
+    this.close()
+    this.reader.open(resultId)
+  }
+
   /** The files of the open result card arrived or changed (committed, discarded). */
   syncChanges(resultId: string): void {
+    this.reader.syncChanges(resultId)
     if (this.itemId !== resultId || !this.agentId) return
     const agent = this.state.agents.get(this.agentId)
     const r = this.state.results.get(resultId)
@@ -769,14 +791,7 @@ export class Dialog {
         setWait(false)
       })
     }
-    discard.addEventListener('click', () =>
-      busy(
-        discard,
-        window.office.discardResult(r.id).then((next) => {
-          if (next) this.actions.toast('Mudanças descartadas: os arquivos voltaram para como estavam antes da tarefa.', 'ok')
-        }),
-      ).catch((err) => this.actions.toast(cleanErr(err), 'err')),
-    )
+    discard.addEventListener('click', () => busy(discard, this.discardChanges(r)).catch((err) => this.actions.toast(cleanErr(err), 'err')))
     commit.addEventListener('click', () => {
       if (!message.value.trim()) return message.focus()
       busy(
@@ -787,14 +802,7 @@ export class Dialog {
       ).catch((err) => this.actions.toast(cleanErr(err), 'err'))
     })
     pr?.addEventListener('click', () =>
-      busy(
-        pr,
-        window.office.openResultPR(r.id, message.value.trim() || commitHint(r.text)).then((url) => {
-          if (!url) return
-          this.actions.toast('PR aberto. Abrindo no navegador.', 'ok')
-          void window.office.openExternal(url)
-        }),
-      ).catch((err) => this.actions.toast(cleanErr(err), 'err')),
+      busy(pr, this.openPR(r, message.value.trim() || commitHint(r.text))).catch((err) => this.actions.toast(cleanErr(err), 'err')),
     )
     return h(
       'div',
@@ -802,6 +810,22 @@ export class Dialog {
       h('div', { class: 'chg-row' }, editor, discard, h('div', { class: 'grow' }), pr),
       h('div', { class: 'chg-row' }, message, commit),
     )
+  }
+
+  /** "Descartar" of the card (and of the reading screen): the files go back to before the task. */
+  private discardChanges(r: AgentResult): Promise<void> {
+    return window.office.discardResult(r.id).then((next) => {
+      if (next) this.actions.toast('Mudanças descartadas: os arquivos voltaram para como estavam antes da tarefa.', 'ok')
+    })
+  }
+
+  /** "Abrir PR" of the card (and of the reading screen). */
+  private openPR(r: AgentResult, message: string): Promise<void> {
+    return window.office.openResultPR(r.id, message).then((url) => {
+      if (!url) return
+      this.actions.toast('PR aberto. Abrindo no navegador.', 'ok')
+      void window.office.openExternal(url)
+    })
   }
 
   private openEditor(r: AgentResult, path?: string): void {

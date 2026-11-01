@@ -127,6 +127,8 @@ const BG = {
   mundo: WORLD,
   'mundo + versão': stack(WORLD, css('.brand-version')),
   'card + andar atual': stack(CARD, css('.floor-btn.on')),
+  leitura: stack(WHITE, css('.rr')),
+  'card + afundado': stack(CARD, css('.rr-files')),
 }
 
 /** [what, text selector, background name or [selector, prop] over a named background]. */
@@ -219,6 +221,11 @@ const PAIRS = [
   ['Dropdown: opção desabilitada', '.dd-opt.dis', 'card'],
   ['Dropdown: dica da opção', '.dd-hint', 'card'],
   ['Dropdown: dica da opção escolhida', '.dd-hint', ['.dd-opt.sel', 'card']],
+  ['Leitura: contagem', '.rr-count', 'leitura'],
+  ['Leitura: andar e squad', '.rr-where', 'card'],
+  ['Leitura: rótulo do dado', '.rr-fact dt', 'card'],
+  ['Leitura: arquivos a mais', '.rr-files-more', 'card + afundado'],
+  ['Leitura: sessão do terminal', '.rr-reply-off', 'card'],
 ]
 
 /** Theme tokens that are meant to go together, also where no selector pairs them yet (tema noturno). */
