@@ -19,6 +19,8 @@ export interface Step {
 export interface ArchivedTask {
   origin: string
   completedAt: string
+  /** HH:MM of the completion, shown in the agenda; the line in tarefas.md carries no completion date. */
+  completedTime?: string
   originalLine: string
 }
 

@@ -1,4 +1,4 @@
-import { parseTasksFile, TIME_FORMAT } from './tasks'
+import { fillCompletions, parseTasksFile, TIME_FORMAT } from './tasks'
 
 /** A line of agenda.md as the file wrote it. Any line that matches none of the known forms is unknown. */
 export type AgendaLine =
@@ -229,9 +229,15 @@ export function parseAgenda(content: string): { days: Map<string, AgendaLine[]>;
 
 /**
  * The view for `today` (local): that day, the Monday-to-Sunday week and the undated lines. `agenda` is the text
- * of agenda.md, or null when the vault has none. `tasks` is the text of tarefas.md, read only to resolve ids.
+ * of agenda.md, or null when the vault has none. `tasks` is the text of tarefas.md, read to resolve ids and the days tasks were completed. `completions` is the day and time of each completion by task id (planning.json), for lines with no ✅ mark.
  */
-export function buildAgendaView(agenda: string | null, tasks: string, today: Date, classes: string | null = null): AgendaView {
+export function buildAgendaView(
+  agenda: string | null,
+  tasks: string,
+  today: Date,
+  classes: string | null = null,
+  completions: ReadonlyMap<string, { day: string; time?: string }> = new Map(),
+): AgendaView {
   const titles = new Map<string, string>()
   for (const list of parseTasksFile(tasks).lists) {
     for (const task of list.tasks) {
@@ -241,7 +247,9 @@ export function buildAgendaView(agenda: string | null, tasks: string, today: Dat
   const { days, undated } = parseAgenda(agenda ?? '')
   // Tasks completed on each day; the moment of completion places them (older lines only know the day).
   const completedByDay = new Map<string, { id?: string; text: string; time?: string }[]>()
-  for (const list of parseTasksFile(tasks).lists)
+  const board = parseTasksFile(tasks).lists
+  fillCompletions(board, completions)
+  for (const list of board)
     for (const task of list.tasks) {
       if (task.status !== 'completed' || !task.completedDate) continue
       const day = isoOfMark(task.completedDate)
@@ -316,12 +324,17 @@ const isoOfMark = (date: string): string => (date.includes('.') ? `${date.slice(
  * on it. Done: classes the user said she attended, goals achieved that day (`goalDays`), tasks completed that day (✅ date in tarefas.md,
  * scheduled or not) and routine occurrences marked done. A day never shows more done than planned.
  */
-export function weekProgress(week: AgendaDay[], tasks: string, routines: RoutineMark[], goalDays: string[] = []): AgendaProgress {
+export function weekProgress(week: AgendaDay[], tasks: string, routines: RoutineMark[],
+  goalDays: string[] = [],
+  completions: ReadonlyMap<string, { day: string; time?: string }> = new Map(),
+): AgendaProgress {
   const routineTasks = new Set(routines.flatMap((mark) => (mark.taskId ? [mark.taskId.toLowerCase()] : [])))
   const completedOn = new Map<string, number>()
   const inWeek = new Set(week.map((day) => day.date))
   let tasksDiscarded = 0
-  for (const list of parseTasksFile(tasks).lists) {
+  const board = parseTasksFile(tasks).lists
+  fillCompletions(board, completions)
+  for (const list of board) {
     for (const task of list.tasks) {
       if (!task.completedDate || (task.id && routineTasks.has(task.id.toLowerCase()))) continue
       const day = isoOfMark(task.completedDate)

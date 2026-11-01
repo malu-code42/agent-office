@@ -300,6 +300,21 @@ export const dayLabel = (d: Date): string =>
 /** A local time as HH:MM, the moment a task is completed. */
 export const timeLabel = (d: Date): string => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 
+/**
+ * Gives the completed tasks of `lists` the day and time they were completed, by id, when the line has no ✅ mark
+ * (the app keeps them in planning.json). A mark in the line wins. `day` is AAAA-MM-DD.
+ */
+export function fillCompletions(lists: TaskList[], completions: ReadonlyMap<string, { day: string; time?: string }>): void {
+  for (const list of lists)
+    for (const task of list.tasks) {
+      const done = task.status === 'completed' && !task.completedDate && task.id ? completions.get(task.id.toLowerCase()) : undefined
+      if (!done) continue
+      const [y, m, d] = done.day.split('-')
+      task.completedDate = `${d}.${m}.${y}`
+      if (done.time) task.completedTime = done.time
+    }
+}
+
 /** A card of the completed list: the list it sits in and the task. */
 export interface CompletedView {
   list: string
