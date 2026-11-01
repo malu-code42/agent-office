@@ -44,6 +44,8 @@ export interface CasaLayout {
   couch: Omit<SeatArt, 'seat' | 'back' | 'front'>[]
   /** The routines board's face (+y), art units: x0, x1, y, z0, z1; the next routine shows there. */
   totem: [number, number, number, number, number]
+  /** The window glass on the west wall (plane x=0), art units: y0, y1, z0, z1; the app paints the sky for the hour. */
+  window: [number, number, number, number]
   elevator: {
     tile: [number, number]
     point: [number, number]

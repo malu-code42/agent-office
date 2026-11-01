@@ -440,7 +440,7 @@ def casa(L, place, items, seat):
     # tags (HTML) over the clickable things: art units x, y and height
     tags = {n: [(a + b) / 2, 0, 46] for a, b, _act, n in C.BOARDS}
     tags.update({
-        'Claude FM': [8, 47, 34], 'Caveira': [150, 24, 34], 'Rotinas de agentes': [149, 104, 40],
+        'Claude FM': [8, 47, 34], 'Caveira': [150, 24, 34], 'Rotinas de agentes': [C.TOTEM[0] + 7, C.TOTEM[1] + 4, 40],
         'Novo agente': [80, 270, 40], 'Livros': [306, 4, 44], 'Escrita': [314, 32, 30],
         'Filmes': [233, 133, 34], 'Jogos': [233, 238, 38], 'Gastos': [218, 0, 54], 'Alarme': [168, 0, 54],
     })
@@ -486,6 +486,8 @@ def casa(L, place, items, seat):
         'couch': couch,
         # the routines board's face (+y): x0, x1, y, z0, z1; the app draws the next routine there
         'totem': [C.TOTEM[0] + 1, C.TOTEM[2] - 1, C.TOTEM[1] + 5, 17, 33],
+        # the window glass on the west wall (plane x=0): y0, y1, z0, z1; the app paints the sky for the hour
+        'window': list(C.WINDOW),
     }
     with open(os.path.join(APP, 'casa.json'), 'w', encoding='utf8') as f:
         json.dump(layout, f, separators=(',', ':'), ensure_ascii=False)
