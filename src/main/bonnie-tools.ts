@@ -18,7 +18,7 @@ import {
 } from '@shared/study-cycle'
 import type { StudyQuestion } from '@shared/study-questions'
 import { questionsForTopic, type StudySourceRecommendations } from '@shared/study-sources'
-import { STUDY_TRAIL_STATE_LABEL, studyTopicStart, studyTrailBoard, trailTopicOf, type StudyTrail } from '@shared/study-trail'
+import { STUDY_TRAIL_STATE_LABEL, studyTopicStart, studyTrailBoard, topicName, trailTopicOf, type StudyTrail } from '@shared/study-trail'
 
 export const BONNIE_SERVER = 'estudos'
 
@@ -79,7 +79,7 @@ export function trailText(trail: StudyTrail, state: StudyCycleState, discipline?
       [
         `## ${list.discipline} (${list.period}) — ${list.open} em aberto de ${list.cards.length}`,
         ...list.cards.map(
-          (card) => `- [${STUDY_TRAIL_STATE_LABEL[card.state]}] ${card.topic.label}${card.cycleId ? ` · ciclo ${card.cycleId}` : ''}`,
+          (card) => `- [${STUDY_TRAIL_STATE_LABEL[card.state]}] ${card.topic.title}${card.cycleId ? ` · ciclo ${card.cycleId}` : ''}`,
         ),
       ].join('\n'),
     )
@@ -89,7 +89,7 @@ export function trailText(trail: StudyTrail, state: StudyCycleState, discipline?
 /** Where the study cycle stands: counts and gates only, never the questions or the answers. */
 export function cycleStatusText(state: StudyCycleState, trail: StudyTrail): string {
   const kept = state.cycles.filter((cycle) => cycle.id !== state.activeId && cycle.stage !== 'completed')
-  const keptLines = kept.map((cycle) => `- ${cycle.id} · ${cycle.topic} · ${STAGE[cycle.stage]}`)
+  const keptLines = kept.map((cycle) => `- ${cycle.id} · ${topicName(cycle.topic)} · ${STAGE[cycle.stage]}`)
   const cycle = activeStudyCycle(state)
   if (!cycle)
     return [
@@ -101,7 +101,7 @@ export function cycleStatusText(state: StudyCycleState, trail: StudyTrail): stri
   const place = trailTopicOf(trail, cycle.topic)
   const lines = [
     `Ciclo ativo: ${cycle.id}`,
-    `Tópico: ${cycle.topic}${place ? ` (tópico ${place.index} de ${place.total} · ${place.discipline})` : ''}`,
+    `Tópico: ${topicName(cycle.topic)}${place ? ` (tópico ${place.index} de ${place.total} · ${place.discipline})` : ''}`,
     `Etapa: ${STAGE[cycle.stage]}`,
     `Diagnóstico: ${answered} de ${cycle.questions.length} respondidas; ${studyGaps(cycle).length} erro(s) ou dúvida(s).`,
   ]

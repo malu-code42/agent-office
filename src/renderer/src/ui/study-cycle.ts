@@ -963,7 +963,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: {
         h(
           'option',
           { value: item.label, selected: item.label === topic.trim() || undefined },
-          `${item.done ? '✓ ' : ''}${item.id ? `${item.id} · ` : ''}${item.title} — ${item.discipline} (${item.index} de ${item.total})`,
+          `${item.done ? '✓ ' : ''}${item.title} — ${item.discipline} (${item.index} de ${item.total})`,
         ),
       ),
     ) as HTMLSelectElement
