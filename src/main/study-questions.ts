@@ -15,8 +15,11 @@ import { PdfTextCache, type PdfExtractor, type PdfOcrJob } from './study-pdf'
 
 export const STUDY_BANK_FILE = 'questoes-estudo.md'
 export const STUDY_SOURCES_DIRECTORY = 'study sources'
-export const STUDY_BANK_BYTE_LIMIT = 2 * 1024 * 1024
+export const STUDY_BANK_BYTE_LIMIT = 8 * 1024 * 1024
 const MAX_CANDIDATES = 100
+
+/** Errors the bank builder tells apart: the bank is full, or it changed in Obsidian during the write. */
+const bankError = (code: 'full' | 'changed', message: string): Error => Object.assign(new Error(message), { code })
 const SOURCE_FILE_LIMIT = 50
 const SOURCE_PATH_COUNT_LIMIT = 500
 const SOURCE_METADATA_SCAN_LIMIT = 250
@@ -239,6 +242,22 @@ export class StudyQuestionService {
         throw new Error('A seleção contém uma questão que não veio desta busca.')
     }
 
+    const verifiedAt = new Date().toISOString()
+    this.commit(
+      rows.map((row) => ({ ...row, verifiedByUser: true as const, verifiedAt })),
+      expected.bankHash,
+    )
+  }
+
+  /**
+   * Appends questions already checked by the agent chain (study-questions-grounded.ts), without the
+   * user's review step; they carry no verifiedByUser. Duplicates of questions in the bank are skipped.
+   */
+  appendChecked(rows: StudyQuestion[], backup = true): { added: number; skipped: number } {
+    return this.commit(rows.map(validateStudyQuestion), undefined, true, backup)
+  }
+
+  private commit(rows: StudyQuestion[], expectedHash?: string, skipDuplicates = false, backup = true): { added: number; skipped: number } {
     const path = this.bankPath()
     const lockPath = `${path}.lock`
     let lock: number
@@ -251,24 +270,28 @@ export class StudyQuestionService {
     }
     try {
       const current = this.readText()
-      if (hash(current) !== expected.bankHash) throw new Error('O banco mudou no Obsidian. Releia as questões antes de salvar.')
+      const baseHash = expectedHash ?? hash(current)
+      if (hash(current) !== baseHash) throw bankError('changed', 'O banco mudou no Obsidian. Releia as questões antes de salvar.')
       const existing = decodeStudyBank(current).questions
-      if (existing.length + rows.length > STUDY_QUESTION_LIMITS.count) throw new Error('O banco pode conter no máximo 100 questões.')
-      const ids = new Set(existing.map((row) => row.id))
+      const accepted: StudyQuestion[] = []
       for (const row of rows) {
-        if (ids.has(row.id) || findDuplicateStudyQuestion(row, [...existing, ...rows.filter((candidate) => candidate !== row)]))
+        if (findDuplicateStudyQuestion(row, [...existing, ...accepted])) {
+          if (skipDuplicates) continue
           throw new Error(`Questão duplicada: ${row.id}.`)
-        ids.add(row.id)
+        }
+        accepted.push(row)
       }
-      this.backupExactVersion(current)
+      if (existing.length + accepted.length > STUDY_QUESTION_LIMITS.count)
+        throw bankError('full', `O banco pode conter no máximo ${STUDY_QUESTION_LIMITS.count} questões.`)
+      if (!accepted.length) return { added: 0, skipped: rows.length }
+      if (backup) this.backupExactVersion(current)
       const prefix = current && !current.endsWith('\n') ? '\n' : ''
-      const verifiedAt = new Date().toISOString()
-      const reviewedRows = rows.map((row) => ({ ...row, verifiedByUser: true as const, verifiedAt }))
-      const appended = `${current}${prefix}${reviewedRows.map(encodeStudyQuestion).join('\n')}`
+      const appended = `${current}${prefix}${accepted.map(encodeStudyQuestion).join('\n')}`
       this.atomicWrite(path, appended, () => {
-        if (hash(this.readText()) !== expected.bankHash)
-          throw new Error('O banco mudou no Obsidian. A edição externa foi preservada; tente novamente.')
+        if (hash(this.readText()) !== baseHash)
+          throw bankError('changed', 'O banco mudou no Obsidian. A edição externa foi preservada; tente novamente.')
       })
+      return { added: accepted.length, skipped: rows.length - accepted.length }
     } finally {
       closeSync(lock)
       unlinkSync(lockPath)

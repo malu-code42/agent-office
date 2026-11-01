@@ -25,6 +25,8 @@ import { BONNIE_AGENT_ID } from '@shared/bonnie'
 import { openStudyCards } from './ui/study-cards'
 import { openStudyQuestions } from './ui/study-questions'
 import { openStudyLibrary } from './ui/study-library'
+import { mountStudyBankChip, openStudyBankBuilder } from './ui/study-bank'
+import type { StudyBankRequest } from '@shared/study-bank'
 import { openStudySchedule } from './ui/study-schedule'
 import { openTasksBoard } from './ui/tasks-board'
 import { openFocusPopup } from './ui/focus-popup'
@@ -83,6 +85,11 @@ async function boot(): Promise<void> {
   let nearId: string | null = null
 
   const toast = (text: string, kind: 'info' | 'ok' | 'err' = 'info', action?: ToastAction) => hud.toast(text, kind, action)
+  // The question bank: its shelf ("Banco de questões") and the run that fills it ("Montar banco").
+  const openBank = (): void => openStudyQuestions(ui, toast, openBankBuilder)
+  const openBankBuilder = (preset?: StudyBankRequest): void =>
+    void openStudyBankBuilder(ui, toast, { openLibrary: (topic) => openStudyLibrary(ui, toast, topic), openBank }, preset)
+  mountStudyBankChip(ui, () => openBankBuilder())
 
   /** Asks, then stops the claude process behind a terminal agent. Returns true if it closed. */
   const closeTerminal = async (id: string): Promise<boolean> => {
@@ -288,7 +295,7 @@ async function boot(): Promise<void> {
       else if (act === 'trail') void openStudyTrailBoard(ui, toast, (topic) => void startStudyTopic(ui, toast, topic).then(refreshStudy))
       else if (act === 'cycle' || act === 'desk') void openStudyCycle(ui, toast)
       else if (act === 'library' || act === 'cora') openStudyLibrary(ui, toast, studyTopic)
-      else if (act === 'questions') openStudyQuestions(ui, toast)
+      else if (act === 'questions') openBank()
       else if (act === 'cards') void openStudyCards(ui, toast)
       else if (act === 'schedule') void openStudySchedule(ui, toast, () => openAgenda(ui))
     },

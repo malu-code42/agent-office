@@ -51,7 +51,8 @@ Na dúvida se o arquivo se aplica, leia.
 
 ### Dados do usuário
 - Ficam em `app.getPath('userData')` (arquivos de dados listados em `DATA_FILES` de `backups.ts`; também `stats.json`,
-  `bridge-token`, `logs/`, `backups/`, `study-pdf-cache/` — texto dos PDFs da Cora, lido em worker thread, nunca enviado a modelos).
+  `bridge-token`, `logs/`, `backups/`, `study-pdf-cache/` — texto dos PDFs da Cora, lido em worker thread; só trechos vão a modelos, na montagem do banco iniciada pela usuária; `study-bank-job.json` — andamento da montagem do banco de questões).
+- Banco de questões: montado só pela IA (cadeia de agentes, sem revisão manual) e questões respondidas nunca se repetem. Ver §2.5 da spec do centro de controle antes de mexer em `study-*`.
 - Escreva sempre com `writeJsonAtomic`/`writeFileAtomic` (`fs-safe.ts`). Nunca `fs.writeFile` direto em arquivo de dados.
 - `loadJson` move arquivo corrompido para `.corrupt-<ts>.json` e recupera de `.bak` ou backup diário. Erro de dados para o app em vez de sobrescrever.
 - Não há versão de schema nos arquivos. Campo novo: dê default e trate a migração em `migrateSettings` (`store.ts`).

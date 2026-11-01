@@ -300,18 +300,17 @@ def main():
             'coordinator': {
                 'desk': desk(f'room{r}/coord', lambda s, st: ws_front_x(s, cx0, cy0, None, st)),
                 'center': [cx0 + 7, cy0 + 17],
-                'seat': seat(f'room{r}/coord', cx0 - 12, cy0 + 34 - 13, '+x'),
+                'seat': seat(f'room{r}/coord', cx0 - 12, cy0 + 34 - 13, '+x', col=F.CHAIRS[P.ROOM_CHAIRS[r][6]]),
                 'plate': [cpx, int(cpy) - 6],
             },
             'slots': [],
         }
         for i, (x, y) in enumerate(P.slots(ry0, h)):
-            extra = 'mug' if i % 2 else 'papers'
             sx, sy = x + 16, y + 3
             ipx, ipy = L.P(sx + 5 + 6, sy + 5 + 6, 30)
             room['slots'].append({
-                'desk': desk(f'room{r}/slot{i}', lambda s, st, x=x, y=y, extra=extra: ws_back(s, x, y, None, st, extra)),
-                'seat': seat(f'room{r}/slot{i}', sx, sy, '-x'),
+                'desk': desk(f'room{r}/slot{i}', lambda s, st, x=x, y=y: ws_back(s, x, y, None, st)),
+                'seat': seat(f'room{r}/slot{i}', sx, sy, '-x', col=F.CHAIRS[P.ROOM_CHAIRS[r][i]]),
                 'plate': [ipx + 26, int(ipy) + 2],
             })
         rooms.append(room)
@@ -320,8 +319,8 @@ def main():
     ex, ey, ew = P.EMI_DESK
     epx, epy = L.P(336, 282, 0)
     emi = {
-        'desk': desk('emi', lambda s, st: ws_back(s, ex, ey, None, st, 'papers', boss=True, d_=ew)),
-        'seat': seat('emi', ex + 16, ey + (ew - 26) // 2 + 3, '-x'),
+        'desk': desk('emi', lambda s, st: ws_back(s, ex, ey, None, st, d_=ew)),
+        'seat': seat('emi', ex + 16, ey + (ew - 26) // 2 + 3, '-x', col=F.CHAIRS[P.EMI_CHAIR]),
         'plate': [epx, int(epy)],
     }
     mpx, mpy = L.P(232, 282, 0)
@@ -415,9 +414,9 @@ def casa(L, place, items, seat):
     C.half_wall(sc, 1)
     C.office(sc)
     for i, (dx, dy) in enumerate(C.DESKS):
-        sc.add((dx, dy, dx + 14, dy + C.DESK_D), lambda dx=dx, dy=dy, i=i: C.work_desk(L, dx, dy, i % 3), True)
+        sc.add((dx, dy, dx + 14, dy + C.DESK_D), lambda dx=dx, dy=dy, i=i: C.work_desk(L, dx, dy, C.TABLE_LOOK[i][1]), True)
     x, y, w = C.VOCE_DESK
-    ws_front_y(sc, x, y, None, 'green', w=w)
+    ws_front_y(sc, x, y, None, C.VOCE_LOOK[1], w=w)
     sc.rec.pop()  # the user's chair is a seat below
     C.voce_corner(sc)
     C.media(sc, people=False)
@@ -446,7 +445,7 @@ def casa(L, place, items, seat):
         'Filmes': [233, 133, 34], 'Jogos': [233, 238, 38], 'Gastos': [218, 0, 54], 'Alarme': [168, 0, 54],
     })
     # Luna's chair first, then the residents' in the order the approved art fills them
-    seats = [seat(f'casa/table{i}', *C.TABLE_SEATS[i], col=C.SEAT_COL) for i in C.SEAT_ORDER]
+    seats = [seat(f'casa/table{i}', *C.TABLE_SEATS[i], col=F.CHAIRS[C.TABLE_LOOK[i][0]]) for i in C.SEAT_ORDER]
     walls = sc.walls
     blocked = blocked_by([it['fp'] for it in static if not it.get('wall')])
     ex0, ex1 = C.ELEVATOR
@@ -479,7 +478,7 @@ def casa(L, place, items, seat):
         'tags': tags,
         'tv': tv,
         'table': {'center': [C.TABLE[0] + C.TABLE[2] / 2, C.TABLE[1] + C.TABLE[3] / 2], 'seats': seats},
-        'voce': {'seat': seat('casa/voce', x + w - 13, y - 12, '+y'), 'desk': [x, y, x + w, y + 14]},
+        'voce': {'seat': seat('casa/voce', x + w - 13, y - 12, '+y', col=F.CHAIRS[C.VOCE_LOOK[0]]), 'desk': [x, y, x + w, y + 14]},
         'hang': [{'at': [hx, hy], 'look': list(look), 'kind': kind} for hx, hy, look, kind in C.HANG],
         'zones': [{'name': n, 'rect': list(r)} for n, r in C.ZONES],
         'elevator': {'tile': [ex0 // TS, 1], 'point': [(ex0 + ex1) / 2 / TS, 0.45], 'door': [ex0, ex1, 40],
@@ -505,7 +504,7 @@ def estudos(L, place, items, seat):
     E.library_walls(sc)
     E.library(sc)
     for name, (x, y, w) in (('cora', E.CORA_DESK), ('bonnie', E.BONNIE_DESK)):
-        ws_front_y(sc, x, y, None, 'green', boss=True, w=w)
+        ws_front_y(sc, x, y, None, E.LOOK[name][1], w=w)
         sc.rec.pop()  # the chair is a seat below
     E.library_plant(sc)
     E.diretoria_walls(sc)
@@ -572,8 +571,8 @@ def estudos(L, place, items, seat):
             'Questões': [163, 153, 34], 'Sua carteira': [148, 212, 26], 'Notas e cartões': [316, 212, 26],
             'Trilha de estudos': [(E.TRAIL[0] + E.TRAIL[1]) / 2, 0, E.TRAIL[3] + 6],
         },
-        'cora': seat('estudos/cora', cx + cw - 13, cy - 12, '+y'),
-        'bonnie': seat('estudos/bonnie', bx + bw - 13, by - 12, '+y'),
+        'cora': seat('estudos/cora', cx + cw - 13, cy - 12, '+y', col=F.CHAIRS[E.LOOK['cora'][0]]),
+        'bonnie': seat('estudos/bonnie', bx + bw - 13, by - 12, '+y', col=F.CHAIRS[E.LOOK['bonnie'][0]]),
         'visitors': wood('visit', E.VISIT_SEATS),
         'teachers': wood('teacher', E.TEACHER_SEATS),
         'student': {'seat': seat('estudos/student', sx, sy, sface), 'desk': list(d0)},

@@ -148,11 +148,12 @@ describe('persistência do ciclo de estudo', () => {
     }
   })
 
-  it('does not apply a Tutor result to a replacement cycle with the same question ID', async () => {
+  it('does not apply a Tutor result to a replacement cycle', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'study-cycle-'))
     try {
       const bankQuestion = question()
-      const bank = { read: () => ({ questions: [bankQuestion] }) }
+      const other = question({ id: 'q-87654321', question: 'Qual a chance de coroa?' })
+      const bank = { read: () => ({ questions: [bankQuestion, other] }) }
       let finishEvaluation!: (result: { kind: 'correct'; rationale: string }) => void
       const service = new StudyCycleService(new StudyCycleStore(dir), bank, () => new Promise((resolve) => (finishEvaluation = resolve)))
 
@@ -161,8 +162,10 @@ describe('persistência do ciclo de estudo', () => {
       const pendingEvaluation = service.evaluateAnswer(bankQuestion.id)
 
       service.reset()
-      service.start('Probabilidade B', [bankQuestion.id])
-      service.answer(bankQuestion.id, 'Resposta igual', false)
+      // An answered question is never offered again, so the replacement cycle has a new one.
+      expect(() => service.start('Probabilidade B', [bankQuestion.id])).toThrow(/já foi respondida/i)
+      service.start('Probabilidade B', [other.id])
+      service.answer(other.id, 'Resposta igual', false)
       finishEvaluation({ kind: 'correct', rationale: 'Resultado do ciclo anterior.' })
 
       await expect(pendingEvaluation).rejects.toThrow(/ciclo ou a resposta mudou/i)
@@ -308,8 +311,8 @@ describe('persistência do ciclo de estudo', () => {
     const dir = mkdtempSync(join(tmpdir(), 'study-cycle-'))
     try {
       const diagnostic = question({ id: 'q-gap00002' })
-      const practiceA = question({ id: 'q-prac00002' })
-      const practiceB = question({ id: 'q-prac00003' })
+      const practiceA = question({ id: 'q-prac00002', question: 'Qual a chance de coroa?' })
+      const practiceB = question({ id: 'q-prac00003', question: 'Qual a chance de tirar 6 num dado?' })
       const bank = { read: () => ({ questions: [diagnostic, practiceA, practiceB] }) }
       const store = new StudyCycleStore(dir)
       const service = new StudyCycleService(

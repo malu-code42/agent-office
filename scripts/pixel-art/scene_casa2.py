@@ -9,7 +9,7 @@ import furn as F
 import furn2 as G
 from furn import T
 from floorkit import (W, D, new_layer, save2, Scene, region_floor, OAK, planks, back_walls, CASA_WALL, draw_floor, WALL_H)
-from desks import ws_front_y
+from desks import ws_front_y, graphite, east_set
 from chars import sprite
 
 WARM = planks([H('e2b989'), H('d8ad7c'), H('dcb384')], H('b98c5f'), H('c39769'))
@@ -143,19 +143,15 @@ def office(sc):
     add((130, 22, 140, 32), lambda: F.plant(L, 130, 22, big=False, seed=4), True)
 
 
-# the work desks: graphite desk, green chair
-DESK_TOP = T('4a4d5c', '363846', '262833')
-DESK_LEG = T('2b2d38', '20222b', '181a21')
-SEAT_COL = T('3f9a7a', '2f7d62', '22604b')
+# the work desks' look, mixed from the floor's palette: (chair, screen) of each table desk and of the user's desk
+TABLE_LOOK = [('terra', 'blue'), ('green', 'lilac'), ('blue', 'rose'), ('mustard', 'mint')]
+VOCE_LOOK = ('lilac', 'green')
 
 
-def work_desk(L, x, y, variant=0):
+def work_desk(L, x, y, screen):
     """a graphite desk: an ultrawide set back toward the wall, a laptop, a keyboard and a mug (the sitter is east of it)."""
-    F.desk(L, x, y, 14, DESK_D, col=DESK_TOP, leg=DESK_LEG)
-    F.crt(L, x - 4, y + 2, 12, '+x', 'green', 1)
-    G.laptop(L, x + 6, y + 18, 12, '+x', '82aaff')
-    F.keyboard(L, x + 10, y + 5, 12, 'y')
-    F.mug(L, x + 10, y + 2, 12)
+    graphite(L, x, y, 14, DESK_D)
+    east_set(L, x, y, screen)
 
 
 def luna_table(sc):
@@ -164,13 +160,14 @@ def luna_table(sc):
     for i, (x, y) in enumerate(DESKS):
         cx, cy, _face = TABLE_SEATS[i]
         vi = TABLE_PEOPLE[i]
+        col = F.CHAIRS[TABLE_LOOK[i][0]]
 
-        def chair(cx=cx, cy=cy, vi=vi):
-            F.chair(L, cx, cy, '-x', 'seat', SEAT_COL)
+        def chair(cx=cx, cy=cy, vi=vi, col=col):
+            F.chair(L, cx, cy, '-x', 'seat', col)
             if vi is not None:
                 F.seated(L, sprite(vi, 'BL', 'sitB'), cx, cy)
-            F.chair(L, cx, cy, '-x', 'back', SEAT_COL)
-        sc.add((x, y, x + 14, y + DESK_D), lambda x=x, y=y, i=i: work_desk(L, x, y, i % 3), True)
+            F.chair(L, cx, cy, '-x', 'back', col)
+        sc.add((x, y, x + 14, y + DESK_D), lambda x=x, y=y, i=i: work_desk(L, x, y, TABLE_LOOK[i][1]), True)
         sc.add((cx, cy, cx + 10, cy + 10), chair)
     px, py = L.P(TABLE_SEATS[0][0] + 5, TABLE_SEATS[0][1] + 5, 7)
     sc.heads['luna'] = (int(px) + 3 * L.S, int(py) - 24 * L.S)
@@ -227,7 +224,7 @@ def build():
     office(sc)
     luna_table(sc)
     x, y, w = VOCE_DESK
-    ws_front_y(sc, x, y, 0, 'green', w=w, head='voce')
+    ws_front_y(sc, x, y, 0, VOCE_LOOK[1], w=w, head='voce', col=F.CHAIRS[VOCE_LOOK[0]])
     voce_corner(sc)
     half_wall(sc, 1)
     media(sc)

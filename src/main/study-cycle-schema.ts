@@ -175,7 +175,14 @@ const cycleSchema = z
   })
 
 export const studyCycleStateSchema: z.ZodType<StudyCycleState> = z
-  .object({ activeId: z.string().min(1).max(100).nullable(), cycles: z.array(cycleSchema).max(1000) })
+  .object({
+    activeId: z.string().min(1).max(100).nullable(),
+    cycles: z.array(cycleSchema).max(1000),
+    answered: z
+      .array(z.object({ id: z.string().min(1).max(100), key: z.string().max(20_000), at: z.number().int().nonnegative() }).strict())
+      .max(20_000)
+      .optional(),
+  })
   .strict()
   .refine((state) => new Set(state.cycles.map((cycle) => cycle.id)).size === state.cycles.length)
   .refine((state) => state.activeId === null || state.cycles.some((cycle) => cycle.id === state.activeId))
