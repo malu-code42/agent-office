@@ -106,17 +106,17 @@ def papers(L, x, y, z):
     L.pbox(x, y, z, 5, 4, 1, T('fbf8f0', 'e2ddd0', 'cfc8b8'))
 
 
-def chair(L, x, y, face='-y', part='all'):
+def chair(L, x, y, face='-y', part='all', col=CHAIR):
     """office swivel chair, seat 10x10 at (x,y). face = direction occupant looks."""
     if part in ('all', 'seat'):
-        L.pbox(x + 2, y + 4, 0, 6, 2, 1, CHAIR)
-        L.pbox(x + 4, y + 2, 0, 2, 6, 1, CHAIR)
+        L.pbox(x + 2, y + 4, 0, 6, 2, 1, col)
+        L.pbox(x + 4, y + 2, 0, 2, 6, 1, col)
         L.pbox(x + 4, y + 4, 1, 2, 2, 4, CHAIR, outline=False)
-        L.pbox(x, y, 5, 10, 10, 2, CHAIR)
+        L.pbox(x, y, 5, 10, 10, 2, col)
     back = {'-y': (x, y + 9, 7, 10, 2, 9), '+y': (x, y - 1, 7, 10, 2, 9),
             '-x': (x + 9, y, 7, 2, 10, 9), '+x': (x - 1, y, 7, 2, 10, 9)}[face]
     if part == 'all' or part == 'back':
-        L.pbox(*back, CHAIR)
+        L.pbox(*back, col)
 
 
 def seated(L, spr, x, y):

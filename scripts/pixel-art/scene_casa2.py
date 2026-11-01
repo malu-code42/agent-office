@@ -138,12 +138,19 @@ def sala(sc):
     add((4, 110, 14, 120), lambda: F.plant(L, 4, 110, seed=5), True)
 
 
+# the work desks: graphite desk, green chair
+DESK_TOP = T('4a4d5c', '363846', '262833')
+DESK_LEG = T('2b2d38', '20222b', '181a21')
+SEAT_COL = T('3f9a7a', '2f7d62', '22604b')
+
+
 def work_desk(L, x, y, variant=0):
-    """a desk with a row of monitors facing the sitter (east of it), a keyboard and a mug."""
-    F.desk(L, x, y, 14, DESK_D)
-    F.crt(L, x, y + 8, 12, '+x', 'green', variant)
+    """a graphite desk: an ultrawide set back toward the wall, a laptop, a keyboard and a mug (the sitter is east of it)."""
+    F.desk(L, x, y, 14, DESK_D, col=DESK_TOP, leg=DESK_LEG)
+    F.crt(L, x - 4, y + 2, 12, '+x', 'green', 1)
+    G.laptop(L, x + 6, y + 18, 12, '+x', '82aaff')
     F.keyboard(L, x + 10, y + 5, 12, 'y')
-    F.mug(L, x + 4, y + 24, 12)
+    F.mug(L, x + 10, y + 2, 12)
 
 
 def luna_table(sc):
@@ -154,10 +161,10 @@ def luna_table(sc):
         vi = TABLE_PEOPLE[i]
 
         def chair(cx=cx, cy=cy, vi=vi):
-            F.chair(L, cx, cy, '-x', 'seat')
+            F.chair(L, cx, cy, '-x', 'seat', SEAT_COL)
             if vi is not None:
                 F.seated(L, sprite(vi, 'BL', 'sitB'), cx, cy)
-            F.chair(L, cx, cy, '-x', 'back')
+            F.chair(L, cx, cy, '-x', 'back', SEAT_COL)
         sc.add((x, y, x + 14, y + DESK_D), lambda x=x, y=y, i=i: work_desk(L, x, y, i % 3), True)
         sc.add((cx, cy, cx + 10, cy + 10), chair)
     px, py = L.P(TABLE_SEATS[0][0] + 5, TABLE_SEATS[0][1] + 5, 7)
