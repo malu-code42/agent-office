@@ -414,8 +414,8 @@ def casa(L, place, items, seat):
     C.half_wall(sc, 0)
     C.half_wall(sc, 1)
     C.sala(sc)
-    for dx, dy in C.DESKS:
-        sc.add((dx, dy, dx + C.DESK_W, dy + 14), lambda dx=dx, dy=dy: C.work_desk(L, dx, dy), True)
+    for i, (dx, dy) in enumerate(C.DESKS):
+        sc.add((dx, dy, dx + 14, dy + C.DESK_D), lambda dx=dx, dy=dy, i=i: C.work_desk(L, dx, dy, i % 3), True)
     x, y, w = C.VOCE_DESK
     ws_front_y(sc, x, y, None, 'green', w=w)
     sc.rec.pop()  # the user's chair is a seat below

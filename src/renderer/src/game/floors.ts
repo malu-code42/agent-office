@@ -8,7 +8,7 @@ import { LUNA_AGENT_ID } from '@shared/luna'
 import { Point3, Tag } from '../world2d/overlays'
 import { GameBase } from './base'
 import { floorsKey, issuesToken } from './floor-key'
-import { RIDE_S, type Actor } from './types'
+import { RIDE_S, sitterTagY, type Actor } from './types'
 
 /** Elevator and floors: rides between floors, the project floors and which one is drawn. */
 export abstract class GameFloors extends GameBase {
@@ -99,10 +99,10 @@ export abstract class GameFloors extends GameBase {
         proposalTag = this.overlays.add(new Tag(anchor, 'Equipe proposta', false, () => this.hooks.onRoomClick?.(project, waiting)))
         proposalTag.setDot('waiting')
       }
-      // Emi sits at her desk: her name and status tag opens her conversation, like any agent's
+      // Emi sits at her desk: her name and status tag opens her conversation, like any agent's (as low as a sitter's)
       const seat = PROJECT_LAYOUT.emi.seat
       const emiTag = this.overlays.add(
-        new Tag(new Point3(seat.at[0] / 16, 1.55, seat.at[1] / 16), 'Emi', false, () => this.hooks.onAgentClick(emiAgentId(project.id))),
+        new Tag(new Point3(seat.at[0] / 16, sitterTagY(null), seat.at[1] / 16),'Emi', false, () => this.hooks.onAgentClick(emiAgentId(project.id))),
       )
       return {
         project,

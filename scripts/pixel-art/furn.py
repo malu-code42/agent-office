@@ -32,42 +32,55 @@ def desk(L, x, y, w=30, d=14, h=12, col=WOOD, leg=WOODD):
     L.pbox(x, y, h - 2, w, d, 2, col)
 
 
-def crt(L, x, y, z, face='+y', screen='green'):
-    """CRT ~14 wide. (x,y) = footprint corner (14x10)."""
-    sc = {'green': GREEN, 'amber': AMBER, 'red': H('d0504a'), 'off': None}[screen]
-    if face in ('+y', '-y'):
-        front, rear = (y + 5, y) if face == '+y' else (y, y + 5)
-        parts = [(x + 3, rear, z + 1, 8, 5, 8), (x, front, z, 14, 5, 12)]
-        if face == '-y':
-            parts.reverse()
-        for p in parts:
-            L.pbox(*p, CRT)
+PANEL = T('4a4f5c', '363a46', '262932')
+# per state: screen background, accent lines and the power LED on the back
+_SCREEN = {'green': (H('1b3b3a'), GREEN, H('7be07f')), 'amber': (H('3b2f1e'), AMBER, H('f4bb55')),
+           'red': (H('3b1f24'), H('d0504a'), H('ff5a4a')), 'off': (H('14161b'), None, H('6b6f73'))}
+# lateral start, width, bottom z (above the desk) and height of each panel, per variant
+_PANELS = [[(0, 7, 3, 9), (7, 7, 3, 9)],                  # two monitors side by side
+           [(0, 4, 3, 7), (4, 6, 3, 9), (10, 4, 3, 7)],   # a main monitor with one on each side
+           [(0, 10, 4, 7), (10, 4, 3, 10)]]               # ultrawide and a vertical one
+
+
+def crt(L, x, y, z, face='+y', screen='green', variant=None):
+    """modern workstation, a row of flat monitors ~14 wide on a thin stand. (x,y) = footprint corner
+    (14x10, or 10x14 for +x/-x). The back of the monitors (face -y/-x) shows the power LED of the state."""
+    bg, accent, led = _SCREEN[screen]
+    if variant is None:
+        variant = (x * 7 + y * 13) % len(_PANELS)
+    along_x = face in ('+y', '-y')
+
+    def box(u, v, zz, wu, wv, hz, col):
+        # u runs along the desk, v toward the side the screens look at (0..10)
         if face == '+y':
-            yf = y + 10
-            L.begin(); L.qy(yf, x + 2, x + 12, z + 2, z + 10, SCREEN); L.end(False)
-            if sc:
-                lines = [(x + 3, x + 9, z + 8), (x + 3, x + 11, z + 6), (x + 3, x + 7, z + 4)]
-                if screen in ('amber', 'red'):
-                    lines = [(x + 4, x + 10, z + 7), (x + 4, x + 6, z + 4), (x + 7, x + 9, z + 4)]
-                for a, b, zz in lines:
-                    L.qy(yf, a, b, zz, zz + 1, sc)
-            L.begin(); L.box(x + 11, yf - 1, z + 1, 1, 1, 1, (H('7be07f'),) * 3); L.end(False)
-    else:
-        front, rear = (x + 5, x) if face == '+x' else (x, x + 5)
-        parts = [(rear, y + 3, z + 1, 5, 8, 8), (front, y, z, 5, 14, 12)]
-        if face == '-x':
-            parts.reverse()
-        for p in parts:
-            L.pbox(*p, CRT)
-        if face == '+x':
-            xf = x + 10
-            L.begin(); L.qx(xf, y + 2, y + 12, z + 2, z + 10, SCREEN); L.end(False)
-            if sc:
-                lines = [(y + 3, y + 9, z + 8), (y + 3, y + 11, z + 6), (y + 3, y + 7, z + 4)]
-                if screen in ('amber', 'red'):
-                    lines = [(y + 4, y + 10, z + 7), (y + 4, y + 6, z + 4), (y + 7, y + 9, z + 4)]
-                for a, b, zz in lines:
-                    L.qx(xf, a, b, zz, zz + 1, sc)
+            L.pbox(x + u, y + v, zz, wu, wv, hz, col)
+        elif face == '-y':
+            L.pbox(x + u, y + 10 - v - wv, zz, wu, wv, hz, col)
+        elif face == '+x':
+            L.pbox(x + v, y + u, zz, wv, wu, hz, col)
+        else:
+            L.pbox(x + 10 - v - wv, y + u, zz, wv, wu, hz, col)
+
+    def plane(a, b, za, zb, col):
+        # a quad on the screen plane (v = 10) between lateral a..b; only the +y / +x sides are seen
+        if face == '+y':
+            L.qy(y + 10, x + a, x + b, z + za, z + zb, col)
+        else:
+            L.qx(x + 10, y + a, y + b, z + za, z + zb, col)
+
+    box(2, 5, 0, 10, 5, 1, PANEL)  # foot
+    for u0, w, zb, h in _PANELS[variant]:
+        box(u0 + w // 2 - 1, 8, 1, 2, 2, zb, PANEL)  # neck
+        box(u0, 8, zb, w, 2, h, PANEL)
+        if face in ('+y', '+x'):
+            L.begin(); plane(u0 + 1, u0 + w - 1, zb + 1, zb + h - 1, bg); L.end(False)
+            if accent:
+                for i, zz in enumerate(range(zb + h - 3, zb + 1, -2)):
+                    plane(u0 + 1, u0 + w - 1 - i % 2, zz, zz + 1, accent)
+    if face == '-y':
+        L.dot(*[int(v) for v in L.P(x + 7, y + 2, z + 4)], led)
+    elif face == '-x':
+        L.dot(*[int(v) for v in L.P(x + 2, y + 7, z + 4)], led)
 
 
 def keyboard(L, x, y, z, along='x'):

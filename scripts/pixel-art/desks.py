@@ -6,10 +6,6 @@ import furn2 as G
 from chars import sprite
 
 
-def _led(L, x, y, z, state):
-    L.dot(*[int(v) for v in L.P(x, y, z)], G.LED[state])
-
-
 def ws_back(sc, x, y, vi, state, extra='mug', head=None, boss=False, d_=26):
     """desk long along y at (x,y) 14 x d_; agent east of it, facing -x (BL), at the middle of the desk."""
     L = sc.L
@@ -52,7 +48,6 @@ def ws_front_y(sc, x, y, vi, state, boss=False, w=34, head=None):
             F.desk(L, x, y, w, 14)
         z = 13 if boss else 12
         F.crt(L, x + 1, y + 1, z, '-y', state)
-        _led(L, x + 8, y + 11, z + 9, state)
         F.keyboard(L, x + w - 14, y + 2, z)
         F.papers(L, x + w - 13, y + 8, z)
     sc.add((x, y, x + w, y + 14), d, True)
@@ -78,7 +73,6 @@ def ws_front_x(sc, x, y, vi, state, boss=True, d_=34, head=None):
             F.desk(L, x, y, 14, d_)
         z = 13 if boss else 12
         F.crt(L, x + 1, y + 1, z, '-x', state)
-        _led(L, x + 11, y + 8, z + 9, state)
         F.keyboard(L, x + 2, y + d_ - 13, z, 'y')
         F.papers(L, x + 7, y + d_ - 10, z)
     sc.add((x, y, x + 14, y + d_), d, True)
