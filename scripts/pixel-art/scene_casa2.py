@@ -49,7 +49,7 @@ TOTEM = (0, 168, 2, 184)
 # the window on the west wall by the user's corner: y0, y1, z0, z1 (the glass is drawn by the app: morning, day, evening, night)
 WINDOW = (192, 262, 20, 50)
 # the writing desk: in front of the last bookshelf, its west edge on the shelf's
-WRITING = (352, 24, 368, 60)
+WRITING = (344, 24, 360, 60)
 FILMS_TV = (228, 120, 238, 146)
 ARCADES = [(228, 216, 238, 228), (228, 232, 238, 244), (228, 248, 238, 260)]
 SHELVES = [(x, 0, x + 28, 8) for x in range(232, 380, 30)]
