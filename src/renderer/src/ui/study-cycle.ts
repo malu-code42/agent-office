@@ -12,7 +12,7 @@ import {
 } from '@shared/study-cycle'
 import type { StudyQuestion } from '@shared/study-questions'
 import type { StudyLibrarySearch } from '@shared/study-library'
-import { disciplineIdOf, type StudyBankRequest } from '@shared/study-bank'
+import { disciplineIdOf, splitStudyRationale, type StudyBankRequest } from '@shared/study-bank'
 import { studyTopicStart, topicName, trailTopicOf, type StudyTrail, type StudyTrailTopic } from '@shared/study-trail'
 import { questionsForTopic, studyQueryOfQuestion, type StudySourceRecommendations } from '@shared/study-sources'
 import { announce } from './a11y'
@@ -82,6 +82,22 @@ const KIND: Record<Kind, [string, StudyTone]> = {
 const kindChip = (kind: Kind) => studyChip(...KIND[kind])
 /** A gap is "Errada" when the answer was wrong, "Incerta" when the user doubted it. */
 const gapKind = (q: StudyCycleQuestion): Kind => (q.assessment?.kind === 'incorrect' ? 'incorrect' : 'uncertain')
+/**
+ * The book's passage that proves the answer, with its page: shown only once the question has been
+ * answered and checked (never while answering, never in the retest), because it gives the answer away.
+ */
+const passageOf = (q: StudyQuestion): HTMLElement | null => {
+  const { quote } = splitStudyRationale(q.rationale)
+  if (!quote) return null
+  const ref = q.sourceReference ?? ''
+  const page = ref.includes('#') ? ref.slice(ref.indexOf('#') + 1).replace(/:[0-9]+$/, '') : ''
+  return h(
+    'div',
+    { class: 'sk-passage' },
+    h('span', { class: 'sk-label' }, `Trecho do livro · ${q.sourceTitle}${page ? ` · ${page}` : ''}`),
+    h('blockquote', {}, `“${quote}”`),
+  )
+}
 const verifiedQuestion = (q: StudyQuestion) => !q.sourceOnly && !!q.question.trim() && q.answerStatus === 'verified' && !!q.answer
 
 export interface StudyCycleOptions {
@@ -788,6 +804,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
                     `Sua resposta: ${gap.response}${gap.uncertain ? ' (com dúvida)' : ''}`,
                     gap.source.answer ? ` · Gabarito: ${gap.source.answer}` : '',
                   ),
+                  passageOf(gap.source),
                 ),
                 studyHeading(`Fontes da Cora para a ${qLabel(cycle, gap.id)}`, 'biblioteca local · da melhor para a pior'),
                 sourcesFor(gap),
@@ -1047,6 +1064,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
             h('p', { class: 'sk-prompt' }, gap.source.question),
             h('p', { class: 'sk-small' }, `Sua resposta: ${gap.response}${gap.uncertain ? ' · você marcou dúvida' : ''}`),
             gap.assessment?.rationale ? h('p', { class: 'sk-small' }, `Tutor: ${gap.assessment.rationale}`) : null,
+            passageOf(gap.source),
           ),
           field('Causa · por que errou ou ficou em dúvida', 'cause'),
           field('Próximo passo', 'nextStep'),
@@ -1181,6 +1199,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
         item.assessment
           ? h('div', { class: 'sk-row' }, kindChip(item.assessment.kind), h('span', { class: 'sk-small' }, item.assessment.rationale))
           : null,
+        item.assessment && item.assessment.kind !== 'pending' ? passageOf(item.source) : null,
         h(
           'div',
           { class: 'sk-row' },

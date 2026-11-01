@@ -928,3 +928,24 @@ button.sk-item:hover {
   font: 500 12px var(--mono);
   color: var(--muted);
 }
+
+/* the book's passage that proves an answer (shown only after the question is checked) */
+.sk-passage {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sk-passage .sk-label {
+  margin: 0;
+}
+
+.sk-passage blockquote {
+  margin: 0;
+  padding: 8px 12px;
+  border: 2px solid var(--outline);
+  background: var(--sunken);
+  font-style: italic;
+  font-size: 13.5px;
+  line-height: 1.5;
+}

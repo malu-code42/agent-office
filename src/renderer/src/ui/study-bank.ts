@@ -57,7 +57,10 @@ export function studySeal(question: StudyQuestion): HTMLElement {
 /** The page or section of a library reference: "study sources/…/Livro.pdf#Página 231" → "Página 231". */
 const placeOf = (ref: string | undefined): string => (ref?.includes('#') ? ref.slice(ref.indexOf('#') + 1).replace(/:\d+$/, '') : '')
 
-/** A bank question: wording, answer (on demand), rationale, the book's passage and where it is. */
+/**
+ * A bank question: wording, and on demand the answer, rationale, the book's passage and its page.
+ * The passage proves the answer, so it stays folded with it until the question is answered.
+ */
 export function studyQuestionCard(question: StudyQuestion, answered: boolean, discipline?: string): HTMLElement {
   const { rationale, quote } = splitStudyRationale(question.rationale)
   const place = placeOf(question.sourceReference)
@@ -78,25 +81,24 @@ export function studyQuestionCard(question: StudyQuestion, answered: boolean, di
     question.sourceOnly
       ? h('p', { class: 'qc-q' }, 'Somente a referência da fonte; sem enunciado guardado.')
       : h('p', { class: 'qc-q' }, question.question),
-    question.answer
+    question.answer || quote
       ? h(
           'details',
-          { class: 'qc-block' },
-          h('summary', { class: 'qc-label' }, 'Ver resposta'),
-          h('p', {}, h('b', {}, 'Resposta: '), question.answer),
+          { class: 'qc-block', open: answered || undefined },
+          h('summary', { class: 'qc-label' }, answered ? 'Resposta e trecho' : 'Ver resposta e trecho (revela a resposta)'),
+          question.answer ? h('p', {}, h('b', {}, 'Resposta: '), question.answer) : null,
           rationale ? h('p', {}, h('b', {}, 'Justificativa: '), rationale) : null,
+          quote ? h('span', { class: 'qc-label' }, `Trecho do livro${place ? ` · ${place}` : ''}`) : null,
+          quote ? h('blockquote', { class: 'qc-quote' }, `“${quote}”`) : null,
         )
       : null,
     h(
       'div',
       { class: 'qc-block' },
-      quote ? h('span', { class: 'qc-label' }, 'Trecho do livro') : null,
-      quote ? h('blockquote', { class: 'qc-quote' }, `“${quote}”`) : null,
       h(
         'span',
         { class: 'qc-ref' },
         h('b', {}, question.sourceTitle),
-        place ? ` · ${place}` : '',
         isAgentVerified(question)
           ? ' · conferida por autor, resolvedor cego e verificador'
           : question.sourceUrl
