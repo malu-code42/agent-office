@@ -89,13 +89,13 @@ export class PdfTextCache {
   ) {}
 
   /** The pages of `path`, whose bytes are `read()` only on a cache miss. */
-  async pages(path: string, info: FileInfo, read: () => Buffer): Promise<string[]> {
+  async pages(path: string, info: FileInfo, read: () => Buffer, ocr = false): Promise<string[]> {
     const key = this.key(path, info)
-    const cached = this.cached(path, info)
+    const cached = this.cached(path, info, ocr)
     if (cached) return cached
     let run = this.running.get(key)
     if (!run) {
-      run = this.parse(path, info, read).finally(() => this.running.delete(key))
+      run = this.parse(path, info, read, ocr).finally(() => this.running.delete(key))
       this.running.set(key, run)
     }
     return run
@@ -105,18 +105,21 @@ export class PdfTextCache {
    * The pages if they are cached or can be parsed before `deadline` (a Date.now() value);
    * otherwise 'pending': the parse goes on in the background, so the next search finds it.
    */
-  async pagesBy(path: string, info: FileInfo, read: () => Buffer, deadline: number): Promise<string[] | 'pending'> {
-    const cached = this.cached(path, info)
+  async pagesBy(path: string, info: FileInfo, read: () => Buffer, deadline: number, ocr = false): Promise<string[] | 'pending'> {
+    const cached = this.cached(path, info, ocr)
     if (cached) return cached
     if (Date.now() >= deadline) {
-      this.pages(path, info, read).catch(() => undefined)
+      this.pages(path, info, read, ocr).catch(() => undefined)
       return 'pending'
     }
-    return this.pages(path, info, read)
+    return this.pages(path, info, read, ocr)
   }
 
-  /** The cached pages, or null on a miss; throws when the file is remembered as unreadable. */
-  cached(path: string, info: FileInfo): string[] | null {
+  /**
+   * The cached pages, or null on a miss; throws when the file is remembered as unreadable.
+   * Scanned PDFs go to the OCR only when `ocr` is set (the user asked): OCR is heavy on RAM and CPU.
+   */
+  cached(path: string, info: FileInfo, ocr = false): string[] | null {
     const file = this.file(path, info)
     if (!file || !existsSync(file)) return null
     let entry: CacheEntry
@@ -129,15 +132,15 @@ export class PdfTextCache {
     if (entry.path !== path || entry.mtimeMs !== info.mtimeMs || entry.size !== info.size || !Array.isArray(entry.pages)) return null
     if (entry.failed) throw new Error('PDF ilegível.')
     const pages = entry.pages.map(String)
-    if (!entry.ocr) this.queueOcr(path, info, pages)
+    if (ocr && !entry.ocr) this.queueOcr(path, info, pages)
     return pages
   }
 
-  private async parse(path: string, info: FileInfo, read: () => Buffer): Promise<string[]> {
+  private async parse(path: string, info: FileInfo, read: () => Buffer, ocr: boolean): Promise<string[]> {
     try {
       const pages = await this.extract(read())
       this.save(path, info, pages, false)
-      this.queueOcr(path, info, pages)
+      if (ocr) this.queueOcr(path, info, pages)
       return pages
     } catch (error) {
       // A worker restart is not the file's fault; anything else marks this version unreadable.

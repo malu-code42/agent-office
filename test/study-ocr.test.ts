@@ -36,12 +36,17 @@ describe('OCR de PDF escaneado', () => {
     const cache = new PdfTextCache(dir, async () => ['', TEXT], (job) => jobs.push(job))
     const info = { mtimeMs: 1, size: 10 }
     expect(await cache.pages('/a.pdf', info, () => Buffer.from('x'))).toEqual(['', TEXT])
+    // Abrir a biblioteca não liga o OCR: só o "Verificar e integrar".
+    expect(jobs).toHaveLength(0)
+    expect(cache.cached('/a.pdf', info)).toEqual(['', TEXT])
+    expect(jobs).toHaveLength(0)
+    cache.cached('/a.pdf', info, true)
     expect(jobs).toHaveLength(1)
     // Até o OCR terminar, a mesma consulta pede de novo (a fila ignora a repetição).
-    cache.cached('/a.pdf', info)
+    cache.cached('/a.pdf', info, true)
     expect(jobs).toHaveLength(2)
     jobs[0]!.finish(['Texto lido por OCR', TEXT])
-    expect(cache.cached('/a.pdf', info)).toEqual(['Texto lido por OCR', TEXT])
+    expect(cache.cached('/a.pdf', info, true)).toEqual(['Texto lido por OCR', TEXT])
     expect(jobs).toHaveLength(2)
   })
 
