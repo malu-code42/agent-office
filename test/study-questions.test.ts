@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  choiceOf,
   decodeStudyBank,
   encodeStudyQuestion,
+  gradeChoice,
+  isChoiceQuestion,
   rankStudyQuestions,
   STUDY_BANK_LINE_LIMIT,
   studyQuestionText,
@@ -73,6 +76,35 @@ describe('study question bank codec', () => {
     const line = encodeStudyQuestion(multi)
     expect(line.split('\n').filter((row) => row.startsWith('- Trecho:'))).toHaveLength(1)
     expect(decodeStudyBank(line).questions).toEqual([multi])
+  })
+
+  it('grades a multiple-choice answer by its letter, with no model', () => {
+    const choice = question({ options: ['1/4', '1/2', '1/3', '1', '0'], answer: 'B' })
+    expect(choiceOf(' b) ')).toBe('B')
+    expect(choiceOf('Errado')).toBeNull()
+    expect(gradeChoice(choice, 'B')?.kind).toBe('correct')
+    expect(gradeChoice(choice, 'C')).toMatchObject({ kind: 'incorrect', rationale: expect.stringContaining('B) 1/2') })
+    expect(gradeChoice(question(), 'B')).toBeNull()
+    expect(isChoiceQuestion(choice)).toBe(true)
+    expect(isChoiceQuestion(question())).toBe(false)
+  })
+
+  it('removes the open questions from the bank file after a backup, keeping the rest', () => {
+    const vault = mkdtempSync(join(tmpdir(), 'study-bank-'))
+    try {
+      const choice = question({ id: 'q-choice01', options: ['1/4', '1/2', '1/3', '1', '0'], answer: 'B' })
+      const text = `# Banco\n\nNota manual\n\n${encodeStudyQuestion(question())}\n${encodeStudyQuestion(choice)}\n`
+      writeFileSync(join(vault, 'questoes-estudo.md'), text)
+      const service = new StudyQuestionService(vault, { webSearch: async () => [] })
+      expect(service.removeOpenQuestions()).toBe(1)
+      const after = decodeStudyBank(readFileSync(join(vault, 'questoes-estudo.md'), 'utf8'))
+      expect(after.questions.map((q) => q.id)).toEqual(['q-choice01'])
+      expect(after.unknownLines).toEqual(['Nota manual'])
+      expect(readdirSync(join(vault, '.agent-office-backups'))).toHaveLength(1)
+      expect(service.removeOpenQuestions()).toBe(0)
+    } finally {
+      rmSync(vault, { recursive: true, force: true })
+    }
   })
 
   it('rejects duplicate ids and unsafe urls', () => {

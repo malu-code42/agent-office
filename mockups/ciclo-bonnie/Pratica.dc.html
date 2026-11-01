@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Prática e fontes</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Pixelify+Sans:wght@500&amp;display=swap">
+<style>
+body{margin:0}
+.root{width:1280px;height:800px;position:relative;overflow:hidden;background:#1d1a24;font-family:'IBM Plex Sans',sans-serif;color:#f2e9dc;font-size:14px;line-height:1.45}
+.floor{position:absolute;inset:0;background-color:#1d1a24;background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 2px,transparent 2px 48px),repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 2px,transparent 2px 48px)}
+.dim{position:absolute;inset:0;background:rgba(10,8,14,.6)}
+.tag{position:absolute;background:#2b2635;border:2px solid #0f0d14;color:#b9ab9c;font:500 12px 'IBM Plex Mono',monospace;padding:4px 8px;opacity:.5}
+.m{position:absolute;background:#2b2635;border:3px solid #0f0d14;box-shadow:4px 4px 0 #0f0d14;display:flex;flex-direction:column;overflow:hidden}
+.h{font-family:'Pixelify Sans',sans-serif;font-weight:500}
+.mono{font-family:'IBM Plex Mono',monospace}
+.lbl{font:500 11px 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:#b9ab9c}
+.muted{color:#b9ab9c}
+.btn{font:500 14px 'IBM Plex Sans',sans-serif;min-height:40px;padding:0 16px;border:2px solid #0f0d14;background:#383149;color:#f2e9dc;box-shadow:2px 2px 0 #0f0d14;cursor:pointer;border-radius:0;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{background:#4a3550}
+.btn-p{background:#e07a4f;color:#1a1410;font-weight:600}
+.btn-p:hover{background:#ea8c63}
+.btn-q{background:transparent;box-shadow:none;border-color:#4a4258}
+.btn:disabled{background:#2b2635;color:#a0939f;border-color:#4a4258;box-shadow:none;cursor:not-allowed}
+.btn-s{min-height:32px;padding:0 10px;font-size:13px}
+.x{width:44px;height:44px;justify-content:center;padding:0}
+.chip{display:inline-flex;align-items:center;gap:6px;font:500 12px 'IBM Plex Mono',monospace;padding:2px 8px;border:2px solid #0f0d14;background:#383149;color:#f2e9dc;white-space:nowrap}
+.ok{background:#1f3528;color:#cfeedd;border-color:#7fd39b}
+.warn{background:#3a2f1f;color:#f0b85a;border-color:#f0b85a}
+.err{background:#3a1f22;color:#ff8f7a;border-color:#ff8f7a}
+.pink{background:#3a2a3a;color:#e3a1d1;border-color:#e3a1d1}
+.now{background:#e07a4f;color:#1a1410;border-color:#0f0d14}
+.card{background:#332d40;border:2px solid #0f0d14}
+.sunk{background:#221e2b;border:2px solid #0f0d14}
+.mini{display:flex;align-items:center;gap:8px;padding:6px 10px;background:#221e2b;border:2px solid #0f0d14;font-size:13px}
+.mini-now{background:#4a3550;border-color:#e07a4f}
+.num{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;background:#383149;border:2px solid #0f0d14;font:500 12px 'IBM Plex Mono',monospace}
+.av{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #0f0d14;font:500 15px 'Pixelify Sans',sans-serif;color:#1a1410}
+.meter{height:16px;background:#221e2b;border:2px solid #0f0d14;position:relative}
+.fill{position:absolute;left:0;top:0;bottom:0;background:#7fd39b}
+.target{position:absolute;top:-8px;bottom:-8px;width:3px;background:#f0b85a}
+.srow{display:grid;grid-template-columns:minmax(0,1fr) 84px auto auto;gap:10px;align-items:center;padding:8px 10px;background:#221e2b;border:2px solid #0f0d14}
+.ck{display:flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap}
+.pq{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:10px;align-items:center;padding:3px 10px;min-height:30px;background:#221e2b;border:2px solid #0f0d14;font-size:13px}
+.gate{display:flex;align-items:center;gap:8px;font-size:13px}
+input[type=checkbox]{accent-color:#e07a4f;width:18px;height:18px;margin:0}
+button:focus-visible,input:focus-visible{outline:2px solid #e3a1d1;outline-offset:2px}
+</style>
+</helmet>
+<div class="root">
+<div class="floor" aria-hidden="true"></div>
+<span class="tag" style="left:60px;top:70px" aria-hidden="true">Sala de aula</span>
+<span class="tag" style="left:1050px;top:720px" aria-hidden="true">Cora · biblioteca</span>
+<div class="dim" aria-hidden="true"></div>
+
+<section class="m" role="dialog" aria-labelledby="t" style="left:120px;top:32px;width:1040px;height:736px">
+  <header style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:3px solid #0f0d14">
+    <span class="av" style="background:#e3a1d1" aria-hidden="true">B</span>
+    <div style="flex:1;min-width:0">
+      <h1 id="t" class="h" style="margin:0;font-size:22px;line-height:1.2">Prática e fontes</h1>
+      <div class="muted" style="font-size:13px">Probabilidade condicional · tópico 3 de 9 · Probabilidade e Estatística</div>
+    </div>
+    <span class="chip" style="gap:8px"><span class="av" style="width:18px;height:18px;font-size:11px;background:#f0b85a" aria-hidden="true">C</span>Curadora na sala</span>
+    <button class="btn btn-q x" aria-label="Fechar"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"></path></svg></button>
+  </header>
+
+  <ol aria-label="Etapas do ciclo" style="list-style:none;margin:0;padding:10px 16px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;border-bottom:3px solid #0f0d14">
+    <li class="mini" style="border-color:#7fd39b"><span class="num" style="background:#1f3528;color:#cfeedd">1</span>Diagnóstico<span style="flex:1"></span><span class="chip ok">OK</span></li>
+    <li class="mini" style="border-color:#7fd39b"><span class="num" style="background:#1f3528;color:#cfeedd">2</span>Erros e dúvidas<span style="flex:1"></span><span class="chip ok">OK</span></li>
+    <li class="mini mini-now" aria-current="step"><span class="num" style="background:#e07a4f;color:#1a1410">3</span><strong>Prática e fontes</strong><span style="flex:1"></span><span class="chip now">Rodada 1</span></li>
+    <li class="mini"><span class="num">4</span><span class="muted">Reteste</span></li>
+  </ol>
+
+  <div style="display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px;padding:16px;flex:1;min-height:0">
+    <div style="display:flex;flex-direction:column;gap:10px;min-height:0">
+      <div style="display:flex;align-items:baseline;gap:8px"><h2 class="h" style="margin:0;font-size:18px">Fontes ligadas aos erros</h2><span class="muted" style="font-size:12px">páginas indicadas pela Cora</span></div>
+
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;gap:8px;align-items:center"><span class="chip err">Q6</span><span style="font-size:13px">Urna sem reposição</span></div>
+        <div class="srow"><div><strong style="font-size:13px">Morgado et al., cap. 4</strong><div class="muted" style="font-size:12px">Probabilidade condicional</div></div><span class="mono">p. 112–118</span><label class="ck"><input type="checkbox" checked>Estudei</label><span class="chip ok">1 nota</span></div>
+        <div class="srow"><div><strong style="font-size:13px">Bussab e Morettin, §5.3</strong><div class="muted" style="font-size:12px">Condicional e independência</div></div><span class="mono">p. 118–124</span><label class="ck"><input type="checkbox" checked>Estudei</label><button class="btn btn-s">Registrar nota</button></div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;gap:8px;align-items:center"><span class="chip err">Q9</span><span style="font-size:13px">Teorema de Bayes</span></div>
+        <div class="srow"><div><strong style="font-size:13px">Bussab e Morettin, §5.4</strong><div class="muted" style="font-size:12px">Teorema de Bayes</div></div><span class="mono">p. 125–130</span><label class="ck"><input type="checkbox" checked>Estudei</label><span class="chip ok">1 nota</span></div>
+        <div class="srow"><div><strong style="font-size:13px">Morgado et al., cap. 4.4</strong><div class="muted" style="font-size:12px">Probabilidade total</div></div><span class="mono">p. 119–122</span><label class="ck"><input type="checkbox">Estudei</label><button class="btn btn-s">Abrir na p. 119</button></div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;gap:8px;align-items:center"><span class="chip err">Q12</span><span style="font-size:13px">Independência</span><span class="chip pink">Q3</span><span class="chip pink">Q7</span></div>
+        <div class="srow"><div><strong style="font-size:13px">Notas de aula · P2-PE, aula 6</strong><div class="muted" style="font-size:12px">Árvore e eventos independentes</div></div><span class="mono">p. 3–5</span><label class="ck"><input type="checkbox" checked>Estudei</label><span class="chip" style="color:#b9ab9c">sem nota</span></div>
+      </div>
+
+      <p class="muted" style="margin:0;font-size:12px;margin-top:auto">"Registrar nota" abre a nota já ligada à questão e à fonte (página incluída). Não há etapa de notas separada.</p>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px;min-height:0">
+      <div class="card" style="padding:14px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:baseline;gap:8px"><span class="lbl" style="flex:1">Questões de prática · rodada 1</span><span class="mono" style="font-size:13px">6 de 8 feitas</span></div>
+        <div style="display:flex;align-items:baseline;gap:10px"><span class="h" style="font-size:36px;line-height:1;color:#cfeedd">83%</span><span class="muted" style="font-size:13px">5 de 6 certas · meta 80%</span></div>
+        <div class="meter" role="meter" aria-label="Acertos na prática" aria-valuenow="83" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:83%"></div><div class="target" style="left:80%" aria-hidden="true"></div></div>
+        <div style="display:flex;justify-content:space-between" class="mono muted"><span style="font-size:11px">0%</span><span style="font-size:11px;color:#f0b85a">meta 80%</span><span style="font-size:11px">100%</span></div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div class="pq"><span class="mono">P1</span><span>Duas urnas, sorteio da urna · <span class="muted">Q6</span></span><span class="chip ok">Certa</span></div>
+        <div class="pq"><span class="mono">P2</span><span>Cartas sem reposição · <span class="muted">Q6</span></span><span class="chip ok">Certa</span></div>
+        <div class="pq"><span class="mono">P3</span><span>Teste de drogas, falso positivo · <span class="muted">Q9</span></span><span class="chip err">Errada</span></div>
+        <div class="pq"><span class="mono">P4</span><span>Bayes com 3 fábricas · <span class="muted">Q9</span></span><span class="chip ok">Certa</span></div>
+        <div class="pq"><span class="mono">P5</span><span>Dados independentes? · <span class="muted">Q12</span></span><span class="chip ok">Certa</span></div>
+        <div class="pq"><span class="mono">P6</span><span>Moedas e excludentes · <span class="muted">Q12</span></span><span class="chip ok">Certa</span></div>
+        <div class="pq"><span class="mono">P7</span><span>Árvore com 3 ramos · <span class="muted">Q7</span></span><button class="btn btn-s btn-p">Responder</button></div>
+        <div class="pq"><span class="mono">P8</span><span>Bayes, enunciado longo · <span class="muted">Q9</span></span><span class="chip warn">Em verificação</span></div>
+      </div>
+
+      <p class="muted" style="margin:0;font-size:12px">Abaixo de 80%, a Bonnie revisa os erros com você e propõe questões novas (rodada 2).</p>
+    </div>
+  </div>
+
+  <footer style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:3px solid #0f0d14;background:#221e2b">
+    <div style="flex:1;display:flex;gap:14px;flex-wrap:wrap;align-items:center" aria-label="Critérios do gate 3"><span class="lbl">Gate 3</span><span class="gate"><span class="chip ok">✓</span>Fontes estudadas 4/5</span><span class="gate"><span class="chip ok">✓</span>Notas: 2</span><span class="gate"><span class="chip">…</span>80% · falta P7</span></div>
+    <button class="btn" disabled>Pedir à Bonnie para liberar Reteste</button>
+  </footer>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

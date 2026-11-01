@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Trocar de tópico</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Pixelify+Sans:wght@500&amp;display=swap">
+<style>
+body{margin:0}
+.root{width:1280px;height:800px;position:relative;overflow:hidden;background:#1d1a24;font-family:'IBM Plex Sans',sans-serif;color:#f2e9dc;font-size:14px;line-height:1.45}
+.floor{position:absolute;inset:0;background-color:#1d1a24;background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 2px,transparent 2px 48px),repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 2px,transparent 2px 48px)}
+.dim{position:absolute;inset:0;background:rgba(10,8,14,.6)}
+.m{position:absolute;background:#2b2635;border:3px solid #0f0d14;box-shadow:4px 4px 0 #0f0d14;display:flex;flex-direction:column;overflow:hidden}
+.h{font-family:'Pixelify Sans',sans-serif;font-weight:500}
+.mono{font-family:'IBM Plex Mono',monospace}
+.lbl{font:500 11px 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:#b9ab9c}
+.muted{color:#b9ab9c}
+.btn{font:500 14px 'IBM Plex Sans',sans-serif;min-height:40px;padding:0 16px;border:2px solid #0f0d14;background:#383149;color:#f2e9dc;box-shadow:2px 2px 0 #0f0d14;cursor:pointer;border-radius:0;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{background:#4a3550}
+.btn-p{background:#e07a4f;color:#1a1410;font-weight:600}
+.btn-p:hover{background:#ea8c63}
+.chip{display:inline-flex;align-items:center;gap:6px;font:500 12px 'IBM Plex Mono',monospace;padding:2px 8px;border:2px solid #0f0d14;background:#383149;color:#f2e9dc;white-space:nowrap}
+.ok{background:#1f3528;color:#cfeedd;border-color:#7fd39b}
+.warn{background:#3a2f1f;color:#f0b85a;border-color:#f0b85a}
+.now{background:#e07a4f;color:#1a1410;border-color:#0f0d14}
+.sunk{background:#221e2b;border:2px solid #0f0d14}
+.av{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #0f0d14;font:500 15px 'Pixelify Sans',sans-serif;color:#1a1410}
+.ghost{background:#221e2b;border:2px solid #0f0d14;height:20px}
+.kept{display:flex;align-items:center;gap:10px;padding:8px 10px;background:#221e2b;border:2px solid #0f0d14;font-size:13px}
+button:focus-visible{outline:2px solid #e3a1d1;outline-offset:2px}
+</style>
+</helmet>
+<div class="root">
+<div class="floor" aria-hidden="true"></div>
+<div class="dim" aria-hidden="true"></div>
+
+<div class="m" aria-hidden="true" style="left:160px;top:40px;width:960px;height:720px;opacity:.55">
+  <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:3px solid #0f0d14"><span class="av" style="background:#e3a1d1">B</span><span class="h" style="font-size:22px">Ciclo de estudo</span></div>
+  <div style="padding:10px 16px;background:#221e2b;border-bottom:3px solid #0f0d14"><span class="lbl">Tópico atual</span> <strong>Probabilidade condicional</strong></div>
+  <div style="padding:16px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px"><div class="ghost" style="height:70px"></div><div class="ghost" style="height:70px"></div><div class="ghost" style="height:70px"></div><div class="ghost" style="height:70px"></div></div>
+  <div style="padding:0 16px;display:flex;flex-direction:column;gap:8px"><div class="ghost" style="height:160px"></div><div class="ghost" style="height:90px"></div></div>
+</div>
+<div style="position:absolute;inset:0;background:rgba(10,8,14,.5)" aria-hidden="true"></div>
+
+<section class="m" role="alertdialog" aria-labelledby="t" aria-describedby="d" style="left:340px;top:150px;width:600px;height:500px">
+  <header style="padding:16px 18px 12px;border-bottom:3px solid #0f0d14">
+    <h1 id="t" class="h" style="margin:0;font-size:22px;line-height:1.2">Trocar para Variáveis aleatórias discretas?</h1>
+    <p id="d" class="muted" style="margin:6px 0 0;font-size:13px">Escolhido no quadro Trilha de estudos · [P2-PE-04] · tópico 4 de 9</p>
+  </header>
+  <div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px;flex:1">
+    <div class="sunk" style="padding:12px 14px;display:flex;flex-direction:column;gap:8px">
+      <span class="lbl">Probabilidade condicional fica guardado</span>
+      <span style="font-size:13px">Etapa <strong>Prática e fontes</strong>, rodada 1 com 6 de 8 respondidas, 2 notas e 4 fontes estudadas.</span>
+      <span class="chip ok" style="align-self:flex-start">Nada é concluído nem apagado</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <span class="lbl">Outros tópicos com trabalho guardado</span>
+      <div class="kept"><span style="flex:1">Distribuição binomial <span class="mono muted" style="font-size:12px">[P2-PE-05]</span></span><span class="chip warn">Erros e dúvidas</span></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <span class="lbl">O tópico novo</span>
+      <span style="font-size:13px">Começa no <strong>Diagnóstico</strong>. O tutor é chamado para a sala de aula.</span>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:auto;justify-content:flex-end">
+      <button class="btn">Cancelar</button>
+      <button class="btn btn-p">Guardar e trocar de tópico</button>
+    </div>
+  </div>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

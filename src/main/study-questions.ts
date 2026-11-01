@@ -3,6 +3,7 @@ import { closeSync, existsSync, fstatSync, lstatSync, mkdirSync, openSync, opend
 import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 import {
   decodeStudyBank,
+  isChoiceQuestion,
   encodeStudyQuestion,
   findDuplicateStudyQuestion,
   rankStudyQuestions,
@@ -19,6 +20,7 @@ export const STUDY_BANK_BYTE_LIMIT = 8 * 1024 * 1024
 const MAX_CANDIDATES = 100
 
 /** Errors the bank builder tells apart: the bank is full, or it changed in Obsidian during the write. */
+const RECORD_START = '### Questão: '
 const bankError = (code: 'full' | 'changed', message: string): Error => Object.assign(new Error(message), { code })
 const SOURCE_FILE_LIMIT = 50
 const SOURCE_PATH_COUNT_LIMIT = 500
@@ -257,6 +259,56 @@ export class StudyQuestionService {
    */
   appendChecked(rows: StudyQuestion[], backup = true): { added: number; skipped: number } {
     return this.commit(rows.map(validateStudyQuestion), undefined, true, backup)
+  }
+
+  /**
+   * Takes the open questions (not multiple choice) out of the bank file, after a backup of the exact
+   * version; every other line stays as it was. Since 2026-11-01 the bank is multiple choice only.
+   */
+  removeOpenQuestions(): number {
+    const path = this.bankPath()
+    if (!existsSync(path)) return 0
+    const lockPath = `${path}.lock`
+    let lock: number
+    try {
+      lock = openSync(lockPath, 'wx', 0o600)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST')
+        throw new Error('O banco está sendo salvo em outra operação. Tente novamente.', { cause: error })
+      throw error
+    }
+    try {
+      const current = this.readText()
+      const baseHash = hash(current)
+      const open = new Set(
+        decodeStudyBank(current)
+          .questions.filter((q) => !isChoiceQuestion(q))
+          .map((q) => q.id),
+      )
+      if (!open.size) return 0
+      this.backupExactVersion(current)
+      const lines = current.split(/\r?\n/)
+      const kept: string[] = []
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]!
+        const id = line.startsWith(RECORD_START) ? line.slice(RECORD_START.length).trim() : ''
+        if (!open.has(id)) {
+          kept.push(line)
+          continue
+        }
+        // skip the record up to the blank line that ends it, and that blank line
+        while (i + 1 < lines.length && lines[i + 1]!.trim() && !lines[i + 1]!.startsWith(RECORD_START)) i++
+        if (i + 1 < lines.length && !lines[i + 1]!.trim()) i++
+      }
+      this.atomicWrite(path, kept.join('\n'), () => {
+        if (hash(this.readText()) !== baseHash)
+          throw bankError('changed', 'O banco mudou no Obsidian. A edição externa foi preservada; tente novamente.')
+      })
+      return open.size
+    } finally {
+      closeSync(lock)
+      unlinkSync(lockPath)
+    }
   }
 
   private commit(rows: StudyQuestion[], expectedHash?: string, skipDuplicates = false, backup = true): { added: number; skipped: number } {

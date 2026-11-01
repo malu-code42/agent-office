@@ -292,8 +292,13 @@ async function boot(): Promise<void> {
     onStudy: (act, teacher) => {
       if (teacher) toast(`${teacher.name}: cuida de ${teacher.role} no ciclo da Bonnie.`, 'info')
       if (act === 'bonnie') void showAgent(BONNIE_AGENT_ID)
-      else if (act === 'trail') void openStudyTrailBoard(ui, toast, (topic) => void startStudyTopic(ui, toast, topic).then(refreshStudy))
-      else if (act === 'cycle' || act === 'desk') void openStudyCycle(ui, toast)
+      else if (act === 'trail')
+        void openStudyTrailBoard(
+          ui,
+          toast,
+          (topic) => void startStudyTopic(ui, toast, topic, { openBuilder: openBankBuilder }).then(refreshStudy),
+        )
+      else if (act === 'cycle' || act === 'desk') void openStudyCycle(ui, toast, { openBuilder: openBankBuilder })
       else if (act === 'library' || act === 'cora') openStudyLibrary(ui, toast, studyTopic)
       else if (act === 'questions') openBank()
       else if (act === 'cards') void openStudyCards(ui, toast)

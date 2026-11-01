@@ -29,6 +29,8 @@ const q = (topic: string, over: Partial<StudyQuestion> = {}): StudyQuestion => (
   sourceVisibility: 'public',
   attribution: 'Autor',
   license: 'CC BY',
+  options: ['a', 'b', 'c', 'd', 'e'],
+  answer: 'A',
   ...over,
 })
 

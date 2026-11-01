@@ -37,6 +37,34 @@ export const STUDY_QUESTION_LIMITS = { count: 3000, text: 20_000, tags: 20, tag:
 export const STUDY_BANK_LINE_LIMIT = 60_000
 export const studyOptionLetter = (index: number): string => String.fromCharCode(65 + index)
 
+/** How many alternatives the agent chain writes for a bank question (decision of 2026-11-01). */
+export const STUDY_CHOICE_COUNT = 5
+
+/**
+ * Every question offered in a cycle is multiple choice (decision of 2026-11-01): alternatives and the
+ * right letter as the answer. Open questions are left from before and are not offered.
+ */
+export const isChoiceQuestion = (q: Pick<StudyQuestion, 'options' | 'answer'>): boolean =>
+  !!q.options?.length && !!q.answer && /^[A-Z]$/.test(q.answer) && q.answer.charCodeAt(0) - 65 < q.options.length
+
+/** The letter of an answer ("C", "c)", " C ") or null. */
+export function choiceOf(response: string): string | null {
+  return /^\s*([A-Za-z])(?![\p{L}\p{N}])/u.exec(response)?.[1]?.toUpperCase() ?? null
+}
+
+/** "C) the text" of an alternative of a multiple-choice question. */
+export const studyOptionText = (q: Pick<StudyQuestion, 'options'>, letter: string): string =>
+  `${letter}) ${q.options?.[letter.charCodeAt(0) - 65] ?? ''}`
+
+/** Grades a multiple-choice answer by its letter, with no model: null for an open question. */
+export function gradeChoice(q: StudyQuestion, response: string): { kind: 'correct' | 'incorrect'; rationale: string } | null {
+  if (!isChoiceQuestion(q)) return null
+  const picked = choiceOf(response)
+  return picked === q.answer
+    ? { kind: 'correct', rationale: `Alternativa ${picked}, a correta.` }
+    : { kind: 'incorrect', rationale: `Você marcou ${picked ?? 'nenhuma'}; a correta é ${studyOptionText(q, q.answer!)}.` }
+}
+
 /** What the Tutor (and any reader) sees as the question: passage, statement and lettered alternatives. */
 export function studyQuestionText(q: Pick<StudyQuestion, 'passage' | 'question' | 'options'>): string {
   const options = (q.options ?? []).map((option, index) => `${studyOptionLetter(index)}) ${option}`).join('\n')

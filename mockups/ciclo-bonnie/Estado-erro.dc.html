@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Erro ao carregar o ciclo</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Pixelify+Sans:wght@500&amp;display=swap">
+<style>
+body{margin:0}
+.root{width:1280px;height:800px;position:relative;overflow:hidden;background:#1d1a24;font-family:'IBM Plex Sans',sans-serif;color:#f2e9dc;font-size:14px;line-height:1.45}
+.floor{position:absolute;inset:0;background-color:#1d1a24;background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 2px,transparent 2px 48px),repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 2px,transparent 2px 48px)}
+.dim{position:absolute;inset:0;background:rgba(10,8,14,.6)}
+.tag{position:absolute;background:#2b2635;border:2px solid #0f0d14;color:#b9ab9c;font:500 12px 'IBM Plex Mono',monospace;padding:4px 8px;opacity:.5}
+.m{position:absolute;background:#2b2635;border:3px solid #0f0d14;box-shadow:4px 4px 0 #0f0d14;display:flex;flex-direction:column;overflow:hidden}
+.h{font-family:'Pixelify Sans',sans-serif;font-weight:500}
+.mono{font-family:'IBM Plex Mono',monospace}
+.lbl{font:500 11px 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:#b9ab9c}
+.muted{color:#b9ab9c}
+.btn{font:500 14px 'IBM Plex Sans',sans-serif;min-height:40px;padding:0 16px;border:2px solid #0f0d14;background:#383149;color:#f2e9dc;box-shadow:2px 2px 0 #0f0d14;cursor:pointer;border-radius:0;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{background:#4a3550}
+.btn-p{background:#e07a4f;color:#1a1410;font-weight:600}
+.btn-p:hover{background:#ea8c63}
+.btn-q{background:transparent;box-shadow:none;border-color:#4a4258}
+.btn-s{min-height:32px;padding:0 10px;font-size:13px}
+.x{width:44px;height:44px;justify-content:center;padding:0}
+.chip{display:inline-flex;align-items:center;gap:6px;font:500 12px 'IBM Plex Mono',monospace;padding:2px 8px;border:2px solid #0f0d14;background:#383149;color:#f2e9dc;white-space:nowrap}
+.ok{background:#1f3528;color:#cfeedd;border-color:#7fd39b}
+.err{background:#3a1f22;color:#ff8f7a;border-color:#ff8f7a}
+.sunk{background:#221e2b;border:2px solid #0f0d14}
+.av{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #0f0d14;font:500 15px 'Pixelify Sans',sans-serif;color:#1a1410}
+.src{display:grid;grid-template-columns:28px minmax(0,1fr) 100px auto;gap:12px;align-items:center;padding:8px 12px;background:#221e2b;border:2px solid #0f0d14}
+button:focus-visible{outline:2px solid #e3a1d1;outline-offset:2px}
+</style>
+</helmet>
+<div class="root">
+<div class="floor" aria-hidden="true"></div>
+<span class="tag" style="left:1090px;top:110px" aria-hidden="true">Bonnie · diretoria</span>
+<div class="dim" aria-hidden="true"></div>
+
+<section class="m" role="dialog" aria-labelledby="t" style="left:220px;top:60px;width:840px;height:680px">
+  <header style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:3px solid #0f0d14">
+    <span class="av" style="background:#e3a1d1" aria-hidden="true">B</span>
+    <div style="flex:1;min-width:0">
+      <h1 id="t" class="h" style="margin:0;font-size:22px;line-height:1.2">Ciclo de estudo</h1>
+      <div class="muted" style="font-size:13px">Bonnie · diretoria</div>
+    </div>
+    <button class="btn btn-q x" aria-label="Fechar"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"></path></svg></button>
+  </header>
+
+  <div style="padding:20px;display:flex;flex-direction:column;gap:16px;flex:1">
+    <div role="alert" style="background:#3a1f22;border:2px solid #ff8f7a;padding:16px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;gap:10px;align-items:center">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#ff8f7a" stroke-width="2" aria-hidden="true"><path d="M10 2l8 15H2z"></path><path d="M10 8v4M10 14.5v.5"></path></svg>
+        <h2 class="h" style="margin:0;font-size:20px;color:#ff8f7a">Não consegui abrir o ciclo salvo</h2>
+      </div>
+      <p style="margin:0">O arquivo de Probabilidade condicional não passou na validação. Nada foi sobrescrito e uma cópia foi guardada ao lado.</p>
+      <code class="mono" style="font-size:12px;background:#221e2b;border:2px solid #0f0d14;padding:8px 10px;color:#f2e9dc">estudos/ciclos/p2-pe-03.json · questions[4]: sourceHash não confere</code>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-p">Tentar de novo</button>
+        <button class="btn">Abrir pasta do ciclo</button>
+        <button class="btn btn-q">Escolher outro tópico</button>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <span class="lbl">Erro parcial, dentro de uma etapa (exemplo: fontes da Cora)</span>
+      <div class="sunk" style="padding:12px;display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:center;gap:10px"><span class="av" style="background:#8fb4e3;width:26px;height:26px;font-size:12px" aria-hidden="true">C</span><strong style="font-size:14px">Fontes da Cora para a Q9</strong><span class="muted" style="font-size:12px">3 de 4 lidas</span></div>
+        <div class="src"><span class="h" style="color:#e07a4f;text-align:center">1</span><span style="font-size:13px"><strong>Bussab e Morettin</strong> <span class="muted">· §5.4 Bayes</span></span><span class="mono">p. 125–130</span><span class="chip ok">Alta</span></div>
+        <div class="src"><span class="h" style="color:#e07a4f;text-align:center">2</span><span style="font-size:13px"><strong>Morgado et al.</strong> <span class="muted">· cap. 4.4</span></span><span class="mono">p. 119–122</span><span class="chip ok">Alta</span></div>
+        <div class="src" style="border-color:#ff8f7a;background:#3a1f22"><span class="h" style="color:#ff8f7a;text-align:center">!</span><span style="font-size:13px;color:#f2e9dc"><strong>Probabilidade (scan).pdf</strong> <span style="color:#ff8f7a">· sem texto legível; a Cora não conseguiu ranquear</span></span><span class="mono muted">p. ?</span><button class="btn btn-s">Tentar de novo</button></div>
+        <span class="muted" style="font-size:12px">O erro parcial não bloqueia o gate: as outras fontes continuam valendo.</span>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

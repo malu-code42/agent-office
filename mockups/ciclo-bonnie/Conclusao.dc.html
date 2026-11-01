@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Conclusão do ciclo</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Pixelify+Sans:wght@500&amp;display=swap">
+<style>
+body{margin:0}
+.root{width:1280px;height:800px;position:relative;overflow:hidden;background:#1d1a24;font-family:'IBM Plex Sans',sans-serif;color:#f2e9dc;font-size:14px;line-height:1.45}
+.floor{position:absolute;inset:0;background-color:#1d1a24;background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 2px,transparent 2px 48px),repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 2px,transparent 2px 48px)}
+.dim{position:absolute;inset:0;background:rgba(10,8,14,.6)}
+.tag{position:absolute;background:#2b2635;border:2px solid #0f0d14;color:#b9ab9c;font:500 12px 'IBM Plex Mono',monospace;padding:4px 8px;opacity:.5}
+.m{position:absolute;background:#2b2635;border:3px solid #0f0d14;box-shadow:4px 4px 0 #0f0d14;display:flex;flex-direction:column;overflow:hidden}
+.h{font-family:'Pixelify Sans',sans-serif;font-weight:500}
+.mono{font-family:'IBM Plex Mono',monospace}
+.lbl{font:500 11px 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:#b9ab9c}
+.muted{color:#b9ab9c}
+.btn{font:500 14px 'IBM Plex Sans',sans-serif;min-height:40px;padding:0 16px;border:2px solid #0f0d14;background:#383149;color:#f2e9dc;box-shadow:2px 2px 0 #0f0d14;cursor:pointer;border-radius:0;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{background:#4a3550}
+.btn-p{background:#e07a4f;color:#1a1410;font-weight:600}
+.btn-p:hover{background:#ea8c63}
+.btn-q{background:transparent;box-shadow:none;border-color:#4a4258}
+.x{width:44px;height:44px;justify-content:center;padding:0}
+.chip{display:inline-flex;align-items:center;gap:6px;font:500 12px 'IBM Plex Mono',monospace;padding:2px 8px;border:2px solid #0f0d14;background:#383149;color:#f2e9dc;white-space:nowrap}
+.ok{background:#1f3528;color:#cfeedd;border-color:#7fd39b}
+.warn{background:#3a2f1f;color:#f0b85a;border-color:#f0b85a}
+.pink{background:#3a2a3a;color:#e3a1d1;border-color:#e3a1d1}
+.card{background:#332d40;border:2px solid #0f0d14}
+.sunk{background:#221e2b;border:2px solid #0f0d14}
+.mini{display:flex;align-items:center;gap:8px;padding:6px 10px;background:#221e2b;border:2px solid #7fd39b;font-size:13px}
+.num{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;background:#1f3528;color:#cfeedd;border:2px solid #0f0d14;font:500 12px 'IBM Plex Mono',monospace}
+.av{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #0f0d14;font:500 15px 'Pixelify Sans',sans-serif;color:#1a1410}
+.meter{height:16px;background:#221e2b;border:2px solid #0f0d14;position:relative}
+.fill{position:absolute;left:0;top:0;bottom:0;background:#7fd39b}
+.target{position:absolute;top:-8px;bottom:-8px;width:3px;background:#f0b85a}
+.gate{display:flex;align-items:center;gap:8px;font-size:13px}
+.stat{display:flex;flex-direction:column;gap:2px;padding:10px 12px;background:#221e2b;border:2px solid #0f0d14}
+.cb{display:flex;align-items:flex-start;gap:10px;padding:8px 10px;background:#221e2b;border:2px solid #0f0d14;font-size:13px;cursor:pointer}
+input[type=checkbox]{accent-color:#e07a4f;width:18px;height:18px;margin:0;flex:none}
+button:focus-visible,input:focus-visible{outline:2px solid #e3a1d1;outline-offset:2px}
+</style>
+</helmet>
+<div class="root">
+<div class="floor" aria-hidden="true"></div>
+<span class="tag" style="left:60px;top:70px" aria-hidden="true">Sala de aula</span>
+<span class="tag" style="left:1090px;top:110px" aria-hidden="true">Bonnie · diretoria</span>
+<div class="dim" aria-hidden="true"></div>
+
+<section class="m" role="dialog" aria-labelledby="t" style="left:160px;top:40px;width:960px;height:720px">
+  <header style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:3px solid #0f0d14">
+    <span class="av" style="background:#e3a1d1" aria-hidden="true">B</span>
+    <div style="flex:1;min-width:0">
+      <h1 id="t" class="h" style="margin:0;font-size:22px;line-height:1.2">Critério cumprido. Concluir o tópico?</h1>
+      <div class="muted" style="font-size:13px">Probabilidade condicional · tópico 3 de 9 · Probabilidade e Estatística</div>
+    </div>
+    <button class="btn btn-q x" aria-label="Fechar"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"></path></svg></button>
+  </header>
+
+  <ol aria-label="Etapas do ciclo" style="list-style:none;margin:0;padding:10px 16px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;border-bottom:3px solid #0f0d14">
+    <li class="mini"><span class="num">1</span>Diagnóstico<span style="flex:1"></span><span class="chip ok">OK</span></li>
+    <li class="mini"><span class="num">2</span>Erros e dúvidas<span style="flex:1"></span><span class="chip ok">OK</span></li>
+    <li class="mini"><span class="num">3</span>Prática e fontes<span style="flex:1"></span><span class="chip ok">OK</span></li>
+    <li class="mini"><span class="num">4</span>Reteste<span style="flex:1"></span><span class="chip ok">OK</span></li>
+  </ol>
+
+  <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;padding:16px;flex:1;min-height:0">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card" style="padding:16px;display:flex;flex-direction:column;gap:10px">
+        <span class="lbl">Reteste</span>
+        <div style="display:flex;align-items:baseline;gap:12px"><span class="h" style="font-size:44px;line-height:1;color:#cfeedd">83%</span><span>10 de 12 certas</span></div>
+        <div class="meter" role="meter" aria-label="Acertos no reteste" aria-valuenow="83" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:83%"></div><div class="target" style="left:80%" aria-hidden="true"></div></div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px">
+          <span class="gate"><span class="chip ok">✓</span>12 questões novas (mínimo 10)</span>
+          <span class="gate"><span class="chip ok">✓</span>Sem ajuda durante o reteste</span>
+          <span class="gate"><span class="chip ok">✓</span>Gabaritos conferidos · 12 de 12</span>
+          <span class="gate"><span class="chip ok">✓</span>80% ou mais</span>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">
+        <div class="stat"><span class="lbl">Diagnóstico</span><span class="h" style="font-size:20px">58%</span></div>
+        <div class="stat"><span class="lbl">Revisados</span><span class="h" style="font-size:20px">5</span></div>
+        <div class="stat"><span class="lbl">Notas</span><span class="h" style="font-size:20px">2</span></div>
+        <div class="stat"><span class="lbl">Fontes</span><span class="h" style="font-size:20px">5</span></div>
+      </div>
+      <p class="muted" style="margin:0;font-size:12px">Evidência = suas respostas. O trabalho dos agentes não conta como aprendizado.</p>
+
+      <div class="sunk" style="padding:12px;display:flex;flex-direction:column;gap:4px;margin-top:auto">
+        <span class="lbl">Próximo na trilha</span>
+        <span><strong>Variáveis aleatórias discretas</strong> <span class="mono muted" style="font-size:12px">[P2-PE-04] · tópico 4 de 9</span></span>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <fieldset class="card" style="margin:0;padding:14px;display:flex;flex-direction:column;gap:8px">
+        <legend class="lbl" style="float:left;margin-bottom:4px">Cartões · opcional, não bloqueia</legend>
+        <label class="cb"><input type="checkbox" checked><span><strong>P(A|B) ≠ P(B|A)</strong><span class="muted" style="display:block;font-size:12px">da Q9 · nota "taxa base"</span></span></label>
+        <label class="cb"><input type="checkbox" checked><span><strong>Sem reposição muda o denominador</strong><span class="muted" style="display:block;font-size:12px">da Q6 · Morgado p. 112–118</span></span></label>
+        <label class="cb"><input type="checkbox"><span><strong>Independentes × mutuamente exclusivos</strong><span class="muted" style="display:block;font-size:12px">da Q12 · notas de aula p. 3–5</span></span></label>
+        <span class="muted" style="font-size:12px">A equipe de cartões faz o rascunho no Estudo individual; você revisa antes de salvar.</span>
+      </fieldset>
+
+      <div class="sunk" style="padding:14px;display:flex;flex-direction:column;gap:10px;border-color:#e07a4f;margin-top:auto">
+        <label class="cb" style="background:transparent;border:0;padding:0;font-size:14px"><input type="checkbox"><span>Confirmo que concluí este tópico. <span class="muted" style="display:block;font-size:12px">Só você conclui. Nada é apagado.</span></span></label>
+        <label class="cb" style="background:transparent;border:0;padding:0"><input type="checkbox" checked><span>Marcar [P2-PE-03] como feito em "trilha zettel.md"</span></label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn">Ainda não, outra rodada</button>
+          <button class="btn btn-p" style="flex:1;justify-content:center">Concluir tópico e criar 2 cartões</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

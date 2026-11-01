@@ -14,11 +14,12 @@ import {
 } from '@shared/study-bank'
 import { studyBankStats } from '@shared/study-bank-stats'
 import { answeredStudyQuestions, isStudyQuestionAnswered, type StudyCycleState } from '@shared/study-cycle'
-import { STUDY_QUESTION_LIMITS, studyQuestionText, type StudyQuestion } from '@shared/study-questions'
+import { isChoiceQuestion, STUDY_QUESTION_LIMITS, studyOptionText, type StudyQuestion } from '@shared/study-questions'
 import type { StudyTrail, StudyTrailTopic } from '@shared/study-trail'
 import { announce } from './a11y'
 import { h } from './dom'
 import { cleanError, confirmDialog, modal } from './modals/common'
+import { dressStudyWindow, STUDY_WHO } from './study-kit'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
 
@@ -56,7 +57,10 @@ export function studySeal(question: StudyQuestion): HTMLElement {
 /** The page or section of a library reference: "study sources/…/Livro.pdf#Página 231" → "Página 231". */
 const placeOf = (ref: string | undefined): string => (ref?.includes('#') ? ref.slice(ref.indexOf('#') + 1).replace(/:\d+$/, '') : '')
 
-/** A bank question: wording, answer (on demand), rationale, the book's passage and where it is. */
+/**
+ * A bank question: wording, and on demand the answer, rationale, the book's passage and its page.
+ * The passage proves the answer, so it stays folded with it until the question is answered.
+ */
 export function studyQuestionCard(question: StudyQuestion, answered: boolean, discipline?: string): HTMLElement {
   const { rationale, quote } = splitStudyRationale(question.rationale)
   const place = placeOf(question.sourceReference)
@@ -76,26 +80,42 @@ export function studyQuestionCard(question: StudyQuestion, answered: boolean, di
     ),
     question.sourceOnly
       ? h('p', { class: 'qc-q' }, 'Somente a referência da fonte; sem enunciado guardado.')
-      : h('p', { class: 'qc-q', style: 'white-space: pre-wrap' }, studyQuestionText(question)),
-    question.answer
+      : h(
+          'div',
+          {},
+          question.passage ? h('p', { class: 'qc-passage' }, question.passage) : null,
+          h('p', { class: 'qc-q' }, question.question),
+        ),
+    question.options?.length
+      ? h('ol', { class: 'qc-choices', type: 'A' }, ...question.options.map((option) => h('li', {}, option)))
+      : question.sourceOnly
+        ? null
+        : h('p', { class: 'qc-open' }, 'Questão aberta, de antes da múltipla escolha: não é oferecida e sai na próxima montagem.'),
+    question.answer || quote
       ? h(
           'details',
-          { class: 'qc-block' },
-          h('summary', { class: 'qc-label' }, 'Ver resposta'),
-          h('p', {}, h('b', {}, 'Resposta: '), question.answer),
+          { class: 'qc-block', open: answered || undefined },
+          h('summary', { class: 'qc-label' }, answered ? 'Resposta e trecho' : 'Ver resposta e trecho (revela a resposta)'),
+          question.answer
+            ? h(
+                'p',
+                {},
+                h('b', {}, 'Resposta: '),
+                isChoiceQuestion(question) ? studyOptionText(question, question.answer) : question.answer,
+              )
+            : null,
           rationale ? h('p', {}, h('b', {}, 'Justificativa: '), rationale) : null,
+          quote ? h('span', { class: 'qc-label' }, `Trecho do livro${place ? ` · ${place}` : ''}`) : null,
+          quote ? h('blockquote', { class: 'qc-quote' }, `“${quote}”`) : null,
         )
       : null,
     h(
       'div',
       { class: 'qc-block' },
-      quote ? h('span', { class: 'qc-label' }, 'Trecho do livro') : null,
-      quote ? h('blockquote', { class: 'qc-quote' }, `“${quote}”`) : null,
       h(
         'span',
         { class: 'qc-ref' },
         h('b', {}, question.sourceTitle),
-        place ? ` · ${place}` : '',
         isAgentVerified(question)
           ? ' · conferida por autor, resolvedor cego e verificador'
           : question.sourceUrl
@@ -192,6 +212,7 @@ export async function openStudyBankBuilder(
   box.classList.add('study-popup', 'study-bank-modal')
   box.querySelector('.modal-title')!.replaceWith(title)
   box.querySelector('.modal-foot')!.replaceWith(foot)
+  dressStudyWindow(box, { who: STUDY_WHO.bank, subtitle: 'Cadeia de agentes · roda em segundo plano, uma por vez' }, 'm')
 
   const start = async (request: StudyBankRequest) => {
     if (busy) return
