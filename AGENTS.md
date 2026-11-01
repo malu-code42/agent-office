@@ -13,11 +13,15 @@ Antes de entregar: `npm run typecheck && npm run lint && npm test && npm run bui
 Variáveis úteis: `AGENT_OFFICE_DEMO=1`, `AGENT_OFFICE_TOUR=1`, `AGENT_OFFICE_FAKE_UPDATE=0.9.0`,
 `AGENT_OFFICE_CLAUDE=<caminho>`, `AGENT_OFFICE_DATA_DIR=<pasta>` (troca o userData; use para não mexer nos dados reais).
 
-## Leia sob demanda
+## Leia antes de começar (obrigatório)
 
-- `docs/agents/mapa-e-armadilhas.md`: mapa de pastas, cadeias de classes, alias `@shared/*`, ADRs desatualizados. Leia antes de mexer em área desconhecida.
-- `docs/agents/receitas.md`: novo canal IPC, novo modal, mundo 2D, UI/acessibilidade, testes.
-- Windows: `docs/adr/`, `docs/prd/windows-primeira-classe.md`. Antes de confiar num ADR, confira o código.
+Antes de editar, **leia o arquivo** que bate com a tarefa. Não improvise: as receitas têm passos que o código sozinho não mostra.
+
+- Mexer em pasta que você não conhece, em cadeia de classes (agents, game, board, panel) ou citar um ADR: `docs/agents/mapa-e-armadilhas.md`.
+- Novo canal IPC, novo modal, mundo 2D, UI/acessibilidade ou escrever testes: a seção correspondente de `docs/agents/receitas.md`.
+- Windows: `docs/adr/`, `docs/prd/windows-primeira-classe.md`. Vários ADRs estão desatualizados; confira o código antes de confiar.
+
+Na dúvida se o arquivo se aplica, leia.
 
 ## Regras da casa
 
