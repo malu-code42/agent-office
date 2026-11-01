@@ -7,6 +7,15 @@ WOOD = T('e8c592', 'd2a46e', 'b38253')
 WOODD = T('c0915e', 'a37548', '855b37')
 CRT = T('efe7d2', 'dbcfb2', 'bfb193')
 CHAIR = T('5a5a66', '42424d', '31313a')
+# the graphite work desk and the chair colours of the floors' palettes
+DESK_TOP = T('4a4d5c', '363846', '262833')
+DESK_LEG = T('2b2d38', '20222b', '181a21')
+CHAIRS = {'green': T('3f9a7a', '2f7d62', '22604b'), 'blue': T('5f86b8', '4a6c9a', '385479'),
+          'terra': T('d98a6a', 'b86e52', '94553f'), 'rose': T('d39486', 'b87a6d', '95604f'),
+          'mustard': T('e0b85a', 'c49c44', 'a07e30'), 'lilac': T('9a86c4', '7e6aa8', '63528a'),
+          'sage': T('8fb084', '719568', '587853'), 'slate': T('6f8bb0', '586f94', '445777'),
+          'sand': T('c9b79a', 'ae9c80', '8c7d65'), 'steel': T('7d8896', '646f7c', '4e5863'),
+          'mint': T('7fc4ae', '62a690', '4a8571'), 'sky': T('7fb3d8', '6396bc', '4a7a9e')}
 METAL = T('dfe2e4', 'c2c7cc', 'a2a9b0')
 POT = T('e7a174', 'cc7c53', 'ad6240')
 LEAF = [H('4f8a4c'), H('69a65c'), H('8cc477'), H('b3df92')]
@@ -38,6 +47,10 @@ BEZEL = H('5b6173')
 _SCREEN = {'green': (H('4cb892'), [H('e4fbe0'), H('1d5a4a'), H('b9efc4')], H('7be07f')),
            'amber': (H('d9a441'), [H('fff0c4'), H('6b4a14'), H('ffe08a')], H('f4bb55')),
            'red': (H('d0605a'), [H('ffd8d4'), H('6e1f24'), H('f6a8a2')], H('ff5a4a')),
+           'blue': (H('6f95c2'), [H('e4eefb'), H('24456b'), H('b9d3f0')], H('8fb3dc')),
+           'rose': (H('d98a8a'), [H('ffe4e0'), H('7a3438'), H('f6bcb6')], H('f2a0a0')),
+           'lilac': (H('a58fd0'), [H('efe8fb'), H('46346e'), H('cfc2ec')], H('b9a6e0')),
+           'mint': (H('7fd0a0'), [H('eafbef'), H('2a6a48'), H('c4efd2')], H('9fe0b8')),
            'off': (H('1c1f26'), None, H('6b6f73'))}
 # lateral start, width, bottom z (above the desk) and height of each panel, per variant: two monitors,
 # an ultrawide, a main monitor with a vertical one (the setups of the original office)
