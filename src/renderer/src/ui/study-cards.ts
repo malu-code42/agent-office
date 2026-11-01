@@ -20,6 +20,8 @@ export async function openStudyCards(root: HTMLElement, toast: Toast): Promise<v
   let warning = ''
   let errorText = ''
   let busy = false
+  let looseTitle = ''
+  let looseText = ''
   let token = ''
   let draft: StudyCardDraft | null = null
   let title = ''
@@ -58,7 +60,49 @@ export async function openStudyCards(root: HTMLElement, toast: Toast): Promise<v
     }
   }
 
+  const looseForm = (): HTMLElement =>
+    h(
+      'section',
+      { class: 'study-card-section' },
+      h('h3', {}, 'Nova nota avulsa'),
+      h('p', { class: 'field-hint' }, 'Nota autoral, sem tarefa nem ciclo de estudos. Fica em notas-estudo.md e pode virar cartão.'),
+      h('input', {
+        class: 'input',
+        value: looseTitle,
+        maxlength: '200',
+        placeholder: 'Título',
+        'aria-label': 'Título da nota avulsa',
+        disabled: busy || undefined,
+        oninput: (event: Event) => (looseTitle = (event.currentTarget as HTMLInputElement).value),
+      }),
+      h('textarea', {
+        class: 'input study-card-section-input',
+        rows: '5',
+        maxlength: '10000',
+        'aria-label': 'Texto da nota avulsa',
+        value: looseText,
+        disabled: busy || undefined,
+        oninput: (event: Event) => (looseText = (event.currentTarget as HTMLTextAreaElement).value),
+      }),
+      h(
+        'button',
+        {
+          class: 'btn btn-small',
+          type: 'button',
+          disabled: busy || !looseTitle.trim() || !looseText.trim() || undefined,
+          onclick: () =>
+            void run(async () => {
+              await window.office.saveLooseStudyNote(looseTitle, looseText)
+              looseTitle = ''
+              looseText = ''
+            }, 'Nota avulsa salva em notas-estudo.md.'),
+        },
+        'Salvar nota avulsa',
+      ),
+    )
+
   const notesView = (): HTMLElement[] => [
+    looseForm(),
     h(
       'p',
       { class: 'field-hint' },
