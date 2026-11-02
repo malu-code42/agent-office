@@ -3,6 +3,7 @@ import {
   studyBankFolders,
   STUDY_BANK_DEFAULT_PER_TOPIC,
   type StudyBankReason,
+  type StudyBookSuggestion,
   type StudyBankStep,
   type StudyBankStop,
   type StudyBankTopicResult,
@@ -29,6 +30,8 @@ interface Deps {
   ask?: AskJson
   /** An answered question does not count toward a topic's goal: the user will not see it again. */
   isAnswered?: (question: StudyQuestion) => boolean
+  /** Textbooks on the web for a topic the local books do not cover; a failure just means no suggestion. */
+  suggestBooks?: (topic: string, discipline: string) => Promise<StudyBookSuggestion[]>
 }
 
 export interface StudyBankBuildOptions {
@@ -81,6 +84,16 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
     return out
   }
 
+  const booksFor = async (topic: StudyTrailTopic): Promise<{ books?: StudyBookSuggestion[] }> => {
+    if (!deps.suggestBooks || options.signal?.aborted) return {}
+    try {
+      const books = await deps.suggestBooks(topic.title, topic.discipline)
+      return books.length ? { books } : {}
+    } catch {
+      return {}
+    }
+  }
+
   for (const [index, topic] of topics.entries()) {
     if (options.signal?.aborted) return { results, stop: 'cancelled' }
     const disciplineId = disciplineIdOf(topic.id)
@@ -122,12 +135,16 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
     const first = hits[0]
     if (!first) {
       // With no folder of its own, nothing found means no book was put in the default folder.
-      finish({ ...start, ...(fallback ? { reason: 'no-book', folder: scope[0] } : { reason: 'no-passage' }) })
+      finish({
+        ...start,
+        ...(fallback ? { reason: 'no-book', folder: scope[0] } : { reason: 'no-passage' }),
+        ...(await booksFor(topic)),
+      })
       continue
     }
     // One passage per question: with fewer passages than questions the author can only repeat itself, so don't spend the run.
     if (hits.length < onTopic.length + missing) {
-      finish({ ...start, reason: 'little' })
+      finish({ ...start, reason: 'little', ...(await booksFor(topic)) })
       continue
     }
 
