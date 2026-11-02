@@ -87,13 +87,15 @@ const gapKind = (q: StudyCycleQuestion): Kind => (q.assessment?.kind === 'incorr
  * answered and checked (never while answering, never in the retest), because it gives the answer away.
  */
 const passageOf = (q: StudyQuestion): HTMLElement | null => {
-  const { quote } = splitStudyRationale(q.rationale)
+  const { needed, quote } = splitStudyRationale(q.rationale)
   if (!quote) return null
   const ref = q.sourceReference ?? ''
   const page = ref.includes('#') ? ref.slice(ref.indexOf('#') + 1).replace(/:[0-9]+$/, '') : ''
   return h(
     'div',
     { class: 'sk-passage' },
+    needed ? h('span', { class: 'sk-label' }, 'O que você precisa saber para resolver') : null,
+    needed ? h('p', {}, needed) : null,
     h('span', { class: 'sk-label' }, `Trecho do livro · ${q.sourceTitle}${page ? ` · ${page}` : ''}`),
     h('blockquote', {}, `“${quote}”`),
   )

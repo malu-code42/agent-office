@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { splitStudyRationale } from '../src/shared/study-bank'
 import { generateGroundedQuestion, tooSimilar, type AskJson } from '../src/main/study-questions-grounded'
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({ query: vi.fn() }))
@@ -14,6 +15,7 @@ const draft = {
   choices: ['0 a 9', '0 e 1', '0 a 7', '0 a F', '1 e 2'],
   correct: 'B',
   rationale: 'Definição.',
+  needed: 'Saber que o binário usa só dois dígitos.',
   quote: 'só existem os dígitos 0 e 1',
 }
 
@@ -32,7 +34,13 @@ describe('generateGroundedQuestion', () => {
     expect(out.ok && out.question.verifiedByUser).toBeUndefined()
     expect(out.ok && out.question.options).toHaveLength(5)
     expect(out.ok && out.question.answer).toBe('B')
+    expect(out.ok && splitStudyRationale(out.question.rationale).needed).toBe(draft.needed)
     expect(ask).toHaveBeenCalledTimes(3)
+  })
+
+  it('rejects a draft without what is needed to solve it', async () => {
+    const { result } = run(Array(3).fill({ ...draft, needed: '' }))
+    expect(await result).toMatchObject({ ok: false, reason: 'O autor devolveu uma questão incompleta.' })
   })
 
   it('rejects a draft without five different alternatives and a valid letter', async () => {

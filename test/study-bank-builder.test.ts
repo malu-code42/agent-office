@@ -46,7 +46,7 @@ function setup(options: { verdict?: string; failAsk?: boolean; bank?: StudyQuest
     if (system.includes('write one multiple-choice study question')) {
       const question = QUESTIONS[n++ % QUESTIONS.length]!
       const choices = ['0 e 1', '0 a 9', '0 a 7', '1 e 2', '0 a F']
-      return { question, choices, correct: 'A', rationale: 'Definição.', quote: 'só existem os dígitos 0 e 1' }
+      return { question, choices, correct: 'A', rationale: 'Definição.', needed: 'Saber os dígitos do binário.', quote: 'só existem os dígitos 0 e 1' }
     }
     if (system.includes('Answer the multiple-choice study question')) return { answer: 'A' }
     return { verdict: options.verdict ?? 'ok', reason: 'ambígua' }
