@@ -38,7 +38,7 @@ import { workerPdfExtractor } from '../study-pdf-pool'
 import { StudyCardsService } from '../study-cards'
 import { claudeStudyCardInterpreter } from '../study-cards-claude'
 import { MAIN_ACCOUNT } from '@shared/accounts'
-import { activeStudyCycle, retestScore } from '@shared/study-cycle'
+import { activeStudyCycle, resetActiveStudyCycle, retestScore } from '@shared/study-cycle'
 import {
   completeTaskSchema,
   discardTaskSchema,
@@ -233,7 +233,17 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const [token, selection, reviewConfirmed] = parse(studyQuestionSaveArgsSchema, args, 'Seleção de questões inválida.')
     studyService().save(token, selection, reviewConfirmed)
   })
-  ipcMain.handle('office:readStudyCycle', () => studyCycleStore.read())
+  ipcMain.handle('office:readStudyCycle', () => {
+    const state = studyCycleStore.read()
+    const active = activeStudyCycle(state)
+    // A diagnosis still open keeps its own copy of the questions: unpin it when one of them lost its file in "study sources" (the evidence stays in the history).
+    if (active?.stage !== 'diagnosis' || !ctx.store.settings.vaultPath) return state
+    const bank = studyService()
+    if (!active.questions.some((q) => bank.leftStudySources(q.source))) return state
+    const next = resetActiveStudyCycle(state)
+    studyCycleStore.write(next)
+    return next
+  })
   ipcMain.handle('office:startStudyCycle', (_e, ...args: unknown[]) => {
     const [topic, questionIds] = parse(startStudyCycleArgsSchema, args, 'Início do ciclo inválido.')
     return studyCycleService().start(topic, questionIds)
