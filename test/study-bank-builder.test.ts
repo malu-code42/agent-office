@@ -154,19 +154,27 @@ describe('buildStudyBank', () => {
 })
 
 describe('buildStudyBank passages', () => {
-  it('does not ask Claude when the book has fewer passages than the questions needed', async () => {
-    const { deps, ask } = setup()
+  it('makes only as many questions as the book has passages, and reports the shortfall', async () => {
+    const { deps } = setup()
     const { results } = await buildStudyBank(trail, deps, { perTopic: 5, discipline: 'P1-ICC' })
-    expect(results.every((r) => r.reason === 'little' && !r.added)).toBe(true)
-    expect(ask).not.toHaveBeenCalled()
+    expect(results[0]).toMatchObject({ added: 4, reason: 'little' })
+  })
+
+  it('does not ask Claude when the topic already used every passage', async () => {
+    const { deps, ask } = setup()
+    const { results } = await buildStudyBank(trail, deps, { perTopic: 4, discipline: 'P1-ICC' })
+    const again = await buildStudyBank(trail, deps, { perTopic: 6, discipline: 'P1-ICC' })
+    expect(results[0]).toMatchObject({ added: 4 })
+    expect(again.results[0]).toMatchObject({ added: 0, reason: 'little' })
+    expect(ask.mock.calls.length).toBe(4 * 3 + 0)
   })
 
   it('does not use passages that repeat what another one says', async () => {
     const { deps, search, ask } = setup()
     search.mockImplementation(async () => ({ hits: [variant(1), { ...variant(2), excerpt: variant(1).excerpt }] }))
     const { results } = await buildStudyBank(trail, deps, { perTopic: 2, discipline: 'P1-ICC' })
-    expect(results[0]).toMatchObject({ added: 0, reason: 'little' })
-    expect(ask).not.toHaveBeenCalled()
+    expect(results[0]).toMatchObject({ added: 1, reason: 'little' })
+    expect(ask).toHaveBeenCalledTimes(3)
   })
 
   it('fills the missing passages with the other books of the library', async () => {

@@ -176,7 +176,7 @@
 }
 
 .bk-count b {
-  font: 500 22px var(--pixel);
+  font: 500 22px var(--mono);
   line-height: 1;
 }
 

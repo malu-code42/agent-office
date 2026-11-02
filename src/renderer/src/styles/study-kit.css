@@ -496,7 +496,7 @@
 }
 
 .sk-score-value {
-  font: 500 36px var(--pixel);
+  font: 500 36px var(--mono);
   color: var(--text);
 }
 
@@ -520,7 +520,7 @@
 }
 
 .sk-stat-value {
-  font: 500 20px var(--pixel);
+  font: 500 20px var(--mono);
 }
 
 .sk-stat-caption {
