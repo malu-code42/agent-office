@@ -20,6 +20,22 @@ export interface StudyCardSections {
   sourcesPending: boolean
 }
 
+/** What the student writes by hand; the rest of the card is the assistant's job. */
+export interface StudyCardAuthored {
+  title: string
+  information: string
+  examplePractice: string
+}
+
+/** The assistant's share: connections (wikilinks) and sources, plus feedback on the student's text. Feedback is never saved. */
+export interface StudyCardAssist {
+  connections: string
+  sources: string
+  connectionsPending: boolean
+  sourcesPending: boolean
+  feedback: string
+}
+
 export interface StudyCardDraft {
   title: string
   sourceSnapshots: StudyNoteSnapshot[]

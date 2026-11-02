@@ -32,16 +32,12 @@ const ipc = vi.hoisted(() => ({
 }))
 const studyProviders = vi.hoisted(() => ({ webSearch: vi.fn(async () => []), generate: vi.fn(async () => []) }))
 const cardInterpreter = vi.hoisted(() => ({
-  generate: vi.fn(async () => ({
-    title: 'Cartão sintético',
-    sections: {
-      information: 'Informação.',
-      examplePractice: 'Exemplo.',
-      connections: '',
-      sources: '',
-      connectionsPending: true,
-      sourcesPending: true,
-    },
+  assist: vi.fn(async () => ({
+    connections: '',
+    sources: '',
+    connectionsPending: true,
+    sourcesPending: true,
+    feedback: 'Explique o porquê.',
   })),
 }))
 vi.mock('electron', () => ({
@@ -55,7 +51,7 @@ vi.mock('../src/main/study-questions-claude', () => ({
   claudeStudyQuestionProviders: () => ({ webSearch: studyProviders.webSearch, generate: studyProviders.generate }),
 }))
 vi.mock('../src/main/study-cards-claude', () => ({
-  claudeStudyCardInterpreter: () => ({ generate: cardInterpreter.generate }),
+  claudeStudyCardInterpreter: () => ({ assist: cardInterpreter.assist }),
 }))
 
 const { registerTasksIpc } = await import('../src/main/ipc/tasks')
@@ -78,7 +74,7 @@ beforeEach(() => {
   ipc.canceled = false
   ipc.confirmResponse = 1
   ipc.confirmResponses = []
-  cardInterpreter.generate.mockClear()
+  cardInterpreter.assist.mockClear()
   studyProviders.webSearch.mockClear()
   studyProviders.generate.mockClear()
   registerTasksIpc({
@@ -219,9 +215,15 @@ describe('tasks IPC', () => {
     const listed = (await invoke('office:readStudyNotes')) as { notes: { id: string }[] }
     expect(listed.notes.map((note) => note.id)).toEqual([noteId])
     ipc.confirmResponse = 1
-    const canceled = await invoke('office:generateStudyCardDraft', [noteId])
+    const started = (await invoke('office:startStudyCardDraft', [noteId])) as { token: string }
+    expect(cardInterpreter.assist).not.toHaveBeenCalled()
+    const canceled = await invoke('office:assistStudyCard', started.token, {
+      title: 'Cartão',
+      information: 'Minha ideia.',
+      examplePractice: 'Meu exemplo.',
+    })
     expect(canceled).toBeNull()
-    expect(cardInterpreter.generate).not.toHaveBeenCalled()
+    expect(cardInterpreter.assist).not.toHaveBeenCalled()
     expect(existsSync(join(vault, 'cartoes-estudo'))).toBe(false)
   })
 
@@ -237,13 +239,14 @@ describe('tasks IPC', () => {
       accounts: [{ id: 'main', name: 'Principal', provider: 'claude', color: '#aabbcc' }],
     })
     ipc.confirmResponses = [0, 1]
-    const generated = (await invoke('office:generateStudyCardDraft', [noteId])) as {
-      token: string
-      draft: { title: string; sections: unknown }
-    }
-    expect(cardInterpreter.generate).toHaveBeenCalledOnce()
-    const { title, sections } = generated.draft
-    const canceled = await invoke('office:saveStudyCardDraft', generated.token, { title, sections })
+    const started = (await invoke('office:startStudyCardDraft', [noteId])) as { token: string }
+    const authored = { title: 'Cartão', information: 'Minha ideia.', examplePractice: 'Meu exemplo.' }
+    const assisted = (await invoke('office:assistStudyCard', started.token, authored)) as { feedback: string }
+    expect(cardInterpreter.assist).toHaveBeenCalledOnce()
+    expect(assisted.feedback).toBe('Explique o porquê.')
+    const { title, ...text } = authored
+    const sections = { ...text, connections: '', sources: '', connectionsPending: true, sourcesPending: true }
+    const canceled = await invoke('office:saveStudyCardDraft', started.token, { title, sections })
     expect(canceled).toBeNull()
     expect(existsSync(join(vault, 'cartoes-estudo'))).toBe(false)
   })

@@ -69,6 +69,11 @@
   gap: 8px;
 }
 
+.study-card-feedback {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
 .study-card-origin-changed {
   color: var(--amber-text);
 }

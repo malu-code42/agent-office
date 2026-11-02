@@ -44,7 +44,15 @@ import type { ClassScheduleView } from '../class-schedule'
 import type { StudyLibrarySearch, StudySourceInventory } from '../study-library'
 import type { StudySourceRecommendations } from '../study-sources'
 import type { Dictation } from '../voice'
-import type { StudyCardDraft, StudyCardSummary, StudyCardsRead, StudyNotesRead } from '../study-cards'
+import type {
+  StudyCardAssist,
+  StudyCardAuthored,
+  StudyCardDraft,
+  StudyCardSummary,
+  StudyCardsRead,
+  StudyNoteSnapshot,
+  StudyNotesRead,
+} from '../study-cards'
 
 export interface StudyQuestionCandidates {
   token: string
@@ -361,8 +369,10 @@ export interface OfficeAPI {
   readStudyNotes(): Promise<StudyNotesRead>
   /** Salva uma nota autoral em notas-estudo.md, sem tarefa nem ciclo de estudos. */
   saveLooseStudyNote(title: string, text: string): Promise<void>
-  /** Gera um rascunho somente das notas escolhidas; o main guarda os snapshots sob um token curto. */
-  generateStudyCardDraft(noteIds: string[]): Promise<{ token: string; draft: StudyCardDraft } | null>
+  /** Começa um cartão com as notas escolhidas; o main guarda os snapshots sob um token. Nada vai ao Claude. */
+  startStudyCardDraft(noteIds: string[]): Promise<{ token: string; sourceSnapshots: StudyNoteSnapshot[] }>
+  /** Com confirmação, o Claude sugere conexões, fontes e melhorias para o texto da estudante, sem reescrevê-lo. */
+  assistStudyCard(token: string, authored: StudyCardAuthored): Promise<StudyCardAssist | null>
   /** Salva o rascunho aprovado pela estudante como cartão Markdown no Obsidian. */
   saveStudyCardDraft(token: string, draft: Omit<StudyCardDraft, 'sourceSnapshots'>): Promise<StudyCardSummary | null>
   /** Lista cartões e compara as origens com as versões atuais das notas. */
