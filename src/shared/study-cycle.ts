@@ -593,3 +593,25 @@ function activeCycle(state: StudyCycleState): StudyCycle {
 function updateCycle(state: StudyCycleState, updated: StudyCycle): StudyCycleState {
   return { ...state, cycles: state.cycles.map((cycle) => (cycle.id === updated.id ? updated : cycle)) }
 }
+
+export interface StudySubtopicResult {
+  subtopic: string
+  correct: number
+  total: number
+  status: 'mastered' | 'partial' | 'gap'
+}
+
+/** Diagnosis result per subtopic, in order of appearance. Cycles without subtopics give an empty list. */
+export function subtopicResults(cycle: StudyCycle): StudySubtopicResult[] {
+  const groups = new Map<string, StudySubtopicResult>()
+  for (const question of cycle.questions) {
+    const subtopic = question.source.subtopic
+    if (!subtopic) continue
+    const group = groups.get(subtopic) ?? { subtopic, correct: 0, total: 0, status: 'gap' as const }
+    group.total++
+    // same rule as studyGaps: a right answer marked as doubtful is not mastery
+    if (question.assessment?.kind === 'correct' && !question.uncertain) group.correct++
+    groups.set(subtopic, group)
+  }
+  return [...groups.values()].map((g) => ({ ...g, status: g.correct === g.total ? 'mastered' : g.correct ? 'partial' : 'gap' }))
+}

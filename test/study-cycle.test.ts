@@ -17,6 +17,7 @@ import {
   attachStudySource,
   recordStudyNote,
   evaluateStudyGate,
+  subtopicResults,
   type StudyCycleQuestion,
 } from '../src/shared/study-cycle'
 
@@ -253,5 +254,35 @@ describe('ciclo de diagnóstico', () => {
     expect(retestScore(activeStudyCycle(state)!.retests[0]!)).toBe(0)
     expect(() => completeStudyCycle(state, true, 22)).toThrow(/80%/i)
     expect(activeStudyCycle(state)?.stage).toBe('retest')
+  })
+})
+
+describe('subtopicResults', () => {
+  const withSub = (id: string, subtopic: string | undefined, kind: 'correct' | 'incorrect', uncertain = false): StudyCycleQuestion => {
+    const q = question(id)
+    return { ...q, source: { ...q.source, ...(subtopic ? { subtopic } : {}) }, uncertain, assessment: { kind, rationale: '', checkedAt: 1 } }
+  }
+  const cycleOf = (questions: StudyCycleQuestion[]) => activeStudyCycle(createStudyCycleState('Quântica', questions, 1))!
+
+  it('groups by subtopic and classifies mastered, partial and gap', () => {
+    const cycle = cycleOf([
+      withSub('a1', 'Superposição', 'correct'),
+      withSub('a2', 'Superposição', 'correct'),
+      withSub('b1', 'Spin', 'correct'),
+      withSub('b2', 'Spin', 'incorrect'),
+      withSub('c1', 'Medição', 'incorrect'),
+      withSub('c2', 'Medição', 'correct', true),
+    ])
+    expect(subtopicResults(cycle)).toEqual([
+      { subtopic: 'Superposição', correct: 2, total: 2, status: 'mastered' },
+      { subtopic: 'Spin', correct: 1, total: 2, status: 'partial' },
+      { subtopic: 'Medição', correct: 0, total: 2, status: 'gap' },
+    ])
+  })
+
+  it('keeps the subtopic when the cycle starts and ignores old questions without one', () => {
+    const cycle = cycleOf([withSub('a1', 'Spin', 'correct'), withSub('a2', undefined, 'correct')])
+    expect(cycle.questions[0]!.source.subtopic).toBe('Spin')
+    expect(subtopicResults(cycle)).toHaveLength(1)
   })
 })
