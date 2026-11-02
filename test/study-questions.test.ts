@@ -6,6 +6,7 @@ import {
   gradeChoice,
   isChoiceQuestion,
   rankStudyQuestions,
+  refersToMissingText,
   STUDY_BANK_LINE_LIMIT,
   studyQuestionText,
   validateStudyQuestion,
@@ -89,19 +90,27 @@ describe('study question bank codec', () => {
     expect(isChoiceQuestion(question())).toBe(false)
   })
 
-  it('removes the open questions from the bank file after a backup, keeping the rest', () => {
+  it('flags a statement that cites a text nobody shows', () => {
+    expect(refersToMissingText({ question: 'Segundo o texto, o que é um bit?' })).toBe(true)
+    expect(refersToMissingText({ question: 'O que é um bit?', options: ['Conforme o trecho acima', 'Um dígito'] })).toBe(true)
+    expect(refersToMissingText({ question: 'O que é um bit?', options: ['Um dígito', 'Um byte'] })).toBe(false)
+    expect(refersToMissingText({ passage: 'Um bit é um dígito.', question: 'Segundo o texto, o que é um bit?' })).toBe(false)
+  })
+
+  it('removes the unusable questions from the bank file after a backup, keeping the rest', () => {
     const vault = mkdtempSync(join(tmpdir(), 'study-bank-'))
     try {
       const choice = question({ id: 'q-choice01', options: ['1/4', '1/2', '1/3', '1', '0'], answer: 'B' })
-      const text = `# Banco\n\nNota manual\n\n${encodeStudyQuestion(question())}\n${encodeStudyQuestion(choice)}\n`
+      const orphan = question({ id: 'q-orphan01', question: 'Segundo o texto, qual a chance?', options: ['1/4', '1/2'], answer: 'B' })
+      const text = `# Banco\n\nNota manual\n\n${encodeStudyQuestion(question())}\n${encodeStudyQuestion(choice)}\n${encodeStudyQuestion(orphan)}\n`
       writeFileSync(join(vault, 'questoes-estudo.md'), text)
       const service = new StudyQuestionService(vault, { webSearch: async () => [] })
-      expect(service.removeOpenQuestions()).toBe(1)
+      expect(service.removeUnusableQuestions()).toBe(2)
       const after = decodeStudyBank(readFileSync(join(vault, 'questoes-estudo.md'), 'utf8'))
       expect(after.questions.map((q) => q.id)).toEqual(['q-choice01'])
       expect(after.unknownLines).toEqual(['Nota manual'])
       expect(readdirSync(join(vault, '.agent-office-backups'))).toHaveLength(1)
-      expect(service.removeOpenQuestions()).toBe(0)
+      expect(service.removeUnusableQuestions()).toBe(0)
     } finally {
       rmSync(vault, { recursive: true, force: true })
     }

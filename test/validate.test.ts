@@ -54,7 +54,8 @@ import {
   answerStudyRetestArgsSchema,
   verifyStudyRetestArgsSchema,
   completeStudyRetestArgsSchema,
-  generateStudyCardDraftArgsSchema,
+  startStudyCardDraftArgsSchema,
+  assistStudyCardArgsSchema,
   saveStudyCardDraftArgsSchema,
   listStudyCardsArgsSchema,
   setStudyCardPhysicalArgsSchema,
@@ -791,14 +792,18 @@ describe('argumentos IPC do ciclo de estudo', () => {
       sections: {
         information: 'Informação',
         examplePractice: 'Exemplo',
+        application: 'Aplicação',
         connections: '',
         sources: '',
         connectionsPending: true,
         sourcesPending: true,
       },
     }
-    expect(generateStudyCardDraftArgsSchema.safeParse([['sn-sc-123-abcdefgh-q-12345678']]).success).toBe(true)
-    expect(generateStudyCardDraftArgsSchema.safeParse([['C:\\private\\note.md']]).success).toBe(false)
+    expect(startStudyCardDraftArgsSchema.safeParse([['sn-sc-123-abcdefgh-q-12345678']]).success).toBe(true)
+    expect(startStudyCardDraftArgsSchema.safeParse([['C:\\private\\note.md']]).success).toBe(false)
+    const authored = { title: 'Eventos', information: 'Ideia', examplePractice: 'Exemplo', application: 'Aplicação' }
+    expect(assistStudyCardArgsSchema.safeParse(['550e8400-e29b-41d4-a716-446655440000', authored]).success).toBe(true)
+    expect(assistStudyCardArgsSchema.safeParse(['550e8400-e29b-41d4-a716-446655440000', { ...authored, connections: 'x' }]).success).toBe(false)
     expect(saveStudyCardDraftArgsSchema.safeParse(['550e8400-e29b-41d4-a716-446655440000', draft]).success).toBe(true)
     expect(saveStudyCardDraftArgsSchema.safeParse(['C:\\vault', draft]).success).toBe(false)
     expect(listStudyCardsArgsSchema.safeParse([]).success).toBe(true)

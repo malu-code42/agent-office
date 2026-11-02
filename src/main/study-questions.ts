@@ -4,6 +4,7 @@ import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 import {
   decodeStudyBank,
   isChoiceQuestion,
+  refersToMissingText,
   encodeStudyQuestion,
   findDuplicateStudyQuestion,
   rankStudyQuestions,
@@ -266,11 +267,12 @@ export class StudyQuestionService {
   }
 
   /**
-   * Takes the open questions (not multiple choice) out of the bank file, after a backup of the exact
-   * version; every other line stays as it was. Since 2026-11-01 the bank is multiple choice only.
+   * Takes the unusable questions out of the bank file, after a backup of the exact version; every other
+   * line stays as it was. Unusable: open (the bank is multiple choice only since 2026-11-01) or pointing
+   * at a text the student is never shown.
    */
-  removeOpenQuestions(): number {
-    return this.removeWhere((q) => !isChoiceQuestion(q))
+  removeUnusableQuestions(): number {
+    return this.removeWhere((q) => !isChoiceQuestion(q) || refersToMissingText(q))
   }
 
   /**

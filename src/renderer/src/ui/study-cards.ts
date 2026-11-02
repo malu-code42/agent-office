@@ -1,32 +1,54 @@
-import type { StudyCardDraft, StudyCardSections, StudyCardSummary, StudyNoteSnapshot, StudyNotesRead } from '@shared/study-cards'
+import type { StudyCard, StudyCardSections, StudyCardSummary, StudyNoteSnapshot, StudyNotesRead } from '@shared/study-cards'
+import { studyCardTopic } from '@shared/study-cards'
 import { announce } from './a11y'
 import { h } from './dom'
 import { cleanError, modal } from './modals/common'
 import { dressStudyWindow, STUDY_WHO } from './study-kit'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
-type SectionField = 'information' | 'examplePractice' | 'connections' | 'sources'
+type Tab = 'notes' | 'cards'
+type View = { kind: 'list' } | { kind: 'note'; note: StudyNoteSnapshot } | { kind: 'card'; card: StudyCard } | { kind: 'write' }
 
-const SECTION_LABELS: Record<SectionField, string> = {
-  information: 'Informação',
-  examplePractice: 'Exemplo/Prática',
-  connections: 'Conexões',
-  sources: 'Fontes',
+const NO_TOPIC = 'Sem tópico'
+const emptySections = (): StudyCardSections => ({
+  information: '',
+  examplePractice: '',
+  application: '',
+  connections: '',
+  sources: '',
+  connectionsPending: true,
+  sourcesPending: true,
+})
+
+/** Items grouped by topic, alphabetical, with "Sem tópico" last. */
+function byTopic<T>(items: T[], topicOf: (item: T) => string | undefined): [string, T[]][] {
+  const groups = new Map<string, T[]>()
+  for (const item of items) {
+    const topic = topicOf(item)?.trim() || NO_TOPIC
+    groups.set(topic, [...(groups.get(topic) ?? []), item])
+  }
+  return [...groups].sort(([a], [b]) => (a === NO_TOPIC ? 1 : b === NO_TOPIC ? -1 : a.localeCompare(b, 'pt-BR')))
 }
 
-/** Cards are separate Obsidian documents; only selected note snapshots enter a Claude draft. */
+const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`
+
+/** The student writes the idea, the example and the application; Claude only proposes connections, sources and feedback. */
 export async function openStudyCards(root: HTMLElement, toast: Toast): Promise<void> {
   let noteLibrary: StudyNotesRead = { notes: [] }
   let cards: StudyCardSummary[] = []
   let warning = ''
   let errorText = ''
   let busy = false
+  let tab: Tab = 'notes'
+  let view: View = { kind: 'list' }
   let looseTitle = ''
   let looseText = ''
   let token = ''
-  let draft: StudyCardDraft | null = null
+  let sourceSnapshots: StudyNoteSnapshot[] | null = null
+  let feedback = ''
+  let assisted = false
   let title = ''
-  let sections: StudyCardSections | null = null
+  let sections: StudyCardSections = emptySections()
   const selected = new Set<string>()
   const content = h('div', { class: 'study-cards-content' })
   const actions = h('div', { class: 'review-actions' })
@@ -61,10 +83,45 @@ export async function openStudyCards(root: HTMLElement, toast: Toast): Promise<v
     }
   }
 
+  const back = (): void => {
+    view = { kind: 'list' }
+    render()
+  }
+  const backButton = (): HTMLElement => h('button', { class: 'btn', type: 'button', disabled: busy || undefined, onclick: back }, '‹ Voltar à lista')
+
+  // ---- lista: abas, notas e cartões digitais, em cartões quadrados por tópico ----
+  const tabs = (): HTMLElement =>
+    h(
+      'div',
+      { class: 'sc-tabs', role: 'tablist' },
+      ...(
+        [
+          ['notes', 'Notas', noteLibrary.notes.length],
+          ['cards', 'Cartões digitais', cards.length],
+        ] as const
+      ).map(([id, label, count]) =>
+        h(
+          'button',
+          {
+            class: 'sc-tab',
+            type: 'button',
+            role: 'tab',
+            'aria-selected': String(tab === id),
+            onclick: () => {
+              tab = id
+              render()
+            },
+          },
+          label,
+          h('span', { class: 'sc-count' }, String(count)),
+        ),
+      ),
+    )
+
   const looseForm = (): HTMLElement =>
     h(
       'section',
-      { class: 'study-card-section' },
+      { class: 'sc-box' },
       h('h3', {}, 'Nova nota avulsa'),
       h('p', { class: 'field-hint' }, 'Nota autoral, sem tarefa nem ciclo de estudos. Fica em notas-estudo.md e pode virar cartão.'),
       h('input', {
@@ -77,8 +134,8 @@ export async function openStudyCards(root: HTMLElement, toast: Toast): Promise<v
         oninput: (event: Event) => (looseTitle = (event.currentTarget as HTMLInputElement).value),
       }),
       h('textarea', {
-        class: 'input study-card-section-input',
-        rows: '5',
+        class: 'input',
+        rows: '3',
         maxlength: '10000',
         'aria-label': 'Texto da nota avulsa',
         value: looseText,
@@ -90,6 +147,7 @@ export async function openStudyCards(root: HTMLElement, toast: Toast): Promise<v
         {
           class: 'btn btn-small',
           type: 'button',
+          style: 'align-self: flex-start',
           disabled: busy || !looseTitle.trim() || !looseText.trim() || undefined,
           onclick: () =>
             void run(async () => {
@@ -102,234 +160,178 @@ export async function openStudyCards(root: HTMLElement, toast: Toast): Promise<v
       ),
     )
 
-  const notesView = (): HTMLElement[] => [
-    looseForm(),
-    h(
-      'p',
-      { class: 'field-hint' },
-      'Selecione uma ou mais notas. O processo principal pedirá confirmação antes de enviar apenas os snapshots selecionados ao Claude.',
-    ),
-    ...(warning ? [h('p', { class: 'field-hint', role: 'status' }, warning)] : []),
-    ...(noteLibrary.notes.length
-      ? noteLibrary.notes.map((note) => noteRow(note))
-      : [h('p', { class: 'field-hint' }, 'Não há notas geradas pelo fluxo do Office em notas-estudo.md. Nenhum arquivo foi alterado.')]),
-  ]
+  const topicHead = (name: string, count: string): HTMLElement => h('div', { class: 'sc-topic' }, h('h3', {}, name), h('span', { class: 'sc-chip' }, count))
 
-  const noteRow = (note: StudyNoteSnapshot): HTMLElement =>
+  const noteSquare = (note: StudyNoteSnapshot): HTMLElement =>
     h(
-      'label',
-      { class: 'study-card-note-row' },
+      'div',
+      { class: `sc-sq${selected.has(note.id) ? ' selected' : ''}` },
+      h(
+        'button',
+        {
+          class: 'sc-sq-open',
+          type: 'button',
+          'aria-label': `Abrir nota ${note.title}`,
+          onclick: () => {
+            view = { kind: 'note', note }
+            render()
+          },
+        },
+        h('span', { class: 'sc-sq-title' }, note.title),
+        h('span', { class: 'sc-sq-ref' }, note.sourceRef),
+        h('span', { class: 'sc-sq-body' }, h('span', { class: 'sc-sq-label' }, 'Nota'), h('span', { class: 'sc-sq-text' }, noteBody(note))),
+        h('span', { class: 'sc-sq-more' }, 'ler tudo ›'),
+      ),
       h('input', {
+        class: 'sc-sq-check',
         type: 'checkbox',
         checked: selected.has(note.id),
         disabled: busy || undefined,
         'aria-label': `Selecionar nota ${note.title}`,
         onchange: (event: Event) => {
-          const input = event.currentTarget as HTMLInputElement
-          if (input.checked) selected.add(note.id)
+          if ((event.currentTarget as HTMLInputElement).checked) selected.add(note.id)
           else selected.delete(note.id)
+          render()
         },
       }),
+    )
+
+  const cardSquare = (card: StudyCardSummary): HTMLElement =>
+    h(
+      'div',
+      { class: 'sc-sq' },
       h(
-        'span',
-        {},
-        h('strong', {}, note.title),
-        h('span', { class: 'study-card-source-ref' }, note.sourceRef),
-        h('span', {}, note.text.slice(0, 360)),
+        'button',
+        {
+          class: 'sc-sq-open',
+          type: 'button',
+          disabled: busy || undefined,
+          'aria-label': `Abrir cartão ${card.title}`,
+          onclick: () => void openCard(card.id),
+        },
+        h('span', { class: 'sc-sq-title' }, card.title),
+        h(
+          'span',
+          { class: 'sc-sq-parts sc-sq-body' },
+          ...(
+            [
+              ['Ideia', card.preview.information],
+              ['Exemplo', card.preview.examplePractice],
+              ['Aplicação', card.preview.application],
+            ] as const
+          )
+            .filter(([, text]) => text)
+            .map(([label, text]) => h('span', {}, h('span', { class: 'sc-sq-label' }, label), h('span', { class: 'sc-sq-text small' }, text))),
+        ),
+        h(
+          'span',
+          { class: 'sc-sq-tags' },
+          card.connectionsPending ? h('span', { class: 'sc-chip warn' }, 'Conexões pendentes') : null,
+          card.sourcesPending ? h('span', { class: 'sc-chip warn' }, 'Fontes pendentes') : null,
+          card.originChanged ? h('span', { class: 'sc-chip warn', role: 'status' }, 'Origem alterada') : null,
+          card.physicalWritten ? h('span', { class: 'sc-chip ok' }, 'Cópia física') : null,
+        ),
+        h('span', { class: 'sc-sq-more' }, 'abrir ›'),
       ),
     )
 
-  const draftView = (): HTMLElement[] => {
-    if (!draft || !sections) return []
-    const titleInput = h('input', {
-      class: 'input',
-      value: title,
-      maxlength: '200',
-      'aria-label': 'Título do cartão',
-      disabled: busy || undefined,
-      oninput: (event: Event) => (title = (event.currentTarget as HTMLInputElement).value),
-    })
-    const fields = (Object.keys(SECTION_LABELS) as SectionField[]).map((section) => {
-      const control = h('textarea', {
-        class: 'input study-card-section-input',
-        rows: section === 'information' || section === 'examplePractice' ? '6' : '4',
-        maxlength: '20000',
-        'aria-label': SECTION_LABELS[section],
-        value: sections![section],
-        disabled: busy || undefined,
-        oninput: (event: Event) => {
-          sections = { ...sections!, [section]: (event.currentTarget as HTMLTextAreaElement).value }
-        },
-      })
-      const pendingKey = section === 'connections' ? 'connectionsPending' : section === 'sources' ? 'sourcesPending' : null
-      return h(
-        'section',
-        { class: 'study-card-section' },
-        h('h3', {}, SECTION_LABELS[section]),
-        control,
-        pendingKey
-          ? h(
-              'label',
-              { class: 'study-card-pending' },
-              h('input', {
-                type: 'checkbox',
-                checked: sections![pendingKey],
-                disabled: busy || undefined,
-                onchange: (event: Event) => {
-                  sections = { ...sections!, [pendingKey]: (event.currentTarget as HTMLInputElement).checked }
-                },
-              }),
-              'Ainda precisa de revisão',
-            )
-          : null,
-      )
-    })
+  const listView = (): HTMLElement[] => {
+    const notes = byTopic(noteLibrary.notes, (note) => note.topic)
+    const digital = byTopic(cards, (card) => card.topic)
     return [
-      h(
-        'p',
-        { class: 'field-hint' },
-        'Revise e edite o rascunho. Conexões e fontes sem evidência ficam marcadas como pendentes. Nada é salvo até você aprovar.',
-      ),
-      ...draft.sourceSnapshots.map((source) =>
-        h('p', { class: 'study-card-source-ref' }, `${source.title} · ${source.sourceRef} · versão ${source.hash.slice(0, 12)}`),
-      ),
-      h('label', { class: 'study-cycle-field' }, h('span', { class: 'field-label' }, 'Título'), titleInput),
-      ...fields,
+      tabs(),
+      ...(warning ? [h('p', { class: 'field-hint', role: 'status' }, warning)] : []),
+      ...(tab === 'notes'
+        ? [
+            looseForm(),
+            h('p', { class: 'field-hint' }, 'Escolha as notas que sustentam o cartão. Clique numa nota para lê-la inteira.'),
+            ...(notes.length
+              ? notes.map(([topic, items]) =>
+                  h('div', { class: 'sc-group' }, topicHead(topic, plural(items.length, 'nota', 'notas')), h('div', { class: 'sc-grid' }, ...items.map(noteSquare))),
+                )
+              : [h('p', { class: 'field-hint' }, 'Não há notas geradas pelo fluxo do Office em notas-estudo.md. Nenhum arquivo foi alterado.')]),
+          ]
+        : digital.length
+          ? digital.map(([topic, items]) =>
+              h('div', { class: 'sc-group' }, topicHead(topic, plural(items.length, 'cartão', 'cartões')), h('div', { class: 'sc-grid' }, ...items.map(cardSquare))),
+            )
+          : [h('p', { class: 'field-hint' }, 'Ainda não há cartões digitais salvos.')]),
     ]
   }
 
-  const cardList = (): HTMLElement[] => [
+  // ---- nota aberta ----
+  const noteView = (note: StudyNoteSnapshot): HTMLElement[] => [
+    h('div', { class: 'sc-crumb' }, backButton(), h('h3', {}, note.title), note.topic ? h('span', { class: 'sc-chip' }, note.topic) : null),
     h(
       'div',
-      { class: 'study-cards-list-head' },
-      h('h3', {}, 'Cartões digitais'),
-      h(
-        'button',
-        { class: 'btn btn-small', type: 'button', disabled: busy || undefined, onclick: () => void reload() },
-        'Recarregar origens',
-      ),
+      { class: 'sc-blk' },
+      h('span', { class: 'sc-bl' }, 'Nota'),
+      h('span', { class: 'sc-sq-ref' }, `Fonte: ${note.sourceRef} · versão ${note.hash.slice(0, 12)}`),
+      h('div', { class: 'sc-box-tone' }, noteBody(note)),
     ),
-    ...(warning ? [h('p', { class: 'field-hint', role: 'status' }, warning)] : []),
-    ...(cards.length
-      ? cards.map((card) =>
-          h(
-            'article',
-            { class: 'study-card-row' },
-            h('strong', {}, card.title),
-            h('span', {}, `Fontes: ${card.sourceRefs.join(' · ')}`),
-            card.connectionsPending ? h('span', { class: 'study-card-origin-changed' }, 'Conexões pendentes de revisão') : null,
-            card.sourcesPending ? h('span', { class: 'study-card-origin-changed' }, 'Fontes pendentes de revisão') : null,
-            card.originChanged
-              ? h(
-                  'span',
-                  { class: 'study-card-origin-changed', role: 'status' },
-                  'Origem alterada · o snapshot original do cartão foi preservado.',
-                )
-              : null,
-            h(
-              'button',
-              {
-                class: 'btn btn-small',
-                type: 'button',
-                disabled: busy || undefined,
-                onclick: () =>
-                  void run(
-                    () => window.office.setStudyCardPhysicalWritten(card.id, !card.physicalWritten),
-                    card.physicalWritten ? 'Cópia física desmarcada.' : 'Cópia física marcada como escrita.',
-                  ),
-              },
-              card.physicalWritten ? 'Cópia física escrita · desmarcar' : 'Marquei a cópia física como escrita',
-            ),
-          ),
-        )
-      : [h('p', { class: 'field-hint' }, 'Ainda não há cartões digitais salvos.')]),
+    h(
+      'label',
+      { class: 'sc-pending' },
+      h('input', {
+        type: 'checkbox',
+        checked: selected.has(note.id),
+        onchange: (event: Event) => {
+          if ((event.currentTarget as HTMLInputElement).checked) selected.add(note.id)
+          else selected.delete(note.id)
+          renderFoot()
+        },
+      }),
+      'Usar esta nota no cartão',
+    ),
   ]
 
-  const render = (): void => {
-    content.replaceChildren(
-      ...(errorText ? [h('p', { class: 'study-cards-error', role: 'alert' }, errorText)] : []),
-      ...(draft && sections ? draftView() : [...notesView(), ...cardList()]),
+  // ---- cartão digital aberto ----
+  const part = (label: string, text: string, tone: string, mono = false): HTMLElement =>
+    h(
+      'div',
+      { class: `sc-blk ${tone}` },
+      h('span', { class: 'sc-bl' }, label),
+      h('div', { class: `sc-box-tone${mono ? ' sc-mono' : ''}` }, text || '—'),
     )
-    const footer: HTMLElement[] = []
-    if (draft && sections) {
-      footer.push(
-        h(
-          'button',
-          {
-            class: 'btn btn-primary',
-            type: 'button',
-            disabled: busy || !title.trim() || !sections.information.trim() || !sections.examplePractice.trim() || undefined,
-            onclick: () => {
-              const approved = { title, sections: { ...sections! } }
-              void run(async () => {
-                const saved = await window.office.saveStudyCardDraft(token, approved)
-                if (!saved) return null
-                draft = null
-                sections = null
-                token = ''
-                selected.clear()
-                return saved
-              }, 'Cartão digital salvo no Obsidian. A cópia física continua pendente.')
-            },
-          },
-          'Aprovar e salvar cartão',
-        ),
-        h(
-          'button',
-          {
-            class: 'btn',
-            type: 'button',
-            disabled: busy || undefined,
-            onclick: () => {
-              draft = null
-              sections = null
-              token = ''
-              render()
-            },
-          },
-          'Voltar sem salvar',
-        ),
-      )
-    } else {
-      footer.push(
-        h(
-          'button',
-          {
-            class: 'btn btn-primary',
-            type: 'button',
-            disabled: busy || selected.size < 1 || undefined,
-            onclick: () => void generate(),
-          },
-          busy ? 'Preparando…' : `Gerar rascunho (${selected.size} notas)`,
-        ),
-      )
-    }
-    footer.push(h('div', { class: 'grow' }), h('button', { class: 'btn', type: 'button', onclick: () => el.remove() }, 'Fechar'))
-    actions.replaceChildren(...footer)
+
+  const cardView = (card: StudyCard): HTMLElement[] => {
+    const summary = cards.find((item) => item.id === card.id)
+    const topic = studyCardTopic(card.sourceSnapshots)
+    return [
+      h('div', { class: 'sc-crumb' }, backButton(), h('h3', {}, card.title), topic ? h('span', { class: 'sc-chip' }, topic) : null),
+      h(
+        'div',
+        { class: 'sc-chips' },
+        card.sections.connectionsPending ? h('span', { class: 'sc-chip warn' }, 'Conexões pendentes') : null,
+        card.sections.sourcesPending ? h('span', { class: 'sc-chip warn' }, 'Fontes pendentes') : null,
+        summary?.originChanged ? h('span', { class: 'sc-chip warn' }, 'Origem alterada · snapshot preservado') : null,
+        h('span', { class: 'sc-chip' }, `Criado em ${new Date(card.createdAt).toLocaleDateString('pt-BR')}`),
+        h('span', { class: `sc-chip${card.physicalWritten ? ' ok' : ''}` }, card.physicalWritten ? 'Cópia física escrita' : 'Cópia física: não escrita'),
+      ),
+      h(
+        'div',
+        { class: 'sc-cg' },
+        part('Ideia', card.sections.information, 'k1'),
+        part('Exemplo', card.sections.examplePractice, 'k2'),
+        part('Aplicação', card.sections.application, 'k3'),
+      ),
+      part('Conexões · Claude', card.sections.connections, 'k4', true),
+      part('Fontes · Claude', card.sections.sources, 'k5', true),
+      h(
+        'div',
+        { class: 'sc-origin' },
+        `Notas de origem: ${card.sourceSnapshots.map((source) => `${source.title} · versão ${source.hash.slice(0, 12)}`).join(' · ')} (preservadas)`,
+      ),
+    ]
   }
 
-  const reload = async (): Promise<void> => {
-    busy = true
-    await refresh()
-    busy = false
-    render()
-  }
-
-  const generate = async (): Promise<void> => {
-    if (busy || !selected.size) return
+  const openCard = async (id: string): Promise<void> => {
+    if (busy) return
     busy = true
     errorText = ''
     render()
     try {
-      const result = await window.office.generateStudyCardDraft([...selected])
-      if (!result) {
-        toast('Geração cancelada; nenhuma nota foi enviada.', 'info')
-        return
-      }
-      token = result.token
-      draft = result.draft
-      sections = { ...result.draft.sections }
-      title = result.draft.title
+      view = { kind: 'card', card: await window.office.readStudyCard(id) }
     } catch (error) {
       errorText = cleanError(error)
       toast(errorText, 'err')
@@ -339,16 +341,299 @@ export async function openStudyCards(root: HTMLElement, toast: Toast): Promise<v
     }
   }
 
+  // ---- escrever: 1 notas, 2 escrever, 3 conexões e fontes ----
+  const authoredReady = (): boolean =>
+    !!title.trim() && !!sections.information.trim() && !!sections.examplePractice.trim() && !!sections.application.trim()
+
+  const steps = (): HTMLElement =>
+    h(
+      'div',
+      { class: 'sc-steps' },
+      ...(
+        [
+          ['Notas', `${sourceSnapshots?.length ?? 0} escolhida(s)`],
+          ['Escrever', 'ideia, exemplo e aplicação, seus'],
+          ['Conexões e fontes', assisted ? 'revise e salve' : 'com ajuda do Claude'],
+        ] as const
+      ).map(([name, note], index) => {
+        const now = index === (assisted ? 2 : 1)
+        return h(
+          'div',
+          { class: `sc-step${now ? ' now' : index < (assisted ? 2 : 1) ? ' done' : ''}` },
+          h('span', { class: 'sc-num' }, index < (assisted ? 2 : 1) ? '✓' : String(index + 1)),
+          h('span', {}, h('b', {}, name), h('small', {}, note)),
+        )
+      }),
+    )
+
+  const textField = (key: 'information' | 'examplePractice' | 'application' | 'connections' | 'sources', label: string, tone: string, rows: string, mono = false): HTMLElement =>
+    h(
+      'div',
+      { class: `sc-blk ${tone}` },
+      h('span', { class: 'sc-bl' }, label),
+      h('textarea', {
+        class: `sc-box-tone${mono ? ' sc-mono' : ''}`,
+        rows,
+        maxlength: '20000',
+        'aria-label': label,
+        value: sections[key],
+        disabled: busy || undefined,
+        oninput: (event: Event) => {
+          sections = { ...sections, [key]: (event.currentTarget as HTMLTextAreaElement).value }
+          renderFoot()
+        },
+      }),
+    )
+
+  const pending = (key: 'connectionsPending' | 'sourcesPending'): HTMLElement =>
+    h(
+      'label',
+      { class: 'sc-pending' },
+      h('input', {
+        type: 'checkbox',
+        checked: sections[key],
+        disabled: busy || undefined,
+        onchange: (event: Event) => {
+          sections = { ...sections, [key]: (event.currentTarget as HTMLInputElement).checked }
+        },
+      }),
+      'Ainda precisa de revisão',
+    )
+
+  const writeView = (): HTMLElement[] => [
+    steps(),
+    ...(sourceSnapshots ?? []).map((source) => h('p', { class: 'sc-origin' }, `${source.title} · ${source.sourceRef} · versão ${source.hash.slice(0, 12)}`)),
+    h(
+      'div',
+      { class: 'sc-blk k1' },
+      h('span', { class: 'sc-bl' }, 'Título'),
+      h('input', {
+        class: 'sc-box-tone',
+        value: title,
+        maxlength: '200',
+        'aria-label': 'Título do cartão',
+        disabled: busy || undefined,
+        oninput: (event: Event) => {
+          title = (event.currentTarget as HTMLInputElement).value
+          renderFoot()
+        },
+      }),
+    ),
+    h(
+      'div',
+      { class: 'sc-cg' },
+      textField('information', 'Ideia', 'k1', '9'),
+      textField('examplePractice', 'Exemplo', 'k2', '4'),
+      textField('application', 'Aplicação', 'k3', '4'),
+    ),
+    h(
+      'div',
+      { class: 'sc-help' },
+      h(
+        'div',
+        {},
+        h('b', {}, 'Ajuda do Claude'),
+        h(
+          'div',
+          { class: 'field-hint' },
+          'Sugere conexões (wikilinks para cartões e notas existentes) e fontes, e comenta seu texto sem reescrevê-lo. Você pode pedir de novo depois de editar.',
+        ),
+      ),
+      h(
+        'button',
+        { class: 'btn btn-primary', type: 'button', disabled: busy || !authoredReady() || undefined, onclick: () => void assist() },
+        busy ? 'Consultando…' : assisted ? 'Pedir feedback de novo' : 'Pedir conexões, fontes e feedback',
+      ),
+    ),
+    ...(feedback
+      ? [h('div', { class: 'sc-feedback', role: 'status' }, h('span', { class: 'sc-sq-label' }, 'Feedback do Claude · não é salvo'), h('p', {}, feedback))]
+      : []),
+    ...(assisted
+      ? [
+          textField('connections', 'Conexões · Claude', 'k4', '4', true),
+          pending('connectionsPending'),
+          textField('sources', 'Fontes · Claude', 'k5', '3', true),
+          pending('sourcesPending'),
+        ]
+      : []),
+  ]
+
+  const leaveDraft = (): void => {
+    sourceSnapshots = null
+    sections = emptySections()
+    title = ''
+    token = ''
+    feedback = ''
+    assisted = false
+  }
+
+  /** Step 1 → 2: nothing is sent anywhere; the student starts writing. */
+  const start = async (): Promise<void> => {
+    if (busy || !selected.size) return
+    busy = true
+    errorText = ''
+    render()
+    try {
+      const result = await window.office.startStudyCardDraft([...selected])
+      leaveDraft()
+      token = result.token
+      sourceSnapshots = result.sourceSnapshots
+      view = { kind: 'write' }
+    } catch (error) {
+      errorText = cleanError(error)
+      toast(errorText, 'err')
+    } finally {
+      busy = false
+      render()
+    }
+  }
+
+  /** Step 2 → 3: Claude fills connections and sources and comments on the text; the student's own text is never touched. */
+  const assist = async (): Promise<void> => {
+    if (busy || !authoredReady()) return
+    busy = true
+    errorText = ''
+    render()
+    try {
+      const result = await window.office.assistStudyCard(token, {
+        title,
+        information: sections.information,
+        examplePractice: sections.examplePractice,
+        application: sections.application,
+      })
+      if (!result) {
+        toast('Pedido cancelado; nada foi enviado.', 'info')
+        return
+      }
+      const { feedback: comments, ...rest } = result
+      sections = { ...sections, ...rest }
+      feedback = comments
+      assisted = true
+    } catch (error) {
+      errorText = cleanError(error)
+      toast(errorText, 'err')
+    } finally {
+      busy = false
+      render()
+    }
+  }
+
+  const button = (label: string, onclick: () => void, kind = '', disabled = false): HTMLElement =>
+    h('button', { class: `btn${kind ? ` ${kind}` : ''}`, type: 'button', disabled: disabled || undefined, onclick }, label)
+
+  const renderFoot = (): void => {
+    const footer: HTMLElement[] = []
+    if (view.kind === 'write') {
+      footer.push(
+        button(
+          'Aprovar e salvar cartão',
+          () => {
+            const approved = { title, sections: { ...sections } }
+            void run(async () => {
+              const saved = await window.office.saveStudyCardDraft(token, approved)
+              if (!saved) return null
+              leaveDraft()
+              selected.clear()
+              view = { kind: 'list' }
+              tab = 'cards'
+              return saved
+            }, 'Cartão digital salvo no Obsidian. A cópia física continua pendente.')
+          },
+          'btn-primary',
+          busy || !authoredReady(),
+        ),
+        button(
+          'Voltar sem salvar',
+          () => {
+            leaveDraft()
+            view = { kind: 'list' }
+            render()
+          },
+          '',
+          busy,
+        ),
+      )
+    } else if (view.kind === 'card') {
+      const card = view.card
+      footer.push(
+        button(
+          card.physicalWritten ? 'Cópia física escrita · desmarcar' : 'Marquei a cópia física como escrita',
+          () =>
+            void run(async () => {
+              const result = await window.office.setStudyCardPhysicalWritten(card.id, !card.physicalWritten)
+              view = { kind: 'card', card: await window.office.readStudyCard(card.id) }
+              return result
+            }, card.physicalWritten ? 'Cópia física desmarcada.' : 'Cópia física marcada como escrita.'),
+          '',
+          busy,
+        ),
+        button('Voltar à lista', back, '', busy),
+      )
+    } else if (view.kind === 'note') {
+      footer.push(
+        button(`Escrever cartão (${selected.size} ${selected.size === 1 ? 'nota' : 'notas'})`, () => void start(), 'btn-primary', busy || selected.size < 1),
+        button('Voltar à lista', back, 'btn-small', busy),
+      )
+    } else if (tab === 'notes') {
+      footer.push(
+        button(
+          busy ? 'Preparando…' : `Escrever cartão (${selected.size} ${selected.size === 1 ? 'nota' : 'notas'})`,
+          () => void start(),
+          'btn-primary',
+          busy || selected.size < 1,
+        ),
+      )
+    } else {
+      footer.push(button('Recarregar origens', () => void reload(), '', busy))
+    }
+    footer.push(h('div', { class: 'grow' }), button('Fechar', () => el.remove()))
+    actions.replaceChildren(...footer)
+  }
+
+  const render = (): void => {
+    const head =
+      view.kind === 'write'
+        ? ['Novo cartão', `${sourceSnapshots?.length ?? 0} nota(s) · você escreve, o Claude liga e cita`]
+        : view.kind === 'card'
+          ? ['Cartão digital', 'cada cartão é escrito à mão']
+          : view.kind === 'note'
+            ? ['Nota de estudo', 'o texto inteiro da nota']
+            : ['Notas e cartões de estudo', 'As notas do ciclo viram cartões · cada cartão é escrito à mão']
+    window_.setTitle(head[0]!)
+    window_.setSubtitle(head[1]!)
+    content.replaceChildren(
+      ...(errorText ? [h('p', { class: 'study-cards-error', role: 'alert' }, errorText)] : []),
+      ...(view.kind === 'write' ? writeView() : view.kind === 'card' ? cardView(view.card) : view.kind === 'note' ? noteView(view.note) : listView()),
+    )
+    renderFoot()
+  }
+
+  const reload = async (): Promise<void> => {
+    busy = true
+    await refresh()
+    busy = false
+    render()
+  }
+
   const el = modal('Notas e cartões de estudo', [content], [actions], () => el.remove())
   el.querySelector('.modal-foot')?.classList.add('study-modal-foot')
-  dressStudyWindow(
+  const window_ = dressStudyWindow(
     el.querySelector('.modal') as HTMLElement,
     { who: STUDY_WHO.cards, subtitle: 'As notas do ciclo viram cartões · cada cartão é escrito à mão' },
-    'l',
+    'xl',
   )
   root.append(el)
   await refresh()
   render()
   actions.querySelector<HTMLButtonElement>('button')?.focus()
   announce('Biblioteca de notas e cartões aberta.')
+}
+
+/** The note without the machine markers: what the student wrote, under its heading. */
+function noteBody(note: StudyNoteSnapshot): string {
+  return note.text
+    .split('\n')
+    .filter((line) => !/^<!--/.test(line) && !/^##\s/.test(line) && !/^(Fonte|Tópico):/.test(line))
+    .join('\n')
+    .trim()
 }

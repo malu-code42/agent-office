@@ -1,0 +1,221 @@
+/* Banco de questões: visão geral (números + disciplinas) e disciplina aberta. */
+.modal.study-questions-modal {
+  width: min(960px, calc(100vw - 32px));
+}
+
+.bq-last {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--sunken);
+  border: 2px solid var(--outline);
+}
+
+.bq-last > span {
+  flex: 1;
+}
+
+.bq-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.bq-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border: 2px solid var(--outline);
+  border-top: 5px solid var(--tone, var(--accent-solid));
+}
+
+.bq-stat b {
+  color: var(--tone, var(--accent-solid));
+  font: 500 32px/1 var(--pixel);
+}
+
+.bq-stat small {
+  color: var(--muted);
+}
+
+.bq-goal {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  background: #3a2f1f;
+  border: 2px solid var(--amber);
+}
+
+.bq-goal > span {
+  flex: 1;
+}
+
+.bq-goal b {
+  color: var(--amber);
+  font-size: 17px;
+}
+
+.bq-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bq-head h3 {
+  margin: 0;
+  font: 500 20px var(--pixel);
+}
+
+.bq-head::after {
+  content: '';
+  flex: 1;
+  height: 3px;
+  background: var(--outline);
+}
+
+.bq-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.bq-disc {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  min-height: 150px;
+  padding: 14px;
+  text-align: left;
+  color: var(--text);
+  font: inherit;
+  background: var(--surface-2);
+  border: 2px solid var(--outline);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+
+.bq-disc:hover,
+.bq-disc:focus-visible {
+  background: var(--surface-3);
+}
+
+.bq-disc .name {
+  min-height: 42px;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.bq-disc .count {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.bq-disc .count b,
+.bq-open-count {
+  color: var(--text);
+  font: 500 30px/1 var(--pixel);
+}
+
+.bq-disc .go {
+  margin-top: auto;
+  color: var(--pink);
+  font: 500 13px var(--mono);
+}
+
+.bq-meter {
+  position: relative;
+  height: 12px;
+  min-width: 60px;
+  background: var(--sunken);
+  border: 2px solid var(--outline);
+}
+
+.bq-meter > i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--green);
+}
+
+.bq-pill {
+  align-self: flex-start;
+  padding: 2px 8px;
+  font: 500 12px var(--mono);
+  color: var(--amber);
+  background: #3a2f1f;
+  border: 2px solid var(--amber);
+}
+
+.bq-pill.ok {
+  color: var(--green-text);
+  background: #1f3528;
+  border-color: var(--green);
+}
+
+.bq-crumb {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bq-crumb h3 {
+  margin: 0;
+  font: 500 22px var(--pixel);
+}
+
+.bq-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bq-trow > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) 70px 90px;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 14px;
+  list-style: none;
+  cursor: pointer;
+  background: var(--surface-2);
+  border: 2px solid var(--outline);
+  border-left: 6px solid var(--amber);
+}
+
+.bq-trow.met > summary {
+  border-left-color: var(--green);
+}
+
+.bq-trow > summary::-webkit-details-marker {
+  display: none;
+}
+
+.bq-trow > summary:hover,
+.bq-trow > summary:focus-visible {
+  background: var(--surface-3);
+}
+
+.bq-trow .nm {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.bq-trow .num {
+  font: 500 16px var(--mono);
+  text-align: right;
+}
+
+.bq-trow .bn-cards {
+  margin-top: 8px;
+}
+
+.bq-last.warn {
+  border-color: var(--amber);
+}

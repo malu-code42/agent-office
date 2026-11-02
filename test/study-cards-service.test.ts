@@ -15,45 +15,43 @@ const vault = (): string => {
 const note = (id: string, text: string, date = '2026-10-25'): string =>
   `<!-- agent-office-study-note:${id} -->\n## ${date} · q-12345678\nFonte: study sources/probabilidade.md#Eventos:3\n\n${text}\n`
 
-const generated = () => ({
+const authored = {
   title: 'Eventos independentes',
-  sections: {
-    information: 'A probabilidade conjunta é o produto.',
-    examplePractice: 'Lançar duas moedas.',
-    connections: '',
-    sources: '',
-    connectionsPending: true,
-    sourcesPending: false,
-  },
+  information: 'A probabilidade conjunta é o produto.',
+  examplePractice: 'Lançar duas moedas.',
+  application: 'Estimar chutes seguidos.',
+}
+const draft = (title = authored.title) => ({
+  title,
+  sections: { ...authored, connections: '', sources: '', connectionsPending: true, sourcesPending: false },
 })
+const noAssist = { assist: async () => ({ connections: '', sources: '', connectionsPending: true, sourcesPending: true, feedback: '' }) }
 
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
 describe('biblioteca de cartões de estudo', () => {
-  it('saves only an approved editable draft with exact snapshots and allows one note to support many cards', async () => {
+  it('saves only an approved editable draft with exact snapshots and allows one note to support many cards', () => {
     const root = vault()
     const notesFile = join(root, 'notas-estudo.md')
     const noteId = 'sn-sc-123-abcdefgh-q-12345678-note1'
     writeFileSync(notesFile, note(noteId, 'Probabilidade conjunta usa eventos independentes.'))
-    const interpret = vi.fn(async () => generated())
-    const service = new StudyCardsService(root, { generate: interpret })
+    const service = new StudyCardsService(root, noAssist)
     const read = service.readNotes()
     expect(read.notes).toHaveLength(1)
 
-    const firstDraft = await service.generateDraft([noteId])
-    expect(interpret).toHaveBeenCalledWith([read.notes[0]])
-    expect(firstDraft.draft.sourceSnapshots[0]?.text).toContain('Probabilidade conjunta')
+    const firstDraft = service.startDraft([noteId])
+    expect(firstDraft.sourceSnapshots[0]?.text).toContain('Probabilidade conjunta')
     expect(service.listCards().cards).toEqual([])
-    const firstCard = service.saveDraft(firstDraft.token, firstDraft.draft)
+    const firstCard = service.saveDraft(firstDraft.token, draft())
     expect(firstCard).toMatchObject({ title: 'Eventos independentes', physicalWritten: false, originChanged: false })
     const file = join(root, 'cartoes-estudo', `${firstCard.id}.md`)
     expect(existsSync(file)).toBe(true)
     expect(decodeStudyCard(readFileSync(file, 'utf8')).sourceSnapshots[0]?.text).toBe(read.notes[0]?.text)
 
-    const secondDraft = await service.generateDraft([noteId])
-    const secondCard = service.saveDraft(secondDraft.token, { ...secondDraft.draft, title: 'Outro cartão da mesma nota' })
+    const secondDraft = service.startDraft([noteId])
+    const secondCard = service.saveDraft(secondDraft.token, draft('Outro cartão da mesma nota'))
     expect(service.listCards().cards.map((card) => card.id)).toEqual(expect.arrayContaining([firstCard.id, secondCard.id]))
     const originalNote = readFileSync(notesFile, 'utf8')
     const written = service.setPhysicalWritten(firstCard.id, true)
@@ -66,27 +64,62 @@ describe('biblioteca de cartões de estudo', () => {
     expect(decodeStudyCard(readFileSync(file, 'utf8')).sourceSnapshots[0]?.text).toBe(read.notes[0]?.text)
   })
 
-  it('refuses to save a draft when a selected source note changed after generation', async () => {
+  it('refuses to save a draft when a selected source note changed after it started', () => {
     const root = vault()
     const notesFile = join(root, 'notas-estudo.md')
     const noteId = 'sn-sc-123-abcdefgh-q-12345678-note2'
     writeFileSync(notesFile, note(noteId, 'Versão selecionada.'))
-    const service = new StudyCardsService(root, { generate: async () => generated() })
-    const draft = await service.generateDraft([noteId])
+    const service = new StudyCardsService(root, noAssist)
+    const started = service.startDraft([noteId])
     writeFileSync(notesFile, note(noteId, 'Versão atualizada no Obsidian.'))
-    expect(() => service.saveDraft(draft.token, draft.draft)).toThrow(/mudou desde a geração/i)
+    expect(() => service.saveDraft(started.token, draft())).toThrow(/mudou desde a geração/i)
     expect(existsSync(join(root, 'cartoes-estudo'))).toBe(false)
   })
 
-  it('does not call the interpreter for missing or duplicated note IDs', async () => {
+  it('rejects missing or duplicated note IDs before anything starts', () => {
     const root = vault()
     writeFileSync(join(root, 'notas-estudo.md'), note('sn-sc-123-abcdefgh-q-12345678-note3', 'Nota disponível.'))
-    const interpret = vi.fn(async () => generated())
-    const service = new StudyCardsService(root, { generate: interpret })
-    await expect(service.generateDraft(['sn-missing0000'])).rejects.toThrow(/não existe mais/i)
-    await expect(service.generateDraft(['sn-sc-123-abcdefgh-q-12345678-note3', 'sn-sc-123-abcdefgh-q-12345678-note3'])).rejects.toThrow(
-      /diferentes/i,
+    const service = new StudyCardsService(root, noAssist)
+    expect(() => service.startDraft(['sn-missing0000'])).toThrow(/não existe mais/i)
+    expect(() => service.startDraft(['sn-sc-123-abcdefgh-q-12345678-note3', 'sn-sc-123-abcdefgh-q-12345678-note3'])).toThrow(/diferentes/i)
+  })
+
+  it('sends the student text with only known wikilinks and drops invented links', async () => {
+    const root = vault()
+    const noteId = 'sn-sc-123-abcdefgh-q-12345678-note4'
+    writeFileSync(join(root, 'notas-estudo.md'), note(noteId, 'Nota para conectar.'))
+    const heading = '[[notas-estudo#2026-10-25 · q-12345678]]'
+    const assist = vi.fn(async () => ({
+      connections: `Relaciona com ${heading} e com [[inventado]].`,
+      sources: 'Fonte: study sources/probabilidade.md#Eventos:3',
+      connectionsPending: false,
+      sourcesPending: false,
+      feedback: ' Dê um exemplo numérico. ',
+    }))
+    const service = new StudyCardsService(root, { assist })
+    const started = service.startDraft([noteId])
+    const result = await service.assist(started.token, authored)
+    expect(assist).toHaveBeenCalledWith(started.sourceSnapshots, authored, [heading])
+    expect(result.connections).toContain(heading)
+    expect(result.connections).not.toContain('inventado')
+    expect(result).toMatchObject({ connectionsPending: true, sourcesPending: false, feedback: 'Dê um exemplo numérico.' })
+    await expect(service.assist(started.token, { ...authored, information: '' })).rejects.toThrow(/Informação/i)
+  })
+
+  it('reads the topic of a note, and a saved card is listed under it and can be opened whole', () => {
+    const root = vault()
+    const withTopic = 'sn-sc-123-abcdefgh-q-12345678-note5'
+    const without = 'sn-sc-123-abcdefgh-q-12345678-note6'
+    writeFileSync(
+      join(root, 'notas-estudo.md'),
+      `${note(withTopic, 'Com tópico.').replace('\n\nCom', '\nTópico: Probabilidade e Estatística\n\nCom')}\n${note(without, 'Sem tópico.')}`,
     )
-    expect(interpret).not.toHaveBeenCalled()
+    const service = new StudyCardsService(root, noAssist)
+    expect(service.readNotes().notes.map((item) => item.topic)).toEqual(['Probabilidade e Estatística', undefined])
+    const started = service.startDraft([withTopic])
+    const saved = service.saveDraft(started.token, draft())
+    expect(service.listCards().cards[0]).toMatchObject({ id: saved.id, topic: 'Probabilidade e Estatística' })
+    expect(service.readCard(saved.id).sections.application).toBe(authored.application)
+    expect(() => service.readCard('../fora')).toThrow(/inválido/i)
   })
 })

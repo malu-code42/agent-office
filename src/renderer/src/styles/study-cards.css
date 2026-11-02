@@ -1,9 +1,11 @@
+/* Notas e cartões de estudo: abas, grades por tópico, cartão aberto e escrita em etapas. */
 .study-cards-content {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  max-height: min(68vh, 720px);
+  gap: 16px;
+  max-height: min(70vh, 760px);
   overflow: auto;
+  padding: 2px 4px 6px 2px;
 }
 
 .study-cards-error {
@@ -11,78 +13,410 @@
   color: var(--red-text);
 }
 
-.study-card-note-row,
-.study-card-row,
-.study-card-section {
+/* abas */
+.sc-tabs {
+  display: flex;
+  border-bottom: 3px solid var(--outline);
+}
+
+.sc-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: -3px;
+  padding: 10px 18px;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--sunken);
+  border: 3px solid var(--outline);
+  border-bottom: 0;
+  cursor: pointer;
+}
+
+.sc-tab[aria-selected='true'] {
+  color: #1a1410;
+  background: var(--accent-solid);
+}
+
+.sc-tab .sc-count {
+  padding: 0 7px;
+  color: var(--text);
+  font: 500 12px var(--mono);
+  background: var(--card);
+}
+
+/* formulário de nota avulsa, seções e etapas */
+.sc-box {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  border: 2px solid var(--ctl-line);
-  box-shadow: var(--shadow-sm);
   background: var(--surface-2);
+  border: 2px solid var(--outline);
+  box-shadow: var(--shadow-sm);
 }
 
-.study-card-note-row {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  cursor: pointer;
-}
-
-.study-card-note-row input,
-.study-card-pending input {
-  margin-top: 3px;
-  accent-color: var(--accent-solid);
-}
-
-.study-card-note-row > span,
-.study-card-note-row strong,
-.study-card-note-row .study-card-source-ref {
-  display: block;
-}
-
-.study-card-note-row > span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.study-card-source-ref {
-  color: var(--muted);
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
-
-.study-card-section h3,
-.study-card-row strong,
-.study-cards-list-head h3 {
+.sc-box h3,
+.sc-topic h3 {
   margin: 0;
 }
 
-.study-card-section-input {
-  min-height: 90px;
+.sc-topic {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.sc-topic h3 {
+  font: 500 18px var(--pixel);
+}
+
+.sc-topic::after {
+  content: '';
+  flex: 1;
+  height: 3px;
+  background: var(--outline);
+  order: 3;
+}
+
+.sc-chip {
+  padding: 2px 8px;
+  font: 500 12px var(--mono);
+  background: var(--surface-3);
+  border: 2px solid var(--outline);
+  white-space: nowrap;
+}
+
+.sc-chip.ok {
+  color: var(--green-text);
+  background: #1f3528;
+  border-color: var(--green);
+}
+
+.sc-chip.warn {
+  color: var(--amber);
+  background: #3a2f1f;
+  border-color: var(--amber);
+}
+
+.sc-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+/* cartão quadrado (nota ou cartão digital) */
+.sc-sq {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  min-width: 0;
+  background: var(--surface-2);
+  border: 2px solid var(--outline);
+  box-shadow: var(--shadow-sm);
+}
+
+.sc-sq.selected {
+  background: var(--accent-bg, #4a3550);
+  border-color: var(--accent-solid);
+}
+
+.sc-sq-open {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  padding: 12px;
+  overflow: hidden;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.sc-sq-open:hover,
+.sc-sq-open:focus-visible {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.sc-sq-title {
+  padding-right: 30px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.sc-sq-ref {
+  color: var(--muted);
+  font: 12px var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.sc-sq-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sc-sq-label {
+  color: var(--pink);
+  font: 500 11px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sc-sq-text {
+  display: -webkit-box;
+  font-size: 17px;
+  line-height: 1.4;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 7;
+  overflow-wrap: anywhere;
+}
+
+.sc-sq-text.small {
+  font-size: 15px;
+  -webkit-line-clamp: 2;
+}
+
+.sc-sq-parts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sc-sq-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.sc-sq-more {
+  color: var(--pink);
+  font: 500 13px var(--mono);
+}
+
+.sc-sq-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--accent-solid);
+  cursor: pointer;
+}
+
+/* telas abertas e escrita */
+.sc-crumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.sc-crumb h3 {
+  margin: 0;
+  font: 500 20px var(--pixel);
+}
+
+.sc-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.sc-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  color: var(--muted);
+  background: var(--sunken);
+  border: 2px solid var(--outline);
+}
+
+.sc-step small {
+  display: block;
+  font-size: 12px;
+}
+
+.sc-step.now {
+  color: var(--text);
+  background: var(--accent-bg, #4a3550);
+  border-color: var(--accent-solid);
+}
+
+.sc-step.done .sc-num {
+  color: var(--green-text);
+  background: #1f3528;
+  border-color: var(--green);
+}
+
+.sc-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  font: 500 13px var(--mono);
+  background: var(--surface-3);
+  border: 2px solid var(--outline);
+}
+
+/* caixas com o nome acima, uma cor por parte */
+.sc-blk {
+  --tone: var(--pink);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sc-blk.k2 {
+  --tone: var(--blue);
+}
+
+.sc-blk.k3 {
+  --tone: var(--green);
+}
+
+.sc-blk.k4 {
+  --tone: var(--accent-solid);
+}
+
+.sc-blk.k5 {
+  --tone: var(--amber);
+}
+
+.sc-bl {
+  align-self: flex-start;
+  padding: 4px 12px;
+  color: #1a1410;
+  font: 600 13px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--tone);
+  border: 2px solid var(--outline);
+  box-shadow: var(--shadow-sm);
+}
+
+.sc-box-tone {
+  flex: 1;
+  min-height: 64px;
+  padding: 16px 18px;
+  font-size: 18px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: color-mix(in srgb, var(--tone) 14%, var(--sunken));
+  border: 3px solid var(--tone);
+  box-shadow: 3px 3px 0 var(--outline);
+}
+
+textarea.sc-box-tone,
+input.sc-box-tone {
+  min-height: 120px;
+  color: var(--text);
+  font-family: inherit;
   resize: vertical;
 }
 
-.study-card-pending {
+input.sc-box-tone {
+  min-height: 0;
+  padding: 10px 14px;
+}
+
+.sc-mono {
+  font-family: var(--mono);
+  font-size: 15px;
+}
+
+.sc-cg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 22px;
+}
+
+.sc-cg > .sc-blk:first-child {
+  grid-row: 1 / 3;
+}
+
+.sc-feedback {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #3a2f1f;
+  border: 2px solid var(--amber);
+}
+
+.sc-feedback p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.sc-help {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border: 2px solid var(--outline);
+  border-left: 6px solid var(--accent-solid);
+}
+
+.sc-help > div {
+  flex: 1;
+}
+
+.sc-origin {
+  padding: 8px 12px;
+  color: var(--muted);
+  font: 12px var(--mono);
+  background: var(--sunken);
+  border: 2px solid var(--outline);
+  overflow-wrap: anywhere;
+}
+
+.sc-pending {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.study-card-origin-changed {
-  color: var(--amber-text);
+.sc-pending input {
+  accent-color: var(--accent-solid);
 }
 
-.study-cards-list-head {
+.sc-chips {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-@media (max-width: 600px) {
-  .study-cards-list-head {
-    align-items: stretch;
-    flex-direction: column;
+@media (max-width: 760px) {
+  .sc-grid,
+  .sc-cg,
+  .sc-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .sc-cg > .sc-blk:first-child {
+    grid-row: auto;
   }
 }

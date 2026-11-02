@@ -35,7 +35,7 @@ export interface StudyQuestionBank {
 }
 
 export interface StudyNoteWriter {
-  write(input: Omit<StudyCycleNote, 'savedAt'> & { savedAt?: number }): StudyCycleNote
+  write(input: Omit<StudyCycleNote, 'savedAt'> & { savedAt?: number }, topic?: string): StudyCycleNote
 }
 
 /** Coordinates local bank snapshots, persisted diagnosis evidence, and explicit Tutor requests. */
@@ -103,12 +103,12 @@ export class StudyCycleService {
     const current = this.store.read()
     const existing = activeStudyCycle(current)?.notes.find((note) => note.id === noteId)
     if (existing) {
-      this.noteWriter.write(existing)
+      this.noteWriter.write(existing, cycle.topic)
       return current
     }
     const draft = { id: noteId, gapQuestionId: questionId, sourceRef, text: text.trim(), savedAt: this.now() }
     recordStudyNote(current, draft, draft.savedAt)
-    const note = this.noteWriter.write(draft)
+    const note = this.noteWriter.write(draft, cycle.topic)
     const next = recordStudyNote(current, note, this.now())
     this.store.write(next)
     return next
