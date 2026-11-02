@@ -41,7 +41,7 @@ function setup(options: { verdict?: string; failAsk?: boolean; bank?: StudyQuest
   // Only the computing books exist: Metodologia Científica has no folder and nothing in the default one.
   const search = vi.fn(async (_query: string, scope?: readonly string[]) => ({ hits: scope?.[0]?.includes('Computação') ? [1, 2, 3, 4].map((n) => variant(n)) : [] }))
   let n = 0
-  const ask = vi.fn(async (system: string) => {
+  const ask = vi.fn(async (system: string, _payload?: unknown) => {
     if (options.failAsk) throw new Error('Claude Code não encontrado.')
     if (system.includes('write one multiple-choice study question')) {
       const question = QUESTIONS[n++ % QUESTIONS.length]!
@@ -66,6 +66,16 @@ describe('buildStudyBank', () => {
     expect(bank.every((q) => q.topic === 'Sistemas de numeração')).toBe(true)
     expect(search).toHaveBeenCalledWith('Sistemas de numeração Conversão', expect.anything())
     expect(subtopics.build).not.toHaveBeenCalled()
+  })
+
+  it('tells the author about the questions made for the earlier subtopics of the same topic', async () => {
+    const { deps, ask } = setup()
+    const entry = { topic: 'Sistemas de numeração', source: 'L.pdf', builtAt: 1, status: 'ok' as const, subtopics: ['Base binária', 'Conversão'].map((name) => ({ name, sections: [] })) }
+    await buildStudyBank(trail, { ...deps, subtopics: { get: () => entry, build: vi.fn() } }, { perTopic: 2, topic: 'Sistemas de numeração' })
+    const avoids = ask.mock.calls
+      .filter(([system]) => String(system).includes('write one multiple-choice study question'))
+      .map(([, payload]) => (payload as { avoid: string[] }).avoid.length)
+    expect(avoids).toEqual([0, 1])
   })
 
   it('fills each topic from its discipline books and says why a discipline got nothing', async () => {

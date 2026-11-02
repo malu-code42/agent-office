@@ -166,4 +166,20 @@ describe('questionsBySubtopic', () => {
   it('returns null when no question has a subtopic', () => {
     expect(questionsBySubtopic([q('1'), q('2')], 'Eletrostática', 2)).toBeNull()
   })
+  it.each([2, 3, 4, 5])('takes %i from each subtopic (the default is 3) and marks the short ones', (per) => {
+    const bank = ['A', 'B'].flatMap((sub) => Array.from({ length: 5 }, (_, i) => q(`${sub}${i}`, sub)))
+    const r = questionsBySubtopic([...bank, q('C0', 'C')], 'Eletrostática', per)!
+    expect(r.picked.filter((x) => x.subtopic === 'A')).toHaveLength(per)
+    expect(r.picked.filter((x) => x.subtopic === 'B')).toHaveLength(per)
+    expect(r.short).toEqual(['C'])
+  })
+  it('breaks ties by bank order and keeps the order of the subtopics', () => {
+    const r = questionsBySubtopic([q('b1', 'B'), q('a1', 'A'), q('b2', 'B'), q('a2', 'A')], 'Eletrostática', 1)!
+    expect(r.subtopics).toEqual(['B', 'A'])
+    expect(r.picked.map((x) => x.id)).toEqual(['q-b1-aaaaaaaa', 'q-a1-aaaaaaaa'])
+  })
+  it('leaves out questions without subtopic when others have one', () => {
+    const r = questionsBySubtopic([q('1'), q('2', 'A')], 'Eletrostática', 3)!
+    expect(r.picked.map((x) => x.subtopic)).toEqual(['A'])
+  })
 })
