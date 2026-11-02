@@ -14,7 +14,7 @@ import { choiceOf, isChoiceQuestion, studyOptionLetter, studyOptionText, type St
 import type { StudyLibrarySearch } from '@shared/study-library'
 import { disciplineIdOf, splitStudyRationale, type StudyBankRequest } from '@shared/study-bank'
 import { studyTopicStart, topicName, trailTopicOf, type StudyTrail, type StudyTrailTopic } from '@shared/study-trail'
-import { questionsForTopic, studyQueryOfQuestion, type StudySourceRecommendations } from '@shared/study-sources'
+import { questionsBySubtopic, questionsForTopic, studyQueryOfQuestion, type StudySourceRecommendations } from '@shared/study-sources'
 import { announce } from './a11y'
 import { studySourceList } from './study-library'
 import { h } from './dom'
@@ -214,9 +214,14 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
   let topic = activeStudyCycle(state)?.topic ?? options.topic ?? ''
   /** The diagnosis questions Bonnie picked for the chosen topic (the user may change them). */
   const selected = new Set<string>()
+  /** Questions per subtopic in the diagnosis (2 to 5); the user may change it. */
+  let perSubtopic = 3
   const pickForTopic = () => {
     selected.clear()
-    if (topic.trim()) for (const q of questionsForTopic(fresh(), topic, DIAGNOSIS_SIZE)) selected.add(q.id)
+    if (!topic.trim()) return
+    // With subtopics on the questions, every subtopic gets the same number: a gap is then a real gap, not a draw.
+    const picked = questionsBySubtopic(fresh(), topic, perSubtopic)?.picked ?? questionsForTopic(fresh(), topic, DIAGNOSIS_SIZE)
+    for (const q of picked) selected.add(q.id)
   }
   if (!activeStudyCycle(state)) pickForTopic()
 
@@ -388,6 +393,27 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
         render()
       },
     })
+    const bySub = topic.trim() ? questionsBySubtopic(fresh(), topic, perSubtopic) : null
+    const subtopicPicker = () =>
+      bySub
+        ? h(
+            'div',
+            { class: 'sk-row' },
+            h('span', { class: 'sk-small' }, `${bySub.subtopics.length} subtemas · questões por subtema:`),
+            h(
+              'select',
+              {
+                onchange: (event: Event) => {
+                  perSubtopic = Number((event.currentTarget as HTMLSelectElement).value)
+                  pickForTopic()
+                  render()
+                },
+              },
+              ...[2, 3, 4, 5].map((n) => h('option', { value: String(n), selected: n === perSubtopic || undefined }, String(n))),
+            ),
+            bySub.short.length ? studyChip(`faltam questões em: ${bySub.short.join(', ')}`, 'warn') : null,
+          )
+        : null
     const all = topic.trim() ? questionsForTopic(fresh(), topic, 60) : []
     const byOrigin = new Map<string, number>()
     for (const q of all.filter((q) => selected.has(q.id)))
@@ -403,6 +429,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
               `A Bonnie separou ${selected.size} ${selected.size === 1 ? 'questão nova' : 'questões novas'} deste tópico.`,
             ),
             h('div', { class: 'sk-row' }, ...[...byOrigin].map(([origin, n]) => studyChip(`${origin} ${n}`))),
+            subtopicPicker(),
             h(
               'p',
               { class: 'sk-small' },

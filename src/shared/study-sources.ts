@@ -284,3 +284,23 @@ export function questionsForTopic(bank: StudyQuestion[], topic: string, limit = 
     .slice(0, limit)
     .map((item) => item.q)
 }
+
+/**
+ * A diagnosis that covers every subtopic: `per` questions from each subtopic the matched questions carry
+ * (best first inside each). `short` lists the subtopics with fewer than `per` new questions, so the
+ * caller can say what is missing. With no subtopic on any question it returns null (use questionsForTopic).
+ */
+export function questionsBySubtopic(
+  bank: StudyQuestion[],
+  topic: string,
+  per: number,
+): { picked: StudyQuestion[]; subtopics: string[]; short: string[] } | null {
+  const groups = new Map<string, StudyQuestion[]>()
+  for (const q of questionsForTopic(bank, topic, bank.length)) if (q.subtopic) groups.set(q.subtopic, [...(groups.get(q.subtopic) ?? []), q])
+  if (!groups.size) return null
+  return {
+    picked: [...groups.values()].flatMap((list) => list.slice(0, per)),
+    subtopics: [...groups.keys()],
+    short: [...groups].filter(([, list]) => list.length < per).map(([name]) => name),
+  }
+}
