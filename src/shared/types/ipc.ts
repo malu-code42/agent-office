@@ -40,6 +40,7 @@ import type { StudyCycleState } from '../study-cycle'
 import type { StudyBankJob, StudyBankRequest } from '../study-bank'
 import type { StudyOcrState } from '../study-library'
 import type { StudyTrail } from '../study-trail'
+import type { StudySubtopics } from '../study-outline'
 import type { ClassScheduleView } from '../class-schedule'
 import type { StudyLibrarySearch, StudySourceInventory } from '../study-library'
 import type { StudySourceRecommendations } from '../study-sources'
@@ -331,6 +332,10 @@ export interface OfficeAPI {
   /** Desativa a seleção do ciclo, mantendo tópico e evidências no histórico local. */
   resetStudyCycle(): Promise<StudyCycleState>
   /** Volta a um ciclo guardado no histórico (troca de tópico), sem apagar nada do ciclo ativo. */
+  /** The subtopics built so far, by topic title. */
+  readStudySubtopics(): Promise<Record<string, StudySubtopics>>
+  /** Builds (or rebuilds) a trail topic's subtopics from its book's table of contents. */
+  buildStudySubtopics(topic: string): Promise<StudySubtopics>
   resumeStudyCycle(cycleId: string): Promise<StudyCycleState>
   /** Lê os tópicos de `trilha zettel.md` do vault, para escolher o tópico do ciclo. Só lê. */
   readStudyTrail(): Promise<StudyTrail>

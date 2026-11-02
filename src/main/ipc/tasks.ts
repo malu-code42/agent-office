@@ -24,7 +24,9 @@ import { createTaskWriter, type TaskWriter } from '../tasks-write'
 import { createCompletionUndo } from '../tasks-undo'
 import { PersonalRoutineStore } from '../personal-routines-store'
 import { personalRoutineTaskFingerprintFromLine, personalRoutineTaskFingerprintFromTask } from '../personal-routine-fingerprint'
-import { buildStudyBank } from '../study-bank-builder'
+import { buildStudyBank, studyBankTopics } from '../study-bank-builder'
+import { askClaude } from '../study-questions-grounded'
+import { buildTopicSubtopics, StudySubtopicStore } from '../study-subtopics'
 import { suggestBooks } from '../study-book-suggestions'
 import { StudyBankJobs } from '../study-bank-job'
 import { answeredStudyQuestions, isStudyQuestionAnswered } from '@shared/study-cycle'
@@ -63,6 +65,7 @@ import {
   advanceStudyCycleArgsSchema,
   resetStudyCycleArgsSchema,
   resumeStudyCycleArgsSchema,
+  studySubtopicsArgsSchema,
   searchStudyLibraryArgsSchema,
   studySourceInventoryArgsSchema,
   recommendStudySourcesArgsSchema,
@@ -229,6 +232,17 @@ export function registerTasksIpc(ctx: IpcContext): void {
         options,
       ),
     )
+  })
+  // The subtopics of a trail topic (from its book's table of contents), one stored answer per topic.
+  const subtopicStore = new StudySubtopicStore(ctx.store.dataDirectory)
+  ipcMain.handle('office:readStudySubtopics', () => subtopicStore.read())
+  ipcMain.handle('office:buildStudySubtopics', async (_e, ...args: unknown[]) => {
+    const [name] = parse(studySubtopicsArgsSchema, args, 'Tópico inválido.')
+    const [topic] = studyBankTopics(parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE)), { topic: name })
+    if (!topic) throw new Error('Esse tópico não está na trilha de estudos.')
+    const entry = await buildTopicSubtopics(topic, studyLibrary(), askClaude)
+    subtopicStore.save(entry)
+    return entry
   })
   ipcMain.handle('office:studyBankStatus', () => bankJobs.status())
   ipcMain.handle('office:cancelStudyBank', () => bankJobs.cancel())

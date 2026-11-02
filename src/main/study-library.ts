@@ -25,6 +25,7 @@ import {
   type StudySourceInventory,
   type StudySourceStatus,
 } from '@shared/study-library'
+import { tocEntries, type OutlineEntry } from '@shared/study-outline'
 import { rankStudySources, type StudySourceDoc, type StudySourceRecommendations } from '@shared/study-sources'
 import { needsOcr, pagesWithoutText, type PdfExtractor, type PdfOcrJob } from './study-pdf'
 import { markdownUnits, PdfTextCache, pdfSearchText, pdfUnits, pptxText, slideUnits, textUnits } from './study-source-text'
@@ -191,6 +192,13 @@ export class StudyLibrary {
     }
     const warning = scanWarning(scan)
     return requests.map((query) => ({ query, recommendations: rankStudySources(docs, query), ...(warning ? { warning } : {}) }))
+  }
+
+  /** The table of contents of one PDF of the study sources (empty when it has none Cora can read). */
+  async outline(relativePath: string): Promise<OutlineEntry[]> {
+    const scan = await this.scan()
+    const file = scan?.files.find((item) => relative(this.vault, item.path).split(sep).join('/') === relativePath)
+    return file?.pages ? tocEntries(file.pages) : []
   }
 
   /** The source file of a recommendation, checked to be a regular file inside the study sources folder. */
