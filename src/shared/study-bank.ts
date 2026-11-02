@@ -116,7 +116,6 @@ export function splitStudyRationale(rationale: string | undefined): { rationale:
 }
 
 const BOOKS = 'study sources/textbooks/'
-const COURSE = 'study sources/course materials/'
 
 /** Where each discipline of the trail (by its id) reads from: vault folders under the study sources. */
 export const DISCIPLINE_SOURCES: Record<string, readonly string[]> = {
@@ -124,8 +123,8 @@ export const DISCIPLINE_SOURCES: Record<string, readonly string[]> = {
   'P1-IP': [`${BOOKS}Algoritmos/`, `${BOOKS}Fundamentos de Programação/`],
   'P1-LMD': [`${BOOKS}Lógica e Matemática Discreta/`],
   'P1-MB': [`${BOOKS}Matemática/`],
-  'P2-HW': [`${BOOKS}Eletrônica/`, `${BOOKS}Física/`, `${BOOKS}Organização de Computadores/`, `${COURSE}Hardware I/`],
-  'P2-ED': [`${BOOKS}Estruturas de Dados/`, `${COURSE}Estrutura de Dados/`],
+  'P2-HW': [`${BOOKS}Eletrônica/`, `${BOOKS}Física/`, `${BOOKS}Organização de Computadores/`],
+  'P2-ED': [`${BOOKS}Estruturas de Dados/`],
   'P2-POO': [`${BOOKS}Programação Orientada a Objetos/`],
   'P2-CC': [`${BOOKS}Matemática/`],
 }

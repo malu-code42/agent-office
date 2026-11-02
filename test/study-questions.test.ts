@@ -116,6 +116,26 @@ describe('study question bank codec', () => {
     }
   })
 
+  it('drops questions whose source left "study sources" and refuses new ones from outside it', () => {
+    const vault = mkdtempSync(join(tmpdir(), 'study-bank-'))
+    try {
+      mkdirSync(join(vault, 'study sources', 'textbooks'), { recursive: true })
+      writeFileSync(join(vault, 'study sources', 'textbooks', 'ok.md'), 'texto')
+      const mk = (id: string, sourceReference?: string) =>
+        question({ id, options: ['1/4', '1/2', '1/3', '1', '0'], answer: 'B', ...(sourceReference ? { sourceReference } : {}) })
+      const kept = mk('q-keep0001', 'study sources/textbooks/ok.md#Página 2')
+      const gone = mk('q-gone0001', 'study sources/course materials/x.pptx#Slide 3')
+      const web = mk('q-web00001')
+      writeFileSync(join(vault, 'questoes-estudo.md'), [kept, gone, web].map(encodeStudyQuestion).join('\n'))
+      const service = new StudyQuestionService(vault, { webSearch: async () => [] })
+      expect(service.removeOrphanQuestions()).toBe(1)
+      expect(service.read().questions.map((q) => q.id)).toEqual(['q-keep0001', 'q-web00001'])
+      expect(() => service.appendChecked([mk('q-out00001', 'course materials/x.pptx#Slide 3')])).toThrow(/fora da pasta/)
+    } finally {
+      rmSync(vault, { recursive: true, force: true })
+    }
+  })
+
   it('rejects duplicate ids and unsafe urls', () => {
     const line = encodeStudyQuestion(question())
     expect(() => decodeStudyBank(`${line}\n${line}`)).toThrow(/duplicado/i)

@@ -259,7 +259,11 @@ export class StudyQuestionService {
    * user's review step; they carry no verifiedByUser. Duplicates of questions in the bank are skipped.
    */
   appendChecked(rows: StudyQuestion[], backup = true): { added: number; skipped: number } {
-    return this.commit(rows.map(validateStudyQuestion), undefined, true, backup)
+    const checked = rows.map(validateStudyQuestion)
+    for (const row of checked)
+      if (row.sourceReference && !this.sourceInStudySources(row.sourceReference))
+        throw new Error(`Questão ${row.id} usa uma fonte fora da pasta "${STUDY_SOURCES_DIRECTORY}".`)
+    return this.commit(checked, undefined, true, backup)
   }
 
   /**
@@ -268,6 +272,31 @@ export class StudyQuestionService {
    * at a text the student is never shown.
    */
   removeUnusableQuestions(): number {
+    return this.removeWhere((q) => !isChoiceQuestion(q) || refersToMissingText(q))
+  }
+
+  /**
+   * Takes out the questions whose source file is no longer in the study sources folder (moved,
+   * renamed or deleted), after a backup. Questions with no file reference (web ones) stay.
+   */
+  removeOrphanQuestions(): number {
+    return this.removeWhere((q) => !!q.sourceReference && !this.sourceInStudySources(q.sourceReference))
+  }
+
+  /** Whether a reference (`study sources/…/file#place`) names an existing regular file inside the study sources folder. */
+  private sourceInStudySources(reference: string): boolean {
+    const root = resolve(this.vault, STUDY_SOURCES_DIRECTORY)
+    const path = resolve(this.vault, reference.split('#')[0]!.replace(/:\d+$/, ''))
+    const inside = relative(root, path)
+    if (!inside || inside.startsWith('..') || isAbsolute(inside)) return false
+    try {
+      return lstatSync(path).isFile()
+    } catch {
+      return false
+    }
+  }
+
+  private removeWhere(drop: (q: StudyQuestion) => boolean): number {
     const path = this.bankPath()
     if (!existsSync(path)) return 0
     const lockPath = `${path}.lock`
@@ -284,7 +313,7 @@ export class StudyQuestionService {
       const baseHash = hash(current)
       const open = new Set(
         decodeStudyBank(current)
-          .questions.filter((q) => !isChoiceQuestion(q) || refersToMissingText(q))
+          .questions.filter(drop)
           .map((q) => q.id),
       )
       if (!open.size) return 0
