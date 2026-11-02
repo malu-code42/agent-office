@@ -187,7 +187,12 @@ export function registerTasksIpc(ctx: IpcContext): void {
   const review = registerReviewIpc(ctx, { tasks: writer, agenda, vault: requireVault }, personalRoutines)
   registerIrisIpc(ctx, { tasks: writer, agenda, vault: requireVault })
 
-  ipcMain.handle('office:readStudyQuestions', async () => studyService().read())
+  ipcMain.handle('office:readStudyQuestions', async () => {
+    const bank = studyService()
+    // Questions live only on files of "study sources": the ones whose file left the folder go out (with a backup).
+    if (bankJobs.status()?.status !== 'running') bank.removeOrphanQuestions()
+    return bank.read()
+  })
   ipcMain.handle('office:searchStudyQuestions', async (_e, ...args: unknown[]) => {
     const [topic, limit] = parse(studyQuestionSearchArgsSchema, args, 'Busca de questões inválida.')
     return studyService().search(topic, limit)
