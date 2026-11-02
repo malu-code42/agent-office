@@ -226,6 +226,14 @@ export function registerTasksIpc(ctx: IpcContext): void {
           library,
           bank,
           suggestBooks,
+          subtopics: {
+            get: (topic) => subtopicStore.read()[topic],
+            build: async (topic) => {
+              const entry = await buildTopicSubtopics(topic, library, askClaude)
+              subtopicStore.save(entry)
+              return entry
+            },
+          },
           // Read at each topic: what the user answers meanwhile stops counting toward the goal.
           isAnswered: (question) => isStudyQuestionAnswered(answeredStudyQuestions(studyCycleStore.read()), question),
         },

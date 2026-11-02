@@ -10,6 +10,7 @@ import {
 } from '@shared/study-bank'
 import type { StudyLibraryHit } from '@shared/study-library'
 import { isChoiceQuestion, STUDY_QUESTION_LIMITS, type StudyQuestion } from '@shared/study-questions'
+import type { StudySubtopics } from '@shared/study-outline'
 import type { StudyTrail, StudyTrailTopic } from '@shared/study-trail'
 import { askClaude, generateGroundedQuestion, tooSimilar, type AskJson, type GroundedFailure } from './study-questions-grounded'
 
@@ -32,6 +33,8 @@ interface Deps {
   isAnswered?: (question: StudyQuestion) => boolean
   /** Textbooks on the web for a topic the local books do not cover; a failure just means no suggestion. */
   suggestBooks?: (topic: string, discipline: string) => Promise<StudyBookSuggestion[]>
+  /** The topic's subtopics: the stored ones, and how to build them from the book's table of contents. */
+  subtopics?: { get(topic: string): StudySubtopics | undefined; build(topic: StudyTrailTopic): Promise<StudySubtopics> }
 }
 
 export interface StudyBankBuildOptions {
@@ -48,6 +51,13 @@ export interface StudyBankBuildResult {
   results: StudyBankTopicResult[]
   stop?: StudyBankStop
   message?: string
+}
+
+/** One slice of a topic's goal: the whole topic, or one of its subtopics. */
+interface Unit {
+  name?: string
+  query: string
+  goal: number
 }
 
 const NAME_ONLY = /O nome corresponde|Encontrado pelo nome/
@@ -94,13 +104,25 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
     }
   }
 
+  /** The topic's subtopics (built from its book once, then kept); none when the book has no usable table of contents. */
+  const subtopicsFor = async (topic: StudyTrailTopic): Promise<string[]> => {
+    if (!deps.subtopics || options.signal?.aborted) return []
+    try {
+      const entry = deps.subtopics.get(topic.title) ?? (await deps.subtopics.build(topic))
+      return entry.status === 'ok' ? entry.subtopics.map((s) => s.name) : []
+    } catch {
+      return []
+    }
+  }
+
   for (const [index, topic] of topics.entries()) {
     if (options.signal?.aborted) return { results, stop: 'cancelled' }
     const disciplineId = disciplineIdOf(topic.id)
     const bank = deps.bank.read().questions
     const onTopic = bank.filter((q) => q.topic === topic.title)
     // only multiple-choice questions not answered yet count toward the goal
-    const have = onTopic.filter((q) => isChoiceQuestion(q) && !deps.isAnswered?.(q))
+    const fresh = (list: StudyQuestion[]) => list.filter((q) => isChoiceQuestion(q) && !deps.isAnswered?.(q))
+    const have = fresh(onTopic)
     const start: StudyBankTopicResult = {
       id: topic.id,
       topic: topic.title,
@@ -117,110 +139,135 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
     }
 
     const { folders: scope, fallback } = studyBankFolders(disciplineId, topic.discipline)
-    if (have.length >= perTopic) {
+    // With subtopics, each gets an equal share of the goal, so the topic is covered rather than drawn from one corner of the book.
+    const names = await subtopicsFor(topic)
+    const share = names.length ? Math.ceil(perTopic / names.length) : perTopic
+    const units: Unit[] = names.length
+      ? names.map((name) => ({ name, query: `${topic.title} ${name}`, goal: share }))
+      : [{ query: topic.title, goal: perTopic }]
+    if (units.every((unit) => fresh(onTopic.filter((q) => !unit.name || q.subtopic === unit.name)).length >= unit.goal)) {
       finish({ ...start, reason: 'complete' })
       continue
     }
-    const room = STUDY_QUESTION_LIMITS.count - bank.length
-    if (room <= 0) return { results, stop: 'full' }
-    const missing = Math.min(perTopic - have.length, room)
-    const capped = missing < perTopic - have.length
 
-    let hits: StudyLibraryHit[]
-    try {
-      hits = (await deps.library.search(topic.title, scope)).hits.filter((hit) => !NAME_ONLY.test(hit.excerpt))
-    } catch (error) {
-      return { results, stop: 'error', message: (error as Error).message }
-    }
-    const first = hits[0]
-    if (!first) {
-      // With no folder of its own, nothing found means no book was put in the default folder.
-      finish({
-        ...start,
-        ...(fallback ? { reason: 'no-book', folder: scope[0] } : { reason: 'no-passage' }),
-        ...(await booksFor(topic)),
-      })
-      continue
-    }
-    // One passage per question: the author can only repeat itself past the passages there are.
-    const needed = onTopic.length + missing
-    hits = distinct(hits)
-    if (hits.length < needed) {
-      // The discipline's own books come first; the other books of the library (what Cora shows) fill what is left.
+    let added = 0
+    let reason: StudyBankReason | undefined
+    let books: { books?: StudyBookSuggestion[] } = {}
+    let folder: string | undefined
+    for (const unit of units) {
+      const mine = onTopic.filter((q) => !unit.name || q.subtopic === unit.name)
+      const haveUnit = fresh(mine).length
+      if (haveUnit >= unit.goal) continue
+      const room = STUDY_QUESTION_LIMITS.count - bank.length - added
+      if (room <= 0) {
+        finish({ ...start, added })
+        return { results, stop: 'full' }
+      }
+      const missing = Math.min(unit.goal - haveUnit, room)
+      const capped = missing < unit.goal - haveUnit
+
+      let hits: StudyLibraryHit[]
       try {
-        const own = new Set(hits.map((hit) => hit.sourceRef))
-        const more = (await deps.library.search(topic.title)).hits.filter((hit) => !NAME_ONLY.test(hit.excerpt) && !own.has(hit.sourceRef))
-        hits = distinct([...hits, ...more])
+        hits = (await deps.library.search(unit.query, scope)).hits.filter((hit) => !NAME_ONLY.test(hit.excerpt))
       } catch (error) {
         return { results, stop: 'error', message: (error as Error).message }
       }
-    }
-    // Only as many questions as there are passages left (a short book still gives what it can; the report says it fell short).
-    const toMake = Math.min(missing, hits.length - onTopic.length)
-    if (toMake < 1) {
-      finish({ ...start, reason: 'little', ...(await booksFor(topic)) })
-      continue
-    }
+      const first = hits[0]
+      if (!first) {
+        // With no folder of its own, nothing found means no book was put in the default folder.
+        reason ??= fallback ? 'no-book' : 'no-passage'
+        if (fallback) folder = scope[0]
+        books = await booksFor(topic)
+        continue
+      }
+      // One passage per question: the author can only repeat itself past the passages there are.
+      const needed = mine.length + missing
+      hits = distinct(hits)
+      if (hits.length < needed) {
+        // The discipline's own books come first; the other books of the library (what Cora shows) fill what is left.
+        try {
+          const own = new Set(hits.map((hit) => hit.sourceRef))
+          const more = (await deps.library.search(unit.query)).hits.filter((hit) => !NAME_ONLY.test(hit.excerpt) && !own.has(hit.sourceRef))
+          hits = distinct([...hits, ...more])
+        } catch (error) {
+          return { results, stop: 'error', message: (error as Error).message }
+        }
+      }
+      // Only as many questions as there are passages left (a short book still gives what it can; the report says it fell short).
+      const toMake = Math.min(missing, hits.length - mine.length)
+      if (toMake < 1) {
+        reason ??= 'little'
+        books = await booksFor(topic)
+        continue
+      }
 
-    const made: StudyQuestion[] = []
-    let failure: GroundedFailure | undefined
-    let stop: StudyBankBuildResult | undefined
-    for (let i = 0; i < toMake; i++) {
-      // Each question starts from the next passage (wrapping), so a topic with many questions does not reread the same 3 passages.
-      const anchor = hits[(onTopic.length + made.length) % hits.length] ?? first
-      const file = fileOf(anchor.sourceRef)
-      const sourceTitle = file.split('/').pop() ?? file
-      const inFile = hits.filter((hit) => fileOf(hit.sourceRef) === file)
-      const from = Math.max(0, inFile.indexOf(anchor))
-      const excerpt = [0, 1, 2]
-        .slice(0, inFile.length)
-        .map((n) => inFile[(from + n) % inFile.length]!.excerpt)
-        .join('\n\n')
-      try {
-        const result = await generateGroundedQuestion(
-          {
-            topic: topic.title,
-            excerpt,
-            sourceTitle,
-            sourceReference: anchor.sourceRef,
-            // Answered questions too: the author must not write them again with other words.
-            avoid: [...onTopic, ...made].map((q) => q.question),
-          },
-          ask,
-          3,
-          (step) => options.onProgress?.({ kind: 'step', step, made: made.length, source: sourceTitle }),
-        )
-        if (!result.ok) {
-          failure = result.code
+      const made: StudyQuestion[] = []
+      let failure: GroundedFailure | undefined
+      let stop: StudyBankBuildResult | undefined
+      for (let i = 0; i < toMake; i++) {
+        // Each question starts from the next passage (wrapping), so a topic with many questions does not reread the same 3 passages.
+        const anchor = hits[(mine.length + made.length) % hits.length] ?? first
+        const file = fileOf(anchor.sourceRef)
+        const sourceTitle = file.split('/').pop() ?? file
+        const inFile = hits.filter((hit) => fileOf(hit.sourceRef) === file)
+        const from = Math.max(0, inFile.indexOf(anchor))
+        const excerpt = [0, 1, 2]
+          .slice(0, inFile.length)
+          .map((n) => inFile[(from + n) % inFile.length]!.excerpt)
+          .join('\n\n')
+        try {
+          const result = await generateGroundedQuestion(
+            {
+              topic: unit.name ? `${topic.title} — ${unit.name}` : topic.title,
+              excerpt,
+              sourceTitle,
+              sourceReference: anchor.sourceRef,
+              // Answered questions too: the author must not write them again with other words.
+              avoid: [...onTopic, ...made].map((q) => q.question),
+            },
+            ask,
+            3,
+            (step) => options.onProgress?.({ kind: 'step', step, made: added + made.length, source: sourceTitle }),
+          )
+          if (!result.ok) {
+            failure = result.code
+            break
+          }
+          // The question keeps the topic's title (the bank groups by it); the subtopic is its own field.
+          made.push({ ...result.question, topic: topic.title, tags: [topic.discipline], ...(unit.name ? { subtopic: unit.name } : {}) })
+        } catch (error) {
+          const message = (error as Error).message
+          stop = message === ABORTED ? { results, stop: 'cancelled' } : { results, stop: 'unavailable', message }
           break
         }
-        made.push({ ...result.question, tags: [topic.discipline] })
-      } catch (error) {
-        const message = (error as Error).message
-        stop = message === ABORTED ? { results, stop: 'cancelled' } : { results, stop: 'unavailable', message }
-        break
       }
-    }
 
-    let added = 0
-    if (made.length) {
-      try {
-        added = append(made).added
-      } catch (error) {
-        const code = (error as StudyBankWriteError).code
-        return { results, stop: code ?? 'error', message: (error as Error).message }
+      let addedHere = 0
+      if (made.length) {
+        try {
+          addedHere = append(made).added
+        } catch (error) {
+          const code = (error as StudyBankWriteError).code
+          return { results, stop: code ?? 'error', message: (error as Error).message }
+        }
       }
+      added += addedHere
+      if (stop) {
+        if (added) finish({ ...start, added })
+        return stop
+      }
+      if (capped && !failure && addedHere === missing) {
+        finish({ ...start, added })
+        return { results, stop: 'full' }
+      }
+      if (haveUnit + addedHere < unit.goal) reason ??= reasonOf(failure, addedHere < made.length)
     }
     const result: StudyBankTopicResult = { ...start, added }
-    if (stop) {
-      if (added) finish(result)
-      return stop
+    if (have.length + added < perTopic && reason) {
+      result.reason = reason
+      if (folder) result.folder = folder
+      Object.assign(result, books)
     }
-    if (capped && !failure && added === missing) {
-      finish(result)
-      return { results, stop: 'full' }
-    }
-    if (have.length + added < perTopic) result.reason = reasonOf(failure, added < made.length)
     finish(result)
   }
   return { results }

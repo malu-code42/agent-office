@@ -1,5 +1,6 @@
 import { disciplineIdOf, STUDY_BANK_DEFAULT_PER_TOPIC, type StudyBankJob, type StudyBankRequest } from '@shared/study-bank'
 import { studyBankStats, type StudyBankStats } from '@shared/study-bank-stats'
+import type { StudySubtopics } from '@shared/study-outline'
 import { answeredStudyQuestions, isStudyQuestionAnswered } from '@shared/study-cycle'
 import { STUDY_QUESTION_LIMITS, type StudyQuestion } from '@shared/study-questions'
 import { h } from './dom'
@@ -61,13 +62,14 @@ export function openStudyQuestions(root: HTMLElement, toast: Toast, openBuilder:
       () => [],
     ),
     window.office.readStudyCycle().catch(() => ({ activeId: null, cycles: [] })),
+    window.office.readStudySubtopics().catch((): Record<string, StudySubtopics> => ({})),
   ])
-    .then(([bank, topics, cycles]) => {
+    .then(([bank, topics, cycles, subtopics]) => {
       const answered = answeredStudyQuestions(cycles)
       const isAnswered = (q: StudyQuestion) => isStudyQuestionAnswered(answered, q)
       const stats = studyBankStats(bank.questions, topics, { goal: STUDY_BANK_DEFAULT_PER_TOPIC, isAnswered })
       const byId = new Map(bank.questions.map((q) => [q.id, q]))
-      bankView(content, stats, byId, isAnswered, build)
+      bankView(content, stats, byId, isAnswered, build, subtopics)
     })
     .catch((error: unknown) =>
       content.replaceChildren(h('p', { class: 'field-hint', role: 'alert' }, `Não foi possível ler o banco: ${cleanError(error)}`)),
@@ -106,10 +108,11 @@ function bankView(
   byId: Map<string, StudyQuestion>,
   isAnswered: (q: StudyQuestion) => boolean,
   build: (preset?: StudyBankRequest) => void,
+  subtopics: Record<string, StudySubtopics>,
 ): void {
   const show = (name: string | null): void => {
     const d = name === null ? undefined : stats.disciplines.find((item) => item.discipline === name)
-    content.replaceChildren(...(d ? disciplineView(d, stats, byId, isAnswered, build, () => show(null)) : overview(stats, build, show)))
+    content.replaceChildren(...(d ? disciplineView(d, stats, byId, isAnswered, build, subtopics, () => show(null)) : overview(stats, build, show)))
     if (d) content.querySelector<HTMLElement>('.bq-crumb .btn')?.focus()
   }
   show(null)
@@ -202,6 +205,7 @@ function disciplineView(
   byId: Map<string, StudyQuestion>,
   isAnswered: (q: StudyQuestion) => boolean,
   build: (preset?: StudyBankRequest) => void,
+  subtopics: Record<string, StudySubtopics>,
   back: () => void,
 ): HTMLElement[] {
   const total = d.topics.filter((t) => t.id !== undefined).length
@@ -217,7 +221,7 @@ function disciplineView(
       stat(total - d.below, 'na meta', `de ${plural(total, 'tópico', 'tópicos')}`, 'var(--green)'),
       stat(d.below, 'abaixo da meta', `faltam ${plural(missing, 'questão', 'questões')}`, 'var(--red)'),
     ),
-    h('div', { class: 'bq-rows' }, ...d.topics.map((t) => topicRow(t, stats.goal, byId, isAnswered, d.discipline))),
+    h('div', { class: 'bq-rows' }, ...d.topics.map((t) => topicRow(t, stats.goal, byId, isAnswered, d.discipline, subtopics[t.topic]))),
     h(
       'div',
       { class: 'bq-crumb' },
@@ -237,6 +241,7 @@ function topicRow(
   byId: Map<string, StudyQuestion>,
   isAnswered: (q: StudyQuestion) => boolean,
   discipline: string,
+  subtopics: StudySubtopics | undefined,
 ): HTMLElement {
   const cards = h('div', { class: 'bn-cards' })
   const inTrail = t.id !== undefined
@@ -269,6 +274,26 @@ function topicRow(
       h('span', { class: 'num', title: `${t.fresh} novas de ${t.count}` }, inTrail ? `${t.fresh}/${goal}` : String(t.fresh)),
       inTrail ? h('span', { class: `bq-pill${t.below ? '' : ' ok'}` }, t.below ? 'Abaixo' : 'Na meta') : h('span', {}),
     ),
+    coverage(subtopics, t.ids.map((id) => byId.get(id)).filter((q): q is StudyQuestion => !!q), isAnswered),
     cards,
+  )
+}
+
+/** The parts of a topic and how many new questions each has; a part with none is the gap the diagnosis would miss. */
+function coverage(entry: StudySubtopics | undefined, questions: StudyQuestion[], isAnswered: (q: StudyQuestion) => boolean): HTMLElement | null {
+  if (!entry) return null
+  if (entry.status !== 'ok')
+    return h('p', { class: 'field-hint study-note' }, `Sem subtemas: ${entry.reason ?? 'o índice do livro não ajudou'} O diagnóstico sorteia do tópico todo.`)
+  return h(
+    'div',
+    { class: 'bq-crumb', role: 'group', 'aria-label': 'Cobertura por subtema' },
+    ...entry.subtopics.map((sub) => {
+      const fresh = questions.filter((q) => q.subtopic === sub.name && !isAnswered(q)).length
+      return h(
+        'span',
+        { class: `bq-pill${fresh ? ' ok' : ''}`, title: sub.sections.map((x) => `${x.title} (p. ${x.page})`).join('; ') },
+        `${sub.name} · ${fresh ? plural(fresh, 'nova', 'novas') : 'sem questões'}`,
+      )
+    }),
   )
 }
