@@ -8,9 +8,14 @@
 }
 
 .board.card.foco-pop {
-  inset: auto auto 84px calc(50% - 260px);
-  width: min(520px, calc(100vw - 32px));
+  inset: auto auto 84px calc(50% - 290px);
+  width: min(580px, calc(100vw - 32px));
   max-height: min(640px, calc(100vh - 110px));
+}
+
+/* the head is wider than a narrow popup: the title shrinks, the close button never gets clipped */
+.foco-pop .board-head > .icon-btn {
+  flex: none;
 }
 
 .foco-cols {
