@@ -125,6 +125,12 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
       finish({ ...start, ...(fallback ? { reason: 'no-book', folder: scope[0] } : { reason: 'no-passage' }) })
       continue
     }
+    // One passage per question: with fewer passages than questions the author can only repeat itself, so don't spend the run.
+    if (hits.length < onTopic.length + missing) {
+      finish({ ...start, reason: 'little' })
+      continue
+    }
+
     const made: StudyQuestion[] = []
     let failure: GroundedFailure | undefined
     let stop: StudyBankBuildResult | undefined
