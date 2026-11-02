@@ -4,6 +4,7 @@ import {
   practiceScore,
   retestScore,
   studyGaps,
+  subtopicResults,
   type StudyCycle,
   type StudyCycleQuestion,
   type StudyCycleState,
@@ -411,7 +412,19 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
               },
               ...[2, 3, 4, 5].map((n) => h('option', { value: String(n), selected: n === perSubtopic || undefined }, String(n))),
             ),
-            bySub.short.length ? studyChip(`faltam questões em: ${bySub.short.join(', ')}`, 'warn') : null,
+          )
+        : null
+    const shortBanner = () =>
+      bySub?.short.length
+        ? h(
+            'div',
+            {},
+            studyBanner(
+              'warn',
+              'Faltam questões novas',
+              `Em: ${bySub.short.join(', ')}. O diagnóstico só começa com ${perSubtopic} por subtema: monte o banco para completar ou escolha menos questões por subtema.`,
+            ),
+            h('div', { class: 'sk-row' }, builderButton(topic)),
           )
         : null
     const all = topic.trim() ? questionsForTopic(fresh(), topic, 60) : []
@@ -430,6 +443,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
             ),
             h('div', { class: 'sk-row' }, ...[...byOrigin].map(([origin, n]) => studyChip(`${origin} ${n}`))),
             subtopicPicker(),
+            shortBanner(),
             h(
               'p',
               { class: 'sk-small' },
@@ -511,7 +525,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
           const ids = [...selected]
           void save(() => window.office.startStudyCycle(topic, ids), 'Diagnóstico iniciado. O tutor foi chamado para a sala de aula.')
         },
-        { primary: true, disabled: !topic.trim() || !selected.size },
+        { primary: true, disabled: !topic.trim() || !selected.size || !!bySub?.short.length },
       ),
     )
     return [
@@ -827,6 +841,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
 
   const diagnosisResult = (cycle: StudyCycle): HTMLElement[] => {
     const gaps = studyGaps(cycle)
+    const bySubtopic = subtopicResults(cycle)
     const count = (kind: Kind) => cycle.questions.filter((q) => q.assessment?.kind === kind).length
     const correct = count('correct')
     const counted = correct + count('incorrect')
@@ -857,6 +872,26 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
             ),
             h('p', { class: 'sk-small' }, 'Sem nota mínima no diagnóstico. Ele só mostra por onde começar.'),
           ),
+          bySubtopic.length
+            ? studyPanel(
+                'Por subtema',
+                h(
+                  'ul',
+                  { class: 'sk-list' },
+                  ...bySubtopic.map((r) =>
+                    h(
+                      'li',
+                      { class: 'sk-item' },
+                      h('span', { class: 'sk-item-main' }, h('span', {}, h('b', {}, r.subtopic), ` ${r.correct}/${r.total}`)),
+                      studyChip(
+                        r.status === 'mastered' ? 'dominado' : r.status === 'partial' ? 'parcial' : 'lacuna',
+                        r.status === 'mastered' ? 'ok' : r.status === 'partial' ? 'warn' : 'err',
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            : null,
           gaps.length
             ? h(
                 'div',
