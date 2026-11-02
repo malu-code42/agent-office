@@ -17,6 +17,7 @@ import { buildEstudos2d, type Floor2d } from '../world2d/floor'
 import type { Person2d } from '../world2d/renderer'
 import { Walker } from '../world2d/walker'
 import { sitterTagY, TAG_LIFT } from './types'
+import { topicName } from '@shared/study-trail'
 
 /** Height (tiles) of a standing teacher's tag anchor, as an Avatar's. */
 const STAND_TAG_Y = 0.55
@@ -108,7 +109,7 @@ export class StudyFloor {
    */
   setCycle(cycle: StudyCycleView | null, instant: boolean): void {
     this.cycle = cycle
-    this.topicTag?.setName(cycle?.topic ? `Tópico atual · ${cycle.topic}` : 'Tópico atual')
+    this.topicTag?.setName(cycle?.topic ? `Tópico atual · ${topicName(cycle.topic)}` : 'Tópico atual')
     const next = teacherOfStage(cycle?.stage)
     if (next === this.inClass) return
     const was = this.inClass
