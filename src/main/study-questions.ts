@@ -280,7 +280,12 @@ export class StudyQuestionService {
    * renamed or deleted), after a backup. Questions with no file reference (web ones) stay.
    */
   removeOrphanQuestions(): number {
-    return this.removeWhere((q) => !!q.sourceReference && !this.sourceInStudySources(q.sourceReference))
+    return this.removeWhere((q) => this.leftStudySources(q))
+  }
+
+  /** Whether the question cites a file that is not (or no longer) in the study sources folder. */
+  leftStudySources(q: StudyQuestion): boolean {
+    return !!q.sourceReference && !this.sourceInStudySources(q.sourceReference)
   }
 
   /** Whether a reference (`study sources/…/file#place`) names an existing regular file inside the study sources folder. */
