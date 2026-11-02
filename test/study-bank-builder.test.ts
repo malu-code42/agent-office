@@ -154,4 +154,14 @@ describe('buildStudyBank passages', () => {
     expect(results.every((r) => r.reason === 'little' && !r.added)).toBe(true)
     expect(ask).not.toHaveBeenCalled()
   })
+
+  it('fills the missing passages with the other books of the library', async () => {
+    const { deps, search, ask } = setup()
+    const other = { ...hit, sourceRef: 'study sources/textbooks/Lógica e Matemática Discreta/G.pdf#Página 9' }
+    search.mockImplementation(async (_query: string, scope?: readonly string[]) => ({ hits: scope ? [hit, hit] : [other, other] }))
+    const { results } = await buildStudyBank(trail, deps, { perTopic: 4, discipline: 'P1-ICC' })
+    expect(results[0]).toMatchObject({ added: 4 })
+    expect(results[0]!.reason).toBeUndefined()
+    expect(ask).toHaveBeenCalled()
+  })
 })
