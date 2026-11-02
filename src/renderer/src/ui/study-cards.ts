@@ -1,4 +1,4 @@
-import type { StudyCardDraft, StudyCardSections, StudyCardSummary, StudyNoteSnapshot, StudyNotesRead } from '@shared/study-cards'
+import type { StudyCardSections, StudyCardSummary, StudyNoteSnapshot, StudyNotesRead } from '@shared/study-cards'
 import { announce } from './a11y'
 import { h } from './dom'
 import { cleanError, modal } from './modals/common'
@@ -14,7 +14,10 @@ const SECTION_LABELS: Record<SectionField, string> = {
   sources: 'Fontes',
 }
 
-/** Cards are separate Obsidian documents; only selected note snapshots enter a Claude draft. */
+/** The student writes the idea and the example; Claude only proposes these two sections (plus feedback). */
+const ASSISTED: SectionField[] = ['connections', 'sources']
+
+/** Cards are separate Obsidian documents; only selected note snapshots and the student's text enter a Claude request. */
 export async function openStudyCards(root: HTMLElement, toast: Toast): Promise<void> {
   let noteLibrary: StudyNotesRead = { notes: [] }
   let cards: StudyCardSummary[] = []
@@ -24,7 +27,9 @@ export async function openStudyCards(root: HTMLElement, toast: Toast): Promise<v
   let looseTitle = ''
   let looseText = ''
   let token = ''
-  let draft: StudyCardDraft | null = null
+  let sourceSnapshots: StudyNoteSnapshot[] | null = null
+  let feedback = ''
+  let assisted = false
   let title = ''
   let sections: StudyCardSections | null = null
   const selected = new Set<string>()
@@ -107,7 +112,7 @@ export async function openStudyCards(root: HTMLElement, toast: Toast): Promise<v
     h(
       'p',
       { class: 'field-hint' },
-      'Selecione uma ou mais notas. O processo principal pedirá confirmação antes de enviar apenas os snapshots selecionados ao Claude.',
+      'Etapa 1 de 3 · Escolha as notas que sustentam o cartão. Você escreve a ideia e o exemplo; só então o Claude é consultado, com sua confirmação.',
     ),
     ...(warning ? [h('p', { class: 'field-hint', role: 'status' }, warning)] : []),
     ...(noteLibrary.notes.length
@@ -139,62 +144,100 @@ export async function openStudyCards(root: HTMLElement, toast: Toast): Promise<v
       ),
     )
 
-  const draftView = (): HTMLElement[] => {
-    if (!draft || !sections) return []
-    const titleInput = h('input', {
-      class: 'input',
-      value: title,
-      maxlength: '200',
-      'aria-label': 'Título do cartão',
-      disabled: busy || undefined,
-      oninput: (event: Event) => (title = (event.currentTarget as HTMLInputElement).value),
-    })
-    const fields = (Object.keys(SECTION_LABELS) as SectionField[]).map((section) => {
-      const control = h('textarea', {
+  const field = (section: SectionField, rows: string, hint: string): HTMLElement => {
+    const pendingKey = section === 'connections' ? 'connectionsPending' : section === 'sources' ? 'sourcesPending' : null
+    return h(
+      'section',
+      { class: 'study-card-section' },
+      h('h3', {}, SECTION_LABELS[section]),
+      h('p', { class: 'field-hint' }, hint),
+      h('textarea', {
         class: 'input study-card-section-input',
-        rows: section === 'information' || section === 'examplePractice' ? '6' : '4',
+        rows,
         maxlength: '20000',
         'aria-label': SECTION_LABELS[section],
         value: sections![section],
         disabled: busy || undefined,
         oninput: (event: Event) => {
           sections = { ...sections!, [section]: (event.currentTarget as HTMLTextAreaElement).value }
+          renderFoot()
         },
-      })
-      const pendingKey = section === 'connections' ? 'connectionsPending' : section === 'sources' ? 'sourcesPending' : null
-      return h(
-        'section',
-        { class: 'study-card-section' },
-        h('h3', {}, SECTION_LABELS[section]),
-        control,
-        pendingKey
-          ? h(
-              'label',
-              { class: 'study-card-pending' },
-              h('input', {
-                type: 'checkbox',
-                checked: sections![pendingKey],
-                disabled: busy || undefined,
-                onchange: (event: Event) => {
-                  sections = { ...sections!, [pendingKey]: (event.currentTarget as HTMLInputElement).checked }
-                },
-              }),
-              'Ainda precisa de revisão',
-            )
-          : null,
-      )
-    })
+      }),
+      pendingKey
+        ? h(
+            'label',
+            { class: 'study-card-pending' },
+            h('input', {
+              type: 'checkbox',
+              checked: sections![pendingKey],
+              disabled: busy || undefined,
+              onchange: (event: Event) => {
+                sections = { ...sections!, [pendingKey]: (event.currentTarget as HTMLInputElement).checked }
+              },
+            }),
+            'Ainda precisa de revisão',
+          )
+        : null,
+    )
+  }
+
+  const draftView = (): HTMLElement[] => {
+    if (!sourceSnapshots || !sections) return []
     return [
       h(
         'p',
         { class: 'field-hint' },
-        'Revise e edite o rascunho. Conexões e fontes sem evidência ficam marcadas como pendentes. Nada é salvo até você aprovar.',
+        assisted
+          ? 'Etapa 3 de 3 · Revise as conexões e fontes sugeridas, ajuste seu texto com o feedback e salve. Nada é salvo até você aprovar.'
+          : 'Etapa 2 de 3 · Escreva o título, a ideia e o exemplo com suas palavras. Depois peça ao Claude conexões, fontes e feedback.',
       ),
-      ...draft.sourceSnapshots.map((source) =>
+      ...sourceSnapshots.map((source) =>
         h('p', { class: 'study-card-source-ref' }, `${source.title} · ${source.sourceRef} · versão ${source.hash.slice(0, 12)}`),
       ),
-      h('label', { class: 'study-cycle-field' }, h('span', { class: 'field-label' }, 'Título'), titleInput),
-      ...fields,
+      h(
+        'label',
+        { class: 'study-cycle-field' },
+        h('span', { class: 'field-label' }, 'Título'),
+        h('input', {
+          class: 'input',
+          value: title,
+          maxlength: '200',
+          'aria-label': 'Título do cartão',
+          disabled: busy || undefined,
+          oninput: (event: Event) => {
+            title = (event.currentTarget as HTMLInputElement).value
+            renderFoot()
+          },
+        }),
+      ),
+      field('information', '6', 'Sua ideia, escrita por você.'),
+      field('examplePractice', '6', 'Seu exemplo e aplicação, escritos por você.'),
+      h(
+        'section',
+        { class: 'study-card-section' },
+        h('h3', {}, 'Ajuda do Claude'),
+        h(
+          'p',
+          { class: 'field-hint' },
+          'O Claude sugere conexões (wikilinks para cartões e notas existentes) e fontes, e comenta seu texto sem reescrevê-lo. Você pode pedir de novo depois de editar.',
+        ),
+        h(
+          'button',
+          {
+            class: 'btn btn-small',
+            type: 'button',
+            disabled: busy || !authoredReady() || undefined,
+            onclick: () => void assist(),
+          },
+          busy ? 'Consultando…' : assisted ? 'Pedir de novo' : 'Pedir conexões, fontes e feedback',
+        ),
+        ...(feedback ? [h('p', { class: 'study-card-feedback', role: 'status' }, feedback)] : []),
+      ),
+      ...(assisted
+        ? ASSISTED.map((section) =>
+            field(section, '4', section === 'connections' ? 'Sugeridas pelo Claude; ajuste se quiser.' : 'Tiradas das notas escolhidas; ajuste se quiser.'),
+          )
+        : []),
     ]
   }
 
@@ -245,28 +288,32 @@ export async function openStudyCards(root: HTMLElement, toast: Toast): Promise<v
       : [h('p', { class: 'field-hint' }, 'Ainda não há cartões digitais salvos.')]),
   ]
 
-  const render = (): void => {
-    content.replaceChildren(
-      ...(errorText ? [h('p', { class: 'study-cards-error', role: 'alert' }, errorText)] : []),
-      ...(draft && sections ? draftView() : [...notesView(), ...cardList()]),
-    )
+  const authoredReady = (): boolean => !!sections && !!title.trim() && !!sections.information.trim() && !!sections.examplePractice.trim()
+
+  const leaveDraft = (): void => {
+    sourceSnapshots = null
+    sections = null
+    token = ''
+    feedback = ''
+    assisted = false
+  }
+
+  const renderFoot = (): void => {
     const footer: HTMLElement[] = []
-    if (draft && sections) {
+    if (sourceSnapshots && sections) {
       footer.push(
         h(
           'button',
           {
             class: 'btn btn-primary',
             type: 'button',
-            disabled: busy || !title.trim() || !sections.information.trim() || !sections.examplePractice.trim() || undefined,
+            disabled: busy || !authoredReady() || undefined,
             onclick: () => {
               const approved = { title, sections: { ...sections! } }
               void run(async () => {
                 const saved = await window.office.saveStudyCardDraft(token, approved)
                 if (!saved) return null
-                draft = null
-                sections = null
-                token = ''
+                leaveDraft()
                 selected.clear()
                 return saved
               }, 'Cartão digital salvo no Obsidian. A cópia física continua pendente.')
@@ -281,9 +328,7 @@ export async function openStudyCards(root: HTMLElement, toast: Toast): Promise<v
             type: 'button',
             disabled: busy || undefined,
             onclick: () => {
-              draft = null
-              sections = null
-              token = ''
+              leaveDraft()
               render()
             },
           },
@@ -298,14 +343,22 @@ export async function openStudyCards(root: HTMLElement, toast: Toast): Promise<v
             class: 'btn btn-primary',
             type: 'button',
             disabled: busy || selected.size < 1 || undefined,
-            onclick: () => void generate(),
+            onclick: () => void start(),
           },
-          busy ? 'Preparando…' : `Gerar rascunho (${selected.size} notas)`,
+          busy ? 'Preparando…' : `Escrever cartão (${selected.size} notas)`,
         ),
       )
     }
     footer.push(h('div', { class: 'grow' }), h('button', { class: 'btn', type: 'button', onclick: () => el.remove() }, 'Fechar'))
     actions.replaceChildren(...footer)
+  }
+
+  const render = (): void => {
+    content.replaceChildren(
+      ...(errorText ? [h('p', { class: 'study-cards-error', role: 'alert' }, errorText)] : []),
+      ...(sourceSnapshots && sections ? draftView() : [...notesView(), ...cardList()]),
+    )
+    renderFoot()
   }
 
   const reload = async (): Promise<void> => {
@@ -315,21 +368,49 @@ export async function openStudyCards(root: HTMLElement, toast: Toast): Promise<v
     render()
   }
 
-  const generate = async (): Promise<void> => {
+  /** Step 1 → 2: nothing is sent anywhere; the student starts writing. */
+  const start = async (): Promise<void> => {
     if (busy || !selected.size) return
     busy = true
     errorText = ''
     render()
     try {
-      const result = await window.office.generateStudyCardDraft([...selected])
+      const result = await window.office.startStudyCardDraft([...selected])
+      token = result.token
+      sourceSnapshots = result.sourceSnapshots
+      title = ''
+      feedback = ''
+      assisted = false
+      sections = { information: '', examplePractice: '', connections: '', sources: '', connectionsPending: true, sourcesPending: true }
+    } catch (error) {
+      errorText = cleanError(error)
+      toast(errorText, 'err')
+    } finally {
+      busy = false
+      render()
+    }
+  }
+
+  /** Step 2 → 3: Claude fills connections and sources and comments on the text; the student's own text is never touched. */
+  const assist = async (): Promise<void> => {
+    if (busy || !sections || !authoredReady()) return
+    busy = true
+    errorText = ''
+    render()
+    try {
+      const result = await window.office.assistStudyCard(token, {
+        title,
+        information: sections.information,
+        examplePractice: sections.examplePractice,
+      })
       if (!result) {
-        toast('Geração cancelada; nenhuma nota foi enviada.', 'info')
+        toast('Pedido cancelado; nada foi enviado.', 'info')
         return
       }
-      token = result.token
-      draft = result.draft
-      sections = { ...result.draft.sections }
-      title = result.draft.title
+      const { feedback: comments, ...rest } = result
+      sections = { ...sections, ...rest }
+      feedback = comments
+      assisted = true
     } catch (error) {
       errorText = cleanError(error)
       toast(errorText, 'err')

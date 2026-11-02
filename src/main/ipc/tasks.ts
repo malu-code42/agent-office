@@ -76,7 +76,8 @@ import {
   answerStudyRetestArgsSchema,
   verifyStudyRetestArgsSchema,
   completeStudyRetestArgsSchema,
-  generateStudyCardDraftArgsSchema,
+  startStudyCardDraftArgsSchema,
+  assistStudyCardArgsSchema,
   saveStudyCardDraftArgsSchema,
   listStudyCardsArgsSchema,
   setStudyCardPhysicalArgsSchema,
@@ -148,12 +149,12 @@ export function registerTasksIpc(ctx: IpcContext): void {
     let service = studyCards.get(vault)
     if (!service) {
       service = new StudyCardsService(vault, {
-        generate(notes) {
+        assist(notes, authored, linkTargets) {
           const settings = ctx.store.settings
           const accountId = settings.defaultAccounts[0] ?? MAIN_ACCOUNT
           const account = settings.accounts.find((candidate) => candidate.id === accountId)
           if (!account) throw new Error('A conta Claude definida não existe mais. Confira as contas nas configurações.')
-          return claudeStudyCardInterpreter(settings, account).generate(notes)
+          return claudeStudyCardInterpreter(settings, account).assist(notes, authored, linkTargets)
         },
       })
       studyCards.set(vault, service)
@@ -203,8 +204,8 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const trail = parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE))
     const library = studyLibrary()
     const bank = studyService()
-    // The bank is multiple choice only: the open questions left from before go out (with a backup).
-    if (bankJobs.status()?.status !== 'running') bank.removeOpenQuestions()
+    // Open questions and ones citing a text the student never sees go out (with a backup).
+    if (bankJobs.status()?.status !== 'running') bank.removeUnusableQuestions()
     return bankJobs.start(trail, request, (t, options) =>
       buildStudyBank(
         t,
@@ -341,15 +342,14 @@ export function registerTasksIpc(ctx: IpcContext): void {
     if (typeof title !== 'string' || typeof text !== 'string') throw new Error('Nota avulsa inválida.')
     new StudyNotesWriter(requireVault()).writeLoose(title, text)
   })
-  ipcMain.handle('office:generateStudyCardDraft', async (_e, ...args: unknown[]) => {
-    const [noteIds] = parse(generateStudyCardDraftArgsSchema, args, 'Seleção de notas para cartão inválida.')
+  ipcMain.handle('office:startStudyCardDraft', (_e, ...args: unknown[]) => {
+    const [noteIds] = parse(startStudyCardDraftArgsSchema, args, 'Seleção de notas para cartão inválida.')
+    return studyCardsService().startDraft(noteIds)
+  })
+  ipcMain.handle('office:assistStudyCard', async (_e, ...args: unknown[]) => {
+    const [token, authored] = parse(assistStudyCardArgsSchema, args, 'Texto do cartão inválido.')
     const cards = studyCardsService()
-    const available = cards.readNotes().notes
-    const selected = noteIds.map((id) => {
-      const note = available.find((candidate) => candidate.id === id)
-      if (!note) throw new Error('Uma nota selecionada mudou ou não existe mais. Recarregue a biblioteca.')
-      return note
-    })
+    const selected = cards.draftSources(token)
     const settings = ctx.store.settings
     const accountId = settings.defaultAccounts[0] ?? MAIN_ACCOUNT
     const account = settings.accounts.find((candidate) => candidate.id === accountId)
@@ -359,13 +359,13 @@ export function registerTasksIpc(ctx: IpcContext): void {
       buttons: ['Enviar notas selecionadas', 'Cancelar'],
       defaultId: 1,
       cancelId: 1,
-      message: 'Enviar estas notas selecionadas ao Claude para preparar um rascunho?',
-      detail: `Serão enviados ${selected.length} snapshot(s): ${selected.map((note) => `${note.title} (${note.sourceRef})`).join('; ')}. Conta: ${account.name}. Modelo: ${settings.defaultModel || 'claude-haiku-5-5'}, esforço ${settings.defaultEffort || 'medium'}. Confirme que o ambiente dessa conta pode receber esse conteúdo. Nenhum cartão será salvo sem sua revisão posterior.`,
+      message: 'Enviar seu texto e as notas selecionadas ao Claude para sugerir conexões, fontes e melhorias?',
+      detail: `Serão enviados o texto que você escreveu e ${selected.length} snapshot(s): ${selected.map((note) => `${note.title} (${note.sourceRef})`).join('; ')}, além dos títulos dos seus cartões e notas para as conexões. Conta: ${account.name}. Modelo: ${settings.defaultModel || 'claude-haiku-5-5'}, esforço ${settings.defaultEffort || 'medium'}. Confirme que o ambiente dessa conta pode receber esse conteúdo. O Claude não reescreve seu texto e nenhum cartão será salvo sem sua revisão.`,
     }
     const win = ctx.win()
     const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options)
     if (response !== 0) return null
-    return cards.generateDraft(noteIds)
+    return cards.assist(token, authored)
   })
   ipcMain.handle('office:saveStudyCardDraft', async (_e, ...args: unknown[]) => {
     const [token, draft] = parse(saveStudyCardDraftArgsSchema, args, 'Rascunho de cartão inválido.')

@@ -304,12 +304,22 @@ export const answerStudyRetestArgsSchema = z.tuple([z.string().regex(/^q-[a-z0-9
 export const verifyStudyRetestArgsSchema = z.tuple([])
 export const completeStudyRetestArgsSchema = z.tuple([])
 const studyNoteIdSchema = z.string().regex(/^sn-[a-z0-9-]{8,150}$/i)
-export const generateStudyCardDraftArgsSchema = z.tuple([
+export const startStudyCardDraftArgsSchema = z.tuple([
   z
     .array(studyNoteIdSchema)
     .min(1)
     .max(20)
     .refine((ids) => new Set(ids).size === ids.length),
+])
+export const assistStudyCardArgsSchema = z.tuple([
+  z.string().uuid(),
+  z
+    .object({
+      title: z.string().trim().min(1).max(200),
+      information: z.string().max(20_000),
+      examplePractice: z.string().max(20_000),
+    })
+    .strict(),
 ])
 export const saveStudyCardDraftArgsSchema = z.tuple([
   z.string().uuid(),

@@ -9,7 +9,8 @@ import {
   studyNoteHash,
   validateStudyCardDraft,
   type StudyCard,
-  type StudyCardDraft,
+  type StudyCardAssist,
+  type StudyCardAuthored,
   type StudyCardSummary,
   type StudyCardsRead,
   type StudyNoteSnapshot,
@@ -23,10 +24,11 @@ const NOTES_LIMIT = 16 * 1024 * 1024
 const CARD_LIMIT = 2 * 1024 * 1024
 const CARD_COUNT_LIMIT = 1000
 const CARD_TOTAL_LIMIT = 32 * 1024 * 1024
-const DRAFT_TTL = 10 * 60_000
+const DRAFT_TTL = 2 * 60 * 60_000 // the student writes by hand, so a draft outlives a quick generation
 
 export interface StudyCardInterpreter {
-  generate(notes: StudyNoteSnapshot[]): Promise<Omit<StudyCardDraft, 'sourceSnapshots'>>
+  /** `linkTargets` are the only wikilinks the assistant may use in connections. */
+  assist(notes: StudyNoteSnapshot[], authored: StudyCardAuthored, linkTargets: string[]): Promise<StudyCardAssist>
 }
 
 interface DraftSnapshot {
@@ -53,21 +55,67 @@ export class StudyCardsService {
     return parseStudyNotes(text)
   }
 
-  async generateDraft(noteIds: string[]): Promise<{ token: string; draft: StudyCardDraft }> {
+  /** Pins the chosen notes under a token. Nothing leaves the machine here: the student writes the card next. */
+  startDraft(noteIds: string[]): { token: string; sourceSnapshots: StudyNoteSnapshot[] } {
+    const selected = this.selectNotes(noteIds)
+    const token = randomUUID()
+    this.drafts.set(token, { notes: selected, expiresAt: Date.now() + DRAFT_TTL })
+    if (this.drafts.size > 100) this.drafts.delete(this.drafts.keys().next().value!)
+    return { token, sourceSnapshots: selected }
+  }
+
+  selectNotes(noteIds: string[]): StudyNoteSnapshot[] {
     if (!Array.isArray(noteIds) || noteIds.length < 1 || noteIds.length > 20 || new Set(noteIds).size !== noteIds.length)
       throw new Error('Selecione de uma a vinte notas diferentes.')
     const current = this.readNotes().notes
-    const selected = noteIds.map((id) => {
+    return noteIds.map((id) => {
       const note = current.find((candidate) => candidate.id === id)
       if (!note) throw new Error('Uma nota selecionada mudou ou não existe mais. Recarregue a biblioteca.')
       return note
     })
-    const generated = await this.interpreter.generate(selected)
-    const draft = validateStudyCardDraft({ ...generated, sourceSnapshots: selected })
-    const token = randomUUID()
-    this.drafts.set(token, { notes: selected, expiresAt: Date.now() + DRAFT_TTL })
-    if (this.drafts.size > 100) this.drafts.delete(this.drafts.keys().next().value!)
-    return { token, draft }
+  }
+
+  /** Connections, sources and feedback for what the student wrote. Wikilinks outside the vault's known targets are dropped. */
+  async assist(token: string, input: unknown): Promise<StudyCardAssist> {
+    const notes = this.draftSources(token)
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Texto do cartão inválido.')
+    const raw = input as Record<string, unknown>
+    const authored: StudyCardAuthored = { title: raw.title as string, information: raw.information as string, examplePractice: raw.examplePractice as string }
+    // Same limits and markup rules as a saved card, so nothing unsafe reaches the model or the file.
+    validateStudyCardDraft({
+      ...authored,
+      sourceSnapshots: notes,
+      sections: { ...authored, connections: '', sources: '', connectionsPending: false, sourcesPending: false },
+    })
+    const targets = this.linkTargets()
+    const result = await this.interpreter.assist(notes, authored, targets)
+    const known = new Set(targets)
+    let dropped = false
+    const connections = result.connections.replace(/\[\[[^\]]*\]\]/g, (link) => {
+      if (known.has(link)) return link
+      dropped = true
+      return ''
+    })
+    const assist: StudyCardAssist = {
+      ...result,
+      connections: connections.trim(),
+      connectionsPending: result.connectionsPending || dropped || !connections.trim(),
+      sourcesPending: result.sourcesPending || !result.sources.trim(),
+      feedback: result.feedback.trim().slice(0, 4000),
+    }
+    // The model's text is held to the same rules as a saved card.
+    validateStudyCardDraft({ ...authored, sourceSnapshots: notes, sections: { ...authored, ...assist } })
+    return assist
+  }
+
+  private linkTargets(): string[] {
+    const alias = (text: string): string => text.replace(/[[\]|#^]/g, ' ').replace(/\s+/g, ' ').trim()
+    const cards = this.listCards().cards.filter((card) => alias(card.title)).map((card) => `[[${card.id}|${alias(card.title)}]]`)
+    // Heading links point at the note's own `## title` inside notas-estudo.md.
+    const headings = this.readNotes()
+      .notes.filter((note) => !/[[\]|#^]/.test(note.title))
+      .map((note) => `[[${NOTES_FILE.replace(/\.md$/, '')}#${note.title}]]`)
+    return [...cards, ...headings].slice(0, 300) // shortcut: first 300 targets, rank by relevance when libraries outgrow it
   }
 
   draftSources(token: string): StudyNoteSnapshot[] {
