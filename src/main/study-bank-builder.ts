@@ -125,25 +125,27 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
       finish({ ...start, ...(fallback ? { reason: 'no-book', folder: scope[0] } : { reason: 'no-passage' }) })
       continue
     }
-    const file = fileOf(first.sourceRef)
-    const sourceTitle = file.split('/').pop() ?? file
-    const excerpt = hits
-      .filter((hit) => fileOf(hit.sourceRef) === file)
-      .slice(0, 3)
-      .map((hit) => hit.excerpt)
-      .join('\n\n')
-
     const made: StudyQuestion[] = []
     let failure: GroundedFailure | undefined
     let stop: StudyBankBuildResult | undefined
     for (let i = 0; i < missing; i++) {
+      // Each question starts from the next passage (wrapping), so a topic with many questions does not reread the same 3 passages.
+      const anchor = hits[(onTopic.length + made.length) % hits.length] ?? first
+      const file = fileOf(anchor.sourceRef)
+      const sourceTitle = file.split('/').pop() ?? file
+      const inFile = hits.filter((hit) => fileOf(hit.sourceRef) === file)
+      const from = Math.max(0, inFile.indexOf(anchor))
+      const excerpt = [0, 1, 2]
+        .slice(0, inFile.length)
+        .map((n) => inFile[(from + n) % inFile.length]!.excerpt)
+        .join('\n\n')
       try {
         const result = await generateGroundedQuestion(
           {
             topic: topic.title,
             excerpt,
             sourceTitle,
-            sourceReference: first.sourceRef,
+            sourceReference: anchor.sourceRef,
             // Answered questions too: the author must not write them again with other words.
             avoid: [...onTopic, ...made].map((q) => q.question),
           },
