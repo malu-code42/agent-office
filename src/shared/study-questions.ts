@@ -5,6 +5,8 @@ export type StudySourceVisibility = 'public' | 'private' | 'local' | 'unknown'
 export interface StudyQuestion {
   id: string
   topic: string
+  /** The part of the topic the question covers (from the source's own table of contents); absent in older questions. */
+  subtopic?: string
   tags: string[]
   /** Text the question refers to ("segundo o texto…"); shown before the statement. Several questions may share it. */
   passage?: string
@@ -136,6 +138,7 @@ export function validateStudyQuestion(raw: unknown): StudyQuestion {
     if (answer && (!/^[A-Z]$/.test(answer) || answer.charCodeAt(0) - 65 >= options.length))
       throw new Error('O gabarito de múltipla escolha deve ser a letra de uma alternativa.')
   }
+  const subtopic = typeof row.subtopic === 'string' && row.subtopic.trim() ? cleanLine(row.subtopic, 'Subtema', 200) : undefined
   const sourceOnly = row.sourceOnly === true
   let question: string
   if (sourceOnly) {
@@ -155,6 +158,7 @@ export function validateStudyQuestion(raw: unknown): StudyQuestion {
   return {
     id,
     topic: typeof row.topic === 'string' ? cleanLine(row.topic, 'Tópico', 200) : '',
+    ...(subtopic ? { subtopic } : {}),
     tags,
     ...(passage ? { passage } : {}),
     question,
@@ -181,6 +185,7 @@ export function encodeStudyQuestion(raw: StudyQuestion): string {
   return [
     `${RECORD_START}${q.id}`,
     `- Tópico: ${q.topic}`,
+    `- Subtema: ${q.subtopic ?? '—'}`,
     `- Etiquetas: ${q.tags.join(', ') || '—'}`,
     `- Origem: ${q.originKind}`,
     `- Fonte: ${q.sourceTitle}`,
@@ -256,12 +261,14 @@ export function decodeStudyBank(source: string): DecodedStudyBank {
     const sourceReference = get('Referência')
     const sourceOnly = get('Somente metadados') === 'sim'
     const passage = get('Trecho')
+    const subtopic = get('Subtema')
     const optionsRaw = get('Alternativas')
     const verification = get('Procedência revisada pela usuária')
     const verificationDate = verification?.startsWith('sim — ') ? verification.slice('sim — '.length) : undefined
     const question = validateStudyQuestion({
       id,
       topic: get('Tópico'),
+      ...(subtopic && subtopic !== '—' ? { subtopic } : {}),
       tags,
       ...(passage && passage !== '—' ? { passage: passageFromLine(passage) } : {}),
       question: get('Enunciado'),

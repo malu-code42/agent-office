@@ -57,6 +57,17 @@ function setup(options: { verdict?: string; failAsk?: boolean; bank?: StudyQuest
 }
 
 describe('buildStudyBank', () => {
+  it('splits the goal equally among the topic subtopics and marks each question', async () => {
+    const { bank, search, deps } = setup()
+    const entry = { topic: 'Sistemas de numeração', source: 'L.pdf', builtAt: 1, status: 'ok' as const, subtopics: ['Base binária', 'Conversão'].map((name) => ({ name, sections: [] })) }
+    const subtopics = { get: () => entry, build: vi.fn() }
+    await buildStudyBank(trail, { ...deps, subtopics }, { perTopic: 4, topic: 'Sistemas de numeração' })
+    expect(bank.map((q) => q.subtopic).sort()).toEqual(['Base binária', 'Base binária', 'Conversão', 'Conversão'])
+    expect(bank.every((q) => q.topic === 'Sistemas de numeração')).toBe(true)
+    expect(search).toHaveBeenCalledWith('Sistemas de numeração Conversão', expect.anything())
+    expect(subtopics.build).not.toHaveBeenCalled()
+  })
+
   it('fills each topic from its discipline books and says why a discipline got nothing', async () => {
     const { bank, search, deps } = setup()
     const { results, stop } = await buildStudyBank(trail, deps, { perTopic: 2 })

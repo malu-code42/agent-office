@@ -24,7 +24,11 @@ import { createTaskWriter, type TaskWriter } from '../tasks-write'
 import { createCompletionUndo } from '../tasks-undo'
 import { PersonalRoutineStore } from '../personal-routines-store'
 import { personalRoutineTaskFingerprintFromLine, personalRoutineTaskFingerprintFromTask } from '../personal-routine-fingerprint'
-import { buildStudyBank } from '../study-bank-builder'
+import { buildStudyBank, studyBankTopics } from '../study-bank-builder'
+import { askClaude } from '../study-questions-grounded'
+import { buildTopicSubtopics, StudySubtopicStore } from '../study-subtopics'
+import { generateIdeas, StudyIdeaStore } from '../study-ideas'
+import { studiedTopics } from '@shared/study-ideas'
 import { suggestBooks } from '../study-book-suggestions'
 import { StudyBankJobs } from '../study-bank-job'
 import { answeredStudyQuestions, isStudyQuestionAnswered } from '@shared/study-cycle'
@@ -63,6 +67,7 @@ import {
   advanceStudyCycleArgsSchema,
   resetStudyCycleArgsSchema,
   resumeStudyCycleArgsSchema,
+  studySubtopicsArgsSchema,
   deleteStudyQuestionsArgsSchema,
   searchStudyLibraryArgsSchema,
   studySourceInventoryArgsSchema,
@@ -224,12 +229,41 @@ export function registerTasksIpc(ctx: IpcContext): void {
           library,
           bank,
           suggestBooks,
+          subtopics: {
+            get: (topic) => subtopicStore.read()[topic],
+            build: async (topic) => {
+              const entry = await buildTopicSubtopics(topic, library, askClaude)
+              subtopicStore.save(entry)
+              return entry
+            },
+          },
           // Read at each topic: what the user answers meanwhile stops counting toward the goal.
           isAnswered: (question) => isStudyQuestionAnswered(answeredStudyQuestions(studyCycleStore.read()), question),
         },
         options,
       ),
     )
+  })
+  // The subtopics of a trail topic (from its book's table of contents), one stored answer per topic.
+  const subtopicStore = new StudySubtopicStore(ctx.store.dataDirectory)
+  ipcMain.handle('office:readStudySubtopics', () => subtopicStore.read())
+  ipcMain.handle('office:buildStudySubtopics', async (_e, ...args: unknown[]) => {
+    const [name] = parse(studySubtopicsArgsSchema, args, 'Tópico inválido.')
+    const [topic] = studyBankTopics(parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE)), { topic: name })
+    if (!topic) throw new Error('Esse tópico não está na trilha de estudos.')
+    const entry = await buildTopicSubtopics(topic, studyLibrary(), askClaude)
+    subtopicStore.save(entry)
+    return entry
+  })
+  // Software ideas for the topics the student has studied (a topic of the study cycles), one stored set per topic.
+  const ideaStore = new StudyIdeaStore(ctx.store.dataDirectory)
+  ipcMain.handle('office:readStudyIdeas', () => ideaStore.read())
+  ipcMain.handle('office:generateStudyIdeas', async (_e, ...args: unknown[]) => {
+    const [topic] = parse(studySubtopicsArgsSchema, args, 'Tópico inválido.')
+    if (!studiedTopics(studyCycleStore.read()).some((item) => item.topic === topic)) throw new Error('Esse tópico não está no ciclo de estudos.')
+    const set = await generateIdeas(topic, askClaude)
+    ideaStore.save(set)
+    return set
   })
   ipcMain.handle('office:studyBankStatus', () => bankJobs.status())
   ipcMain.handle('office:cancelStudyBank', () => bankJobs.cancel())

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  questionsBySubtopic,
   questionsForTopic,
   rankStudySources,
   studyQueryOfQuestion,
@@ -151,5 +152,18 @@ describe('fim do ciclo: cada questão errada vira um pedido à Cora', () => {
       { ...bankQuestion('q-c', 'Filas', [], ''), sourceOnly: true as const },
     ]
     expect(questionsForTopic(bank, '[P2-ED-05] Filas').map((q) => q.id)).toEqual(['q-a'])
+  })
+})
+
+describe('questionsBySubtopic', () => {
+  const q = (id: string, subtopic?: string) =>
+    ({ id: `q-${id}-aaaaaaaa`, topic: 'Eletrostática', subtopic, tags: [], question: `p ${id}`, answerStatus: 'verified' }) as never
+  it('takes the same number from each subtopic and names the short ones', () => {
+    const r = questionsBySubtopic([q('1', 'A'), q('2', 'A'), q('3', 'A'), q('4', 'B')], 'Eletrostática', 2)!
+    expect(r.picked).toHaveLength(3)
+    expect(r.short).toEqual(['B'])
+  })
+  it('returns null when no question has a subtopic', () => {
+    expect(questionsBySubtopic([q('1'), q('2')], 'Eletrostática', 2)).toBeNull()
   })
 })
