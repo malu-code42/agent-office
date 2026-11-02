@@ -26,6 +26,8 @@ export interface LunaToolDeps {
   /** Completes like the board does (archive, focus, linked routine). Returns the task id. */
   completeTask(target: number | string): string
   discardTask(target: number | string, reason: string): string
+  /** Puts a task in the focus like the board does (gives it an id when it has none). Returns the task id. */
+  focusTask(target: number | string): string
   agenda: {
     read(vault: string): string | null
     current(vault: string): string
@@ -196,8 +198,14 @@ export function lunaToolDefs(deps: LunaToolDeps) {
       { annotations: { destructiveHint: true } },
     ),
     tool(
+      'focus_add',
+      'Põe uma tarefa (linha da última tasks_list ou id) em "Tarefas em foco": o que a usuária quer fazer agora. A data da tarefa é só o prazo e não muda.',
+      { target },
+      (args) => run(() => `Tarefa ${deps.focusTask(args.target)} em foco.`)(),
+    ),
+    tool(
       'focus_list',
-      `Lista as tarefas em foco hoje. "parada" marca as que estão sem avanço há ${REVIEW_STALE_DAYS} dias ou mais.`,
+      `Lista as tarefas em foco, o grupo do que a usuária quer fazer agora, seja qual for o prazo. "parada" marca as que estão sem avanço há ${REVIEW_STALE_DAYS} dias ou mais.`,
       {},
       () =>
         run(() => {

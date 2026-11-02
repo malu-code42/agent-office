@@ -528,6 +528,13 @@ export function registerTasksIpc(ctx: IpcContext): void {
         rescheduleTask: (path, line, date) => writer.reschedule(path, line, date),
         completeTask: (target) => completeTask(requireVault(), target),
         discardTask: (target, reason) => discardTask(requireVault(), target, reason),
+        focusTask: (target) => {
+          const path = requireVault()
+          if (typeof target === 'string' && !taskAt(path, target)) throw new Error(`Não achei a tarefa ${target} em tarefas.md.`)
+          const id = typeof target === 'number' ? writer.assignId(path, target) : target
+          ctx.planning.add(id)
+          return id
+        },
         agenda,
         review,
         callAgent: async ({ task, cwd, name }) => {
