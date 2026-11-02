@@ -23,6 +23,12 @@ const hit = {
   line: 0,
   score: 1,
 }
+// Passages that say different things: the builder drops one that repeats an earlier one.
+const variant = (n: number, book = 'Introdução à Ciência da Computação') => ({
+  ...hit,
+  sourceRef: `study sources/textbooks/${book}/L.pdf#Página ${n}`,
+  excerpt: `${excerpt} ${'abcdefghij'.split('').map((c) => `termo${n}${c}`).join(' ')}`,
+})
 const QUESTIONS = [
   'Quais dígitos aparecem no sistema binário?',
   'Quantos símbolos distintos usa a base dois?',
@@ -33,7 +39,7 @@ const QUESTIONS = [
 function setup(options: { verdict?: string; failAsk?: boolean; bank?: StudyQuestion[] } = {}) {
   const bank: StudyQuestion[] = options.bank ?? []
   // Only the computing books exist: Metodologia Científica has no folder and nothing in the default one.
-  const search = vi.fn(async (_query: string, scope?: readonly string[]) => ({ hits: scope?.[0]?.includes('Computação') ? [hit, hit, hit, hit] : [] }))
+  const search = vi.fn(async (_query: string, scope?: readonly string[]) => ({ hits: scope?.[0]?.includes('Computação') ? [1, 2, 3, 4].map((n) => variant(n)) : [] }))
   let n = 0
   const ask = vi.fn(async (system: string) => {
     if (options.failAsk) throw new Error('Claude Code não encontrado.')
@@ -155,10 +161,17 @@ describe('buildStudyBank passages', () => {
     expect(ask).not.toHaveBeenCalled()
   })
 
+  it('does not use passages that repeat what another one says', async () => {
+    const { deps, search, ask } = setup()
+    search.mockImplementation(async () => ({ hits: [variant(1), { ...variant(2), excerpt: variant(1).excerpt }] }))
+    const { results } = await buildStudyBank(trail, deps, { perTopic: 2, discipline: 'P1-ICC' })
+    expect(results[0]).toMatchObject({ added: 0, reason: 'little' })
+    expect(ask).not.toHaveBeenCalled()
+  })
+
   it('fills the missing passages with the other books of the library', async () => {
     const { deps, search, ask } = setup()
-    const other = { ...hit, sourceRef: 'study sources/textbooks/Lógica e Matemática Discreta/G.pdf#Página 9' }
-    search.mockImplementation(async (_query: string, scope?: readonly string[]) => ({ hits: scope ? [hit, hit] : [other, other] }))
+    search.mockImplementation(async (_query: string, scope?: readonly string[]) => ({ hits: scope ? [variant(1), variant(2)] : [variant(5, 'Lógica e Matemática Discreta'), variant(6, 'Lógica e Matemática Discreta')] }))
     const { results } = await buildStudyBank(trail, deps, { perTopic: 4, discipline: 'P1-ICC' })
     expect(results[0]).toMatchObject({ added: 4 })
     expect(results[0]!.reason).toBeUndefined()

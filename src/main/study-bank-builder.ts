@@ -11,7 +11,7 @@ import {
 import type { StudyLibraryHit } from '@shared/study-library'
 import { isChoiceQuestion, STUDY_QUESTION_LIMITS, type StudyQuestion } from '@shared/study-questions'
 import type { StudyTrail, StudyTrailTopic } from '@shared/study-trail'
-import { askClaude, generateGroundedQuestion, type AskJson, type GroundedFailure } from './study-questions-grounded'
+import { askClaude, generateGroundedQuestion, tooSimilar, type AskJson, type GroundedFailure } from './study-questions-grounded'
 
 /** A bank error that ends the whole run: the bank is full or changed in Obsidian during the write. */
 export type StudyBankWriteError = Error & { code?: 'full' | 'changed' }
@@ -144,12 +144,13 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
     }
     // One passage per question: with fewer passages than questions the author can only repeat itself, so don't spend the run.
     const needed = onTopic.length + missing
+    hits = distinct(hits)
     if (hits.length < needed) {
       // The discipline's own books come first; the other books of the library (what Cora shows) fill what is left.
       try {
         const own = new Set(hits.map((hit) => hit.sourceRef))
         const more = (await deps.library.search(topic.title)).hits.filter((hit) => !NAME_ONLY.test(hit.excerpt) && !own.has(hit.sourceRef))
-        hits = [...hits, ...more]
+        hits = distinct([...hits, ...more])
       } catch (error) {
         return { results, stop: 'error', message: (error as Error).message }
       }
@@ -221,6 +222,13 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
     finish(result)
   }
   return { results }
+}
+
+/** Passages in order, without those that teach what an earlier one already says. */
+function distinct(hits: StudyLibraryHit[]): StudyLibraryHit[] {
+  const kept: StudyLibraryHit[] = []
+  for (const hit of hits) if (!kept.some((k) => tooSimilar(k.excerpt, hit.excerpt))) kept.push(hit)
+  return kept
 }
 
 function reasonOf(failure: GroundedFailure | undefined, duplicates: boolean): StudyBankReason {
