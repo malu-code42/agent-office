@@ -63,6 +63,7 @@ import {
   advanceStudyCycleArgsSchema,
   resetStudyCycleArgsSchema,
   resumeStudyCycleArgsSchema,
+  deleteStudyQuestionsArgsSchema,
   searchStudyLibraryArgsSchema,
   studySourceInventoryArgsSchema,
   recommendStudySourcesArgsSchema,
@@ -272,6 +273,15 @@ export function registerTasksIpc(ctx: IpcContext): void {
   ipcMain.handle('office:resumeStudyCycle', (_e, ...args: unknown[]) => {
     const [cycleId] = parse(resumeStudyCycleArgsSchema, args, 'Ciclo de estudo inválido.')
     return studyCycleService().resume(cycleId)
+  })
+  ipcMain.handle('office:deleteStudyCycle', (_e, ...args: unknown[]) => {
+    const [cycleId] = parse(resumeStudyCycleArgsSchema, args, 'Ciclo de estudo inválido.')
+    return studyCycleService().delete(cycleId)
+  })
+  ipcMain.handle('office:deleteStudyQuestions', (_e, ...args: unknown[]) => {
+    const [ids] = parse(deleteStudyQuestionsArgsSchema, args, 'Questões inválidas.')
+    if (bankJobs.status()?.status === 'running') throw new Error('O banco está sendo montado. Espere terminar para excluir questões.')
+    return studyService().removeQuestions(ids)
   })
   // Read on every call, like the agenda: the trail and the class grid are the user's files, never written here.
   ipcMain.handle('office:readStudyTrail', async () => parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE)))

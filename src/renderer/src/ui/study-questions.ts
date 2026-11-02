@@ -3,11 +3,12 @@ import { studyBankStats, type StudyBankStats } from '@shared/study-bank-stats'
 import { answeredStudyQuestions, isStudyQuestionAnswered } from '@shared/study-cycle'
 import { STUDY_QUESTION_LIMITS, type StudyQuestion } from '@shared/study-questions'
 import { h } from './dom'
-import { cleanError, modal } from './modals/common'
+import { cleanError, confirmDialog, modal } from './modals/common'
 import { studyQuestionCard } from './study-bank'
 import { dressStudyWindow, STUDY_WHO } from './study-kit'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
+type Remove = (topic: string, ids: string[]) => Promise<void>
 
 /**
  * "Banco de questões" (the question shelf): the bank in numbers, every trail topic with its new
@@ -67,7 +68,24 @@ export function openStudyQuestions(root: HTMLElement, toast: Toast, openBuilder:
       const isAnswered = (q: StudyQuestion) => isStudyQuestionAnswered(answered, q)
       const stats = studyBankStats(bank.questions, topics, { goal: STUDY_BANK_DEFAULT_PER_TOPIC, isAnswered })
       const byId = new Map(bank.questions.map((q) => [q.id, q]))
-      bankView(content, stats, byId, isAnswered, build)
+      const remove = async (topic: string, ids: string[]) => {
+        const ok = await confirmDialog(root, {
+          title: 'Excluir as questões do tópico?',
+          text: `${plural(ids.length, 'questão', 'questões')} de “${topic}” saem do banco (fica uma cópia de segurança do arquivo). Isso não apaga o seu progresso; você pode montar o banco de novo depois.`,
+          confirm: 'Excluir',
+          cancel: 'Cancelar',
+        })
+        if (!ok) return
+        try {
+          const n = await window.office.deleteStudyQuestions(ids)
+          toast(`${plural(n, 'questão excluída', 'questões excluídas')} de “${topic}”.`, 'ok')
+          close()
+          openStudyQuestions(root, toast, openBuilder)
+        } catch (error) {
+          toast(cleanError(error), 'err')
+        }
+      }
+      bankView(content, stats, byId, isAnswered, build, remove)
     })
     .catch((error: unknown) =>
       content.replaceChildren(h('p', { class: 'field-hint', role: 'alert' }, `Não foi possível ler o banco: ${cleanError(error)}`)),
@@ -106,10 +124,11 @@ function bankView(
   byId: Map<string, StudyQuestion>,
   isAnswered: (q: StudyQuestion) => boolean,
   build: (preset?: StudyBankRequest) => void,
+  remove: Remove,
 ): void {
   const show = (name: string | null): void => {
     const d = name === null ? undefined : stats.disciplines.find((item) => item.discipline === name)
-    content.replaceChildren(...(d ? disciplineView(d, stats, byId, isAnswered, build, () => show(null)) : overview(stats, build, show)))
+    content.replaceChildren(...(d ? disciplineView(d, stats, byId, isAnswered, build, remove, () => show(null)) : overview(stats, build, show)))
     if (d) content.querySelector<HTMLElement>('.bq-crumb .btn')?.focus()
   }
   show(null)
@@ -202,6 +221,7 @@ function disciplineView(
   byId: Map<string, StudyQuestion>,
   isAnswered: (q: StudyQuestion) => boolean,
   build: (preset?: StudyBankRequest) => void,
+  remove: Remove,
   back: () => void,
 ): HTMLElement[] {
   const total = d.topics.filter((t) => t.id !== undefined).length
@@ -217,7 +237,7 @@ function disciplineView(
       stat(total - d.below, 'na meta', `de ${plural(total, 'tópico', 'tópicos')}`, 'var(--green)'),
       stat(d.below, 'abaixo da meta', `faltam ${plural(missing, 'questão', 'questões')}`, 'var(--red)'),
     ),
-    h('div', { class: 'bq-rows' }, ...d.topics.map((t) => topicRow(t, stats.goal, byId, isAnswered, d.discipline))),
+    h('div', { class: 'bq-rows' }, ...d.topics.map((t) => topicRow(t, stats.goal, byId, isAnswered, d.discipline, remove))),
     h(
       'div',
       { class: 'bq-crumb' },
@@ -237,6 +257,7 @@ function topicRow(
   byId: Map<string, StudyQuestion>,
   isAnswered: (q: StudyQuestion) => boolean,
   discipline: string,
+  remove: Remove,
 ): HTMLElement {
   const cards = h('div', { class: 'bn-cards' })
   const inTrail = t.id !== undefined
@@ -269,6 +290,13 @@ function topicRow(
       h('span', { class: 'num', title: `${t.fresh} novas de ${t.count}` }, inTrail ? `${t.fresh}/${goal}` : String(t.fresh)),
       inTrail ? h('span', { class: `bq-pill${t.below ? '' : ' ok'}` }, t.below ? 'Abaixo' : 'Na meta') : h('span', {}),
     ),
+    t.ids.length
+      ? h(
+          'div',
+          { class: 'bq-crumb' },
+          h('button', { class: 'btn btn-small', type: 'button', onclick: () => void remove(t.topic, t.ids) }, `Excluir as ${t.ids.length} questões`),
+        )
+      : null,
     cards,
   )
 }

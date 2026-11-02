@@ -532,7 +532,13 @@ export function resumeStudyCycle(state: StudyCycleState, cycleId: string): Study
   return { ...state, activeId: cycle.id }
 }
 
-export const emptyStudyCycleState = (): StudyCycleState => ({ activeId: null, cycles: [] })
+/** Deletes a cycle and its notes. The answered register stays, so answered questions still never come back. */
+export function deleteStudyCycle(state: StudyCycleState, cycleId: string): StudyCycleState {
+  if (!state.cycles.some((item) => item.id === cycleId)) throw new Error('Esse ciclo não está no histórico.')
+  return { ...state, activeId: state.activeId === cycleId ? null : state.activeId, cycles: state.cycles.filter((item) => item.id !== cycleId) }
+}
+
+export const emptyStudyCycleState =(): StudyCycleState => ({ activeId: null, cycles: [] })
 
 /** How a question's wording is compared: case and spacing do not make it new. */
 export const studyQuestionKey = (text: string): string => normalizePrompt(text)
