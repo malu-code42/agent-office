@@ -342,6 +342,9 @@ export interface OfficeAPI {
   /** Gera (ou refaz) as ideias de software de um tópico estudado e as guarda. */
   generateStudyIdeas(topic: string): Promise<StudyIdeaSet>
   resumeStudyCycle(cycleId: string): Promise<StudyCycleState>
+  deleteStudyCycle(cycleId: string): Promise<StudyCycleState>
+  /** Deletes bank questions (with a backup of the file); resolves with how many went. */
+  deleteStudyQuestions(ids: string[]): Promise<number>
   /** Lê os tópicos de `trilha zettel.md` do vault, para escolher o tópico do ciclo. Só lê. */
   readStudyTrail(): Promise<StudyTrail>
   /** Lê a grade semanal de aulas.md do vault para o quadro "Horário de aula" (semana atual, com exceções). Só lê. */

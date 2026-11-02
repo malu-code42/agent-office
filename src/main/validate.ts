@@ -247,6 +247,7 @@ export const advanceStudyCycleArgsSchema = z.tuple([])
 export const resetStudyCycleArgsSchema = z.tuple([])
 export const studySubtopicsArgsSchema = z.tuple([z.string().trim().min(1).max(200)])
 export const resumeStudyCycleArgsSchema = z.tuple([z.string().regex(/^sc-\d{1,16}-[a-z0-9]{1,16}$/)])
+export const deleteStudyQuestionsArgsSchema = z.tuple([z.array(studyBankQuestionIdSchema).min(1).max(1000)])
 export const reviewStudyGapArgsSchema = z.tuple([
   z.string().regex(/^q-[a-z0-9-]{8,72}$/i),
   z.string().trim().min(1).max(2000),

@@ -501,6 +501,19 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
           () => void save(() => window.office.resumeStudyCycle(cycle.id), `Ciclo de “${topicName(cycle.topic)}” retomado de onde parou.`),
           { small: true },
         ),
+        btn(
+          'Excluir',
+          async () => {
+            const ok = await confirmDialog(root, {
+              title: 'Excluir o trabalho guardado?',
+              text: `O ciclo de “${topicName(cycle.topic)}” (diagnóstico, notas e prática) será apagado. As questões que você já respondeu continuam sem voltar. Isso não pode ser desfeito.`,
+              confirm: 'Excluir',
+              cancel: 'Cancelar',
+            })
+            if (ok) void save(() => window.office.deleteStudyCycle(cycle.id), `Trabalho de “${topicName(cycle.topic)}” excluído.`)
+          },
+          { small: true },
+        ),
       ),
     )
     foot.append(
