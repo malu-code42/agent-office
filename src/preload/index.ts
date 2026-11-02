@@ -46,6 +46,7 @@ const api: OfficeAPI = {
   readStudyNotes: () => ipcRenderer.invoke('office:readStudyNotes'),
   saveLooseStudyNote: (title, text) => ipcRenderer.invoke('office:saveLooseStudyNote', title, text),
   startStudyCardDraft: (noteIds) => ipcRenderer.invoke('office:startStudyCardDraft', noteIds),
+  readStudyCard: (id) => ipcRenderer.invoke('office:readStudyCard', id),
   assistStudyCard: (token, authored) => ipcRenderer.invoke('office:assistStudyCard', token, authored),
   saveStudyCardDraft: (token, draft) => ipcRenderer.invoke('office:saveStudyCardDraft', token, draft),
   listStudyCards: () => ipcRenderer.invoke('office:listStudyCards'),

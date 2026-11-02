@@ -792,6 +792,7 @@ describe('argumentos IPC do ciclo de estudo', () => {
       sections: {
         information: 'Informação',
         examplePractice: 'Exemplo',
+        application: 'Aplicação',
         connections: '',
         sources: '',
         connectionsPending: true,
@@ -800,7 +801,7 @@ describe('argumentos IPC do ciclo de estudo', () => {
     }
     expect(startStudyCardDraftArgsSchema.safeParse([['sn-sc-123-abcdefgh-q-12345678']]).success).toBe(true)
     expect(startStudyCardDraftArgsSchema.safeParse([['C:\\private\\note.md']]).success).toBe(false)
-    const authored = { title: 'Eventos', information: 'Ideia', examplePractice: 'Exemplo' }
+    const authored = { title: 'Eventos', information: 'Ideia', examplePractice: 'Exemplo', application: 'Aplicação' }
     expect(assistStudyCardArgsSchema.safeParse(['550e8400-e29b-41d4-a716-446655440000', authored]).success).toBe(true)
     expect(assistStudyCardArgsSchema.safeParse(['550e8400-e29b-41d4-a716-446655440000', { ...authored, connections: 'x' }]).success).toBe(false)
     expect(saveStudyCardDraftArgsSchema.safeParse(['550e8400-e29b-41d4-a716-446655440000', draft]).success).toBe(true)

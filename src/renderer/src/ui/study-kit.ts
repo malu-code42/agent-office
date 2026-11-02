@@ -23,7 +23,7 @@ export const STUDY_WHO = {
   curator: { letter: 'C', tone: 'curator', name: 'Curador' },
   verifier: { letter: 'V', tone: 'verifier', name: 'Verificador' },
   bank: { letter: 'Q', tone: 'bank', name: 'Banco de questões' },
-  cards: { letter: 'Z', tone: 'cards', name: 'Cartões' },
+  cards: { letter: 'C', tone: 'cards', name: 'Cartões' },
   schedule: { letter: 'H', tone: 'schedule', name: 'Horário' },
 } satisfies Record<string, StudyWho>
 

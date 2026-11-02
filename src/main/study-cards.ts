@@ -80,7 +80,12 @@ export class StudyCardsService {
     const notes = this.draftSources(token)
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Texto do cartão inválido.')
     const raw = input as Record<string, unknown>
-    const authored: StudyCardAuthored = { title: raw.title as string, information: raw.information as string, examplePractice: raw.examplePractice as string }
+    const authored: StudyCardAuthored = {
+      title: raw.title as string,
+      information: raw.information as string,
+      examplePractice: raw.examplePractice as string,
+      application: raw.application as string,
+    }
     // Same limits and markup rules as a saved card, so nothing unsafe reaches the model or the file.
     validateStudyCardDraft({
       ...authored,
@@ -192,6 +197,16 @@ export class StudyCardsService {
     return { cards }
   }
 
+  /** One whole card, for the "open" view of the library. */
+  readCard(cardId: string): StudyCard {
+    if (!/^c-[a-z0-9-]{8,80}$/i.test(cardId)) throw new Error('Identificador de cartão inválido.')
+    const dir = this.cardDirectory(false)
+    if (!dir) throw new Error('A biblioteca de cartões não existe.')
+    const card = decodeStudyCard(this.readVaultFile(join(dir, `${cardId}.md`), CARD_LIMIT))
+    if (card.id !== cardId) throw new Error('O cartão solicitado não corresponde ao arquivo.')
+    return card
+  }
+
   setPhysicalWritten(cardId: string, written: boolean): StudyCardSummary {
     if (!/^c-[a-z0-9-]{8,80}$/i.test(cardId)) throw new Error('Identificador de cartão inválido.')
     const dir = this.cardDirectory(false)
@@ -280,7 +295,8 @@ export function parseStudyNotes(markdown: string): StudyNotesRead {
     const id = marker[1]!
     if (ids.has(id)) continue
     ids.add(id)
-    notes.push({ id, title, sourceRef, hash: studyNoteHash(text), text })
+    const topic = /^Tópico:\s*(.+)$/m.exec(text)?.[1]?.trim()
+    notes.push({ id, title, sourceRef, hash: studyNoteHash(text), text, ...(topic && topic.length <= 200 ? { topic } : {}) })
   }
   return {
     notes,

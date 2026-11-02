@@ -221,6 +221,7 @@ describe('tasks IPC', () => {
       title: 'Cartão',
       information: 'Minha ideia.',
       examplePractice: 'Meu exemplo.',
+      application: 'Minha aplicação.',
     })
     expect(canceled).toBeNull()
     expect(cardInterpreter.assist).not.toHaveBeenCalled()
@@ -240,7 +241,7 @@ describe('tasks IPC', () => {
     })
     ipc.confirmResponses = [0, 1]
     const started = (await invoke('office:startStudyCardDraft', [noteId])) as { token: string }
-    const authored = { title: 'Cartão', information: 'Minha ideia.', examplePractice: 'Meu exemplo.' }
+    const authored = { title: 'Cartão', information: 'Minha ideia.', examplePractice: 'Meu exemplo.', application: 'Minha aplicação.' }
     const assisted = (await invoke('office:assistStudyCard', started.token, authored)) as { feedback: string }
     expect(cardInterpreter.assist).toHaveBeenCalledOnce()
     expect(assisted.feedback).toBe('Explique o porquê.')

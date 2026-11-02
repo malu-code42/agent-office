@@ -47,6 +47,13 @@ export const STUDY_CHOICE_COUNT = 5
 export const isChoiceQuestion = (q: Pick<StudyQuestion, 'options' | 'answer'>): boolean =>
   !!q.options?.length && !!q.answer && /^[A-Z]$/.test(q.answer) && q.answer.charCodeAt(0) - 65 < q.options.length
 
+const TEXT_REFERENCE =
+  /\b(?:o|no|do|ao|neste|nesse|deste|desse|este|esse)\s+(?:texto|trecho|excerto|fragmento)\b|\b(?:texto|trecho|excerto|fragmento)\s+(?:acima|abaixo|apresentado|citado|dado|anterior)\b/i
+
+/** Whether the statement or an alternative points at a text the student is not shown (there is no passage). */
+export const refersToMissingText = (q: Pick<StudyQuestion, 'passage' | 'question' | 'options'>): boolean =>
+  !q.passage && [q.question, ...(q.options ?? [])].some((part) => TEXT_REFERENCE.test(part))
+
 /** The letter of an answer ("C", "c)", " C ") or null. */
 export function choiceOf(response: string): string | null {
   return /^\s*([A-Za-z])(?![\p{L}\p{N}])/u.exec(response)?.[1]?.toUpperCase() ?? null

@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Cartões · passo a passo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Pixelify+Sans:wght@500&display=swap">
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:40px 0 80px;background:#1d1a24;color:#f2e9dc;font:14px/1.45 'IBM Plex Sans',sans-serif;
+  background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 2px,transparent 2px 48px),repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 2px,transparent 2px 48px)}
+.board{width:960px;margin:0 auto 56px}
+.cap{font:500 12px 'IBM Plex Mono',monospace;color:#b9ab9c;margin:0 0 8px;letter-spacing:.06em;text-transform:uppercase}
+.m{background:#2b2635;border:3px solid #0f0d14;box-shadow:4px 4px 0 #0f0d14;display:flex;flex-direction:column}
+.h{font-family:'Pixelify Sans',sans-serif;font-weight:500}
+.mono{font-family:'IBM Plex Mono',monospace}
+.lbl{font:500 11px 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:#b9ab9c}
+.muted{color:#b9ab9c}
+header.t{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:3px solid #0f0d14}
+header.t .grow{flex:1}
+.av{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #0f0d14;font:500 15px 'Pixelify Sans',sans-serif;color:#1a1410;background:#e3a1d1}
+.body{padding:16px;display:flex;flex-direction:column;gap:12px}
+.foot{display:flex;gap:8px;align-items:center;padding:12px 16px;border-top:3px solid #0f0d14}
+.foot .grow{flex:1}
+.btn{font:500 14px 'IBM Plex Sans',sans-serif;min-height:40px;padding:0 16px;border:2px solid #0f0d14;background:#383149;color:#f2e9dc;box-shadow:2px 2px 0 #0f0d14;border-radius:0;display:inline-flex;align-items:center;gap:8px}
+.btn-p{background:#e07a4f;color:#1a1410;font-weight:600}
+.btn-q{background:transparent;box-shadow:none;border-color:#4a4258}
+.btn:disabled{background:#2b2635;color:#a0939f;border-color:#4a4258;box-shadow:none}
+.chip{display:inline-flex;align-items:center;gap:6px;font:500 12px 'IBM Plex Mono',monospace;padding:2px 8px;border:2px solid #0f0d14;background:#383149;white-space:nowrap}
+.ok{background:#1f3528;color:#cfeedd;border-color:#7fd39b}
+.warn{background:#3a2f1f;color:#f0b85a;border-color:#f0b85a}
+.pink{background:#3a2a3a;color:#e3a1d1;border-color:#e3a1d1}
+.now{background:#e07a4f;color:#1a1410}
+.card{background:#332d40;border:2px solid #0f0d14;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.sunk{background:#221e2b;border:2px solid #0f0d14}
+.num{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;background:#383149;border:2px solid #0f0d14;font:500 13px 'IBM Plex Mono',monospace}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.step{background:#221e2b;border:2px solid #0f0d14;padding:8px 12px;display:flex;align-items:center;gap:10px}
+.step.now{background:#4a3550;border-color:#e07a4f;color:#f2e9dc}
+.step.done .num{background:#1f3528;color:#cfeedd;border-color:#7fd39b}
+.step small{display:block;color:#b9ab9c;font-size:12px}
+.row{display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:start}
+.row.sel{background:#4a3550;border-color:#e07a4f}
+input[type=checkbox]{accent-color:#e07a4f;width:18px;height:18px;margin:0}
+.field,textarea{background:#221e2b;border:2px solid #0f0d14;color:#f2e9dc;font:14px 'IBM Plex Sans',sans-serif;padding:8px 10px;box-shadow:inset 2px 2px 0 #0f0d14;border-radius:0;width:100%;resize:none}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mine{border-left:6px solid #e3a1d1}
+.claude{border-left:6px solid #e07a4f}
+.link{color:#e3a1d1;font-family:'IBM Plex Mono',monospace}
+.fb{background:#3a2f1f;border:2px solid #f0b85a;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.fb li{margin-left:16px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.sq{aspect-ratio:1/1;background:#332d40;border:2px solid #0f0d14;padding:12px;display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden;cursor:pointer;box-shadow:2px 2px 0 #0f0d14}
+.sq.sel{background:#4a3550;border-color:#e07a4f}
+.sq .ck{position:absolute;top:10px;right:10px}
+.sq b{padding-right:28px;font-size:16px}
+.sq .txt{flex:1;overflow:hidden;display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;font-size:16px;line-height:1.5}
+.sq .more{font:500 13px 'IBM Plex Mono',monospace;color:#e3a1d1}
+.sq .tags{display:flex;gap:4px;flex-wrap:wrap}
+.open{background:#332d40;border:3px solid #e07a4f;box-shadow:4px 4px 0 #0f0d14;padding:16px;display:flex;flex-direction:column;gap:10px}
+.pv{display:flex;flex-direction:column;gap:2px}
+.pv .lbl{color:#e3a1d1;font-size:11px}
+.pv span:last-child{font-size:15px;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.sq .pvs{flex:1;overflow:hidden;display:flex;flex-direction:column;gap:8px}
+.sq .txt{font-size:15px;line-height:1.4;-webkit-line-clamp:6}
+.sq b{font-size:16px}
+.tp{display:flex;align-items:center;gap:10px;margin-top:4px}
+.tp i{flex:1;height:3px;background:#0f0d14}
+.sec{display:flex;flex-direction:column;gap:12px}
+.big{font-size:17px;line-height:1.55}
+.part{display:flex;flex-direction:column;gap:6px;padding:12px 14px;background:#221e2b;border:2px solid #0f0d14;border-left:6px solid #e3a1d1}
+.part.c{border-left-color:#e07a4f}
+.blk{display:flex;flex-direction:column;gap:8px}
+.bl{font:500 13px 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:#e3a1d1;display:flex;gap:8px;align-items:center}
+.blk.c .bl{color:#e07a4f}
+.box{background:#221e2b;border:2px solid #0f0d14;box-shadow:inset 2px 2px 0 #0f0d14;padding:16px 18px;font-size:18px;line-height:1.6;min-height:64px}
+.blk.c .box{border-color:#5b3a2e}
+.open-body{display:flex;flex-direction:column;gap:22px;padding:20px}
+.tabs{display:flex;gap:0;border-bottom:3px solid #0f0d14;margin:-4px 0 4px}
+.tab{font:600 14px 'IBM Plex Sans',sans-serif;padding:10px 18px;border:3px solid #0f0d14;border-bottom:0;margin-bottom:-3px;background:#221e2b;color:#b9ab9c;display:inline-flex;gap:8px;align-items:center}
+.tab.on{background:#e07a4f;color:#1a1410}
+.tab .chip{background:#2b2635;color:#f2e9dc}
+.bl{background:#e3a1d1;color:#1a1410;border:2px solid #0f0d14;padding:4px 12px;align-self:flex-start;font-weight:600;font-size:14px;box-shadow:2px 2px 0 #0f0d14}
+.blk.c .bl{background:#e07a4f}
+.box{background:#2a2233;border:3px solid #e3a1d1;box-shadow:3px 3px 0 #0f0d14}
+.blk.c .box{background:#30231f;border:3px solid #e07a4f}
+.blk .bl{color:#1a1410}
+.blk.k1 .bl{background:#e3a1d1;color:#1a1410}
+.blk.k1 .box{background:#2a2233;border-color:#e3a1d1}
+.blk.k2 .bl{background:#7fc8e8;color:#1a1410}
+.blk.k2 .box{background:#1d2a33;border-color:#7fc8e8}
+.blk.k3 .bl{background:#7fd39b;color:#1a1410}
+.blk.k3 .box{background:#1c2e24;border-color:#7fd39b}
+.blk.k4 .bl{background:#e07a4f;color:#1a1410}
+.blk.k4 .box{background:#30231f;border-color:#e07a4f}
+.blk.k5 .bl{background:#f0b85a;color:#1a1410}
+.blk.k5 .box{background:#33291a;border-color:#f0b85a}
+.cg{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:22px}
+.cg .blk{min-height:0}
+.cg .blk .box{flex:1}
+.cg .g1{grid-row:1/3}
+.grid.n .sq b{font-size:16px}
+.grid.n .pv span:last-child{font-size:17px;line-height:1.4;-webkit-line-clamp:7!important}
+</style>
+</head>
+<body>
+
+<!-- TELA INICIAL -->
+<div class="board">
+<p class="cap">0 · Aba Notas (agrupada por tópico)</p>
+<section class="m">
+  <header class="t"><span class="av" aria-hidden="true">C</span><span class="h" style="font-size:20px">Notas e cartões de estudo</span><span class="muted">As notas do ciclo viram cartões · cada cartão é escrito à mão</span><span class="grow"></span><button class="btn btn-q">Fechar</button></header>
+  <div class="body">
+    <div class="tabs" role="tablist"><span class="tab on" role="tab">Notas <span class="chip">4</span></span><span class="tab" role="tab">Cartões digitais <span class="chip">2</span></span></div>
+    <div class="card"><span class="lbl">Nova nota avulsa</span><input class="field" placeholder="Título"><textarea rows="2"></textarea><button class="btn" style="align-self:flex-start" disabled>Salvar nota avulsa</button></div>
+    <span class="muted">Etapa 1 de 3 · escolha as notas do cartão · clique para abrir</span>
+    <div class="sec"><div class="tp"><span class="h" style="font-size:18px">Probabilidade e Estatística</span><span class="chip">3 notas</span><i></i></div>
+      <div class="grid n"><div class="sq sel"><input class="ck" type="checkbox" checked><b>2026-10-25 · q-12345678</b><span class="muted mono" style="font-size:12px">probabilidade.md#Eventos:3</span><span class="pvs"><div class="pv"><span class="lbl">Nota</span><span style="-webkit-line-clamp:5">Probabilidade conjunta de eventos independentes é o produto das probabilidades de cada um. Se A e B são independentes, P(A∩B) = P(A)·P(B). Saber que A ocorreu não muda a chance de B.</span></div></span><span class="more">ler tudo ›</span></div><div class="sq"><input class="ck" type="checkbox"><b>2026-10-26 · q-87654321</b><span class="muted mono" style="font-size:12px">estatistica.md#Media:1</span><span class="pvs"><div class="pv"><span class="lbl">Nota</span><span style="-webkit-line-clamp:5">Média e mediana respondem a perguntas diferentes quando há valores extremos. A média é puxada por outliers; a mediana resiste.</span></div></span><span class="more">ler tudo ›</span></div><div class="sq"><input class="ck" type="checkbox"><b>2026-10-27 · q-11223344</b><span class="muted mono" style="font-size:12px">estatistica.md#Moda:2</span><span class="pvs"><div class="pv"><span class="lbl">Nota</span><span style="-webkit-line-clamp:5">Moda é o valor que mais aparece. Pode haver mais de uma (bimodal).</span></div></span><span class="more">ler tudo ›</span></div></div>
+    </div>
+    <div class="sec"><div class="tp"><span class="h" style="font-size:18px">Sem tópico</span><span class="chip">1 nota</span><i></i></div>
+      <div class="grid n"><div class="sq"><input class="ck" type="checkbox"><b>Nota avulsa · Ideia solta</b><span class="muted mono" style="font-size:12px">autoral</span><span class="pvs"><div class="pv"><span class="lbl">Nota</span><span style="-webkit-line-clamp:5">Lembrar de comparar amostra e população antes de calcular o desvio padrão.</span></div></span><span class="more">ler tudo ›</span></div></div>
+    </div>
+      </div>
+  <div class="foot"><button class="btn btn-p">Escrever cartão (1 nota)</button><span class="grow"></span><button class="btn">Fechar</button></div>
+</section>
+</div>
+
+<!-- ABA CARTOES -->
+<div class="board">
+<p class="cap">0a · Aba Cartões digitais (agrupada por tópico)</p>
+<section class="m">
+  <header class="t"><span class="av" aria-hidden="true">C</span><span class="h" style="font-size:20px">Notas e cartões de estudo</span><span class="muted">As notas do ciclo viram cartões · cada cartão é escrito à mão</span><span class="grow"></span><button class="btn btn-q">Fechar</button></header>
+  <div class="body">
+    <div class="tabs" role="tablist"><span class="tab" role="tab">Notas <span class="chip">4</span></span><span class="tab on" role="tab">Cartões digitais <span class="chip">2</span></span></div>
+    <div class="sec"><div class="tp"><span class="h" style="font-size:18px">Probabilidade e Estatística</span><span class="chip">2 cartões</span><i></i></div>
+      <div class="grid"><div class="sq"><b>Eventos independentes</b><span class="pvs"><div class="pv"><span class="lbl">Ideia</span><span>A probabilidade de dois eventos independentes acontecerem juntos é o produto das probabilidades de cada um.</span></div><div class="pv"><span class="lbl">Exemplo</span><span>Lançar duas moedas: P(cara e cara) = 1/2 × 1/2 = 1/4.</span></div><div class="pv"><span class="lbl">Aplicação</span><span>Calcular a chance de acertar duas questões de chute seguidas.</span></div></span><span class="tags"><span class="chip warn">Conexões pendentes</span></span><span class="more">abrir ›</span></div><div class="sq"><b>Média e mediana</b><span class="pvs"><div class="pv"><span class="lbl">Ideia</span><span>A média sofre com valores extremos, a mediana não.</span></div><div class="pv"><span class="lbl">Exemplo</span><span>Notas 5, 6, 6, 7 e 10: média 6,8 e mediana 6.</span></div><div class="pv"><span class="lbl">Aplicação</span><span>Escolher a medida certa ao resumir salários.</span></div></span><span class="tags"><span class="chip warn">Origem alterada</span><span class="chip ok">Cópia física</span></span><span class="more">abrir ›</span></div></div>
+    </div>
+
+  </div>
+  <div class="foot"><button class="btn">Recarregar origens</button><span class="grow"></span><button class="btn">Fechar</button></div>
+</section>
+</div>
+
+<!-- NOTA ABERTA -->
+<div class="board">
+<p class="cap">0b · Nota aberta</p>
+<section class="m">
+  <header class="t"><span class="av" aria-hidden="true">C</span><span class="h" style="font-size:20px">Nota · 2026-10-25 · q-12345678</span><span class="chip">Probabilidade e Estatística</span><span class="grow"></span><button class="btn btn-q">Voltar à lista</button></header>
+  <div class="body open-body">
+    <div class="blk"><span class="bl">Nota</span><span class="muted mono" style="font-size:12px">Fonte: probabilidade.md#Eventos:3 · versão 3fa9c1d20b7e</span><div class="box">Probabilidade conjunta de eventos independentes é o produto das probabilidades de cada um. Se A e B são independentes, P(A∩B) = P(A)·P(B). Saber que A ocorreu não muda a chance de B. Em dois lançamentos de moeda, o resultado do primeiro não altera o segundo.</div></div>
+    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" checked> Usar esta nota no cartão</label>
+  </div>
+  <div class="foot"><button class="btn btn-p">Escrever cartão (1 nota)</button><button class="btn btn-q">Voltar à lista</button></div>
+</section>
+</div>
+
+<!-- CARTAO ABERTO -->
+<div class="board">
+<p class="cap">0c · Cartão digital aberto (visualização)</p>
+<section class="m">
+  <header class="t"><span class="av" aria-hidden="true">C</span><span class="h" style="font-size:20px">Eventos independentes</span><span class="chip">Probabilidade e Estatística</span><span class="grow"></span><button class="btn btn-q">Voltar à lista</button></header>
+  <div class="body open-body">
+    <div style="display:flex;gap:6px;flex-wrap:wrap"><span class="chip warn">Conexões pendentes</span><span class="chip">Criado em 02/11/2026</span><span class="chip">Cópia física: não escrita</span></div>
+    <div class="cg"><div class="blk k1 g1"><span class="bl">Ideia</span><div class="box">A probabilidade de dois eventos independentes acontecerem juntos é o produto das probabilidades de cada um.</div></div><div class="blk k2"><span class="bl">Exemplo</span><div class="box">Lançar duas moedas: P(cara e cara) = 1/2 × 1/2 = 1/4.</div></div><div class="blk k3"><span class="bl">Aplicação</span><div class="box">Calcular a chance de acertar duas questões de chute seguidas.</div></div></div>
+    <div class="blk k4"><span class="bl">Conexões · Claude</span><div class="box"><span class="link">[[c-4f1a…|Probabilidade condicional]]</span> · <span class="link">[[notas-estudo#2026-10-25 · q-12345678]]</span></div></div>
+    <div class="blk k5"><span class="bl">Fontes · Claude</span><div class="box mono" style="font-size:14px">study sources/probabilidade.md#Eventos:3</div></div>
+    <div class="sunk" style="padding:8px 12px"><span class="lbl">Notas de origem</span> <span class="mono" style="font-size:12px">2026-10-25 · q-12345678 · versão 3fa9c1d20b7e (preservada)</span></div>
+  </div>
+  <div class="foot"><button class="btn">Marquei a cópia física como escrita</button><button class="btn btn-q">Abrir no Obsidian</button><span class="grow"></span><button class="btn btn-q">Voltar à lista</button></div>
+</section>
+</div>
+
+<!-- ETAPA 1 -->
+<div class="board">
+<p class="cap">1 · Escolher as notas</p>
+<section class="m">
+  <header class="t"><span class="av" aria-hidden="true">C</span><span class="h" style="font-size:20px">Cartões</span><span class="muted">cada cartão é escrito à mão</span><span class="grow"></span><button class="btn btn-q">Fechar</button></header>
+  <div class="body">
+    <div class="steps">
+      <div class="step now"><span class="num">1</span><span><b>Notas</b><small>o que sustenta o cartão</small></span></div>
+      <div class="step"><span class="num">2</span><span><b>Escrever</b><small>ideia e exemplo, seus</small></span></div>
+      <div class="step"><span class="num">3</span><span><b>Conexões e fontes</b><small>com ajuda do Claude</small></span></div>
+    </div>
+    <div class="card row sel"><input type="checkbox" checked><div><b>2026-10-25 · q-12345678</b> <span class="chip">2 notas</span><div class="muted mono" style="font-size:12px">study sources/probabilidade.md#Eventos:3</div><div>Probabilidade conjunta de eventos independentes é o produto das probabilidades…</div></div></div>
+    <div class="card row"><input type="checkbox"><div><b>2026-10-26 · q-87654321</b><div class="muted mono" style="font-size:12px">study sources/estatistica.md#Media:1</div><div>Média e mediana respondem a perguntas diferentes quando há valores extremos…</div></div></div>
+    <div class="card"><span class="lbl">Nova nota avulsa</span><input class="field" placeholder="Título"><button class="btn btn-q" style="align-self:flex-start">Salvar nota avulsa</button></div>
+  </div>
+  <div class="foot"><button class="btn btn-p">Escrever cartão (1 nota)</button><span class="grow"></span><span class="muted">Nada é enviado ao Claude nesta etapa.</span></div>
+</section>
+</div>
+
+<!-- ETAPA 2 -->
+<div class="board">
+<p class="cap">2 · Escrever (só você)</p>
+<section class="m">
+  <header class="t"><span class="av" aria-hidden="true">C</span><span class="h" style="font-size:20px">Novo cartão</span><span class="chip">1 nota</span><span class="grow"></span><button class="btn btn-q">Fechar</button></header>
+  <div class="body">
+    <div class="steps">
+      <div class="step done"><span class="num">✓</span><span><b>Notas</b><small>1 escolhida</small></span></div>
+      <div class="step now"><span class="num">2</span><span><b>Escrever</b><small>ideia e exemplo, seus</small></span></div>
+      <div class="step"><span class="num">3</span><span><b>Conexões e fontes</b><small>com ajuda do Claude</small></span></div>
+    </div>
+    <div class="sunk" style="padding:8px 12px"><span class="lbl">Origem</span> <span class="mono" style="font-size:12px">2026-10-25 · q-12345678 · versão 3fa9c1d20b7e</span></div>
+    <div class="card mine"><span class="lbl">Título</span><input class="field" value="Eventos independentes"></div>
+    <div class="two">
+      <div class="card mine"><span class="lbl">Ideia</span><span class="muted">Com suas palavras.</span><textarea rows="5">A probabilidade de dois eventos independentes acontecerem juntos é o produto das probabilidades de cada um.</textarea></div>
+      <div class="card mine"><span class="lbl">Exemplo / aplicação</span><span class="muted">Um caso seu.</span><textarea rows="5">Lançar duas moedas: P(cara e cara) = 1/2 × 1/2 = 1/4.</textarea></div>
+    </div>
+    <div class="card claude" style="flex-direction:row;align-items:center;gap:12px"><span class="av" style="background:#e07a4f">C</span><div style="flex:1"><b>Ajuda do Claude</b><div class="muted">Sugere conexões e fontes e comenta seu texto, sem reescrevê-lo.</div></div><button class="btn btn-p">Pedir conexões, fontes e feedback</button></div>
+  </div>
+  <div class="foot"><button class="btn" disabled>Aprovar e salvar cartão</button><button class="btn btn-q">Voltar sem salvar</button><span class="grow"></span><span class="muted">Dá para salvar sem pedir ajuda; conexões e fontes ficam pendentes.</span></div>
+</section>
+</div>
+
+<!-- ETAPA 3 -->
+<div class="board">
+<p class="cap">3 · Conexões, fontes e feedback (Claude)</p>
+<section class="m">
+  <header class="t"><span class="av" aria-hidden="true">C</span><span class="h" style="font-size:20px">Novo cartão</span><span class="chip">1 nota</span><span class="grow"></span><button class="btn btn-q">Fechar</button></header>
+  <div class="body">
+    <div class="steps">
+      <div class="step done"><span class="num">✓</span><span><b>Notas</b><small>1 escolhida</small></span></div>
+      <div class="step done"><span class="num">✓</span><span><b>Escrever</b><small>ideia e exemplo, seus</small></span></div>
+      <div class="step now"><span class="num">3</span><span><b>Conexões e fontes</b><small>revise e salve</small></span></div>
+    </div>
+    <div class="fb"><span class="lbl" style="color:#f0b85a">Feedback do Claude · não é salvo</span>
+      <ul style="margin:0;padding:0"><li>Diga o que torna dois eventos “independentes” antes de dar a regra.</li><li>No exemplo, mostre por que uma moeda não influencia a outra.</li></ul>
+      <button class="btn btn-q" style="align-self:flex-start;min-height:32px">Pedir feedback de novo depois de editar</button></div>
+    <div class="two">
+      <div class="card mine"><span class="lbl">Ideia <span class="chip pink">sua</span></span><span class="muted">Edite aqui para aplicar o feedback.</span><textarea rows="5">A probabilidade de dois eventos independentes acontecerem juntos é o produto das probabilidades de cada um.</textarea></div>
+      <div class="card mine"><span class="lbl">Exemplo <span class="chip pink">seu</span></span><span class="muted">Edite aqui para aplicar o feedback.</span><textarea rows="5">Lançar duas moedas: P(cara e cara) = 1/2 × 1/2 = 1/4.</textarea></div>
+    </div>
+    <div class="card claude"><span class="lbl">Conexões <span class="chip now">Claude</span></span>
+      <div class="field">Base para <span class="link">[[c-4f1a…|Probabilidade condicional]]</span>: aqui a condição não muda o resultado.
+Veja também <span class="link">[[notas-estudo#2026-10-25 · q-12345678]]</span>.</div>
+      <label style="display:flex;gap:8px;align-items:center"><input type="checkbox"> Ainda precisa de revisão</label></div>
+    <div class="card claude"><span class="lbl">Fontes <span class="chip now">Claude</span></span>
+      <textarea rows="2">study sources/probabilidade.md#Eventos:3</textarea>
+      <label style="display:flex;gap:8px;align-items:center"><input type="checkbox"> Ainda precisa de revisão</label></div>
+  </div>
+  <div class="foot"><button class="btn btn-p">Aprovar e salvar cartão</button><button class="btn btn-q">Voltar sem salvar</button><span class="grow"></span><span class="chip warn">Você confirma antes de gravar</span></div>
+</section>
+</div>
+
+</body>
+</html>

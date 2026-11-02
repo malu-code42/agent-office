@@ -45,6 +45,7 @@ import type { StudyLibrarySearch, StudySourceInventory } from '../study-library'
 import type { StudySourceRecommendations } from '../study-sources'
 import type { Dictation } from '../voice'
 import type {
+  StudyCard,
   StudyCardAssist,
   StudyCardAuthored,
   StudyCardDraft,
@@ -375,6 +376,8 @@ export interface OfficeAPI {
   assistStudyCard(token: string, authored: StudyCardAuthored): Promise<StudyCardAssist | null>
   /** Salva o rascunho aprovado pela estudante como cartão Markdown no Obsidian. */
   saveStudyCardDraft(token: string, draft: Omit<StudyCardDraft, 'sourceSnapshots'>): Promise<StudyCardSummary | null>
+  /** Lê um cartão inteiro para a visualização aberta. */
+  readStudyCard(id: string): Promise<StudyCard>
   /** Lista cartões e compara as origens com as versões atuais das notas. */
   listStudyCards(): Promise<StudyCardsRead>
   /** Marca manualmente se a cópia física do cartão foi escrita. */

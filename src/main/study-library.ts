@@ -362,12 +362,12 @@ export class StudyNotesWriter implements StudyNoteWriter {
     this.file = join(this.root, NOTE_FILE)
   }
 
-  write(input: { id: string; gapQuestionId: string; sourceRef: string; text: string; savedAt?: number }) {
+  write(input: { id: string; gapQuestionId: string; sourceRef: string; text: string; savedAt?: number }, topic?: string) {
     const { id, gapQuestionId, sourceRef } = input
     const text = input.text.trim()
     const savedAt = input.savedAt ?? Date.now()
     if (!/^q-[a-z0-9-]{8,72}$/i.test(gapQuestionId)) throw new Error('Identificador de nota inválido.')
-    this.append(id, gapQuestionId, sourceRef, text, savedAt)
+    this.append(id, gapQuestionId, sourceRef, text, savedAt, topic)
     return { id, gapQuestionId, sourceRef, text, savedAt }
   }
 
@@ -380,7 +380,7 @@ export class StudyNotesWriter implements StudyNoteWriter {
     return { id }
   }
 
-  private append(id: string, heading: string, sourceRef: string, rawText: string, at?: number): void {
+  private append(id: string, heading: string, sourceRef: string, rawText: string, at?: number, topic?: string): void {
     const text = rawText.trim()
     if (!/^sn-[a-z0-9-]{8,150}$/i.test(id)) throw new Error('Identificador de nota inválido.')
     if (!text || text.length > 10_000 || /\0/.test(text)) throw new Error('A nota deve ter até 10.000 caracteres.')
@@ -390,7 +390,9 @@ export class StudyNotesWriter implements StudyNoteWriter {
     const current = this.readCurrent()
     if (current.includes(marker)) return
     const date = new Date(savedAt).toISOString().slice(0, 10)
-    const append = [marker, `## ${date} · ${heading}`, `Fonte: ${sourceRef}`, '', text, ''].join('\n')
+    // The topic lets the cards library group notes; older notes have none.
+    const topicLine = topic && topic.trim().length <= 200 && !/[\r\n\0]/.test(topic) ? [`Tópico: ${topic.trim()}`] : []
+    const append = [marker, `## ${date} · ${heading}`, `Fonte: ${sourceRef}`, ...topicLine, '', text, ''].join('\n')
     const prefix = current ? (current.endsWith('\n') ? '\n' : '\n\n') : '# Notas de estudo\n\n'
     if (Buffer.byteLength(current + prefix + append, 'utf8') > 16 * 1024 * 1024)
       throw new Error('O arquivo notas-estudo.md excedeu o limite seguro de 16 MiB.')
