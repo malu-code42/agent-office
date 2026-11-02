@@ -20,12 +20,17 @@ const TOC_LINES = 400
 // "1.2 Lei de Coulomb ........ 23" or "Capítulo 3  Campo elétrico   45": a title and a page at the end.
 const TOC_LINE = /^\s*(?<title>[\p{L}\d][^\n]{2,120}?)\s*(?:\.{2,}|·{2,}|\s{2,}|\s\.\s)\s*(?<page>\d{1,4})\s*$/u
 
+// Many books separate title and page by a single space ("3.7 Taxas de Variação 201"). That is only trusted when
+// the title starts with a section number or a "Capítulo"-like word: "faixa de 10 a 100" is no entry.
+const TOC_NUMBERED =
+  /^\s*(?<title>(?:\d+(?:\.\d+)+\.?|\d+[.)]|(?:cap[ií]tulo|chapter|parte|part|ap[eê]ndice|appendix)\s+[\dIVXA-Z]+[.:]?)\s+\p{L}[^\n]{2,120}?)\s(?<page>\d{1,4})\s*$/iu
+
 /** The table of contents of a PDF read from its first pages (no model): lines that end in a page number. */
 export function tocEntries(pages: string[]): OutlineEntry[] {
   const found: { title: string; page: number }[] = []
   for (const text of pages.slice(0, TOC_PAGES)) {
     for (const line of text.split(/\r?\n/)) {
-      const match = TOC_LINE.exec(line)
+      const match = TOC_LINE.exec(line) ?? TOC_NUMBERED.exec(line)
       const title = match?.groups?.title?.replace(/[.\s·]+$/, '').trim()
       const page = Number(match?.groups?.page)
       if (title && /\p{L}{3}/u.test(title) && page > 0) found.push({ title, page })

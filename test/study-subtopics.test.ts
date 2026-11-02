@@ -12,6 +12,22 @@ describe('tocEntries', () => {
     expect(entries).toHaveLength(10)
     expect(entries[0]).toMatchObject({ id: 0, title: '1.1 Lei de Coulomb 0', page: 20 })
   })
+  it('reads single-space pages after a section number or a chapter word (real books print them so)', () => {
+    const lines = [
+      '1. Funções Vetoriais 5',
+      ...Array.from({ length: 6 }, (_, i) => `1.${i + 1} Seção de exemplo ${i} ${6 + i * 4}`),
+      'Capítulo 2 Campo elétrico 45',
+    ].join('\n')
+    const entries = tocEntries([lines])
+    expect(entries).toHaveLength(8)
+    expect(entries[0]).toMatchObject({ title: '1. Funções Vetoriais', page: 5 })
+    expect(entries[7]).toMatchObject({ title: 'Capítulo 2 Campo elétrico', page: 45 })
+  })
+  it('does not take running headers or table rows with a single space for entries', () => {
+    const headers = Array.from({ length: 12 }, (_, i) => `${i * 2 + 2} Título do Livro Capítulo ${i + 1}`).join('\n')
+    const rows = Array.from({ length: 12 }, () => 'Integração em larga escala 100').join('\n')
+    expect(tocEntries([headers, rows])).toEqual([])
+  })
   it('finds no table of contents in ordinary text', () => {
     expect(tocEntries(['Uma página de texto comum.\nOutra linha 12'])).toEqual([])
   })
