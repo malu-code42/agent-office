@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { foldText } from '@shared/study-library'
 import { STUDY_AGENT_ATTRIBUTION, STUDY_AGENT_LICENSE, type StudyBankStep } from '@shared/study-bank'
-import { validateStudyQuestion, type StudyQuestion } from '@shared/study-questions'
+import { refersToMissingText, validateStudyQuestion, type StudyQuestion } from '@shared/study-questions'
 import { accountEnv, mainAccount } from './accounts'
 import { claudeNotFoundMessage } from './claude-messages'
 import { findClaude } from './claude-path'
@@ -21,6 +21,7 @@ const AUTHOR_PROMPT = [
   '"correct" is the letter of the only right one, "A" to "E" (vary its position). The four wrong ones are plausible but clearly wrong by the excerpt.',
   'Every other value is a single line of plain text. "quote" is one passage copied VERBATIM from the excerpt that proves the right alternative.',
   '"needed" is what a student must know to solve this question, so she can study it after a miss: the concepts, and for a calculation the formulas, units and solving steps (without the numeric result).',
+  'The student will NOT see the excerpt, only the question and the alternatives: the question must stand on its own and never mention a text, excerpt, passage or "segundo o texto".',
   '"avoid" lists questions that already exist: ask about a DIFFERENT fact or part of the excerpt, not the same idea reworded or sharing its key terms.',
   'If the excerpt cannot support a question on the topic, return {"error":"unsupported"}.',
 ].join(' ')
@@ -85,6 +86,11 @@ export async function generateGroundedQuestion(
       right < 0
     ) {
       reason = 'O autor devolveu uma questão incompleta.'
+      code = 'refused'
+      continue
+    }
+    if (refersToMissingText({ question: question as string, options: choices })) {
+      reason = 'A questão cita um texto que o aluno não vê.'
       code = 'refused'
       continue
     }
