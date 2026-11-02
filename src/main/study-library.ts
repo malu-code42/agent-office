@@ -36,7 +36,6 @@ const MAX_DEPTH = 12
 const MAX_FILE_BYTES = 1024 * 1024
 const MAX_TOTAL_BYTES = 128 * 1024 * 1024
 const MAX_HITS = 30
-const MAX_HITS_PER_FILE = 4
 /** A deck is a zip of slides: it can be large on disk (images) for little text. */
 const MAX_DECK_BYTES = 64 * 1024 * 1024
 /** A PDF is mostly images and fonts on disk; its text is what counts against the search budget. */
@@ -145,11 +144,11 @@ export class StudyLibrary {
           if (score) found.push({ heading, line: index + 1, excerpt: studySnippet(paragraph, parsed), score: score + nameScore / 10 })
           index = Math.max(index, paragraphEnd(lines, index))
         }
-        // The best passages of each file, so one long file does not push the others out.
-        for (const f of found.sort((a, b) => b.score - a.score).slice(0, MAX_HITS_PER_FILE))
+        // Every passage of the file, best first: only the total (MAX_HITS) is capped.
+        for (const f of found.sort((a, b) => b.score - a.score))
           // A slide or a PDF page is cited by its number; the line of the extracted text means nothing there.
           add(path, f.heading, kind === 'text' ? f.line : 0, f.excerpt, f.score)
-        fileHits = Math.min(found.length, MAX_HITS_PER_FILE)
+        fileHits = found.length
       }
       if (!fileHits && nameScore) {
         const folder = relative(root, dirname(path)).split(sep).join(' / ')
