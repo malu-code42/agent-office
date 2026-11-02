@@ -40,7 +40,8 @@
 }
 
 .tl-goal {
-  align-items: flex-start;
+  align-items: stretch;
+  flex-direction: column;
   font-size: 13.5px;
   gap: 10px;
   display: flex;
@@ -50,11 +51,14 @@
   box-shadow: var(--shadow-sm);
 }
 
+/* topo do cartão: a data alvo à esquerda, o contador de dias à direita */
 .tl-goal-when {
-  min-width: 96px;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--ctl-line);
 }
 
 .tl-goal-when .agenda-time {
