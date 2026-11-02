@@ -422,7 +422,7 @@ def casa(L, place, items, seat):
     C.media(sc, people=False)
     static = items('casa', sc.take())
     # what a click on a piece of furniture does
-    acts = {C.SKULL: 'skull', C.RADIO: 'radio', C.TOTEM: 'totem', C.WRITING: 'writing', C.FILMS_TV: 'films',
+    acts = {C.SKULL: 'skull', C.RADIO: 'radio', C.TOTEM: 'totem', C.WRITING: 'writing',
             (292, 114, 306, 154): 'films', (x, y, x + w, y + 14): 'computer'}
     acts.update({fp: 'games' for fp in C.ARCADES})
     acts.update({fp: 'books' for fp in C.SHELVES})
@@ -442,7 +442,7 @@ def casa(L, place, items, seat):
     tags.update({
         'Claude FM': [C.RADIO[0] + 6, C.RADIO[1] + 17, 34], 'Caveira': [150, 24, 34], 'Rotinas de agentes': [2, 176, 46],
         'Novo agente': [70, 270, 40], 'Livros': [306, 4, 44], 'Escrita': [(C.WRITING[0] + C.WRITING[2]) / 2, C.WRITING[1] + 18, 30],
-        'Filmes': [233, 133, 34], 'Jogos': [233, 238, 38], 'Gastos': [218, 0, 54], 'Alarme': [168, 0, 54],
+        'Filmes': [299, 134, 34], 'Jogos': [233, 238, 38], 'Gastos': [218, 0, 54], 'Alarme': [168, 0, 54],
     })
     # Luna's chair first, then the residents' in the order the approved art fills them
     seats = [seat(f'casa/table{i}', *C.TABLE_SEATS[i], col=F.CHAIRS[C.TABLE_LOOK[i][0]]) for i in C.SEAT_ORDER]
