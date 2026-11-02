@@ -25,6 +25,7 @@ import { createCompletionUndo } from '../tasks-undo'
 import { PersonalRoutineStore } from '../personal-routines-store'
 import { personalRoutineTaskFingerprintFromLine, personalRoutineTaskFingerprintFromTask } from '../personal-routine-fingerprint'
 import { buildStudyBank } from '../study-bank-builder'
+import { suggestBooks } from '../study-book-suggestions'
 import { StudyBankJobs } from '../study-bank-job'
 import { answeredStudyQuestions, isStudyQuestionAnswered } from '@shared/study-cycle'
 import { StudyQuestionService } from '../study-questions'
@@ -210,6 +211,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
         {
           library,
           bank,
+          suggestBooks,
           // Read at each topic: what the user answers meanwhile stops counting toward the goal.
           isAnswered: (question) => isStudyQuestionAnswered(answeredStudyQuestions(studyCycleStore.read()), question),
         },

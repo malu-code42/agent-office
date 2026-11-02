@@ -33,7 +33,7 @@ const QUESTIONS = [
 function setup(options: { verdict?: string; failAsk?: boolean; bank?: StudyQuestion[] } = {}) {
   const bank: StudyQuestion[] = options.bank ?? []
   // Only the computing books exist: Metodologia Científica has no folder and nothing in the default one.
-  const search = vi.fn(async (_query: string, scope?: readonly string[]) => ({ hits: scope?.[0]?.includes('Computação') ? [hit] : [] }))
+  const search = vi.fn(async (_query: string, scope?: readonly string[]) => ({ hits: scope?.[0]?.includes('Computação') ? [hit, hit, hit, hit] : [] }))
   let n = 0
   const ask = vi.fn(async (system: string) => {
     if (options.failAsk) throw new Error('Claude Code não encontrado.')
@@ -144,5 +144,14 @@ describe('buildStudyBank', () => {
     const { deps } = setup({ bank: full })
     const { stop } = await buildStudyBank(trail, deps, { perTopic: 1, discipline: 'P1-ICC' })
     expect(stop).toBe('full')
+  })
+})
+
+describe('buildStudyBank passages', () => {
+  it('does not ask Claude when the book has fewer passages than the questions needed', async () => {
+    const { deps, ask } = setup()
+    const { results } = await buildStudyBank(trail, deps, { perTopic: 5, discipline: 'P1-ICC' })
+    expect(results.every((r) => r.reason === 'little' && !r.added)).toBe(true)
+    expect(ask).not.toHaveBeenCalled()
   })
 })

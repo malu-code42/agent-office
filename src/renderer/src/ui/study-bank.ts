@@ -595,6 +595,20 @@ export async function openStudyBankBuilder(
       reason === 'no-book' && r.folder ? `${info.text} Coloque o livro em “${r.folder}” e monte de novo.` : info.text,
       h('span', { class: 'grow' }),
       ...actions,
+      r.books?.length
+        ? h(
+            'ul',
+            { class: 'bk-books' },
+            ...r.books.map((b) =>
+              h(
+                'li',
+                {},
+                h('a', { href: '#', onclick: (e: Event) => (e.preventDefault(), void window.office.openExternal(b.url)) }, b.title),
+                ` ${b.author} · ${b.access === 'open' ? `livre${b.license ? ` (${b.license})` : ''}` : 'pago'}`,
+              ),
+            ),
+          )
+        : null,
     )
   }
 

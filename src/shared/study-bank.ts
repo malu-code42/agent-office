@@ -27,6 +27,17 @@ export const STUDY_BANK_REASON: Record<StudyBankReason, { chip: string; text: st
   complete: { chip: 'Já tem questões', text: 'Já tinha questões novas suficientes; não foi mexido.' },
 }
 
+/** A textbook found on the web for a topic the local books do not cover. */
+export interface StudyBookSuggestion {
+  title: string
+  author: string
+  url: string
+  /** 'open': free to read or download under an open license; 'paid': to buy. */
+  access: 'open' | 'paid'
+  /** The license for an open book (e.g. CC BY 4.0). */
+  license?: string
+}
+
 export interface StudyBankTopicResult {
   /** Trail id, e.g. P2-ED-05 (null when the trail item has none). */
   id: string | null
@@ -41,6 +52,8 @@ export interface StudyBankTopicResult {
   reason?: StudyBankReason
   /** For 'no-book': the folder where a book for the discipline goes. */
   folder?: string
+  /** For 'no-passage' and 'little': textbooks found on the web, open ones first. */
+  books?: StudyBookSuggestion[]
 }
 
 /** Why the whole run stopped early. */
