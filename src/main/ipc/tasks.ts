@@ -27,6 +27,8 @@ import { personalRoutineTaskFingerprintFromLine, personalRoutineTaskFingerprintF
 import { buildStudyBank, studyBankTopics } from '../study-bank-builder'
 import { askClaude } from '../study-questions-grounded'
 import { buildTopicSubtopics, StudySubtopicStore } from '../study-subtopics'
+import { generateIdeas, StudyIdeaStore } from '../study-ideas'
+import { studiedTopics } from '@shared/study-ideas'
 import { suggestBooks } from '../study-book-suggestions'
 import { StudyBankJobs } from '../study-bank-job'
 import { answeredStudyQuestions, isStudyQuestionAnswered } from '@shared/study-cycle'
@@ -251,6 +253,16 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const entry = await buildTopicSubtopics(topic, studyLibrary(), askClaude)
     subtopicStore.save(entry)
     return entry
+  })
+  // Software ideas for the topics the student has studied (a topic of the study cycles), one stored set per topic.
+  const ideaStore = new StudyIdeaStore(ctx.store.dataDirectory)
+  ipcMain.handle('office:readStudyIdeas', () => ideaStore.read())
+  ipcMain.handle('office:generateStudyIdeas', async (_e, ...args: unknown[]) => {
+    const [topic] = parse(studySubtopicsArgsSchema, args, 'Tópico inválido.')
+    if (!studiedTopics(studyCycleStore.read()).some((item) => item.topic === topic)) throw new Error('Esse tópico não está no ciclo de estudos.')
+    const set = await generateIdeas(topic, askClaude)
+    ideaStore.save(set)
+    return set
   })
   ipcMain.handle('office:studyBankStatus', () => bankJobs.status())
   ipcMain.handle('office:cancelStudyBank', () => bankJobs.cancel())
