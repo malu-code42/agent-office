@@ -15,7 +15,12 @@ const vault = (): string => {
 const note = (id: string, text: string, date = '2026-10-25'): string =>
   `<!-- agent-office-study-note:${id} -->\n## ${date} · q-12345678\nFonte: study sources/probabilidade.md#Eventos:3\n\n${text}\n`
 
-const authored = { title: 'Eventos independentes', information: 'A probabilidade conjunta é o produto.', examplePractice: 'Lançar duas moedas.' }
+const authored = {
+  title: 'Eventos independentes',
+  information: 'A probabilidade conjunta é o produto.',
+  examplePractice: 'Lançar duas moedas.',
+  application: 'Estimar chutes seguidos.',
+}
 const draft = (title = authored.title) => ({
   title,
   sections: { ...authored, connections: '', sources: '', connectionsPending: true, sourcesPending: false },
@@ -99,5 +104,22 @@ describe('biblioteca de cartões de estudo', () => {
     expect(result.connections).not.toContain('inventado')
     expect(result).toMatchObject({ connectionsPending: true, sourcesPending: false, feedback: 'Dê um exemplo numérico.' })
     await expect(service.assist(started.token, { ...authored, information: '' })).rejects.toThrow(/Informação/i)
+  })
+
+  it('reads the topic of a note, and a saved card is listed under it and can be opened whole', () => {
+    const root = vault()
+    const withTopic = 'sn-sc-123-abcdefgh-q-12345678-note5'
+    const without = 'sn-sc-123-abcdefgh-q-12345678-note6'
+    writeFileSync(
+      join(root, 'notas-estudo.md'),
+      `${note(withTopic, 'Com tópico.').replace('\n\nCom', '\nTópico: Probabilidade e Estatística\n\nCom')}\n${note(without, 'Sem tópico.')}`,
+    )
+    const service = new StudyCardsService(root, noAssist)
+    expect(service.readNotes().notes.map((item) => item.topic)).toEqual(['Probabilidade e Estatística', undefined])
+    const started = service.startDraft([withTopic])
+    const saved = service.saveDraft(started.token, draft())
+    expect(service.listCards().cards[0]).toMatchObject({ id: saved.id, topic: 'Probabilidade e Estatística' })
+    expect(service.readCard(saved.id).sections.application).toBe(authored.application)
+    expect(() => service.readCard('../fora')).toThrow(/inválido/i)
   })
 })

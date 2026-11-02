@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Banco de questões · redesenho</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Pixelify+Sans:wght@500&display=swap">
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:40px 0 80px;background:#1d1a24;color:#f2e9dc;font:15px/1.45 'IBM Plex Sans',sans-serif;
+  background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 2px,transparent 2px 48px),repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 2px,transparent 2px 48px)}
+.board{width:960px;margin:0 auto 56px}
+.cap{font:500 12px 'IBM Plex Mono',monospace;color:#b9ab9c;margin:0 0 8px;letter-spacing:.06em;text-transform:uppercase}
+.m{background:#2b2635;border:3px solid #0f0d14;box-shadow:4px 4px 0 #0f0d14;display:flex;flex-direction:column}
+.h{font-family:'Pixelify Sans',sans-serif;font-weight:500}
+.mono{font-family:'IBM Plex Mono',monospace}
+.muted{color:#b9ab9c}
+.lbl{font:500 11px 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:#b9ab9c}
+header.t{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:3px solid #0f0d14}
+header.t .grow,.foot .grow{flex:1}
+.av{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #0f0d14;font:500 15px 'Pixelify Sans',sans-serif;color:#1a1410;background:#f0b85a}
+.body{padding:16px;display:flex;flex-direction:column;gap:16px}
+.foot{display:flex;gap:8px;align-items:center;padding:12px 16px;border-top:3px solid #0f0d14}
+.btn{font:500 14px 'IBM Plex Sans',sans-serif;min-height:40px;padding:0 16px;border:2px solid #0f0d14;background:#383149;color:#f2e9dc;box-shadow:2px 2px 0 #0f0d14;border-radius:0;display:inline-flex;align-items:center;gap:8px}
+.btn-p{background:#e07a4f;color:#1a1410;font-weight:600}
+.btn-q{background:transparent;box-shadow:none;border-color:#4a4258}
+.chip{display:inline-flex;align-items:center;gap:6px;font:500 12px 'IBM Plex Mono',monospace;padding:2px 8px;border:2px solid #0f0d14;background:#383149;white-space:nowrap}
+.ok{background:#1f3528;color:#cfeedd;border-color:#7fd39b}
+.warn{background:#3a2f1f;color:#f0b85a;border-color:#f0b85a}
+.err{background:#3a1f22;color:#ff8f7a;border-color:#ff8f7a}
+.info{background:#1d2a33;color:#9fd8f0;border-color:#7fc8e8}
+.meter{height:12px;background:#221e2b;border:2px solid #0f0d14;position:relative;min-width:60px}
+.fill{position:absolute;left:0;top:0;bottom:0;background:#7fd39b}
+.fill.w{background:#f0b85a}
+
+/* topo */
+.last{display:flex;align-items:center;gap:12px;background:#221e2b;border:2px solid #0f0d14;padding:10px 14px}
+.last .grow{flex:1}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.stat{background:#332d40;border:2px solid #0f0d14;padding:12px 14px;display:flex;flex-direction:column;gap:2px;border-top:5px solid var(--c)}
+.stat b{font:500 34px/1 'Pixelify Sans',sans-serif;color:var(--c)}
+.stat span{color:#f2e9dc}
+.stat small{color:#b9ab9c;font-size:13px}
+.goal{display:flex;align-items:center;gap:14px;background:#3a2f1f;border:2px solid #f0b85a;padding:12px 14px}
+.goal .grow{flex:1}
+.goal b{color:#f0b85a;font-size:18px}
+
+/* disciplinas */
+.sec{display:flex;align-items:center;gap:10px}
+.sec i{flex:1;height:3px;background:#0f0d14}
+.dgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.d{background:#332d40;border:2px solid #0f0d14;box-shadow:2px 2px 0 #0f0d14;padding:14px;display:flex;flex-direction:column;gap:10px;min-height:150px}
+.d .n{font-size:17px;font-weight:600;line-height:1.25;min-height:42px}
+.d .q{display:flex;align-items:baseline;gap:8px}
+.d .q b{font:500 30px/1 'Pixelify Sans',sans-serif}
+.d .more{margin-top:auto;font:500 13px 'IBM Plex Mono',monospace;color:#e3a1d1}
+.d.ok2{border-color:#7fd39b}
+
+/* disciplina aberta */
+.crumb{display:flex;align-items:center;gap:10px}
+.crumb .btn{min-height:34px}
+.dh{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.trow{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) 70px 110px;gap:14px;align-items:center;padding:12px 14px;background:#332d40;border:2px solid #0f0d14}
+.trow.head{background:transparent;border:0;padding:0 14px;color:#b9ab9c}
+.trow.low{border-left:6px solid #f0b85a}
+.trow.good{border-left:6px solid #7fd39b}
+.trow .nm{font-size:16px;font-weight:500}
+.trow .num{font:500 16px 'IBM Plex Mono',monospace;text-align:right}
+.rows{display:flex;flex-direction:column;gap:8px}
+</style>
+</head>
+<body>
+
+<!-- 1 -->
+<div class="board">
+<p class="cap">1 · Visão geral</p>
+<section class="m">
+  <header class="t"><span class="av" aria-hidden="true">Q</span><span class="h" style="font-size:20px">Banco de questões</span><span class="muted">Escrito pelos agentes a partir dos seus livros · nenhuma questão se repete</span><span class="grow"></span><button class="btn btn-q">Fechar</button></header>
+  <div class="body">
+    <div class="last"><span>Última montagem: <b>20 questões novas</b> em 1 tópico</span><span class="grow"></span><button class="btn">Ver relatório</button></div>
+
+    <div class="stats">
+      <div class="stat" style="--c:#f0b85a"><b>20</b><span>no banco</span><small>cabem 3.000</small></div>
+      <div class="stat" style="--c:#7fd39b"><b>20</b><span>verificadas</span><small>por agentes</small></div>
+      <div class="stat" style="--c:#7fc8e8"><b>20</b><span>novas para você</span><small>ainda não respondidas</small></div>
+      <div class="stat" style="--c:#e3a1d1"><b>0</b><span>já respondidas</span><small>não voltam</small></div>
+    </div>
+
+    <div class="goal"><div class="grow"><b>121 tópicos</b> abaixo da meta de <b>20 questões</b> cada</div><button class="btn btn-p">Completar…</button></div>
+
+    <div class="sec"><span class="h" style="font-size:20px">Por disciplina</span><span class="chip">9 disciplinas</span><i></i></div>
+    <div class="dgrid">
+      <div class="d"><span class="n">Hardware I</span><div class="q"><b>20</b><span class="muted">questões</span></div><div class="meter"><div class="fill" style="width:8%"></div></div><span class="muted">1 de 13 tópicos na meta</span><span class="chip warn" style="align-self:flex-start">12 abaixo</span><span class="more">ver tópicos ›</span></div>
+      <div class="d"><span class="n">Cálculo para Computação</span><div class="q"><b>0</b><span class="muted">questões</span></div><div class="meter"><div class="fill" style="width:0"></div></div><span class="muted">0 de 11 tópicos na meta</span><span class="chip warn" style="align-self:flex-start">11 abaixo</span><span class="more">ver tópicos ›</span></div>
+      <div class="d"><span class="n">Estrutura de Dados e Técnicas de Programação</span><div class="q"><b>0</b><span class="muted">questões</span></div><div class="meter"><div class="fill" style="width:0"></div></div><span class="muted">0 de 17 tópicos na meta</span><span class="chip warn" style="align-self:flex-start">17 abaixo</span><span class="more">ver tópicos ›</span></div>
+      <div class="d"><span class="n">Introdução à Ciência da Computação</span><div class="q"><b>0</b><span class="muted">questões</span></div><div class="meter"><div class="fill" style="width:0"></div></div><span class="muted">0 de 8 tópicos na meta</span><span class="chip warn" style="align-self:flex-start">8 abaixo</span><span class="more">ver tópicos ›</span></div>
+      <div class="d"><span class="n">Introdução à Programação</span><div class="q"><b>0</b><span class="muted">questões</span></div><div class="meter"><div class="fill" style="width:0"></div></div><span class="muted">0 de 12 tópicos na meta</span><span class="chip warn" style="align-self:flex-start">12 abaixo</span><span class="more">ver tópicos ›</span></div>
+      <div class="d"><span class="n">Lógica e Matemática Discreta</span><div class="q"><b>0</b><span class="muted">questões</span></div><div class="meter"><div class="fill" style="width:0"></div></div><span class="muted">0 de 16 tópicos na meta</span><span class="chip warn" style="align-self:flex-start">16 abaixo</span><span class="more">ver tópicos ›</span></div>
+      <div class="d"><span class="n">Matemática Básica</span><div class="q"><b>0</b><span class="muted">questões</span></div><div class="meter"><div class="fill" style="width:0"></div></div><span class="muted">0 de 28 tópicos na meta</span><span class="chip warn" style="align-self:flex-start">28 abaixo</span><span class="more">ver tópicos ›</span></div>
+      <div class="d"><span class="n">Metodologia Científica</span><div class="q"><b>0</b><span class="muted">questões</span></div><div class="meter"><div class="fill" style="width:0"></div></div><span class="muted">0 de 9 tópicos na meta</span><span class="chip warn" style="align-self:flex-start">9 abaixo</span><span class="more">ver tópicos ›</span></div>
+      <div class="d"><span class="n">Programação Orientada a Objetos</span><div class="q"><b>0</b><span class="muted">questões</span></div><div class="meter"><div class="fill" style="width:0"></div></div><span class="muted">0 de 8 tópicos na meta</span><span class="chip warn" style="align-self:flex-start">8 abaixo</span><span class="more">ver tópicos ›</span></div>
+    </div>
+    <span class="muted">As questões são escritas a partir dos seus livros e conferidas por uma cadeia de agentes antes de entrar; você não precisa revisá-las. As que você já respondeu nunca voltam.</span>
+  </div>
+  <div class="foot"><span class="grow"></span><button class="btn btn-p">Montar banco…</button></div>
+</section>
+</div>
+
+<!-- 2 -->
+<div class="board">
+<p class="cap">2 · Disciplina aberta (clicar num cartão de disciplina)</p>
+<section class="m">
+  <header class="t"><span class="av" aria-hidden="true">Q</span><span class="h" style="font-size:20px">Banco de questões</span><span class="grow"></span><button class="btn btn-q">Fechar</button></header>
+  <div class="body">
+    <div class="crumb"><button class="btn">‹ Disciplinas</button><span class="h" style="font-size:22px">Hardware I</span></div>
+    <div class="dh">
+      <div class="stat" style="--c:#f0b85a"><b>20</b><span>questões</span><small>meta 260 (13 × 20)</small></div>
+      <div class="stat" style="--c:#7fd39b"><b>1</b><span>tópico na meta</span><small>de 13</small></div>
+      <div class="stat" style="--c:#ff8f7a"><b>12</b><span>tópicos abaixo</span><small>faltam 240 questões</small></div>
+    </div>
+    <div class="rows">
+      <div class="trow head lbl"><span>Tópico</span><span>Progresso</span><span style="text-align:right">Questões</span><span>Situação</span></div>
+      <div class="trow good"><span class="nm">Princípios de eletrostática</span><div class="meter"><div class="fill" style="width:100%"></div></div><span class="num">20/20</span><span class="chip ok">Na meta</span></div>
+      <div class="trow low"><span class="nm">Álgebra booleana</span><div class="meter"><div class="fill w" style="width:0"></div></div><span class="num">0/20</span><span class="chip warn">Abaixo</span></div>
+      <div class="trow low"><span class="nm">Análise de sistemas numéricos</span><div class="meter"><div class="fill w" style="width:0"></div></div><span class="num">0/20</span><span class="chip warn">Abaixo</span></div>
+      <div class="trow low"><span class="nm">Circuitos aritméticos</span><div class="meter"><div class="fill w" style="width:0"></div></div><span class="num">0/20</span><span class="chip warn">Abaixo</span></div>
+      <div class="trow low"><span class="nm">Circuitos lógicos MSI</span><div class="meter"><div class="fill w" style="width:0"></div></div><span class="num">0/20</span><span class="chip warn">Abaixo</span></div>
+      <div class="trow low"><span class="nm">Códigos binários</span><div class="meter"><div class="fill w" style="width:0"></div></div><span class="num">0/20</span><span class="chip warn">Abaixo</span></div>
+      <div class="trow low"><span class="nm">Portas lógicas</span><div class="meter"><div class="fill w" style="width:0"></div></div><span class="num">0/20</span><span class="chip warn">Abaixo</span></div>
+      <span class="muted" style="text-align:center">+ 6 tópicos abaixo da meta · <span style="color:#e3a1d1">mostrar todos ›</span></span>
+    </div>
+  </div>
+  <div class="foot"><button class="btn btn-q">‹ Disciplinas</button><span class="grow"></span><button class="btn btn-p">Completar Hardware I…</button></div>
+</section>
+</div>
+
+</body>
+</html>

@@ -14,6 +14,7 @@ const snapshot = (id = 'sn-sc-123-abcdefgh-q-12345678-note1', text = 'A probabil
   sourceRef: 'notas-estudo.md#2026-10-25-probabilidade',
   hash: studyNoteHash(text),
   text,
+  topic: 'Probabilidade e Estatística',
 })
 
 const card = (): StudyCard => ({
@@ -25,6 +26,7 @@ const card = (): StudyCard => ({
   sections: {
     information: 'A chance simultânea é produto.',
     examplePractice: 'Lançar duas moedas.',
+    application: 'Estimar chutes seguidos.',
     connections: 'Relaciona-se a espaços amostrais.',
     sources: 'notas-estudo.md#2026-10-25-probabilidade',
     connectionsPending: false,
@@ -33,12 +35,13 @@ const card = (): StudyCard => ({
 })
 
 describe('cartões Zettelkasten rastreáveis', () => {
-  it('preserves four editable sections and exact note snapshot across markdown roundtrip', () => {
+  it('preserves five editable sections and exact note snapshot across markdown roundtrip', () => {
     const encoded = encodeStudyCard(card())
     const decoded = decodeStudyCard(encoded)
     expect(decoded).toEqual(card())
     expect(encoded).toContain('## Informação')
-    expect(encoded).toContain('## Exemplo/Prática')
+    expect(encoded).toContain('## Exemplo')
+    expect(encoded).toContain('## Aplicação')
     expect(encoded).toContain('## Conexões')
     expect(encoded).toContain('## Fontes')
     expect(encoded).toContain(snapshot().text)
@@ -83,6 +86,22 @@ describe('cartões Zettelkasten rastreáveis', () => {
       connectionsPending: true,
       sourcesPending: true,
     })
+  })
+
+  it('groups a card under the topic of its notes and previews the hand-written parts', () => {
+    const summary = studyCardSummary(card(), new Map())
+    expect(summary.topic).toBe('Probabilidade e Estatística')
+    expect(summary.preview).toEqual({
+      information: 'A chance simultânea é produto.',
+      examplePractice: 'Lançar duas moedas.',
+      application: 'Estimar chutes seguidos.',
+    })
+  })
+
+  it('still opens a card saved before the application part existed', () => {
+    const legacy = encodeStudyCard(card()).replace(/## Aplicação[\s\S]*?AO-CARD-END:application -->\s*/, '')
+    expect(legacy).not.toContain('AO-CARD:application')
+    expect(decodeStudyCard(legacy).sections.application).toBe('')
   })
 
   it('rejects an edited snapshot or missing required card sections', () => {

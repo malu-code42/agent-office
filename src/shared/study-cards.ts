@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-export const CARD_SECTIONS = ['information', 'examplePractice', 'connections', 'sources'] as const
+export const CARD_SECTIONS = ['information', 'examplePractice', 'application', 'connections', 'sources'] as const
 export type CardSection = (typeof CARD_SECTIONS)[number]
 
 export interface StudyNoteSnapshot {
@@ -9,11 +9,14 @@ export interface StudyNoteSnapshot {
   sourceRef: string
   hash: string
   text: string
+  /** Trail topic the note was written under; none for older and standalone notes. */
+  topic?: string
 }
 
 export interface StudyCardSections {
   information: string
   examplePractice: string
+  application: string
   connections: string
   sources: string
   connectionsPending: boolean
@@ -25,6 +28,7 @@ export interface StudyCardAuthored {
   title: string
   information: string
   examplePractice: string
+  application: string
 }
 
 /** The assistant's share: connections (wikilinks) and sources, plus feedback on the student's text. Feedback is never saved. */
@@ -60,6 +64,9 @@ export interface StudyCardSummary {
   connectionsPending: boolean
   sourcesPending: boolean
   originChanged: boolean
+  topic?: string
+  /** The start of each hand-written part, for the library grid. */
+  preview: { information: string; examplePractice: string; application: string }
 }
 
 export interface StudyNotesRead {
@@ -83,12 +90,14 @@ const CARD_MARKER = /^<!-- agent-office-card:([A-Za-z0-9+/=]+) -->$/m
 const SECTION_MARKERS: Record<CardSection, [string, string]> = {
   information: ['<!-- AO-CARD:information -->', '<!-- AO-CARD-END:information -->'],
   examplePractice: ['<!-- AO-CARD:example-practice -->', '<!-- AO-CARD-END:example-practice -->'],
+  application: ['<!-- AO-CARD:application -->', '<!-- AO-CARD-END:application -->'],
   connections: ['<!-- AO-CARD:connections -->', '<!-- AO-CARD-END:connections -->'],
   sources: ['<!-- AO-CARD:sources -->', '<!-- AO-CARD-END:sources -->'],
 }
 const SECTION_TITLES: Record<CardSection, string> = {
   information: 'Informação',
-  examplePractice: 'Exemplo/Prática',
+  examplePractice: 'Exemplo',
+  application: 'Aplicação',
   connections: 'Conexões',
   sources: 'Fontes',
 }
@@ -133,14 +142,17 @@ export function validateStudyCardDraft(raw: unknown): StudyCardDraft {
       throw new Error('Snapshot de nota inválido ou alterado.')
     if (ids.has(snapshot.id)) throw new Error('Uma nota foi selecionada mais de uma vez.')
     ids.add(snapshot.id)
-    return { id: snapshot.id, title: snapshot.title.trim(), sourceRef: snapshot.sourceRef.trim(), hash: snapshot.hash, text: snapshot.text }
+    if (snapshot.topic !== undefined && (typeof snapshot.topic !== 'string' || snapshot.topic.length > 200 || /[\r\n\0]/.test(snapshot.topic)))
+      throw new Error('Snapshot de nota inválido ou alterado.')
+    const topic = typeof snapshot.topic === 'string' && snapshot.topic.trim() ? { topic: snapshot.topic.trim() } : {}
+    return { id: snapshot.id, title: snapshot.title.trim(), sourceRef: snapshot.sourceRef.trim(), hash: snapshot.hash, text: snapshot.text, ...topic }
   })
   if (!row.sections || typeof row.sections !== 'object' || Array.isArray(row.sections))
     throw new Error('As seções do cartão estão inválidas.')
   const rawSections = row.sections as Record<string, unknown>
   const sections = {} as StudyCardSections
   for (const section of CARD_SECTIONS) {
-    const value = rawSections[section]
+    const value = rawSections[section] ?? (section === 'application' ? '' : undefined)
     if (
       typeof value !== 'string' ||
       value.length > 20_000 ||
@@ -240,6 +252,10 @@ export function decodeStudyCard(markdown: string): StudyCard {
     const escapedStart = escapeRegex(start)
     const escapedEnd = escapeRegex(end)
     const match = new RegExp(`${escapedStart}\\r?\\n([\\s\\S]*?)\\r?\\n${escapedEnd}`).exec(markdown)
+    if (!match && section === 'application') {
+      sections.application = ''
+      continue
+    }
     if (!match) throw new Error(`Falta a seção ${section} no cartão.`)
     const generatedMarkers = new Set([
       ...(section === 'connections' && connectionsPending ? ['> Revisão pendente: confirmar conexões.'] : []),
@@ -297,7 +313,25 @@ export function studyCardSummary(card: StudyCard, currentNotes: ReadonlyMap<stri
     connectionsPending: card.sections.connectionsPending,
     sourcesPending: card.sections.sourcesPending,
     originChanged: card.sourceSnapshots.some((snapshot) => currentNotes.get(snapshot.id) !== snapshot.hash),
+    ...topicOf(card.sourceSnapshots),
+    preview: {
+      information: card.sections.information.slice(0, PREVIEW),
+      examplePractice: card.sections.examplePractice.slice(0, PREVIEW),
+      application: card.sections.application.slice(0, PREVIEW),
+    },
   }
+}
+
+const PREVIEW = 400
+
+/** A card sits under the topic of its first note that has one. */
+export function studyCardTopic(snapshots: readonly StudyNoteSnapshot[]): string | undefined {
+  return snapshots.find((snapshot) => snapshot.topic)?.topic
+}
+
+const topicOf = (snapshots: readonly StudyNoteSnapshot[]): { topic?: string } => {
+  const topic = studyCardTopic(snapshots)
+  return topic ? { topic } : {}
 }
 
 function escapeRegex(value: string): string {

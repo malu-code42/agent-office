@@ -78,6 +78,7 @@ import {
   completeStudyRetestArgsSchema,
   startStudyCardDraftArgsSchema,
   assistStudyCardArgsSchema,
+  readStudyCardArgsSchema,
   saveStudyCardDraftArgsSchema,
   listStudyCardsArgsSchema,
   setStudyCardPhysicalArgsSchema,
@@ -386,6 +387,10 @@ export function registerTasksIpc(ctx: IpcContext): void {
   ipcMain.handle('office:listStudyCards', (_e, ...args: unknown[]) => {
     parse(listStudyCardsArgsSchema, args, 'Lista de cartões inválida.')
     return studyCardsService().listCards()
+  })
+  ipcMain.handle('office:readStudyCard', (_e, ...args: unknown[]) => {
+    const [id] = parse(readStudyCardArgsSchema, args, 'Identificador de cartão inválido.')
+    return studyCardsService().readCard(id)
   })
   ipcMain.handle('office:setStudyCardPhysicalWritten', (_e, ...args: unknown[]) => {
     const [id, written] = parse(setStudyCardPhysicalArgsSchema, args, 'Estado da cópia física inválido.')

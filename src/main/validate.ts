@@ -318,6 +318,7 @@ export const assistStudyCardArgsSchema = z.tuple([
       title: z.string().trim().min(1).max(200),
       information: z.string().max(20_000),
       examplePractice: z.string().max(20_000),
+      application: z.string().max(20_000),
     })
     .strict(),
 ])
@@ -330,6 +331,7 @@ export const saveStudyCardDraftArgsSchema = z.tuple([
         .object({
           information: z.string().max(20_000),
           examplePractice: z.string().max(20_000),
+          application: z.string().max(20_000),
           connections: z.string().max(20_000),
           sources: z.string().max(20_000),
           connectionsPending: z.boolean(),
@@ -341,6 +343,7 @@ export const saveStudyCardDraftArgsSchema = z.tuple([
 ])
 export const setStudyCardPhysicalArgsSchema = z.tuple([z.string().regex(/^c-[a-z0-9-]{8,80}$/i), z.boolean()])
 export const listStudyCardsArgsSchema = z.tuple([])
+export const readStudyCardArgsSchema = z.tuple([z.string().regex(/^c-[a-z0-9-]{8,80}$/i)])
 /** A task from the "Nova tarefa" form; the rules for each field are in shared/tasks.ts (taskDraftProblem). */
 export const newTaskSchema: z.ZodType<NewTaskDraft> = z.object({
   title: z.string().max(300),

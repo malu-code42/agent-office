@@ -1,18 +1,13 @@
-import { STUDY_BANK_DEFAULT_PER_TOPIC, type StudyBankJob, type StudyBankRequest } from '@shared/study-bank'
+import { disciplineIdOf, STUDY_BANK_DEFAULT_PER_TOPIC, type StudyBankJob, type StudyBankRequest } from '@shared/study-bank'
 import { studyBankStats, type StudyBankStats } from '@shared/study-bank-stats'
 import { answeredStudyQuestions, isStudyQuestionAnswered } from '@shared/study-cycle'
-import { STUDY_QUESTION_LIMITS, type StudyOriginKind, type StudyQuestion } from '@shared/study-questions'
+import { STUDY_QUESTION_LIMITS, type StudyQuestion } from '@shared/study-questions'
 import { h } from './dom'
 import { cleanError, modal } from './modals/common'
-import { studyMeter, studyQuestionCard } from './study-bank'
+import { studyQuestionCard } from './study-bank'
 import { dressStudyWindow, STUDY_WHO } from './study-kit'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
-
-const ORIGIN_LABEL: Record<StudyOriginKind, string> = { enem: 'ENEM', concurso: 'Concurso', livro: 'Livro', web: 'Web', ia: 'IA' }
-
-const chip = (label: string, count: number, kind = ''): HTMLElement =>
-  h('span', { class: `study-bank-chip${kind ? ` study-bank-chip-${kind}` : ''}` }, h('b', {}, count.toLocaleString('pt-BR')), ` ${label}`)
 
 /**
  * "Banco de questões" (the question shelf): the bank in numbers, every trail topic with its new
@@ -34,12 +29,7 @@ export function openStudyQuestions(root: HTMLElement, toast: Toast, openBuilder:
         'div',
         { class: 'study-questions-body' },
         notice,
-        h(
-          'section',
-          { class: 'study-bank-stats', 'aria-label': 'Banco em números' },
-          h('h3', { class: 'study-section-title' }, 'Banco em números'),
-          content,
-        ),
+        content,
         h(
           'p',
           { class: 'field-hint study-note' },
@@ -77,7 +67,7 @@ export function openStudyQuestions(root: HTMLElement, toast: Toast, openBuilder:
       const isAnswered = (q: StudyQuestion) => isStudyQuestionAnswered(answered, q)
       const stats = studyBankStats(bank.questions, topics, { goal: STUDY_BANK_DEFAULT_PER_TOPIC, isAnswered })
       const byId = new Map(bank.questions.map((q) => [q.id, q]))
-      content.replaceChildren(...bankView(stats, byId, isAnswered, build))
+      bankView(content, stats, byId, isAnswered, build)
     })
     .catch((error: unknown) =>
       content.replaceChildren(h('p', { class: 'field-hint', role: 'alert' }, `Não foi possível ler o banco: ${cleanError(error)}`)),
@@ -96,19 +86,36 @@ function jobNotice(job: StudyBankJob | null, open: () => void): HTMLElement[] {
   return [
     h(
       'div',
-      { class: `bk-line${job.status === 'stopped' ? ' warn' : ''}` },
+      { class: `bq-last${job.status === 'stopped' ? ' warn' : ''}` },
       h('span', {}, text),
       h('button', { class: 'btn btn-small', type: 'button', onclick: open }, job.status === 'running' ? 'Ver andamento' : 'Ver relatório'),
     ),
   ]
 }
 
+const plural = (n: number, one: string, many: string): string => `${n.toLocaleString('pt-BR')} ${n === 1 ? one : many}`
+const word = (n: number, one: string, many: string): string => (n === 1 ? one : many)
+
+const stat = (n: number, label: string, note: string, tone: string): HTMLElement =>
+  h('div', { class: 'bq-stat', style: `--tone: ${tone}` }, h('b', {}, n.toLocaleString('pt-BR')), h('span', {}, label), h('small', {}, note))
+
+/** The overview (numbers + a card per discipline); a discipline opens in place with its topics. */
 function bankView(
+  content: HTMLElement,
   stats: StudyBankStats,
   byId: Map<string, StudyQuestion>,
   isAnswered: (q: StudyQuestion) => boolean,
   build: (preset?: StudyBankRequest) => void,
-): HTMLElement[] {
+): void {
+  const show = (name: string | null): void => {
+    const d = name === null ? undefined : stats.disciplines.find((item) => item.discipline === name)
+    content.replaceChildren(...(d ? disciplineView(d, stats, byId, isAnswered, build, () => show(null)) : overview(stats, build, show)))
+    if (d) content.querySelector<HTMLElement>('.bq-crumb .btn')?.focus()
+  }
+  show(null)
+}
+
+function overview(stats: StudyBankStats, build: (preset?: StudyBankRequest) => void, open: (name: string) => void): HTMLElement[] {
   if (!stats.total)
     return [
       h(
@@ -128,70 +135,97 @@ function bankView(
         ),
       ),
     ]
+  const room = STUDY_QUESTION_LIMITS.count.toLocaleString('pt-BR')
+  const notes = [
+    stats.byReview.none ? plural(stats.byReview.none, 'questão sem conferência', 'questões sem conferência') : '',
+    stats.open ? `${plural(stats.open, 'aberta sai', 'abertas saem')} na próxima montagem` : '',
+  ].filter(Boolean)
   return [
     h(
       'div',
-      { class: 'study-bank-total' },
-      h('b', {}, stats.total.toLocaleString('pt-BR')),
-      h(
-        'span',
-        {},
-        `${stats.total === 1 ? 'questão' : 'questões'} no banco · cabem ${STUDY_QUESTION_LIMITS.count.toLocaleString('pt-BR')}`,
-      ),
+      { class: 'bq-stats', role: 'group', 'aria-label': 'Banco em números' },
+      stat(stats.total, 'no banco', `cabem ${room}`, 'var(--amber)'),
+      stat(stats.byReview.agents, word(stats.byReview.agents, 'verificada', 'verificadas'), 'por agentes', 'var(--green)'),
+      stat(stats.total - stats.answered, 'novas para você', 'ainda não respondidas', 'var(--blue)'),
+      stat(stats.answered, 'já respondidas', 'não voltam', 'var(--pink)'),
     ),
-    h(
-      'div',
-      { class: 'study-bank-row', role: 'group', 'aria-label': 'Quem conferiu' },
-      h('span', { class: 'study-bank-cap' }, 'Selo'),
-      chip('verificadas por agentes', stats.byReview.agents, 'agents'),
-      stats.byReview.none ? chip('sem conferência', stats.byReview.none, 'missing') : null,
-      stats.open ? chip('abertas · saem na próxima montagem', stats.open, 'missing') : null,
-    ),
-    h(
-      'div',
-      { class: 'study-bank-row', role: 'group', 'aria-label': 'Por origem' },
-      h('span', { class: 'study-bank-cap' }, 'Origem'),
-      ...(Object.keys(ORIGIN_LABEL) as StudyOriginKind[])
-        .filter((k) => stats.byOrigin[k])
-        .map((k) => chip(ORIGIN_LABEL[k], stats.byOrigin[k])),
-    ),
-    h(
-      'div',
-      { class: 'study-bank-row', role: 'group', 'aria-label': 'Respondidas' },
-      h('span', { class: 'study-bank-cap' }, 'Uso'),
-      chip('novas para você', stats.total - stats.answered),
-      chip('já respondidas (não voltam)', stats.answered, 'missing'),
-    ),
-    h(
-      'div',
-      { class: 'bn-goal' },
-      `Meta de ${stats.goal} questões novas por tópico: `,
-      h('b', {}, String(stats.below)),
-      ` ${stats.below === 1 ? 'tópico abaixo' : 'tópicos abaixo'} da meta`,
-      stats.below ? h('button', { class: 'btn btn-small', type: 'button', onclick: () => build() }, 'Completar…') : null,
-    ),
-    h(
-      'div',
-      { class: 'study-bank-disciplines' },
-      h('span', { class: 'study-bank-cap' }, 'Por disciplina'),
-      ...stats.disciplines.map((d) =>
-        h(
-          'details',
-          { class: 'study-bank-discipline' },
+    notes.length ? h('p', { class: 'field-hint study-note' }, notes.join(' · ')) : null,
+    stats.below
+      ? h(
+          'div',
+          { class: 'bq-goal' },
           h(
-            'summary',
+            'span',
             {},
-            h(
-              'span',
-              { class: 'study-bank-dname' },
-              d.discipline,
-              d.below ? h('span', { class: 'bk-reason passage' }, `${d.below} abaixo`) : null,
-            ),
-            h('b', { title: `${d.fresh} novas de ${d.count}` }, `${d.fresh}/${d.count}`),
+            h('b', {}, plural(stats.below, 'tópico', 'tópicos')),
+            ' abaixo da meta de ',
+            h('b', {}, plural(stats.goal, 'questão', 'questões')),
+            ' cada',
           ),
-          ...d.topics.map((t) => topicRow(t, stats.goal, byId, isAnswered, d.discipline)),
-        ),
-      ),
+          h('button', { class: 'btn btn-primary', type: 'button', onclick: () => build() }, 'Completar…'),
+        )
+      : null,
+    h(
+      'div',
+      { class: 'bq-head' },
+      h('h3', {}, 'Por disciplina'),
+      h('span', { class: 'bk-reason' }, plural(stats.disciplines.length, 'disciplina', 'disciplinas')),
+    ),
+    h(
+      'div',
+      { class: 'bq-grid' },
+      ...stats.disciplines.map((d) => {
+        const total = d.topics.filter((t) => t.id !== undefined).length
+        const met = total - d.below
+        return h(
+          'button',
+          { class: 'bq-disc', type: 'button', onclick: () => open(d.discipline) },
+          h('span', { class: 'name' }, d.discipline),
+          h('span', { class: 'count' }, h('b', {}, String(d.fresh)), word(d.fresh, 'questão nova', 'questões novas')),
+          h(
+            'span',
+            { class: 'bq-meter', role: 'img', 'aria-label': `${met} de ${total} tópicos na meta` },
+            h('i', { style: `width: ${total ? (met / total) * 100 : 0}%` }),
+          ),
+          h('span', { class: 'muted' }, `${met} de ${plural(total, 'tópico', 'tópicos')} na meta`),
+          d.below ? h('span', { class: 'bq-pill' }, `${d.below} abaixo`) : h('span', { class: 'bq-pill ok' }, 'na meta'),
+          h('span', { class: 'go' }, 'ver tópicos ›'),
+        )
+      }),
+    ),
+  ].filter((node): node is NonNullable<typeof node> => node !== null)
+}
+
+function disciplineView(
+  d: StudyBankStats['disciplines'][number],
+  stats: StudyBankStats,
+  byId: Map<string, StudyQuestion>,
+  isAnswered: (q: StudyQuestion) => boolean,
+  build: (preset?: StudyBankRequest) => void,
+  back: () => void,
+): HTMLElement[] {
+  const total = d.topics.filter((t) => t.id !== undefined).length
+  const missing = d.topics.reduce((sum, t) => (t.id !== undefined ? sum + Math.max(0, stats.goal - t.fresh) : sum), 0)
+  const id = disciplineIdOf(d.topics.find((t) => t.id)?.id)
+  const backButton = () => h('button', { class: 'btn', type: 'button', onclick: back }, '‹ Disciplinas')
+  return [
+    h('div', { class: 'bq-crumb' }, backButton(), h('h3', {}, d.discipline)),
+    h(
+      'div',
+      { class: 'bq-stats' },
+      stat(d.fresh, word(d.fresh, 'questão nova', 'questões novas'), `meta ${(total * stats.goal).toLocaleString('pt-BR')} (${total} × ${stats.goal})`, 'var(--amber)'),
+      stat(total - d.below, 'na meta', `de ${plural(total, 'tópico', 'tópicos')}`, 'var(--green)'),
+      stat(d.below, 'abaixo da meta', `faltam ${plural(missing, 'questão', 'questões')}`, 'var(--red)'),
+    ),
+    h('div', { class: 'bq-rows' }, ...d.topics.map((t) => topicRow(t, stats.goal, byId, isAnswered, d.discipline))),
+    h(
+      'div',
+      { class: 'bq-crumb' },
+      backButton(),
+      h('span', { style: 'flex: 1' }),
+      d.below && id
+        ? h('button', { class: 'btn btn-primary', type: 'button', onclick: () => build({ discipline: id }) }, `Completar ${d.discipline}…`)
+        : null,
     ),
   ]
 }
@@ -205,10 +239,11 @@ function topicRow(
   discipline: string,
 ): HTMLElement {
   const cards = h('div', { class: 'bn-cards' })
+  const inTrail = t.id !== undefined
   return h(
     'details',
     {
-      class: `bn-topic${t.below ? ' short' : ''}`,
+      class: `bq-trow${inTrail && !t.below ? ' met' : ''}`,
       ontoggle: (event: Event) => {
         const open = (event.currentTarget as HTMLDetailsElement).open
         if (!open || cards.childElementCount) return
@@ -222,10 +257,17 @@ function topicRow(
     },
     h(
       'summary',
-      { class: `bn-topic-row${t.below ? ' short' : ''}` },
-      h('span', {}, t.topic),
-      t.id !== undefined ? studyMeter(Math.min(t.fresh, goal), goal) : h('span', {}),
-      h('b', { title: `${t.fresh} novas de ${t.count}` }, String(t.fresh)),
+      {},
+      h('span', { class: 'nm' }, t.topic),
+      inTrail
+        ? h(
+            'span',
+            { class: 'bq-meter', role: 'img', 'aria-label': `${t.fresh} de ${goal}` },
+            h('i', { style: `width: ${Math.min(100, (t.fresh / goal) * 100)}%${t.below ? '; background: var(--amber)' : ''}` }),
+          )
+        : h('span', {}),
+      h('span', { class: 'num', title: `${t.fresh} novas de ${t.count}` }, inTrail ? `${t.fresh}/${goal}` : String(t.fresh)),
+      inTrail ? h('span', { class: `bq-pill${t.below ? '' : ' ok'}` }, t.below ? 'Abaixo' : 'Na meta') : h('span', {}),
     ),
     cards,
   )
