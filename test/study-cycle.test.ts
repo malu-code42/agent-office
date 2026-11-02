@@ -18,6 +18,9 @@ import {
   recordStudyNote,
   evaluateStudyGate,
   subtopicResults,
+  deleteStudyCycle,
+  answeredStudyQuestions,
+  isStudyQuestionAnswered,
   type StudyCycleQuestion,
 } from '../src/shared/study-cycle'
 
@@ -284,5 +287,22 @@ describe('subtopicResults', () => {
     const cycle = cycleOf([withSub('a1', 'Spin', 'correct'), withSub('a2', undefined, 'correct')])
     expect(cycle.questions[0]!.source.subtopic).toBe('Spin')
     expect(subtopicResults(cycle)).toHaveLength(1)
+  })
+})
+
+describe('deleteStudyCycle', () => {
+  it('drops the cycle but answered questions still never come back, even from a file written before the register', () => {
+    const answered = { ...question('q-12345678'), response: 'Minha resposta' }
+    const state = createStudyCycleState('Quântica', [answered, question('q-abcdefgh')], 1)
+    expect(state.answered).toBeUndefined()
+    const next = deleteStudyCycle(state, state.activeId!, 5)
+    expect(next.cycles).toEqual([])
+    expect(next.activeId).toBeNull()
+    const register = answeredStudyQuestions(next)
+    expect(isStudyQuestionAnswered(register, { id: 'q-12345678', question: 'outra' })).toBe(true)
+    expect(isStudyQuestionAnswered(register, { id: 'q-abcdefgh', question: 'outra' })).toBe(false)
+  })
+  it('refuses a cycle that is not in the history', () => {
+    expect(() => deleteStudyCycle(createStudyCycleState('Quântica', [question('q-12345678')], 1), 'sc-1-x')).toThrow()
   })
 })

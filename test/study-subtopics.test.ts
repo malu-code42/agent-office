@@ -52,3 +52,14 @@ describe('buildSubtopics', () => {
     expect((await buildSubtopics('T', 'livro.pdf', [], bad)).status).toBe('sem-indice')
   })
 })
+
+describe('listsAgree', () => {
+  const base = list([0, 1], [2, 3], [4, 5])
+  it('agrees when each part has a counterpart and the left-out sections are mostly the same', () => {
+    expect(listsAgree(base, list([0, 1], [2], [3, 4, 5]))).toBe(true)
+  })
+  it('does not agree when a part has no counterpart or the lists cover other sections', () => {
+    expect(listsAgree(base, list([0, 1], [2, 3], [6, 7]))).toBe(false)
+    expect(listsAgree(base, list([0, 1, 2, 3, 4, 5], [6], [7]))).toBe(false)
+  })
+})

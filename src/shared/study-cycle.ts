@@ -533,9 +533,13 @@ export function resumeStudyCycle(state: StudyCycleState, cycleId: string): Study
 }
 
 /** Deletes a cycle and its notes. The answered register stays, so answered questions still never come back. */
-export function deleteStudyCycle(state: StudyCycleState, cycleId: string): StudyCycleState {
-  if (!state.cycles.some((item) => item.id === cycleId)) throw new Error('Esse ciclo não está no histórico.')
-  return { ...state, activeId: state.activeId === cycleId ? null : state.activeId, cycles: state.cycles.filter((item) => item.id !== cycleId) }
+export function deleteStudyCycle(state: StudyCycleState, cycleId: string, now = Date.now()): StudyCycleState {
+  const cycle = state.cycles.find((item) => item.id === cycleId)
+  if (!cycle) throw new Error('Esse ciclo não está no histórico.')
+  // Files written before the register only know their answers through the cycles: move them there first, or deleting forgets them.
+  const answered = [cycle.questions, ...cycle.practiceRounds.map((r) => r.questions), ...cycle.retests.map((r) => r.questions)].flat().filter((q) => q.response.trim())
+  const kept = answered.reduce((acc, q) => rememberAnswered(acc, q, now), state)
+  return { ...kept, activeId: state.activeId === cycleId ? null : state.activeId, cycles: state.cycles.filter((item) => item.id !== cycleId) }
 }
 
 export const emptyStudyCycleState =(): StudyCycleState => ({ activeId: null, cycles: [] })

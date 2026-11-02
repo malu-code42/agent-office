@@ -332,7 +332,6 @@ export interface OfficeAPI {
   advanceStudyCycle(): Promise<StudyCycleState>
   /** Desativa a seleção do ciclo, mantendo tópico e evidências no histórico local. */
   resetStudyCycle(): Promise<StudyCycleState>
-  /** Volta a um ciclo guardado no histórico (troca de tópico), sem apagar nada do ciclo ativo. */
   /** The subtopics built so far, by topic title. */
   readStudySubtopics(): Promise<Record<string, StudySubtopics>>
   /** Builds (or rebuilds) a trail topic's subtopics from its book's table of contents. */
@@ -341,6 +340,7 @@ export interface OfficeAPI {
   readStudyIdeas(): Promise<Record<string, StudyIdeaSet>>
   /** Gera (ou refaz) as ideias de software de um tópico estudado e as guarda. */
   generateStudyIdeas(topic: string): Promise<StudyIdeaSet>
+  /** Volta a um ciclo guardado no histórico (troca de tópico), sem apagar nada do ciclo ativo. */
   resumeStudyCycle(cycleId: string): Promise<StudyCycleState>
   deleteStudyCycle(cycleId: string): Promise<StudyCycleState>
   /** Deletes bank questions (with a backup of the file); resolves with how many went. */
