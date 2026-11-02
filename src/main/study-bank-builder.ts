@@ -143,7 +143,18 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
       continue
     }
     // One passage per question: with fewer passages than questions the author can only repeat itself, so don't spend the run.
-    if (hits.length < onTopic.length + missing) {
+    const needed = onTopic.length + missing
+    if (hits.length < needed) {
+      // The discipline's own books come first; the other books of the library (what Cora shows) fill what is left.
+      try {
+        const own = new Set(hits.map((hit) => hit.sourceRef))
+        const more = (await deps.library.search(topic.title)).hits.filter((hit) => !NAME_ONLY.test(hit.excerpt) && !own.has(hit.sourceRef))
+        hits = [...hits, ...more]
+      } catch (error) {
+        return { results, stop: 'error', message: (error as Error).message }
+      }
+    }
+    if (hits.length < needed) {
       finish({ ...start, reason: 'little', ...(await booksFor(topic)) })
       continue
     }
