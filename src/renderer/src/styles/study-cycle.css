@@ -328,7 +328,7 @@
 
 .study-bank-total b {
   color: var(--accent-hi);
-  font: 500 26px var(--pixel);
+  font: 500 26px var(--mono);
   line-height: 1;
 }
 

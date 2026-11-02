@@ -142,7 +142,7 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
       })
       continue
     }
-    // One passage per question: with fewer passages than questions the author can only repeat itself, so don't spend the run.
+    // One passage per question: the author can only repeat itself past the passages there are.
     const needed = onTopic.length + missing
     hits = distinct(hits)
     if (hits.length < needed) {
@@ -155,7 +155,9 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
         return { results, stop: 'error', message: (error as Error).message }
       }
     }
-    if (hits.length < needed) {
+    // Only as many questions as there are passages left (a short book still gives what it can; the report says it fell short).
+    const toMake = Math.min(missing, hits.length - onTopic.length)
+    if (toMake < 1) {
       finish({ ...start, reason: 'little', ...(await booksFor(topic)) })
       continue
     }
@@ -163,7 +165,7 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
     const made: StudyQuestion[] = []
     let failure: GroundedFailure | undefined
     let stop: StudyBankBuildResult | undefined
-    for (let i = 0; i < missing; i++) {
+    for (let i = 0; i < toMake; i++) {
       // Each question starts from the next passage (wrapping), so a topic with many questions does not reread the same 3 passages.
       const anchor = hits[(onTopic.length + made.length) % hits.length] ?? first
       const file = fileOf(anchor.sourceRef)
