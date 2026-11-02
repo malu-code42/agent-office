@@ -96,12 +96,23 @@ export const isAgentVerified = (q: { attribution: string; answerStatus: string }
   q.answerStatus === 'verified' && q.attribution === STUDY_AGENT_ATTRIBUTION
 
 const QUOTE = /\s*Trecho da fonte: «([\s\S]+)»\s*$/
+const NEEDED = /\s*Para resolver: ([\s\S]+)$/
 
-/** The rationale without the quoted passage, and the passage (agent questions keep it at the end of the rationale). */
-export function splitStudyRationale(rationale: string | undefined): { rationale: string; quote?: string } {
+/**
+ * The rationale without the tail the agent chain appends, and that tail's two parts: what the student
+ * must know to solve the question ("Para resolver: …") and the book's passage ("Trecho da fonte: «…»").
+ */
+export function splitStudyRationale(rationale: string | undefined): { rationale: string; needed?: string; quote?: string } {
   if (!rationale) return { rationale: '' }
   const match = QUOTE.exec(rationale)
-  return match ? { rationale: rationale.slice(0, match.index).trim(), quote: match[1]!.trim() } : { rationale }
+  const quote = match?.[1]!.trim()
+  const rest = match ? rationale.slice(0, match.index) : rationale
+  const need = NEEDED.exec(rest)
+  return {
+    rationale: (need ? rest.slice(0, need.index) : rest).trim(),
+    ...(need ? { needed: need[1]!.trim() } : {}),
+    ...(quote ? { quote } : {}),
+  }
 }
 
 const BOOKS = 'study sources/textbooks/'
