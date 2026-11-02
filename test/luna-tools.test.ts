@@ -32,6 +32,7 @@ beforeEach(() => {
     rescheduleTask: (path, line, date) => writer.reschedule(path, line, date),
     completeTask: vi.fn(() => 'tabc123'),
     discardTask: vi.fn(() => 'tabc123'),
+    focusTask: vi.fn(() => 'tpag001'),
     agenda: createAgendaWriter({ now: () => new Date(2026, 9, 30, 10) }),
     review: {
       focus: vi.fn(() => [
@@ -102,6 +103,13 @@ describe('ferramentas da Luna (#101)', () => {
     expect(deps.completeTask).toHaveBeenCalledWith('tabc123')
     await call('task_discard', { target: 2, reason: 'Não faz mais sentido' })
     expect(deps.discardTask).toHaveBeenCalledWith(2, 'Não faz mais sentido')
+  })
+
+  it('põe em foco sem mexer na data da tarefa', async () => {
+    await call('tasks_list')
+    expect((await call('focus_add', { target: 3 })).text).toBe('Tarefa tpag001 em foco.')
+    expect(deps.focusTask).toHaveBeenCalledWith(3)
+    expect(readFileSync(join(vault, 'tarefas.md'), 'utf8')).toBe(TASKS)
   })
 
   it('agenda: lista, adiciona e remove compromissos', async () => {
