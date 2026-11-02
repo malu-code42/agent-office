@@ -192,7 +192,11 @@ export function registerTasksIpc(ctx: IpcContext): void {
   ipcMain.handle('office:readStudyQuestions', async () => {
     const bank = studyService()
     // Questions live only on files of "study sources": the ones whose file left the folder go out (with a backup).
-    if (bankJobs.status()?.status !== 'running') bank.removeOrphanQuestions()
+    // So do open questions and ones citing a text the student never sees.
+    if (bankJobs.status()?.status !== 'running') {
+      bank.removeOrphanQuestions()
+      bank.removeUnusableQuestions()
+    }
     return bank.read()
   })
   ipcMain.handle('office:searchStudyQuestions', async (_e, ...args: unknown[]) => {
