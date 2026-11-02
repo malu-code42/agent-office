@@ -70,7 +70,7 @@ export function openStudyQuestions(root: HTMLElement, toast: Toast, openBuilder:
       const byId = new Map(bank.questions.map((q) => [q.id, q]))
       const remove = async (topic: string, ids: string[]) => {
         const ok = await confirmDialog(root, {
-          title: 'Excluir as questões do tópico?',
+          title: ids.length === 1 ? 'Excluir a questão?' : 'Excluir as questões do tópico?',
           text: `${plural(ids.length, 'questão', 'questões')} de “${topic}” saem do banco (fica uma cópia de segurança do arquivo). Isso não apaga o seu progresso; você pode montar o banco de novo depois.`,
           confirm: 'Excluir',
           cancel: 'Cancelar',
@@ -271,7 +271,10 @@ function topicRow(
         const questions = t.ids.map((id) => byId.get(id)).filter((q): q is StudyQuestion => !!q)
         cards.replaceChildren(
           ...(questions.length
-            ? questions.map((q) => studyQuestionCard(q, isAnswered(q), discipline))
+            ? questions.flatMap((q) => [
+                studyQuestionCard(q, isAnswered(q), discipline),
+                h('button', { class: 'btn btn-small', type: 'button', onclick: () => void remove(t.topic, [q.id]) }, 'Excluir esta questão'),
+              ])
             : [h('p', { class: 'field-hint' }, 'Nenhuma questão ainda. Use “Montar banco” para este tópico.')]),
         )
       },
