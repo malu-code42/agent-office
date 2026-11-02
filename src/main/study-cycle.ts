@@ -8,6 +8,7 @@ import {
   assessStudyQuestion,
   attachStudySource,
   createStudyCycleState,
+  deleteStudyCycle,
   assessStudyRetestQuestion,
   completeStudyCycle,
   isStudyQuestionAnswered,
@@ -305,6 +306,12 @@ export class StudyCycleService {
 
   reset(): StudyCycleState {
     const next = resetActiveStudyCycle(this.store.read())
+    this.store.write(next)
+    return next
+  }
+
+  delete(cycleId: string): StudyCycleState {
+    const next = deleteStudyCycle(this.store.read(), cycleId)
     this.store.write(next)
     return next
   }

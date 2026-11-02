@@ -283,6 +283,12 @@ export class StudyQuestionService {
     return this.removeWhere((q) => this.leftStudySources(q))
   }
 
+  /** Deletes the questions the user chose, after a backup of the exact version. */
+  removeQuestions(ids: string[]): number {
+    const drop = new Set(ids)
+    return this.removeWhere((q) => drop.has(q.id))
+  }
+
   /** Whether the question cites a file that is not (or no longer) in the study sources folder. */
   leftStudySources(q: StudyQuestion): boolean {
     return !!q.sourceReference && !this.sourceInStudySources(q.sourceReference)
