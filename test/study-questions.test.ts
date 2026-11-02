@@ -93,6 +93,8 @@ describe('study question bank codec', () => {
   it('flags a statement that cites a text nobody shows', () => {
     expect(refersToMissingText({ question: 'Segundo o texto, o que é um bit?' })).toBe(true)
     expect(refersToMissingText({ question: 'O que é um bit?', options: ['Conforme o trecho acima', 'Um dígito'] })).toBe(true)
+    expect(refersToMissingText({ question: 'Segundo o autor, o que é um bit?' })).toBe(true)
+    expect(refersToMissingText({ question: 'Qual a tensão da fonte de alimentação?' })).toBe(false)
     expect(refersToMissingText({ question: 'O que é um bit?', options: ['Um dígito', 'Um byte'] })).toBe(false)
     expect(refersToMissingText({ passage: 'Um bit é um dígito.', question: 'Segundo o texto, o que é um bit?' })).toBe(false)
   })

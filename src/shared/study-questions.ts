@@ -48,7 +48,7 @@ export const isChoiceQuestion = (q: Pick<StudyQuestion, 'options' | 'answer'>): 
   !!q.options?.length && !!q.answer && /^[A-Z]$/.test(q.answer) && q.answer.charCodeAt(0) - 65 < q.options.length
 
 const TEXT_REFERENCE =
-  /\b(?:o|no|do|ao|neste|nesse|deste|desse|este|esse)\s+(?:texto|trecho|excerto|fragmento)\b|\b(?:texto|trecho|excerto|fragmento)\s+(?:acima|abaixo|apresentado|citado|dado|anterior)\b/i
+  /\b(?:o|no|do|ao|neste|nesse|deste|desse|este|esse)\s+(?:texto|trecho|excerto|fragmento)\b|\b(?:texto|trecho|excerto|fragmento)\s+(?:acima|abaixo|apresentado|citado|dado|anterior)\b|\b(?:segundo|conforme|de acordo com)\s+(?:a|o)\s+(?:fonte|material|autora?|livro|apostila|slide|página|capítulo)\b/i
 
 /** Whether the statement or an alternative points at a text the student is not shown (there is no passage). */
 export const refersToMissingText = (q: Pick<StudyQuestion, 'passage' | 'question' | 'options'>): boolean =>
