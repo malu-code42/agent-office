@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  knownSubtopicNames,
   questionsBySubtopic,
   questionsForTopic,
   rankStudySources,
@@ -211,5 +212,25 @@ describe('questionsBySubtopic with a trail topic (AO-23)', () => {
   it('counts the old questions without subtopic', () => {
     const old = { id: 'q-0-aaaaaaaa', topic: 'Filas', tags: [], question: 'p0', answerStatus: 'verified' } as never
     expect(questionsBySubtopic([old, q('1', 'Filas', 'A')], 'Filas', 1, { exact: 'Filas' })!.untagged).toBe(1)
+  })
+})
+
+describe('knownSubtopicNames (AO-28)', () => {
+  const list = (status: 'ok' | 'sem-indice' | 'sem-acordo') => ({ status, subtopics: [{ name: 'A', sections: [] }, { name: 'B', sections: [] }] })
+  it('only a list with status ok counts', () => {
+    expect(knownSubtopicNames(list('ok'))).toEqual(['A', 'B'])
+    expect(knownSubtopicNames(list('sem-indice'))).toBeUndefined()
+    expect(knownSubtopicNames(list('sem-acordo'))).toBeUndefined()
+    expect(knownSubtopicNames(undefined)).toBeUndefined()
+  })
+  it('keeps a stored subtopic with no question out of short unless the list is ok', () => {
+    const q = { id: 'q-1-aaaaaaaa', topic: 'Filas', subtopic: 'A', tags: [], question: 'p', answerStatus: 'verified' } as never
+    const run = (status: 'ok' | 'sem-acordo') => questionsBySubtopic([q], 'Filas', 1, { exact: 'Filas', known: knownSubtopicNames(list(status)) })!
+    expect(run('ok').short).toEqual(['B'])
+    expect(run('sem-acordo').short).toEqual([])
+  })
+  it('old bank with no subtopic on any question: null even with a stored list (plain draw, not blocked)', () => {
+    const old = { id: 'q-0-aaaaaaaa', topic: 'Filas', tags: [], question: 'p0', answerStatus: 'verified' } as never
+    expect(questionsBySubtopic([old], 'Filas', 1, { exact: 'Filas', known: knownSubtopicNames(list('ok')) })).toBeNull()
   })
 })
