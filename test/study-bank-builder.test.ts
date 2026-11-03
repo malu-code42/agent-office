@@ -34,6 +34,10 @@ const QUESTIONS = [
   'Quantos símbolos distintos usa a base dois?',
   'Como se chama cada dígito binário?',
   'Qual base numérica o computador usa internamente?',
+  'Que valores um bit pode assumir no sistema binário?',
+  'Por que o computador representa dados com dois estados?',
+  'O que difere o sistema binário do decimal quanto aos símbolos?',
+  'Qual é o menor conjunto de dígitos que forma uma base posicional?',
 ]
 
 function setup(options: { verdict?: string; failAsk?: boolean; bank?: StudyQuestion[] } = {}) {
@@ -66,6 +70,18 @@ describe('buildStudyBank', () => {
     expect(bank.every((q) => q.topic === 'Sistemas de numeração')).toBe(true)
     expect(search).toHaveBeenCalledWith('Sistemas de numeração Conversão', expect.anything())
     expect(subtopics.build).not.toHaveBeenCalled()
+  })
+
+  it('does not count questions from before the subtopics toward any subtopic (AO-24)', async () => {
+    const { bank, deps } = setup()
+    await buildStudyBank(trail, deps, { perTopic: 4, topic: 'Sistemas de numeração' })
+    expect(bank).toHaveLength(4)
+    const entry = { topic: 'Sistemas de numeração', source: 'L.pdf', builtAt: 1, status: 'ok' as const, subtopics: ['Base binária', 'Conversão'].map((name) => ({ name, sections: [] })) }
+    await buildStudyBank(trail, { ...deps, subtopics: { get: () => entry, build: vi.fn() } }, { perTopic: 4, topic: 'Sistemas de numeração' })
+    // The old four stay, unlabeled; each subtopic still gets its own share.
+    expect(bank.filter((q) => !q.subtopic)).toHaveLength(4)
+    expect(bank.filter((q) => q.subtopic === 'Base binária')).toHaveLength(2)
+    expect(bank.filter((q) => q.subtopic === 'Conversão')).toHaveLength(2)
   })
 
   it('tells the author about the questions made for the earlier subtopics of the same topic', async () => {

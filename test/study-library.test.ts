@@ -237,6 +237,21 @@ describe('Cora: PDFs e fontes recomendadas', () => {
     expect(readdirSync(cache)).toHaveLength(1)
   })
 
+  it('outline() devolve o sumário do PDF e nada para o que não tem sumário', async () => {
+    const vault = fixture()
+    const sources = join(vault, 'study sources')
+    mkdirSync(sources)
+    const toc = Array.from({ length: 10 }, (_, i) => `Capitulo ${i + 1} Redes ........ ${10 + i}`).join('\n')
+    writeFileSync(join(sources, 'livro.pdf'), tinyPdf([toc]))
+    writeFileSync(join(sources, 'curto.pdf'), tinyPdf(['Texto comum sem sumario']))
+    const library = new StudyLibrary(vault)
+    const entries = await library.outline('study sources/livro.pdf')
+    expect(entries).toHaveLength(10)
+    expect(entries[0]).toMatchObject({ id: 0, page: 10 })
+    expect(await library.outline('study sources/curto.pdf')).toEqual([])
+    expect(await library.outline('study sources/nao-existe.pdf')).toEqual([])
+  })
+
   it('recomenda fontes da melhor para a pior, com páginas, slides e seções de início e fim', async () => {
     const vault = fixture()
     const sources = join(vault, 'study sources', 'Estrutura de Dados')

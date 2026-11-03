@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
 import { checkSubtopics, listsAgree, tocEntries, type OutlineEntry } from '../src/shared/study-outline'
-import { buildSubtopics } from '../src/main/study-subtopics'
+import type { StudySubtopics } from '../src/shared/study-outline'
+import { buildSubtopics, StudySubtopicStore, STUDY_SUBTOPICS_FILE } from '../src/main/study-subtopics'
 
 const outline: OutlineEntry[] = Array.from({ length: 12 }, (_, id) => ({ id, title: `Seção ${id}`, page: 10 + id }))
 const list = (...groups: number[][]) => groups.map((entries, i) => ({ name: `Parte ${i + 1}`, entries }))
@@ -61,5 +65,39 @@ describe('listsAgree', () => {
   it('does not agree when a part has no counterpart or the lists cover other sections', () => {
     expect(listsAgree(base, list([0, 1], [2, 3], [6, 7]))).toBe(false)
     expect(listsAgree(base, list([0, 1, 2, 3, 4, 5], [6], [7]))).toBe(false)
+  })
+})
+
+describe('StudySubtopicStore', () => {
+  const dirs: string[] = []
+  afterEach(() => dirs.splice(0).forEach((d) => rmSync(d, { recursive: true, force: true })))
+  const setup = () => {
+    const dir = mkdtempSync(join(tmpdir(), 'subtopics-'))
+    dirs.push(dir)
+    return { dir, file: join(dir, STUDY_SUBTOPICS_FILE), store: new StudySubtopicStore(dir) }
+  }
+  const entry = (topic: string): StudySubtopics => ({ topic, source: 'L.pdf', builtAt: 1, status: 'sem-acordo', reason: 'x', subtopics: [] })
+
+  it('keeps every topic when saves run at the same time', async () => {
+    const { store } = setup()
+    await Promise.all(['A', 'B', 'C'].map(async (t) => store.save(entry(t))))
+    expect(Object.keys(store.read()).sort()).toEqual(['A', 'B', 'C'])
+  })
+
+  it('drops entries with a wrong shape when reading', () => {
+    const { store, file } = setup()
+    writeFileSync(file, JSON.stringify({ ok: entry('ok'), bad: { topic: 'bad', status: 'ok', subtopics: 'x' }, nope: 3 }))
+    expect(Object.keys(store.read())).toEqual(['ok'])
+  })
+
+  it('does not erase the rest after a corrupt file: the bad file is kept and the backup comes back', () => {
+    const { store, file, dir } = setup()
+    store.save(entry('A'))
+    store.read() // refreshes the .bak
+    writeFileSync(file, '{ cortado')
+    store.save(entry('B'))
+    expect(Object.keys(store.read()).sort()).toEqual(['A', 'B'])
+    expect(readdirSync(dir).some((f) => f.includes('corrupt'))).toBe(true)
+    expect(readFileSync(file, 'utf8')).toContain('"A"')
   })
 })

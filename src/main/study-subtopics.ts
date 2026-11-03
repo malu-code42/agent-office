@@ -103,14 +103,31 @@ export class StudySubtopicStore {
     this.file = join(dataDir, STUDY_SUBTOPICS_FILE)
   }
 
+  // The file is read and written in one synchronous step, so two saves in this process cannot interleave
+  // (shortcut: a second process on the same file would still race, only if the app ever runs that way).
+  // A corrupt file is moved aside by loadJson before it comes back as {}, so the next save does not erase it.
   read(): Record<string, StudySubtopics> {
-    const result = loadJson<Record<string, StudySubtopics>>(this.file, {
-      valid: (value): value is Record<string, StudySubtopics> => !!value && typeof value === 'object' && !Array.isArray(value),
+    const result = loadJson<Record<string, unknown>>(this.file, {
+      valid: (value): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value),
     })
-    return result.status === 'ok' ? result.data : {}
+    const all = result.status === 'ok' || result.status === 'restored' ? result.data : {}
+    return Object.fromEntries(Object.entries(all).filter((pair): pair is [string, StudySubtopics] => isEntry(pair[1])))
   }
 
   save(entry: StudySubtopics): void {
     writeJsonAtomic(this.file, { ...this.read(), [entry.topic]: entry }, { mode: 0o600 })
   }
+}
+
+const isEntry = (value: unknown): value is StudySubtopics => {
+  const e = value as StudySubtopics | null
+  return (
+    !!e &&
+    typeof e.topic === 'string' &&
+    typeof e.source === 'string' &&
+    typeof e.builtAt === 'number' &&
+    (e.status === 'ok' || e.status === 'sem-indice' || e.status === 'sem-acordo') &&
+    Array.isArray(e.subtopics) &&
+    e.subtopics.every((s) => !!s && typeof s.name === 'string' && Array.isArray(s.sections))
+  )
 }
