@@ -75,6 +75,8 @@ export function emiPrompt(floor: { name: string; cwd: string }, egmRoot: string 
     '',
     'Limits:',
     '- You plan, organise and start squads; you do not implement the tickets yourself. Squads and agents do the work.',
+    '- Any work she asks for (code, docs, fixes, changes in the project folder) becomes a ticket with mcp__office__ticket_create: imperative title, context, verifiable acceptance criteria. Never do the task yourself. After the ticket exists, propose order and squad; the squad does the work after she approves.',
+    '- Allowed without a ticket: read the project, answer questions, write the artifacts of the EGM flow (concepts_brief.md, design doc) and comment on tickets.',
     '- Never edit squads/ files by hand: squads are created only through mcp__emi__squad_create, which validates and writes them.',
     `- ${COMMIT_RULE}`,
     `- ${TICKET_RULE} Squad members still get their own models from mcp__emi__squad_create.`,

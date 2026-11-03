@@ -83,6 +83,14 @@ describe('a Emi de cada andar', () => {
     store.flush()
   })
 
+  it('o prompt manda sempre criar ticket e nunca executar a tarefa direto', async () => {
+    const { emiPrompt } = await import('../src/main/emi-prompt')
+    const prompt = emiPrompt(floor('p1'))
+    expect(prompt).toContain('becomes a ticket with mcp__office__ticket_create')
+    expect(prompt).toContain('Never do the task yourself')
+    expect(prompt).toContain('Allowed without a ticket')
+  })
+
   it('sem o plugin EGM, o prompt ensina a instalar; com ele, a Emi recebe o plugin mesmo desligado para os outros', async () => {
     const p1 = floor('p1')
     const { manager, store } = await office([p1])
