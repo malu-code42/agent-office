@@ -43,6 +43,8 @@ export interface StudyBankBuildOptions {
   /** One topic of the trail (its label, title or id); all topics when absent. */
   topic?: string
   perTopic?: number
+  /** Questions wanted from each subtopic; the topic's goal becomes this times its subtopics. Topics without subtopics keep `perTopic`. */
+  perSubtopic?: number
   signal?: AbortSignal
   onProgress?: (event: StudyBankProgress) => void
 }
@@ -123,25 +125,26 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
     // only multiple-choice questions not answered yet count toward the goal
     const fresh = (list: StudyQuestion[]) => list.filter((q) => isChoiceQuestion(q) && !deps.isAnswered?.(q))
     const have = fresh(onTopic)
+    // With subtopics, each gets its own goal (`perSubtopic`) or an equal share of the topic's, so the topic is covered rather than drawn from one corner of the book.
+    const names = await subtopicsFor(topic)
+    const share = options.perSubtopic ?? (names.length ? Math.ceil(perTopic / names.length) : perTopic)
+    const goal = options.perSubtopic && names.length ? options.perSubtopic * names.length : perTopic
     const start: StudyBankTopicResult = {
       id: topic.id,
       topic: topic.title,
       discipline: topic.discipline,
       disciplineId,
-      goal: perTopic,
+      goal,
       had: have.length,
       added: 0,
     }
-    options.onProgress?.({ kind: 'topic', topic, index, total: topics.length, goal: perTopic, had: have.length })
+    options.onProgress?.({ kind: 'topic', topic, index, total: topics.length, goal, had: have.length })
     const finish = (result: StudyBankTopicResult) => {
       results.push(result)
       options.onProgress?.({ kind: 'done', result })
     }
 
     const { folders: scope, fallback } = studyBankFolders(disciplineId, topic.discipline)
-    // With subtopics, each gets an equal share of the goal, so the topic is covered rather than drawn from one corner of the book.
-    const names = await subtopicsFor(topic)
-    const share = names.length ? Math.ceil(perTopic / names.length) : perTopic
     const units: Unit[] = names.length
       ? names.map((name) => ({ name, query: `${topic.title} ${name}`, goal: share }))
       : [{ query: topic.title, goal: perTopic }]
@@ -266,7 +269,7 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
       if (haveUnit + addedHere < unit.goal) reason ??= reasonOf(failure, addedHere < made.length)
     }
     const result: StudyBankTopicResult = { ...start, added }
-    if (have.length + added < perTopic && reason) {
+    if (have.length + added < goal && reason) {
       result.reason = reason
       if (folder) result.folder = folder
       Object.assign(result, books)

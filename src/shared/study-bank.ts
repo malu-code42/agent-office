@@ -65,6 +65,8 @@ export interface StudyBankJob {
   discipline?: string
   topic?: string
   perTopic: number
+  /** Questions per subtopic, when chosen; replaces the topic's total. */
+  perSubtopic?: number
   /** Topics in this run and how many are done. */
   total: number
   done: number
@@ -82,6 +84,7 @@ export interface StudyBankRequest {
   discipline?: string
   topic?: string
   perTopic?: number
+  perSubtopic?: number
 }
 
 /** The discipline id of a trail item id: P2-ED-05 → P2-ED. */

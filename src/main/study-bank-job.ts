@@ -37,6 +37,7 @@ export class StudyBankJobs {
   start(trail: StudyTrail, request: StudyBankRequest, build: Build): StudyBankJob {
     if (this.job?.status === 'running') throw new Error('Já há uma montagem do banco em andamento.')
     const perTopic = Math.max(1, Math.min(STUDY_BANK_MAX_PER_TOPIC, Math.floor(request.perTopic ?? STUDY_BANK_DEFAULT_PER_TOPIC)))
+    const perSubtopic = request.perSubtopic ? Math.max(1, Math.min(STUDY_BANK_MAX_PER_TOPIC, Math.floor(request.perSubtopic))) : undefined
     const topics = studyBankTopics(trail, request)
     if (!topics.length) throw new Error('Nenhum tópico da trilha corresponde à escolha.')
     const at = this.now()
@@ -45,6 +46,7 @@ export class StudyBankJobs {
       ...(request.discipline ? { discipline: request.discipline } : {}),
       ...(request.topic ? { topic: request.topic } : {}),
       perTopic,
+      ...(perSubtopic ? { perSubtopic } : {}),
       total: topics.length,
       done: 0,
       added: 0,
@@ -59,6 +61,7 @@ export class StudyBankJobs {
       discipline: request.discipline,
       topic: request.topic,
       perTopic,
+      perSubtopic,
       signal: abort.signal,
       onProgress: (event) => {
         const current = this.job

@@ -223,6 +223,7 @@ export const studyBankBuildArgsSchema = z.tuple([
       discipline: z.string().regex(/^P\d-[A-Z]+$/).optional(),
       topic: z.string().trim().min(1).max(200).optional(),
       perTopic: z.number().int().min(1).max(50).optional(),
+      perSubtopic: z.number().int().min(1).max(50).optional(),
     })
     .strict(),
 ])
