@@ -244,7 +244,7 @@ def notebook(L, x, y, z):
 def laptop(L, x, y, z, face='+y', screen='6fd0e0'):
     """open laptop on a table; `face` is the way its screen looks (the sitter is on that side).
     (x,y) = footprint corner: 8x6 for +y/-y, 6x8 for +x/-x. A screen facing -y/-x shows its lid back."""
-    body, lid = T('dfe2e4', 'c2c7cc', 'a2a9b0'), T('8a9098', '6f757d', '565b63')
+    body, lid = T('9aa1a9', '828992', '6a717a'), T('6a7078', '565c64', '444950')
     if face in ('+y', '-y'):
         ly = y if face == '+y' else y + 5
         if face == '+y':

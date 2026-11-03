@@ -5,6 +5,9 @@ import furn as F
 import furn2 as G
 from chars import sprite
 
+# a dark mug: a white one beside a monitor's back reads as a stain
+MUG = '9a6a4a'
+
 
 def graphite(L, x, y, w, d):
     F.desk(L, x, y, w, d, col=F.DESK_TOP, leg=F.DESK_LEG)
@@ -57,7 +60,7 @@ def ws_front_y(sc, x, y, vi, state, w=34, head=None, col=F.CHAIR, centered=False
         F.crt(L, x + w - 14, y + 8, 12, '-y', state, 1)
         G.laptop(L, x + w - 24, y + 5, 12, '-y', '82aaff')
         F.keyboard(L, x + w - 13, y + 2, 12)
-        F.mug(L, x + w - 16, y + 2, 12)
+        F.mug(L, x + w - 16, y + 2, 12, MUG)
     sc.add((x0, y, x0 + w, y + 14), d, True)
     cx, cy = x + w - 13, y - 12
 
@@ -80,7 +83,7 @@ def ws_front_x(sc, x, y, vi, state, d_=34, head=None, col=F.CHAIR):
         F.crt(L, x + 8, a + 2, 12, '-x', state, 1)
         G.laptop(L, x + 2, a - 10, 12, '-x', '82aaff')
         F.keyboard(L, x, a + 5, 12, 'y')
-        F.mug(L, x + 2, a + 2, 12)
+        F.mug(L, x + 2, a + 2, 12, MUG)
     sc.add((x, y, x + 14, y + d_), d, True)
     cx, cy = x - 12, y + d_ - 13
 

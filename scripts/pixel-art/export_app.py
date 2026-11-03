@@ -300,7 +300,7 @@ def main():
             'coordinator': {
                 'desk': desk(f'room{r}/coord', lambda s, st: ws_front_x(s, cx0, cy0, None, st)),
                 'center': [cx0 + 7, cy0 + 17],
-                'seat': seat(f'room{r}/coord', cx0 - 12, cy0 + 34 - 13, '+x', col=F.CHAIRS[P.ROOM_CHAIRS[r][6]]),
+                'seat': seat(f'room{r}/coord', cx0 - 12, cy0 + 34 - 13, '+x', col=F.CHAIRS[P.ROOM_CHAIRS[r][5]]),
                 'plate': [cpx, int(cpy) - 6],
             },
             'slots': [],
@@ -336,7 +336,7 @@ def main():
     blocked = set()
     furniture = [it['fp'] for it in static if not it.get('wall')]
     furniture += [room['coordinator']['desk']['green']['fp'] for room in rooms]
-    # all six member desks: 5 and 6 stand against the far wall, so the middle rows stay the aisle
+    # all five member desks: the 5th stands against the far wall, so the middle rows stay the aisle
     furniture += [slot['desk']['green']['fp'] for room in rooms for slot in room['slots']]
     furniture.append(emi['desk']['green']['fp'])
     for x0, y0, x1, y1 in furniture:

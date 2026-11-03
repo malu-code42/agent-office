@@ -18,9 +18,9 @@ export const SQUAD_ROLE_LABELS: Record<SquadRole, string> = {
   researcher: 'Pesquisador',
 }
 
-/** Members besides the coordinator: the room holds from two to six (HANDOFF §3.4). */
+/** Members besides the coordinator: the room holds from two to five (HANDOFF §3.4). */
 export const SQUAD_MIN_MEMBERS = 2
-export const SQUAD_MAX_MEMBERS = 6
+export const SQUAD_MAX_MEMBERS = 5
 /** The name of a squad: it may not be empty and it is short (HANDOFF §3.4.2). */
 export const SQUAD_NAME_MAX = 60
 /** Squad rooms per project floor: three, and never more (ticket 04). */

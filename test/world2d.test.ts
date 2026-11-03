@@ -151,7 +151,7 @@ describe('layout 2D do andar de projeto', () => {
 
   it('dá para chegar a toda cadeira, à mesa de reunião e à porta de cada sala saindo do elevador', () => {
     const grid = grid2d(LAYOUT)
-    const plan = projectPlan2d(LAYOUT, [squad('sala-1', 6), squad('sala-2', 4), squad('sala-3', 2)])
+    const plan = projectPlan2d(LAYOUT, [squad('sala-1', 5), squad('sala-2', 4), squad('sala-3', 2)])
     const [ex, ez] = plan.elevator.tile
     expect(grid.walkable(ex, ez)).toBe(true)
     const goals: [number, number][] = [
@@ -171,13 +171,13 @@ describe('layout 2D do andar de projeto', () => {
     }
   })
 
-  it('as seis mesas de cada sala bloqueiam o próprio tile e deixam livre o corredor da porta até o coordenador', () => {
+  it('as cinco mesas de cada sala bloqueiam o próprio tile e deixam livre o corredor da porta até o coordenador', () => {
     const grid = grid2d(LAYOUT)
-    const plan = projectPlan2d(LAYOUT, [squad('sala-1', 6), squad('sala-2', 6), squad('sala-3', 6)])
+    const plan = projectPlan2d(LAYOUT, [squad('sala-1', 5), squad('sala-2', 5), squad('sala-3', 5)])
     for (const room of plan.rooms) {
       const z0 = room.rect[1]
-      expect(room.desks).toHaveLength(6)
-      // every desk is furniture now, members 5 and 6 included
+      expect(room.desks).toHaveLength(5)
+      // every desk is furniture now, member 5 included
       for (const desk of room.desks)
         expect(grid.walkable(Math.floor(desk.center!.x), Math.floor(desk.center!.z)), `mesa ${desk.index}`).toBe(false)
       // the middle rows, from the door (x 8) to the delivery column (x 3), stay free
@@ -219,8 +219,8 @@ describe('projectPlan2d', () => {
     const none = projectPlan2d(LAYOUT, [])
     expect(none.agentDesks).toHaveLength(AGENT_DESK_COUNT)
     expect(none.agentDesks.map((d) => d.index)).toEqual([...Array(AGENT_DESK_COUNT).keys()])
-    const busy = projectPlan2d(LAYOUT, [squad('sala-1', 6), squad('sala-2', 6), squad('sala-3', 3)])
-    expect(busy.agentDesks).toHaveLength(3)
+    const busy = projectPlan2d(LAYOUT, [squad('sala-1', 5), squad('sala-2', 5), squad('sala-3', 3)])
+    expect(busy.agentDesks).toHaveLength(2)
     // nobody shares a chair with a squad member
     const seats = new Set(busy.rooms.flatMap((r) => r.desks.map((d) => `${d.seat.x},${d.seat.z}`)))
     for (const d of busy.agentDesks) expect(seats.has(`${d.seat.x},${d.seat.z}`)).toBe(false)
