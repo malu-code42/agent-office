@@ -6,7 +6,7 @@ App Electron (TypeScript, ESM): escritório isométrico em pixel art (Canvas2D) 
 ## Comandos
 
 Scripts em `package.json`. Se `npm install` falhar com "Electron uninstall": `node node_modules/electron/install.js`.
-`npm run demo` abre agentes simulados, sem gastar tokens. `npm run lint` cobre o checkout e todas as worktrees Git.
+`npm run demo` abre agentes simulados, sem gastar tokens. `npm run lint` cobre só o checkout atual; `npm run lint -- --all` varre todas as worktrees Git.
 
 Antes de entregar: `npm run typecheck && npm run lint && npm test && npm run build` (o que o CI roda: macOS e Windows, Node 22).
 
