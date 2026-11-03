@@ -111,6 +111,8 @@ export class StudySubtopicStore {
       valid: (value): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value),
     })
     reportLoad(this.file, result)
+    // Put the restored data back in the main file, or the next save reads "missing" and overwrites the .bak without it.
+    if (result.status === 'restored') writeJsonAtomic(this.file, result.data, { mode: 0o600 })
     const all = result.status === 'ok' || result.status === 'restored' ? result.data : {}
     return Object.fromEntries(Object.entries(all).filter((pair): pair is [string, StudySubtopics] => isEntry(pair[1])))
   }
