@@ -111,8 +111,8 @@ describe('ferramentas da Bonnie (mcp__estudos__)', () => {
     const { deps } = studyDeps()
     const { text } = await call(deps, 'trail_list')
     expect(text).toContain('## Estrutura de Dados (2º período) — 2 em aberto de 3')
-    expect(text).toContain('- [Marcado na trilha] [P2-ED-01] Listas')
-    expect(text).toContain('- [Não iniciado] [P2-ED-05] Filas')
+    expect(text).toContain('- [Marcado na trilha] Listas')
+    expect(text).toContain('- [Não iniciado] Filas')
   })
 
   it('começa um tópico com as questões do banco, guarda o anterior e retoma sem perder nada', async () => {

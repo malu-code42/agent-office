@@ -7,6 +7,7 @@ import type { AgentSummary, AgentResult } from '../src/shared/types'
 
 vi.mock('../src/main/git', () => ({
   commitChanges: vi.fn(),
+  dirtyFiles: vi.fn(async () => []),
   discardChanges: vi.fn(),
   fileDiff: vi.fn(),
   insideRoot: vi.fn(),

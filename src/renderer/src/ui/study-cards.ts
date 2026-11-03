@@ -1,5 +1,4 @@
 import type { StudyCard, StudyCardSections, StudyCardSummary, StudyNoteSnapshot, StudyNotesRead } from '@shared/study-cards'
-import { studyCardTopic } from '@shared/study-cards'
 import { announce } from './a11y'
 import { h } from './dom'
 import { cleanError, modal } from './modals/common'
@@ -296,7 +295,7 @@ export async function openStudyCards(root: HTMLElement, toast: Toast): Promise<v
 
   const cardView = (card: StudyCard): HTMLElement[] => {
     const summary = cards.find((item) => item.id === card.id)
-    const topic = studyCardTopic(card.sourceSnapshots)
+    const topic = card.sourceSnapshots.find((snapshot) => snapshot.topic)?.topic
     return [
       h('div', { class: 'sc-crumb' }, backButton(), h('h3', {}, card.title), topic ? h('span', { class: 'sc-chip' }, topic) : null),
       h(
