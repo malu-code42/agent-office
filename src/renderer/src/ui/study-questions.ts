@@ -241,7 +241,7 @@ function disciplineView(
       stat(total - d.below, 'na meta', `de ${plural(total, 'tópico', 'tópicos')}`, 'var(--green)'),
       stat(d.below, 'abaixo da meta', `faltam ${plural(missing, 'questão', 'questões')}`, 'var(--red)'),
     ),
-    h('div', { class: 'bq-rows' }, ...d.topics.map((t) => topicRow(t, stats.goal, byId, isAnswered, d.discipline, subtopics[t.topic], remove))),
+    h('div', { class: 'bq-rows' }, ...d.topics.map((t) => topicRow(t, stats.goal, byId, isAnswered, d.discipline, subtopics[t.topic], remove, (entry) => (subtopics[t.topic] = entry)))),
     h(
       'div',
       { class: 'bq-crumb' },
@@ -263,6 +263,7 @@ function topicRow(
   discipline: string,
   subtopics: StudySubtopics | undefined,
   remove: Remove,
+  onBuilt: (entry: StudySubtopics) => void,
 ): HTMLElement {
   const cards = h('div', { class: 'bn-cards' })
   const inTrail = t.id !== undefined
@@ -298,7 +299,7 @@ function topicRow(
       h('span', { class: 'num', title: `${t.fresh} novas de ${t.count}` }, inTrail ? `${t.fresh}/${goal}` : String(t.fresh)),
       inTrail ? h('span', { class: `bq-pill${t.below ? '' : ' ok'}` }, t.below ? 'Abaixo' : 'Na meta') : h('span', {}),
     ),
-    coverage(subtopics, t.ids.map((id) => byId.get(id)).filter((q): q is StudyQuestion => !!q), isAnswered),
+    coverage(subtopics, t.ids.map((id) => byId.get(id)).filter((q): q is StudyQuestion => !!q), isAnswered, onBuilt),
     t.ids.length
       ? h(
           'div',
@@ -314,7 +315,9 @@ function topicRow(
 const DIAGNOSIS_PER_SUBTOPIC = 3
 
 /** The parts of a topic and how many new questions each has; a part with none is the gap the diagnosis would miss. */
-function coverage(entry: StudySubtopics | undefined, questions: StudyQuestion[], isAnswered: (q: StudyQuestion) => boolean): HTMLElement | null {
+function coverage(entry: StudySubtopics | undefined, questions: StudyQuestion[], isAnswered: (q: StudyQuestion) => boolean,
+  onBuilt: (entry: StudySubtopics) => void,
+): HTMLElement | null {
   if (!entry) return null
   if (entry.status !== 'ok') {
     const box = h('div', { class: 'study-note' })
@@ -329,7 +332,9 @@ function coverage(entry: StudySubtopics | undefined, questions: StudyQuestion[],
             retry.textContent = 'Refazendo…'
             try {
               // The topic is replaced in place by whatever the new build says (ok or not).
-              box.replaceWith(coverage(await window.office.buildStudySubtopics(entry.topic), questions, isAnswered)!)
+              const built = await window.office.buildStudySubtopics(entry.topic)
+              onBuilt(built) // so the discipline view, reopened later, does not show the old entry
+              box.replaceWith(coverage(built, questions, isAnswered, onBuilt)!)
             } catch (error) {
               retry.disabled = false
               retry.textContent = 'Refazer subtemas'

@@ -213,6 +213,7 @@ const LABELS: Record<string, string> = {
   'profile-memory.json': 'memória dos perfis', // AO-43
   'study-cycle.json': 'ciclo de estudos', // AO-49
   'audio-dictionary.json': 'dicionário local de áudio', // AO-54
+  'study-subtopics.json': 'subtemas dos tópicos de estudo', // AO-30
 }
 
 /** The warning the renderer shows for a restored or lost file; null when there is nothing to say. */

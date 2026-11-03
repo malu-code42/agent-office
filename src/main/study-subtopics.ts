@@ -10,7 +10,7 @@ import {
 import { disciplineIdOf, studyBankFolders } from '@shared/study-bank'
 import type { StudyLibraryHit } from '@shared/study-library'
 import type { StudyTrailTopic } from '@shared/study-trail'
-import { loadJson, writeJsonAtomic } from './fs-safe'
+import { loadJson, reportLoad, writeJsonAtomic } from './fs-safe'
 import type { AskJson } from './study-questions-grounded'
 
 // The parts of a topic, taken from the book's own table of contents. Nobody judges their own work:
@@ -110,6 +110,7 @@ export class StudySubtopicStore {
     const result = loadJson<Record<string, unknown>>(this.file, {
       valid: (value): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value),
     })
+    reportLoad(this.file, result)
     const all = result.status === 'ok' || result.status === 'restored' ? result.data : {}
     return Object.fromEntries(Object.entries(all).filter((pair): pair is [string, StudySubtopics] => isEntry(pair[1])))
   }
