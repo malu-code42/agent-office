@@ -20,6 +20,7 @@ import { findSquad, memberAgents, orchestratorPrompt, teamGuard, validateSquad, 
 import { takeSnapshot } from '../git'
 import { InputQueue, kTokens, toMs, WRITE_TOOLS, type Agent, type Prompt } from './types'
 import { AgentOffice } from './office'
+import { COMMIT_RULE } from '../commit-rule'
 
 /** Runs on the Claude Agent SDK: starting the query and turning its messages into status, activity and log. */
 export abstract class AgentSdk extends AgentOffice {
@@ -228,8 +229,8 @@ export abstract class AgentSdk extends AgentOffice {
                   'The office has a kanban board of tickets (keys like AO-12); use the mcp__office__ tools to read, open, comment on and move tickets when asked or when you are working on one.' +
                   (wt
                     ? `\n\nYou work in your own git worktree at ${wt.root} on branch ${wt.branch}, so other agents never touch your files. ` +
-                      `Make every change here; do not edit the main checkout at ${wt.repo}. The user reviews, commits and opens the pull request from the office.`
-                    : '') +
+                      `Make every change here; do not edit the main checkout at ${wt.repo}. Commit on your branch when you finish; the pull request is opened from the office.`
+                    : `\n\n${COMMIT_RULE}`) +
                   (squad ? `\n\n${orchestratorPrompt(squad)}` : ''),
         },
         ...(squad ? { agents: memberAgents(squad) } : {}),
