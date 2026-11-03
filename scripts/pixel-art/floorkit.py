@@ -145,8 +145,8 @@ GREENF = T('7fb38f', '5f9a72', '4a7d5a')
 GLASS = H('cfe8f2', 70)
 
 
-def glass_x(L, x0, x1, yp, doors=(), frame=GRAPHITE, h=PART_H):
-    """glass partition along x at y=yp. doors: list of (a,b) gaps."""
+def glass_x(L, x0, x1, yp, doors=(), frame=GRAPHITE, h=PART_H, end=True):
+    """glass partition along x at y=yp. doors: list of (a,b) gaps. end=False: no post at x1 (another wall's post stands there)."""
     segs, cur = [], x0
     for a, b in sorted(doors):
         segs.append((cur, a)); cur = b
@@ -161,13 +161,13 @@ def glass_x(L, x0, x1, yp, doors=(), frame=GRAPHITE, h=PART_H):
                 L.qy(yp + 1, u, u + 1, h - 16 - i * 3, h - 6 - i * 3, H('ffffff', 110))
         L.pbox(a, yp, 0, b - a, 2, 3, frame)
         L.pbox(a, yp, h, b - a, 2, 2, frame)
-        for p in list(range(a, b - 2, 32)) + [b - 2]:
+        for p in [q for q in range(a, b - 2, 32) if q == a or b - q >= 16] + ([b - 2] if end else []):
             L.pbox(p, yp, 0, 2, 2, h, frame)
     for a, b in doors:
         L.pbox(a, yp, h, b - a, 2, 2, frame)
 
 
-def glass_y(L, y0, y1, xp, doors=(), frame=GRAPHITE, h=PART_H):
+def glass_y(L, y0, y1, xp, doors=(), frame=GRAPHITE, h=PART_H, end=True):
     segs, cur = [], y0
     for a, b in sorted(doors):
         segs.append((cur, a)); cur = b
@@ -182,7 +182,7 @@ def glass_y(L, y0, y1, xp, doors=(), frame=GRAPHITE, h=PART_H):
                 L.qx(xp + 1, u, u + 1, h - 16 - i * 3, h - 6 - i * 3, H('ffffff', 110))
         L.pbox(xp, a, 0, 2, b - a, 3, frame)
         L.pbox(xp, a, h, 2, b - a, 2, frame)
-        for p in list(range(a, b - 2, 32)) + [b - 2]:
+        for p in [q for q in range(a, b - 2, 32) if q == a or b - q >= 16] + ([b - 2] if end else []):
             L.pbox(xp, p, 0, 2, 2, h, frame)
     for a, b in doors:
         L.pbox(xp, a, h, 2, b - a, 2, frame)
@@ -191,13 +191,21 @@ def glass_y(L, y0, y1, xp, doors=(), frame=GRAPHITE, h=PART_H):
 def split_x(x0, x1, yp, doors, step=32):
     """footprints for sorting a partition along x (split at doors and every `step` units)."""
     out, cur = [], x0
-    cuts = sorted([v for d in doors for v in d] + (list(range(x0, x1, step)) if step else []) + [x1])
+    edges = [v for d in doors for v in d]
+    # a cut that would leave a sliver before the end or a door edge is dropped: slivers read as piled-up posts
+    steps = [v for v in (range(x0, x1, step) if step else []) if all(not 0 < e - v < 16 for e in edges + [x1])]
+    cuts = sorted(edges + steps + [x1])
     for c in cuts:
         if c > cur:
             if not any(a <= cur and c <= b for a, b in doors):
                 out.append((cur, c))
             cur = c
     return out
+
+
+def piece_end(a, b, last, doors, end):
+    """a piece gets an end post only at a door or the run's end: elsewhere the next piece starts with one."""
+    return end if b == last else any(b == d for d, _ in doors)
 
 
 class Scene:
@@ -214,16 +222,16 @@ class Scene:
         else:
             s.items.append((fp, fn))
 
-    def gx(s, x0, x1, yp, doors=(), frame=GRAPHITE):
+    def gx(s, x0, x1, yp, doors=(), frame=GRAPHITE, end=True):
         """glass along x as sortable pieces"""
         for a, b in split_x(x0, x1, yp, doors):
-            s.add((a, yp, b, yp + 2), lambda a=a, b=b: glass_x(s.L, a, b, yp, frame=frame))
+            s.add((a, yp, b, yp + 2), lambda a=a, b=b: glass_x(s.L, a, b, yp, frame=frame, end=piece_end(a, b, x1, doors, end)))
         for a, b in doors:
             s.add((a, yp, b, yp + 2), lambda a=a, b=b: s.L.pbox(a, yp, PART_H, b - a, 2, 2, frame))
 
-    def gy(s, y0, y1, xp, doors=(), frame=GRAPHITE):
+    def gy(s, y0, y1, xp, doors=(), frame=GRAPHITE, end=True):
         for a, b in split_x(y0, y1, xp, doors):
-            s.add((xp, a, xp + 2, b), lambda a=a, b=b: glass_y(s.L, a, b, xp, frame=frame))
+            s.add((xp, a, xp + 2, b), lambda a=a, b=b: glass_y(s.L, a, b, xp, frame=frame, end=piece_end(a, b, y1, doors, end)))
         for a, b in doors:
             s.add((xp, a, xp + 2, b), lambda a=a, b=b: s.L.pbox(xp, a, PART_H, 2, b - a, 2, frame))
 
