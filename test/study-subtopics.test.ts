@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkSubtopics, tocEntries, type OutlineEntry } from '../src/shared/study-outline'
+import { checkSubtopics, listsAgree, tocEntries, type OutlineEntry } from '../src/shared/study-outline'
 import { buildSubtopics } from '../src/main/study-subtopics'
 
 const outline: OutlineEntry[] = Array.from({ length: 12 }, (_, id) => ({ id, title: `Seção ${id}`, page: 10 + id }))
