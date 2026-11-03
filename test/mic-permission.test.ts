@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { allowMicrophone, allowPermission } from '../src/main/mic-permission'
 
 const PAGE = 'file:///C:/app/resources/app.asar/out/renderer/index.html'
+
+// O padrão de devUrl lê o ambiente; o shell do dev server define ELECTRON_RENDERER_URL.
+beforeEach(() => vi.stubEnv('ELECTRON_RENDERER_URL', ''))
+afterEach(() => vi.unstubAllEnvs())
 
 describe('permissão do microfone', () => {
   it('libera só áudio, para a página do próprio app', () => {
