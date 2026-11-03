@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { checkSubtopics, listsAgree, tocEntries, type OutlineEntry } from '../src/shared/study-outline'
 import type { StudySubtopics } from '../src/shared/study-outline'
+import { dataNotices } from '../src/main/fs-safe'
 import { buildSubtopics, StudySubtopicStore, STUDY_SUBTOPICS_FILE } from '../src/main/study-subtopics'
 
 const outline: OutlineEntry[] = Array.from({ length: 12 }, (_, id) => ({ id, title: `Seção ${id}`, page: 10 + id }))
@@ -99,5 +100,14 @@ describe('StudySubtopicStore', () => {
     expect(Object.keys(store.read()).sort()).toEqual(['A', 'B'])
     expect(readdirSync(dir).some((f) => f.includes('corrupt'))).toBe(true)
     expect(readFileSync(file, 'utf8')).toContain('"A"')
+  })
+
+  it('warns the user when the file was corrupt and restored', () => {
+    const { store, file } = setup()
+    store.save(entry('A'))
+    store.read()
+    writeFileSync(file, '{ cortado')
+    store.read()
+    expect(dataNotices().some((n) => n.file === STUDY_SUBTOPICS_FILE && n.kind === 'restored')).toBe(true)
   })
 })
