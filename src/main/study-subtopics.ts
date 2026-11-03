@@ -10,6 +10,7 @@ import {
 import { disciplineIdOf, studyBankFolders } from '@shared/study-bank'
 import type { StudyLibraryHit } from '@shared/study-library'
 import type { StudyTrailTopic } from '@shared/study-trail'
+import { log } from './log'
 import { loadJson, reportLoad, writeJsonAtomic } from './fs-safe'
 import type { AskJson } from './study-questions-grounded'
 
@@ -111,6 +112,14 @@ export class StudySubtopicStore {
       valid: (value): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value),
     })
     reportLoad(this.file, result)
+    // Put the restored data back in the main file, or the next save reads "missing" and overwrites the .bak without it.
+    if (result.status === 'restored') {
+      try {
+        writeJsonAtomic(this.file, result.data, { mode: 0o600 })
+      } catch (err) {
+        log.warn(`Subtemas: não consegui regravar os dados restaurados: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    }
     const all = result.status === 'ok' || result.status === 'restored' ? result.data : {}
     return Object.fromEntries(Object.entries(all).filter((pair): pair is [string, StudySubtopics] => isEntry(pair[1])))
   }

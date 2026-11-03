@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -107,7 +107,29 @@ describe('StudySubtopicStore', () => {
     store.save(entry('A'))
     store.read()
     writeFileSync(file, '{ cortado')
+    const before = dataNotices().length
     store.read()
-    expect(dataNotices().some((n) => n.file === STUDY_SUBTOPICS_FILE && n.kind === 'restored')).toBe(true)
+    const added = dataNotices().slice(before)
+    expect(added.some((n) => n.file === STUDY_SUBTOPICS_FILE && n.kind === 'restored')).toBe(true)
+  })
+
+  it('still returns the restored data when writing them back fails', () => {
+    const { store, file } = setup()
+    store.save(entry('A'))
+    store.read()
+    writeFileSync(file, '{ cortado')
+    mkdirSync(file + '.tmp') // the atomic write cannot open its temp file
+    expect(Object.keys(store.read())).toEqual(['A'])
+  })
+
+  it('writes the restored data back, so a save right after a restoring read keeps it', () => {
+    const { store, file } = setup()
+    store.save(entry('A'))
+    store.read()
+    writeFileSync(file, '{ cortado')
+    expect(Object.keys(store.read())).toEqual(['A'])
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toHaveProperty('A')
+    store.save(entry('B'))
+    expect(Object.keys(store.read()).sort()).toEqual(['A', 'B'])
   })
 })
