@@ -24,8 +24,8 @@ export function emiAgentSummary(
     engine: 'claude',
     cwd: floor.cwd,
     project: floor.id,
-    // Always asks: her plan and squad tools must reach the confirmation card, whatever the floor's mode.
-    permissionMode: 'default',
+    // Automatic: the plan and squad tools still reach the confirmation card (EMI_CONFIRM_TOOLS), whatever the mode.
+    permissionMode: 'auto',
     status: 'idle',
     activity: 'Pronta para montar os squads',
     desk: -1,
