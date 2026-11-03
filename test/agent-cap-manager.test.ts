@@ -38,6 +38,7 @@ describe('cap central de hires e summons (AO-42)', () => {
     const { Store } = await import('../src/main/store')
     const { AgentManager } = await import('../src/main/agents')
     const { LUNA_PROMPT } = await import('../src/main/luna-prompt')
+    const { ECONOMY_RULE } = await import('../src/main/token-economy')
     const { lunaTools } = await import('../src/main/luna-tools')
     const store = new Store()
     const manager = new AgentManager(store)
@@ -50,7 +51,7 @@ describe('cap central de hires e summons (AO-42)', () => {
     expect(first.cwd).toBe(store.dataDirectory)
     expect(first.permissionMode).toBe('auto')
     expect(first.sessionId).toEqual(expect.any(String))
-    expect((first.systemPrompt as { append: string }).append).toBe(LUNA_PROMPT)
+    expect((first.systemPrompt as { append: string }).append).toBe(`${LUNA_PROMPT}\n\n${ECONOMY_RULE}`)
     expect(Object.keys(first.mcpServers as object)).toEqual(expect.arrayContaining(['casa']))
     const sessionId = first.sessionId
     manager.shutdown()
