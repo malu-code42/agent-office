@@ -127,6 +127,12 @@ describe('ferramentas da Emi', () => {
     expect(existsSync(join(project.cwd, 'squads'))).toBe(false)
   })
 
+  it('squad_message sem ciclo rodando é recusado; squad_run de squad inexistente também', async () => {
+    const msg = await call(deps, 'squad_message', { code: 'sala-1', text: 'Priorize a busca' })
+    expect(msg).toEqual({ isError: true, text: expect.stringContaining('não está rodando') })
+    expect((await call(deps, 'squad_run', { code: 'sala-1' })).isError).toBe(true)
+  })
+
   it('o relatório de drift fica registrado sem cartão e sem mudar etapas', async () => {
     const a = ticket('Indexar produtos')
     expect((await call(deps, 'drift_report_save', { summary: 'Busca sem limite de resultados.' })).isError).toBe(true)
@@ -154,7 +160,12 @@ describe('ferramentas da Emi', () => {
 
   it('só aprovar o plano e criar squad pedem o cartão, que mostra a equipe exata', () => {
     const names = emiToolDefs(deps).map((t) => `mcp__emi__${t.name}`)
-    expect(names.filter((n) => EMI_CONFIRM_TOOLS.has(n)).sort()).toEqual(['mcp__emi__plan_approve', 'mcp__emi__squad_create'])
+    expect(names.filter((n) => EMI_CONFIRM_TOOLS.has(n)).sort()).toEqual([
+      'mcp__emi__plan_approve',
+      'mcp__emi__squad_create',
+      'mcp__emi__squad_run',
+    ])
+    expect(describePermission('mcp__emi__squad_run', { code: 'sala-1' }).title).toBe('Posso iniciar o squad sala-1?')
     const card = describePermission('mcp__emi__squad_create', {
       name: 'Equipe da busca',
       brief: 'Refazer',

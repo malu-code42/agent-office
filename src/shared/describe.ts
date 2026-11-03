@@ -140,6 +140,11 @@ export function describePermission(tool: string, input: Record<string, unknown> 
         ].join('\n'),
       }
     }
+    case 'mcp__emi__squad_run':
+      return {
+        title: `Posso iniciar o squad ${String(input.code ?? '')}?`,
+        detail: `Um ciclo do squad ${String(input.code ?? '')} começa agora.${input.note ? `\nRecado: ${String(input.note)}` : ''}`,
+      }
     default:
       return { title: `Posso usar ${tool}?`, detail: clip(input, 400) }
   }
