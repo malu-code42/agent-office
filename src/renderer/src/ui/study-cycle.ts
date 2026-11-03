@@ -16,7 +16,7 @@ import type { StudyLibrarySearch } from '@shared/study-library'
 import { disciplineIdOf, splitStudyRationale, type StudyBankRequest } from '@shared/study-bank'
 import { studyTopicStart, topicName, trailTopicOf, type StudyTrail, type StudyTrailTopic } from '@shared/study-trail'
 import type { StudySubtopics } from '@shared/study-outline'
-import { questionsBySubtopic,questionsForTopic, studyQueryOfQuestion, type StudySourceRecommendations } from '@shared/study-sources'
+import { questionsBySubtopic, questionsForTopic, studyQueryOfQuestion, type StudySourceRecommendations } from '@shared/study-sources'
 import { announce } from './a11y'
 import { studySourceList } from './study-library'
 import { h } from './dom'
@@ -436,7 +436,11 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
             studyBanner(
               'warn',
               'Faltam questões novas',
-              `Em: ${bySub.short.join(', ')}. O diagnóstico só começa com ${perSubtopic} por subtema: monte o banco para completar ou escolha menos questões por subtema.`,
+              `Em: ${bySub.short.join(', ')}. ${
+                bySub.short.some((name) => bySub.picked.some((q) => q.subtopic === name))
+                  ? `O diagnóstico só começa com ${perSubtopic} por subtema: monte o banco para completar ou escolha menos questões por subtema.`
+                  : 'Esses subtemas não têm nenhuma questão: monte o banco para completar.'
+              }`,
             ),
             h('div', { class: 'sk-row' }, builderButton(topic)),
           )

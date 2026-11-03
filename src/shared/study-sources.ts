@@ -278,7 +278,9 @@ export function studyQueryOfQuestion(question: { topic: string; tags: string[]; 
  */
 export function questionsForTopic(bank: StudyQuestion[], topic: string, limit = 10, exact?: string): StudyQuestion[] {
   const usable = bank.filter((q) => !q.sourceOnly && q.question.trim())
-  if (exact !== undefined) return usable.filter((q) => q.topic === exact).slice(0, limit)
+  // Web/AI/book questions store a topic other than the trail title: with no exact match, fall back to words.
+  const same = exact === undefined ? [] : usable.filter((q) => q.topic === exact)
+  if (same.length) return same.slice(0, limit)
   const query = tokenizeStudyQuery(topic.replace(/^\s*\[[^\]]+\]\s*/, ''))
   if (!query.terms.length) return []
   return usable
