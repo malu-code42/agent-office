@@ -204,6 +204,10 @@ describe('questionsBySubtopic with a trail topic (AO-23)', () => {
     const web = { id: 'q-w-aaaaaaaa', topic: 'Filas (web)', tags: [], question: 'p', answerStatus: 'verified' } as never
     expect(questionsForTopic([web], 'Filas', 10, 'Filas')).toHaveLength(1)
   })
+  it('does not take subtopics of a similar topic when the trail topic has no questions of its own', () => {
+    const bank = [q('1', 'Filas de prioridade', 'Heap')]
+    expect(questionsBySubtopic(bank, 'Filas', 1, { exact: 'Filas', known: [] })).toBeNull()
+  })
   it('counts the old questions without subtopic', () => {
     const old = { id: 'q-0-aaaaaaaa', topic: 'Filas', tags: [], question: 'p0', answerStatus: 'verified' } as never
     expect(questionsBySubtopic([old, q('1', 'Filas', 'A')], 'Filas', 1, { exact: 'Filas' })!.untagged).toBe(1)

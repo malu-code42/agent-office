@@ -306,7 +306,8 @@ export function questionsBySubtopic(
 ): { picked: StudyQuestion[]; subtopics: string[]; short: string[]; untagged: number } | null {
   const groups = new Map<string, StudyQuestion[]>()
   let untagged = 0
-  for (const q of questionsForTopic(bank, topic, bank.length, opts.exact)) {
+  // Strict with `exact`: the word fallback of questionsForTopic must not bring subtopics of a similar topic.
+  for (const q of questionsForTopic(bank, topic, bank.length, opts.exact).filter((x) => opts.exact === undefined || x.topic === opts.exact)) {
     if (q.subtopic) groups.set(q.subtopic, [...(groups.get(q.subtopic) ?? []), q])
     else untagged++
   }
