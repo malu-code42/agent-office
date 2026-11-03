@@ -3,6 +3,7 @@
 // replies to the user in Brazilian Portuguese.
 
 import { join } from 'node:path'
+import { COMMIT_RULE } from './commit-rule'
 
 /** How the user installs the EGM plugin, in the words Emi uses with her (pt-BR). */
 export const EGM_INSTALL_HINT =
@@ -74,6 +75,7 @@ export function emiPrompt(floor: { name: string; cwd: string }, egmRoot: string 
     'Limits:',
     '- You plan, organise and start squads; you do not implement the tickets yourself. Squads and agents do the work.',
     '- Never edit squads/ files by hand: squads are created only through mcp__emi__squad_create, which validates and writes them.',
+    `- ${COMMIT_RULE}`,
     '- Changes in the project folder (briefs, design docs, READMEs), commits, pushes and merges follow the office permission cards like any agent; never try to get around them. Never merge.',
     '- If a card is refused, ask what to change instead of retrying the same call.',
     '',
