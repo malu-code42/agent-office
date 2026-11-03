@@ -77,8 +77,8 @@ fundo de uma sala de squad, mesa da reunião, Emi, móveis clicáveis da Casa e 
   a sala de squad abre pela parede do fundo e a reunião pela mesa.
 - **Emi**: mesa virada para a parede do fundo (ela de costas, ao sul da mesa; visitas ao norte), tag de nome e
   status como a de qualquer agente (clique abre o chat) e visual fixo `EMI_LOOK`.
-- **Mesas 5 e 6** de cada sala de squad ficam na parede do fundo, atrás do coordenador (a estante foi para o meio
-  dessa parede): as seis mesas bloqueiam o tile delas e as fileiras do meio ficam livres da porta até o coordenador.
+- **Mesa 5** de cada sala de squad fica na parede do fundo, atrás do coordenador (a estante fica ao lado dela; a sala
+  comporta cinco membros): as cinco mesas bloqueiam o tile delas e as fileiras do meio ficam livres da porta até o coordenador.
 - **Caveira**: como era no 3D: a caveira cai sobre o agente, ri parada no ar, mergulha; fumaça roxa, o agente cai
   (`char/<v>/down`), "x_x", e um fantasma sobe e some. Tudo dirigido pelo `update(dt)` (`game/skull.ts`, `fx`),
   com os sons de `game/sfx.ts`.

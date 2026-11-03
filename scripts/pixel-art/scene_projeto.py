@@ -23,11 +23,11 @@ ROOMS = [  # ry0, h, carpet, name, screen, coordinator, members (None = individu
     (96, 96, WARMG, 'Dev Beta · aguardando', 'amber', 4, [0, 2, 'ind']),
     (192, 96, SAGE, 'Conteúdo · bloqueado', 'red', 1, [3, 5]),
 ]
-# chair colours per room, mixed from its carpet: the six member desks, then the coordinator's; and Emi's
+# chair colours per room, mixed from its carpet: the five member desks, then the coordinator's; and Emi's
 # (the screens keep the state colours)
-ROOM_CHAIRS = [['slate', 'sky', 'steel', 'blue', 'sand', 'mustard', 'blue'],
-               ['terra', 'sand', 'mustard', 'steel', 'rose', 'slate', 'terra'],
-               ['sage', 'mint', 'green', 'sand', 'lilac', 'steel', 'sage']]
+ROOM_CHAIRS = [['slate', 'sky', 'steel', 'blue', 'sand', 'blue'],
+               ['terra', 'sand', 'mustard', 'steel', 'rose', 'terra'],
+               ['sage', 'mint', 'green', 'sand', 'lilac', 'sage']]
 EMI_CHAIR = 'mustard'
 # the elevator door on the back wall (x0, x1) and the Emi desk (x, y, width)
 ELEVATOR = (268, 292)
@@ -41,9 +41,9 @@ MEETING_SEATS = [(200, cy, '+x') for cy in (170, 196, 222)] + [(242, cy, '-x') f
 
 def slots(ry0, h):
     """member desks of a squad room, in creation order: near column first, top then bottom.
-    The approved art shows the first four; 5 and 6 stand against the far wall, behind the coordinator,
+    The approved art shows the first four; the 5th stands against the far wall, behind the coordinator,
     so the middle rows stay the aisle from the door to the coordinator's desk."""
-    return [(64, ry0 + 8), (64, ry0 + h - 34), (104, ry0 + 8), (104, ry0 + h - 34), (2, ry0 + 8), (2, ry0 + h - 34)]
+    return [(64, ry0 + 8), (64, ry0 + h - 34), (104, ry0 + 8), (104, ry0 + h - 34), (2, ry0 + 8)]
 
 
 def coordinator_at(ry0, h):
@@ -160,7 +160,7 @@ def room_walls(sc, ry0, h):
 
 def room_shelf(sc, ry0, h):
     L = sc.L
-    # behind the coordinator, between the far-wall desks of members 5 and 6
+    # behind the coordinator, beside the far-wall desk of member 5
     y = ry0 + h // 2 - 13
     sc.add((2, y, 10, y + 22), lambda: G.bookshelf_x(L, 2, y, 22, seed=ry0), True)
 
@@ -182,7 +182,7 @@ def squad_room(sc, idx, ry0, h, carpet, name, screen, coord, members):
     room_walls(sc, ry0, h)
     room_shelf(sc, ry0, h)
     # coordinator: west, facing the members (+x)
-    ws_front_x(sc, *coordinator_at(ry0, h), coord, screen, col=F.CHAIRS[ROOM_CHAIRS[idx][6]])
+    ws_front_x(sc, *coordinator_at(ry0, h), coord, screen, col=F.CHAIRS[ROOM_CHAIRS[idx][5]])
     px, py = L.P(23, ry0 + h // 2 + 13, 40)
     sc.labels.append(('Coordenação', px, int(py) - 6))
     # members (face -x, toward the coordinator)

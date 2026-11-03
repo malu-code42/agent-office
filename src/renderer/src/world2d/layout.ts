@@ -125,7 +125,7 @@ function deskSlot(index: number, desk: DeskArt, seat: SeatArt): DeskSlot {
   }
 }
 
-/** Screen index of a member desk: the agents' desks first, then six per room. */
+/** Screen index of a member desk: the agents' desks first, then five per room. */
 export const memberDeskIndex = (room: number, k: number) => AGENT_DESK_COUNT + room * SQUAD_MAX_MEMBERS + k
 
 /** An empty squad room of the 2D floor: the coordinator's desk is there, no member desks. */
@@ -144,7 +144,7 @@ function emptyRoom(art: RoomArt, index: number): SquadRoom {
       rot: headingOf(seat.dir),
       seat: { x: sx, z: sz },
       approach: [Math.floor(sx), Math.floor(sz)],
-      // beside the coordinator, in front of the bookshelf (row 4 is the chair of member 6, against the far wall)
+      // beside the coordinator, in front of the bookshelf (row 4 is the desk of member 5, against the far wall)
       side: { x: Math.floor(sx) + 0.5, z: z0 + 2.5 },
       sideApproach: [Math.floor(sx), z0 + 2],
       // the aisle in front of the coordinator's desk, middle first
