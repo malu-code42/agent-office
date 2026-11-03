@@ -16,7 +16,7 @@ import type { StudyLibrarySearch } from '@shared/study-library'
 import { disciplineIdOf, splitStudyRationale, type StudyBankRequest } from '@shared/study-bank'
 import { studyTopicStart, topicName, trailTopicOf, type StudyTrail, type StudyTrailTopic } from '@shared/study-trail'
 import type { StudySubtopics } from '@shared/study-outline'
-import { questionsBySubtopic, questionsForTopic, studyQueryOfQuestion, type StudySourceRecommendations } from '@shared/study-sources'
+import { knownSubtopicNames, questionsBySubtopic, questionsForTopic, studyQueryOfQuestion, type StudySourceRecommendations } from '@shared/study-sources'
 import { announce } from './a11y'
 import { studySourceList } from './study-library'
 import { h } from './dom'
@@ -224,7 +224,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
   const bySubtopic = () => {
     const t = trailTopicOf(trail, topic)
     const stored = t ? storedSubtopics[t.title] : undefined
-    const known = stored?.status === 'ok' ? stored.subtopics.map((s) => s.name) : undefined
+    const known = knownSubtopicNames(stored)
     return questionsBySubtopic(fresh(), topic, perSubtopic, { exact: t?.title, known })
   }
   /** The diagnosis questions Bonnie picked for the chosen topic (the user may change them). */

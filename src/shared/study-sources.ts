@@ -4,6 +4,7 @@
 // this ranks them, so nothing here touches the disk and nothing is sent to Claude.
 
 import { foldText, scoreStudyText, studySnippet, tokenizeStudyQuery, type StudyQuery } from './study-library'
+import type { StudySubtopics } from './study-outline'
 import type { StudyQuestion } from './study-questions'
 
 export type StudySourceKind = 'pdf' | 'pptx' | 'md' | 'txt'
@@ -291,12 +292,18 @@ export function questionsForTopic(bank: StudyQuestion[], topic: string, limit = 
     .map((item) => item.q)
 }
 
+/** The stored subtopic names a diagnosis may demand: only a list with status 'ok' counts (AO-28); otherwise undefined. */
+export function knownSubtopicNames(stored: Pick<StudySubtopics, 'status' | 'subtopics'> | undefined): string[] | undefined {
+  return stored?.status === 'ok' ? stored.subtopics.map((s) => s.name) : undefined
+}
+
 /**
  * A diagnosis that covers every subtopic: `per` questions from each subtopic the matched questions carry
  * (best first inside each). `short` lists the subtopics with fewer than `per` new questions, so the
  * caller can say what is missing; `known` (the topic's stored subtopics) adds those with no question at all.
  * `untagged` counts the matched questions without subtopic, which are left out. With no subtopic on any
- * question it returns null (use questionsForTopic).
+ * question it returns null (use questionsForTopic), even when `known` lists subtopics: an old bank with no
+ * subtopic on its questions keeps the plain draw instead of being blocked (AO-28 decision).
  */
 export function questionsBySubtopic(
   bank: StudyQuestion[],
