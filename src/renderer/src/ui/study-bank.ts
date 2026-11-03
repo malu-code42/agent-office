@@ -15,6 +15,7 @@ import {
 import { studyBankStats } from '@shared/study-bank-stats'
 import { answeredStudyQuestions, isStudyQuestionAnswered, type StudyCycleState } from '@shared/study-cycle'
 import { isChoiceQuestion, STUDY_QUESTION_LIMITS, studyOptionText, type StudyQuestion } from '@shared/study-questions'
+import type { StudySubtopics } from '@shared/study-outline'
 import type { StudyTrail, StudyTrailTopic } from '@shared/study-trail'
 import { announce } from './a11y'
 import { h } from './dom'
@@ -169,12 +170,14 @@ export async function openStudyBankBuilder(
   let bank: StudyQuestion[]
   let cycles: StudyCycleState
   let job: StudyBankJob | null
+  let subtopics: Record<string, StudySubtopics>
   try {
-    ;[trail, { questions: bank }, cycles, job] = await Promise.all([
+    ;[trail, { questions: bank }, cycles, job, subtopics] = await Promise.all([
       window.office.readStudyTrail(),
       window.office.readStudyQuestions(),
       window.office.readStudyCycle(),
       window.office.studyBankStatus(),
+      window.office.readStudySubtopics().catch((): Record<string, StudySubtopics> => ({})),
     ])
   } catch (error) {
     toast(cleanError(error), 'err')
@@ -185,6 +188,8 @@ export async function openStudyBankBuilder(
   let discipline = preset.discipline ?? ''
   let topic = preset.topic ?? ''
   let perTopic = preset.perTopic ?? STUDY_BANK_DEFAULT_PER_TOPIC
+  /** Questions per subtopic; 0 splits the topic's total among its subtopics. */
+  let perSubtopic = preset.perSubtopic ?? 0
   /** The form is shown even with a last report, after "Montar outro". */
   let forceForm = false
   let busy = false
@@ -232,6 +237,7 @@ export async function openStudyBankBuilder(
     ...(j.discipline ? { discipline: j.discipline } : {}),
     ...(j.topic ? { topic: j.topic } : {}),
     perTopic: j.perTopic,
+    ...(j.perSubtopic ? { perSubtopic: j.perSubtopic } : {}),
   })
   const dismiss = async () => {
     await window.office.dismissStudyBank().catch(() => {})
@@ -255,11 +261,16 @@ export async function openStudyBankBuilder(
     for (const d of stats.disciplines) for (const t of d.topics) if (t.id) fresh.set(t.id, t.fresh)
     const chosen = discipline ? (disciplines.get(discipline)?.topics ?? []) : [...disciplines.values()].flatMap((d) => d.topics)
     const scope = topic ? chosen.filter((t) => [t.id, t.label, t.title].includes(topic)) : chosen
-    const complete = scope.filter((t) => (fresh.get(t.id ?? '') ?? 0) >= perTopic).length
+    // Topics whose subtopics are already known get perSubtopic × their count; the others keep the topic total.
+    const goalOf = (t: StudyTrailTopic): number => {
+      const entry = subtopics[t.title]
+      return perSubtopic && entry?.status === 'ok' && entry.subtopics.length ? perSubtopic * entry.subtopics.length : perTopic
+    }
+    const complete = scope.filter((t) => (fresh.get(t.id ?? '') ?? 0) >= goalOf(t)).length
     const room = Math.max(0, STUDY_QUESTION_LIMITS.count - bank.length)
     const newMax = Math.min(
       room,
-      scope.reduce((sum, t) => sum + Math.max(0, perTopic - (fresh.get(t.id ?? '') ?? 0)), 0),
+      scope.reduce((sum, t) => sum + Math.max(0, goalOf(t) - (fresh.get(t.id ?? '') ?? 0)), 0),
     )
     const noBook = (id: string, name: string) => studyBankFolders(id, name).fallback
 
@@ -313,6 +324,19 @@ export async function openStudyBankBuilder(
         render()
       },
     })
+    const perSub = h('input', {
+      class: 'input',
+      type: 'number',
+      min: '1',
+      max: String(STUDY_BANK_MAX_PER_TOPIC),
+      value: perSubtopic ? String(perSubtopic) : '',
+      placeholder: 'dividir o total',
+      onchange: (event: Event) => {
+        const value = Math.round(Number((event.currentTarget as HTMLInputElement).value))
+        perSubtopic = Number.isFinite(value) && value > 0 ? Math.min(STUDY_BANK_MAX_PER_TOPIC, value) : 0
+        render()
+      },
+    })
     body.replaceChildren(
       ...(job && job.status === 'stopped' ? [stopNotice(job)] : []),
       h(
@@ -328,7 +352,11 @@ export async function openStudyBankBuilder(
         { class: 'bk-row' },
         h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Tópico (opcional)'), topicSelect),
         h('label', { class: 'field bk-narrow' }, h('span', { class: 'field-label' }, 'Questões por tópico'), count),
+        h('label', { class: 'field bk-narrow' }, h('span', { class: 'field-label' }, 'Por subtema (opcional)'), perSub),
       ),
+      ...(perSubtopic
+        ? [h('p', { class: 'field-hint' }, 'Cada subtema recebe esse número; o total do tópico passa a ser a soma. Tópicos sem subtemas usam “Questões por tópico”.')]
+        : []),
       h(
         'div',
         { class: 'bk-estimate', id: 'study-bank-estimate' },
@@ -379,7 +407,8 @@ export async function openStudyBankBuilder(
           class: 'btn btn-primary',
           type: 'button',
           disabled: busy || !scope.length || !newMax,
-          onclick: () => void start({ ...(discipline ? { discipline } : {}), ...(topic ? { topic } : {}), perTopic }),
+          onclick: () =>
+            void start({ ...(discipline ? { discipline } : {}), ...(topic ? { topic } : {}), perTopic, ...(perSubtopic ? { perSubtopic } : {}) }),
         },
         busy ? 'Começando…' : 'Montar banco',
       ),
@@ -573,7 +602,8 @@ export async function openStudyBankBuilder(
   const reasonRow = (r: StudyBankTopicResult, j: StudyBankJob): HTMLElement => {
     const reason = r.reason!
     const info = STUDY_BANK_REASON[reason]
-    const retry = () => void start({ discipline: r.disciplineId, topic: r.id ?? r.topic, perTopic: j.perTopic })
+    const retry = () =>
+      void start({ discipline: r.disciplineId, topic: r.id ?? r.topic, perTopic: j.perTopic, ...(j.perSubtopic ? { perSubtopic: j.perSubtopic } : {}) })
     const library = () => links.openLibrary(r.topic)
     const actions: HTMLElement[] =
       reason === 'no-book' || reason === 'no-passage'
