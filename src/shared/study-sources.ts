@@ -272,12 +272,18 @@ export function studyQueryOfQuestion(question: { topic: string; tags: string[]; 
   return parts.join(', ').slice(0, 200)
 }
 
-/** Questions a new cycle of a topic takes from the bank: those whose topic or tags match it (its trail id left out), best first. */
-export function questionsForTopic(bank: StudyQuestion[], topic: string, limit = 10): StudyQuestion[] {
+/**
+ * Questions a new cycle of a topic takes from the bank: those whose topic or tags match it (its trail id left out), best first.
+ * With `exact` (the title of a trail topic) only the questions whose topic is that title count, so topics sharing words stay apart.
+ */
+export function questionsForTopic(bank: StudyQuestion[], topic: string, limit = 10, exact?: string): StudyQuestion[] {
+  const usable = bank.filter((q) => !q.sourceOnly && q.question.trim())
+  // Web/AI/book questions store a topic other than the trail title: with no exact match, fall back to words.
+  const same = exact === undefined ? [] : usable.filter((q) => q.topic === exact)
+  if (same.length) return same.slice(0, limit)
   const query = tokenizeStudyQuery(topic.replace(/^\s*\[[^\]]+\]\s*/, ''))
   if (!query.terms.length) return []
-  return bank
-    .filter((q) => !q.sourceOnly && q.question.trim())
+  return usable
     .map((q) => ({ q, score: scoreStudyText(`${q.topic} ${q.tags.join(' ')}`, query) }))
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score)
@@ -288,19 +294,29 @@ export function questionsForTopic(bank: StudyQuestion[], topic: string, limit = 
 /**
  * A diagnosis that covers every subtopic: `per` questions from each subtopic the matched questions carry
  * (best first inside each). `short` lists the subtopics with fewer than `per` new questions, so the
- * caller can say what is missing. With no subtopic on any question it returns null (use questionsForTopic).
+ * caller can say what is missing; `known` (the topic's stored subtopics) adds those with no question at all.
+ * `untagged` counts the matched questions without subtopic, which are left out. With no subtopic on any
+ * question it returns null (use questionsForTopic).
  */
 export function questionsBySubtopic(
   bank: StudyQuestion[],
   topic: string,
   per: number,
-): { picked: StudyQuestion[]; subtopics: string[]; short: string[] } | null {
+  opts: { exact?: string; known?: string[] } = {},
+): { picked: StudyQuestion[]; subtopics: string[]; short: string[]; untagged: number } | null {
   const groups = new Map<string, StudyQuestion[]>()
-  for (const q of questionsForTopic(bank, topic, bank.length)) if (q.subtopic) groups.set(q.subtopic, [...(groups.get(q.subtopic) ?? []), q])
+  let untagged = 0
+  // Strict with `exact`: the word fallback of questionsForTopic must not bring subtopics of a similar topic.
+  for (const q of questionsForTopic(bank, topic, bank.length, opts.exact).filter((x) => opts.exact === undefined || x.topic === opts.exact)) {
+    if (q.subtopic) groups.set(q.subtopic, [...(groups.get(q.subtopic) ?? []), q])
+    else untagged++
+  }
   if (!groups.size) return null
+  for (const name of opts.known ?? []) if (!groups.has(name)) groups.set(name, [])
   return {
     picked: [...groups.values()].flatMap((list) => list.slice(0, per)),
     subtopics: [...groups.keys()],
     short: [...groups].filter(([, list]) => list.length < per).map(([name]) => name),
+    untagged,
   }
 }
