@@ -96,12 +96,12 @@ describe('permissões da Emi', () => {
     manager.shutdown()
   })
 
-  it('lê o projeto do andar sem perguntar; fora dele e escrita vão ao cartão', async () => {
+  it('lê o projeto do andar sem perguntar; fora dele e escrita fora dele vão ao cartão', async () => {
     const { manager, project, outside, allowedNow } = await setup()
     expect(await allowedNow('Read', { file_path: join(project, 'nota.md') })).toBe(true)
     expect(await allowedNow('Grep', { pattern: 'x', path: join(project, 'src'), glob: '*.ts' })).toBe(true)
     expect(await allowedNow('Read', { file_path: join(outside, 'nota.md') })).toBe(false)
-    expect(await allowedNow('Write', { file_path: join(project, 'novo.md'), content: 'x' })).toBe(false)
+    expect(await allowedNow('Write', { file_path: join(outside, 'novo.md'), content: 'x' })).toBe(false)
     manager.shutdown()
   })
 })

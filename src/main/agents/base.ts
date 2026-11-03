@@ -105,7 +105,7 @@ export abstract class AgentBase extends EventEmitter {
               model: store.settings.emiModel || undefined,
               effort: store.settings.emiEffort || undefined,
               engine: 'claude' as const,
-              permissionMode: 'default' as const,
+              permissionMode: 'auto' as const,
               cwd: emiFloor.cwd,
               project: emiFloor.id,
             }
