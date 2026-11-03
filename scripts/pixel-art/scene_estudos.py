@@ -127,8 +127,8 @@ def hall(sc):
 
 
 def library_walls(sc):
-    gx(sc, 0, 168, 104, doors=[(40, 62)])
-    gy(sc, 0, 104, 168, doors=[(44, 66)])
+    gx(sc, 0, 170, 104, doors=[(40, 62)])  # 170: its last post is the corner post
+    gy(sc, 0, 104, 168, doors=[(44, 66)], end=False)
 
 
 def library(sc):
@@ -145,7 +145,7 @@ def library_plant(sc):
 
 
 def diretoria_walls(sc):
-    gy(sc, 0, 104, 240, doors=[(62, 84)])
+    gy(sc, 0, 104, 240, doors=[(62, 84)], end=False)
     gx(sc, 240, 384, 104)
 
 
@@ -164,7 +164,7 @@ def diretoria_front(sc, chairs=True):
 
 
 def teachers_walls(sc):
-    gx(sc, 0, 104, 144, doors=[(66, 88)])
+    gx(sc, 0, 104, 144, doors=[(66, 88)], end=False)
     gy(sc, 144, 288, 104, doors=[(220, 242)])
 
 
@@ -226,7 +226,7 @@ def student_desk(L):
 def classroom_front(sc):
     """the west and north walls of the classroom with the blackboard and the poster between them."""
     L, add = sc.L, sc.add
-    gx(sc, 104, 192, 144, doors=[(170, 190)])
+    gx(sc, 104, 192, 144, doors=[(170, 192)])
     add(BOARD, lambda: board(L), True)
     add(POSTER, lambda: poster(L), True)
     gy(sc, 144, 288, 192)
