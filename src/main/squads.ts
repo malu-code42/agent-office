@@ -1,4 +1,5 @@
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { ECONOMY_RULE } from './token-economy'
 import { basename, isAbsolute, join, relative, sep } from 'node:path'
 import type { AgentDefinition, HookCallbackMatcher } from '@anthropic-ai/claude-agent-sdk'
 import { parse } from 'yaml'
@@ -229,7 +230,7 @@ export function memberAgents(s: SquadDefinition): Record<string, AgentDefinition
     if (m.execution !== 'subagent') continue
     out[m.id] = {
       description: `${m.icon} ${m.name}${m.title ? `, ${m.title}` : ''}${m.role ? ` (${m.role})` : ''}. Membro do squad ${s.name}.`,
-      prompt: `${s.prompts[m.id]}${m.role === 'implementer' ? '\n\nVocê é o implementador independente do squad; implemente a tarefa atribuída e registre decisões técnicas.' : m.role === 'reviewer' ? '\n\nVocê é o revisor independente do squad; revise criticamente o trabalho entregue e reporte problemas sem assumir a implementação.' : ''}`,
+      prompt: `${s.prompts[m.id]}${m.role === 'implementer' ? '\n\nVocê é o implementador independente do squad; implemente a tarefa atribuída e registre decisões técnicas.' : m.role === 'reviewer' ? '\n\nVocê é o revisor independente do squad; revise criticamente o trabalho entregue e reporte problemas sem assumir a implementação.' : ''}\n\n${ECONOMY_RULE}`,
       // Members do their own step; only the orchestrator hands out work.
       disallowedTools: [...SPAWN_TOOLS],
     }

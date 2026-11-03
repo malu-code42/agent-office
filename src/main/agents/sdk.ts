@@ -21,6 +21,7 @@ import { takeSnapshot } from '../git'
 import { InputQueue, kTokens, toMs, WRITE_TOOLS, type Agent, type Prompt } from './types'
 import { AgentOffice } from './office'
 import { COMMIT_RULE } from '../commit-rule'
+import { ECONOMY_PLUGINS, ECONOMY_RULE, missingEconomyPlugins } from '../token-economy'
 
 /** Runs on the Claude Agent SDK: starting the query and turning its messages into status, activity and log. */
 export abstract class AgentSdk extends AgentOffice {
@@ -177,6 +178,10 @@ export abstract class AgentSdk extends AgentOffice {
       this.book?.switched(s, s.sessionId, s.account ?? MAIN_ACCOUNT, before, 'start')
     }
     const limits = this.store.settings
+    if (!bonnie) {
+      const missing = missingEconomyPlugins(this.claudeHome)
+      if (missing.length) this.addLog(agent, 'system', `Economia de tokens sem: ${missing.join(', ')} (plugin não instalado).`)
+    }
     // Counts only what this query spends, so it gets what is left of the tighter cap (per agent or per day).
     const budget = queryBudget(limits, s.spentUsd ?? 0, this.book?.spentToday() ?? 0)
     // The cap of the desk, enforced in the runtime: a spawn that would put a fourth
@@ -203,7 +208,7 @@ export abstract class AgentSdk extends AgentOffice {
               this.claudeHome,
               join(this.store.dataDirectory, 'agent-skills'),
               // Emi always gets the EGM plugin when it is installed: her project workflow follows it.
-              (limits.agentPluginsOff ?? []).filter((name) => !emiFloor || name !== EGM_PLUGIN),
+              (limits.agentPluginsOff ?? []).filter((name) => !ECONOMY_PLUGINS.includes(name) && (!emiFloor || name !== EGM_PLUGIN)),
               limits.agentSkills ?? [],
             ),
         // Subagent text comes too (not only tools), for the helper's own log (AO-46).
@@ -218,20 +223,21 @@ export abstract class AgentSdk extends AgentOffice {
         systemPrompt: {
           type: 'preset',
           preset: 'claude_code',
-          append: luna
-            ? LUNA_PROMPT
-            : bonnie
-              ? BONNIE_PROMPT
-              : emiFloor
-                ? emiPrompt(emiFloor, this.egmRoot())
-                : `Your name in this office is ${s.name}. Your final message for each task is handed to the user in person as a report: ` +
-                  'open with the outcome in one or two sentences, then list the key details. Reply in the language the user wrote in. ' +
-                  'The office has a kanban board of tickets (keys like AO-12); use the mcp__office__ tools to read, open, comment on and move tickets when asked or when you are working on one.' +
-                  (wt
-                    ? `\n\nYou work in your own git worktree at ${wt.root} on branch ${wt.branch}, so other agents never touch your files. ` +
-                      `Make every change here; do not edit the main checkout at ${wt.repo}. Commit on your branch when you finish; the pull request is opened from the office.`
-                    : `\n\n${COMMIT_RULE}`) +
-                  (squad ? `\n\n${orchestratorPrompt(squad)}` : ''),
+          append:
+            (luna
+              ? LUNA_PROMPT
+              : bonnie
+                ? BONNIE_PROMPT
+                : emiFloor
+                  ? emiPrompt(emiFloor, this.egmRoot())
+                  : `Your name in this office is ${s.name}. Your final message for each task is handed to the user in person as a report: ` +
+                    'open with the outcome in one or two sentences, then list the key details. Reply in the language the user wrote in. ' +
+                    'The office has a kanban board of tickets (keys like AO-12); use the mcp__office__ tools to read, open, comment on and move tickets when asked or when you are working on one.' +
+                    (wt
+                      ? `\n\nYou work in your own git worktree at ${wt.root} on branch ${wt.branch}, so other agents never touch your files. ` +
+                        `Make every change here; do not edit the main checkout at ${wt.repo}. Commit on your branch when you finish; the pull request is opened from the office.`
+                      : `\n\n${COMMIT_RULE}`) +
+                    (squad ? `\n\n${orchestratorPrompt(squad)}` : '')) + (bonnie ? '' : `\n\n${ECONOMY_RULE}`),
         },
         ...(squad ? { agents: memberAgents(squad) } : {}),
         hooks: { PreToolUse: [...(squad ? teamGuard(squad) : []), this.helperCapHook(agent, helperMax)] },

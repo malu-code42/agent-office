@@ -5,6 +5,7 @@ import { app } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 import { agentCapDecision } from '../src/shared/agent-cap'
 import { EMI_LOOK, emiAgentId, emiAgentSummary } from '../src/shared/emi'
+import { ECONOMY_RULE } from '../src/main/token-economy'
 import type { OfficeEvent, ProjectFloor } from '../src/shared/types'
 
 const sdk = vi.hoisted(() => ({ calls: [] as Array<{ prompt: unknown; options: Record<string, unknown> }> }))
@@ -75,7 +76,7 @@ describe('a Emi de cada andar', () => {
     const options = sdk.calls[0]!.options
     expect(options.cwd).toBe(p1.cwd)
     expect(options.permissionMode).toBe('auto')
-    expect((options.systemPrompt as { append: string }).append).toBe(emiPrompt(p1))
+    expect((options.systemPrompt as { append: string }).append).toBe(`${emiPrompt(p1)}\n\n${ECONOMY_RULE}`)
     expect(Object.keys(options.mcpServers as object)).toEqual(['emi'])
     expect(manager.emiTools).toHaveBeenCalledWith('p1')
     manager.shutdown()
@@ -105,7 +106,7 @@ describe('a Emi de cada andar', () => {
     await again.manager.sendMessage(emiAgentId('p1'), 'Oi')
     await vi.waitFor(() => expect(sdk.calls).toHaveLength(1))
     const options = sdk.calls[0]!.options
-    expect((options.systemPrompt as { append: string }).append).toBe(emiPrompt(p1, root))
+    expect((options.systemPrompt as { append: string }).append).toBe(`${emiPrompt(p1, root)}\n\n${ECONOMY_RULE}`)
     expect((options.systemPrompt as { append: string }).append).toContain(join(root, 'skills', 'egm-brainstorm', 'SKILL.md'))
     expect(options.plugins).toContainEqual({ type: 'local', path: root })
     again.manager.shutdown()
