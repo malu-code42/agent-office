@@ -316,8 +316,34 @@ const DIAGNOSIS_PER_SUBTOPIC = 3
 /** The parts of a topic and how many new questions each has; a part with none is the gap the diagnosis would miss. */
 function coverage(entry: StudySubtopics | undefined, questions: StudyQuestion[], isAnswered: (q: StudyQuestion) => boolean): HTMLElement | null {
   if (!entry) return null
-  if (entry.status !== 'ok')
-    return h('p', { class: 'field-hint study-note' }, `Sem subtemas: ${entry.reason ?? 'o índice do livro não ajudou'} O diagnóstico sorteia do tópico todo.`)
+  if (entry.status !== 'ok') {
+    const box = h('div', { class: 'study-note' })
+    const show = (message: string) => {
+      const retry = h(
+        'button',
+        {
+          class: 'btn btn-small',
+          type: 'button',
+          onclick: async () => {
+            retry.disabled = true
+            retry.textContent = 'Refazendo…'
+            try {
+              // The topic is replaced in place by whatever the new build says (ok or not).
+              box.replaceWith(coverage(await window.office.buildStudySubtopics(entry.topic), questions, isAnswered)!)
+            } catch (error) {
+              retry.disabled = false
+              retry.textContent = 'Refazer subtemas'
+              show(`Não consegui refazer: ${cleanError(error)}`)
+            }
+          },
+        },
+        'Refazer subtemas',
+      )
+      box.replaceChildren(h('p', { class: 'field-hint' }, message), retry)
+    }
+    show(`Sem subtemas: ${entry.reason ?? 'o índice do livro não ajudou'} O diagnóstico sorteia do tópico todo.`)
+    return box
+  }
   return h(
     'div',
     { class: 'bq-crumb', role: 'group', 'aria-label': 'Cobertura por subtema' },
