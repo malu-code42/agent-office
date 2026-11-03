@@ -58,6 +58,9 @@ export interface Ticket {
   tags: string[]
   /** Story points. */
   estimate?: number
+  /** Model and effort chosen for whoever does it (Luna/Emi judge them when opening the ticket). */
+  model?: string
+  effort?: EffortLevel
   /** YYYY-MM-DD */
   dueDate?: string
   reporter: Actor
@@ -85,6 +88,9 @@ export interface TicketDraft {
   cwd?: string | null
   tags?: string[]
   estimate?: number | null
+  /** null clears it. */
+  model?: string | null
+  effort?: EffortLevel | null
   dueDate?: string | null
   blockedBy?: string[]
 }

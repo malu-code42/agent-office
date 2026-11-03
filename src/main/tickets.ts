@@ -8,6 +8,7 @@ import { projectFor } from '@shared/projects'
 import { blockerIdsFor, hasBlockerPRSnapshot, INVALID_BLOCKER_ID, isTicketBlocked, validateTicketBlockers } from '@shared/ticket-blockers'
 import { isPullRequestUrl } from '@shared/pull-request-url'
 import { labelOf, PRIORITIES, STATUSES, ticketBrief, TYPES } from '@shared/tickets'
+import { EFFORT_LEVELS, type EffortLevel } from '@shared/types'
 import type {
   Actor,
   AgentSummary,
@@ -199,6 +200,8 @@ export class TicketBoard extends EventEmitter {
       cwd: d.cwd ?? undefined,
       tags: d.tags ?? [],
       estimate: d.estimate ?? undefined,
+      model: d.model ?? undefined,
+      effort: d.effort ?? undefined,
       dueDate: d.dueDate ?? undefined,
       blockedBy: d.blockedBy,
       reporter: by,
@@ -265,6 +268,8 @@ export class TicketBoard extends EventEmitter {
     if (d.cwd !== undefined) t.cwd = d.cwd ?? undefined
     if (d.tags) t.tags = d.tags
     if (d.estimate !== undefined) t.estimate = d.estimate ?? undefined
+    if (d.model !== undefined) t.model = d.model ?? undefined
+    if (d.effort !== undefined) t.effort = d.effort ?? undefined
     if (d.dueDate !== undefined) t.dueDate = d.dueDate ?? undefined
     if (d.blockedBy !== undefined) {
       t.blockedBy = [...d.blockedBy]
@@ -575,6 +580,8 @@ export class TicketBoard extends EventEmitter {
             status: z.enum(['backlog', 'todo']).default('backlog'),
             cwd: z.string().optional().describe('Pasta do projeto; padrão: a sua pasta atual'),
             estimate: z.number().optional().describe('Pontos de esforço'),
+            model: z.string().optional().describe('Modelo mais barato que dá conta, ex.: claude-haiku-4-5-20251001, claude-sonnet-5-5, claude-opus-5-5'),
+            effort: z.enum(EFFORT_LEVELS as [EffortLevel, ...EffortLevel[]]).optional().describe('Esforço de raciocínio: low para trabalho mecânico, high/xhigh só para o difícil'),
           },
           (args) =>
             run(() => {
@@ -590,6 +597,8 @@ export class TicketBoard extends EventEmitter {
                   status: args.status,
                   cwd: isDir(cwd) ? cwd : undefined,
                   estimate: args.estimate,
+                  model: args.model,
+                  effort: args.effort,
                 },
                 me,
               )
@@ -716,6 +725,8 @@ function cleanDraft(d: TicketPatch, creating: boolean): TicketPatch {
     const n = Number(d.estimate)
     out.estimate = d.estimate === null || !Number.isFinite(n) || n <= 0 ? null : Math.min(100, Math.round(n * 10) / 10)
   }
+  if (d.model !== undefined) out.model = cleanText(d.model, 100) || null
+  if (d.effort !== undefined) out.effort = EFFORT_LEVELS.includes(d.effort as EffortLevel) ? (d.effort as EffortLevel) : null
   if (d.dueDate !== undefined) out.dueDate = typeof d.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.dueDate) ? d.dueDate : null
   if (d.blockedBy !== undefined) {
     if (!Array.isArray(d.blockedBy) || d.blockedBy.some((id) => typeof id !== 'string')) throw new Error('Tickets bloqueadores inválidos.')

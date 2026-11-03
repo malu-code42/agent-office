@@ -701,6 +701,8 @@ const ticketFields = {
   tags: z.array(z.string().max(100)).max(100).optional(),
   // NaN or Infinity clear it, as cleanDraft does with any number it cannot use.
   estimate: z.number().nullable().optional().catch(null),
+  model: z.string().trim().max(100).nullable().optional(),
+  effort: z.enum(EFFORT_LEVELS as [EffortLevel, ...EffortLevel[]]).nullable().optional(),
   dueDate: z.string().max(10).nullable().optional(),
   blockedBy: z.array(idSchema).max(200).optional(),
 }
