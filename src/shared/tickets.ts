@@ -40,6 +40,7 @@ export function ticketBrief(t: Ticket): string {
     '',
     `**Tipo:** ${labelOf(TYPES, t.type)} · **Prioridade:** ${labelOf(PRIORITIES, t.priority)}` +
       (t.estimate ? ` · **Estimativa:** ${t.estimate} pts` : '') +
+      (t.model || t.effort ? ` · **Modelo:** ${[t.model, t.effort].filter(Boolean).join(' / ')}` : '') +
       (t.dueDate ? ` · **Prazo:** ${t.dueDate}` : ''),
   ]
   if (t.tags.length) lines.push(`**Tags:** ${t.tags.join(', ')}`)
