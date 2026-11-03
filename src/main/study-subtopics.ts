@@ -54,13 +54,10 @@ export async function buildSubtopics(
   if (a.ok && b.ok && listsAgree(a.subtopics, b.subtopics)) {
     chosen = a
     agreed = true
-  } else if (a.ok || b.ok) {
-    // One list broke the rules, or the two differ: a third agent only picks between the lists that are valid.
-    const candidates = { A: a.ok ? a.subtopics : null, B: b.ok ? b.subtopics : null }
-    const verdict = (await ask(ARBITER_PROMPT, { topic, outline, ...candidates })) as { pick?: unknown } | null
-    const pick = verdict?.pick === 'A' || verdict?.pick === 'B' ? verdict.pick : null
-    // An invalid list can never be picked.
-    chosen = pick ? (pick === 'A' ? a : b) : null
+  } else if (a.ok && b.ok) {
+    // The two differ: a third agent only picks between them. One invalid list is no agreement, so it is not arbitrated.
+    const verdict = (await ask(ARBITER_PROMPT, { topic, outline, A: a.subtopics, B: b.subtopics })) as { pick?: unknown } | null
+    chosen = verdict?.pick === 'A' ? a : verdict?.pick === 'B' ? b : null
   }
   if (!chosen?.ok)
     return { ...base, status: 'sem-acordo', reason: 'As listas feitas separadamente não concordaram; o tópico segue sem subtemas.', subtopics: [] }

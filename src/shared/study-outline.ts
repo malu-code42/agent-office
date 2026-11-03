@@ -31,7 +31,7 @@ export function tocEntries(pages: string[]): OutlineEntry[] {
       if (title && /\p{L}{3}/u.test(title) && page > 0) found.push({ title, page })
     }
   }
-  // A real table of contents is long and its pages never go back by much; a few stray lines are not one.
+  // A real table of contents is long; a few stray lines are not one (page order is not checked).
   if (found.length < 8) return []
   return found.slice(0, TOC_LINES).map((entry, id) => ({ id, ...entry }))
 }

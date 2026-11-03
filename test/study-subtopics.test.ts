@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { checkSubtopics, listsAgree, tocEntries, type OutlineEntry } from '../src/shared/study-outline'
 import type { StudySubtopics } from '../src/shared/study-outline'
 import { dataNotices } from '../src/main/fs-safe'
-import { buildSubtopics, StudySubtopicStore, STUDY_SUBTOPICS_FILE } from '../src/main/study-subtopics'
+import { buildSubtopics, buildTopicSubtopics, StudySubtopicStore, STUDY_SUBTOPICS_FILE } from '../src/main/study-subtopics'
 
 const outline: OutlineEntry[] = Array.from({ length: 12 }, (_, id) => ({ id, title: `Seção ${id}`, page: 10 + id }))
 const list = (...groups: number[][]) => groups.map((entries, i) => ({ name: `Parte ${i + 1}`, entries }))
@@ -51,10 +51,35 @@ describe('buildSubtopics', () => {
     expect(out).toMatchObject({ status: 'ok', agreed: false })
     expect(out.subtopics[0]!.sections[0]!.title).toBe('Seção 6')
   })
+  it('does not turn into ok when only one list is valid, even if the third agent picks it', async () => {
+    let calls = 0
+    const ask = async (system: string) =>
+      system.includes('Two people') ? { pick: 'A' } : { subtopics: calls++ === 0 ? same : list([99], [98], [97]) }
+    expect((await buildSubtopics('T', 'livro.pdf', outline, ask)).status).toBe('sem-acordo')
+  })
   it('stays without subtopics when no list is valid or the book has no index', async () => {
     const bad = async () => ({ subtopics: list([99], [98], [97]) })
     expect((await buildSubtopics('T', 'livro.pdf', outline, bad)).status).toBe('sem-acordo')
     expect((await buildSubtopics('T', 'livro.pdf', [], bad)).status).toBe('sem-indice')
+  })
+})
+
+describe('buildTopicSubtopics', () => {
+  it('skips a short book without an index and uses the next one that has it', async () => {
+    const library = {
+      search: async () => ({ hits: [{ sourceRef: 'curto.pdf:1' }, { sourceRef: 'longo.pdf:2' }] as never }),
+      outline: async (path: string) => (path === 'curto.pdf' ? [] : outline),
+    }
+    const out = await buildTopicSubtopics({ id: 'x', title: 'T', discipline: 'D' } as never, library, async () => ({
+      subtopics: list([0, 1], [2, 3], [4, 5]),
+    }))
+    expect(out).toMatchObject({ status: 'ok', source: 'longo.pdf' })
+    const none = await buildTopicSubtopics(
+      { id: 'x', title: 'T', discipline: 'D' } as never,
+      { ...library, outline: async () => [] },
+      async () => null,
+    )
+    expect(none).toMatchObject({ status: 'sem-indice', source: 'curto.pdf' })
   })
 })
 
@@ -77,7 +102,14 @@ describe('StudySubtopicStore', () => {
     dirs.push(dir)
     return { dir, file: join(dir, STUDY_SUBTOPICS_FILE), store: new StudySubtopicStore(dir) }
   }
-  const entry = (topic: string): StudySubtopics => ({ topic, source: 'L.pdf', builtAt: 1, status: 'sem-acordo', reason: 'x', subtopics: [] })
+  const entry = (topic: string): StudySubtopics => ({
+    topic,
+    source: 'L.pdf',
+    builtAt: 1,
+    status: 'sem-acordo',
+    reason: 'x',
+    subtopics: [],
+  })
 
   it('keeps every topic when saves run at the same time', async () => {
     const { store } = setup()
