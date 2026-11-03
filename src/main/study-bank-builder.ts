@@ -151,6 +151,8 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
     }
 
     let added = 0
+    // Questions made for the earlier subtopics of this topic: the bank was read before them, so the author must be told too.
+    const madeBefore: StudyQuestion[] = []
     let reason: StudyBankReason | undefined
     let books: { books?: StudyBookSuggestion[] } = {}
     let folder: string | undefined
@@ -223,7 +225,7 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
               sourceTitle,
               sourceReference: anchor.sourceRef,
               // Answered questions too: the author must not write them again with other words.
-              avoid: [...onTopic, ...made].map((q) => q.question),
+              avoid: [...onTopic, ...madeBefore, ...made].map((q) => q.question),
             },
             ask,
             3,
@@ -252,6 +254,7 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
         }
       }
       added += addedHere
+      madeBefore.push(...made)
       if (stop) {
         if (added) finish({ ...start, added })
         return stop

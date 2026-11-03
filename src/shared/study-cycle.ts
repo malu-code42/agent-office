@@ -532,7 +532,17 @@ export function resumeStudyCycle(state: StudyCycleState, cycleId: string): Study
   return { ...state, activeId: cycle.id }
 }
 
-export const emptyStudyCycleState = (): StudyCycleState => ({ activeId: null, cycles: [] })
+/** Deletes a cycle and its notes. The answered register stays, so answered questions still never come back. */
+export function deleteStudyCycle(state: StudyCycleState, cycleId: string, now = Date.now()): StudyCycleState {
+  const cycle = state.cycles.find((item) => item.id === cycleId)
+  if (!cycle) throw new Error('Esse ciclo não está no histórico.')
+  // Files written before the register only know their answers through the cycles: move them there first, or deleting forgets them.
+  const answered = [cycle.questions, ...cycle.practiceRounds.map((r) => r.questions), ...cycle.retests.map((r) => r.questions)].flat().filter((q) => q.response.trim())
+  const kept = answered.reduce((acc, q) => rememberAnswered(acc, q, now), state)
+  return { ...kept, activeId: state.activeId === cycleId ? null : state.activeId, cycles: state.cycles.filter((item) => item.id !== cycleId) }
+}
+
+export const emptyStudyCycleState =(): StudyCycleState => ({ activeId: null, cycles: [] })
 
 /** How a question's wording is compared: case and spacing do not make it new. */
 export const studyQuestionKey = (text: string): string => normalizePrompt(text)
@@ -586,4 +596,26 @@ function activeCycle(state: StudyCycleState): StudyCycle {
 
 function updateCycle(state: StudyCycleState, updated: StudyCycle): StudyCycleState {
   return { ...state, cycles: state.cycles.map((cycle) => (cycle.id === updated.id ? updated : cycle)) }
+}
+
+export interface StudySubtopicResult {
+  subtopic: string
+  correct: number
+  total: number
+  status: 'mastered' | 'partial' | 'gap'
+}
+
+/** Diagnosis result per subtopic, in order of appearance. Cycles without subtopics give an empty list. */
+export function subtopicResults(cycle: StudyCycle): StudySubtopicResult[] {
+  const groups = new Map<string, StudySubtopicResult>()
+  for (const question of cycle.questions) {
+    const subtopic = question.source.subtopic
+    if (!subtopic) continue
+    const group = groups.get(subtopic) ?? { subtopic, correct: 0, total: 0, status: 'gap' as const }
+    group.total++
+    // same rule as studyGaps: a right answer marked as doubtful is not mastery
+    if (question.assessment?.kind === 'correct' && !question.uncertain) group.correct++
+    groups.set(subtopic, group)
+  }
+  return [...groups.values()].map((g) => ({ ...g, status: g.correct === g.total ? 'mastered' : g.correct ? 'partial' : 'gap' }))
 }

@@ -8,7 +8,7 @@ const done = (id: string, vault = 'C:/vault'): PendingCompletion => ({
   id,
   origin: 'Casa',
   completedAt: '2026-10-17',
-  completedTime: '10:00',
+  completedTime: '09:00',
   originalLine: '- [ ] Lavar roupa ^tabc123',
   before: 'antes',
   after: 'depois',

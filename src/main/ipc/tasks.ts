@@ -27,6 +27,8 @@ import { personalRoutineTaskFingerprintFromLine, personalRoutineTaskFingerprintF
 import { buildStudyBank, studyBankTopics } from '../study-bank-builder'
 import { askClaude } from '../study-questions-grounded'
 import { buildTopicSubtopics, StudySubtopicStore } from '../study-subtopics'
+import { generateIdeas, StudyIdeaStore } from '../study-ideas'
+import { studiedTopics } from '@shared/study-ideas'
 import { suggestBooks } from '../study-book-suggestions'
 import { StudyBankJobs } from '../study-bank-job'
 import { answeredStudyQuestions, isStudyQuestionAnswered } from '@shared/study-cycle'
@@ -66,6 +68,7 @@ import {
   resetStudyCycleArgsSchema,
   resumeStudyCycleArgsSchema,
   studySubtopicsArgsSchema,
+  deleteStudyQuestionsArgsSchema,
   searchStudyLibraryArgsSchema,
   studySourceInventoryArgsSchema,
   recommendStudySourcesArgsSchema,
@@ -252,6 +255,16 @@ export function registerTasksIpc(ctx: IpcContext): void {
     subtopicStore.save(entry)
     return entry
   })
+  // Software ideas for the topics the student has studied (a topic of the study cycles), one stored set per topic.
+  const ideaStore = new StudyIdeaStore(ctx.store.dataDirectory)
+  ipcMain.handle('office:readStudyIdeas', () => ideaStore.read())
+  ipcMain.handle('office:generateStudyIdeas', async (_e, ...args: unknown[]) => {
+    const [topic] = parse(studySubtopicsArgsSchema, args, 'Tópico inválido.')
+    if (!studiedTopics(studyCycleStore.read()).some((item) => item.topic === topic)) throw new Error('Esse tópico não está no ciclo de estudos.')
+    const set = await generateIdeas(topic, askClaude)
+    ideaStore.save(set)
+    return set
+  })
   ipcMain.handle('office:studyBankStatus', () => bankJobs.status())
   ipcMain.handle('office:cancelStudyBank', () => bankJobs.cancel())
   ipcMain.handle('office:dismissStudyBank', () => bankJobs.dismiss())
@@ -294,6 +307,15 @@ export function registerTasksIpc(ctx: IpcContext): void {
   ipcMain.handle('office:resumeStudyCycle', (_e, ...args: unknown[]) => {
     const [cycleId] = parse(resumeStudyCycleArgsSchema, args, 'Ciclo de estudo inválido.')
     return studyCycleService().resume(cycleId)
+  })
+  ipcMain.handle('office:deleteStudyCycle', (_e, ...args: unknown[]) => {
+    const [cycleId] = parse(resumeStudyCycleArgsSchema, args, 'Ciclo de estudo inválido.')
+    return studyCycleService().delete(cycleId)
+  })
+  ipcMain.handle('office:deleteStudyQuestions', (_e, ...args: unknown[]) => {
+    const [ids] = parse(deleteStudyQuestionsArgsSchema, args, 'Questões inválidas.')
+    if (bankJobs.status()?.status === 'running') throw new Error('O banco está sendo montado. Espere terminar para excluir questões.')
+    return studyService().removeQuestions(ids)
   })
   // Read on every call, like the agenda: the trail and the class grid are the user's files, never written here.
   ipcMain.handle('office:readStudyTrail', async () => parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE)))

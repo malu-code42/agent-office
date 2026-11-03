@@ -12,6 +12,7 @@ const questionSchema = z
       .object({
         id: z.string().max(80),
         topic: z.string().max(200),
+        subtopic: z.string().max(200).optional(),
         tags: z.array(z.string().max(80)).max(20),
         passage: z.string().max(20_000).optional(),
         question: z.string().max(20_000),

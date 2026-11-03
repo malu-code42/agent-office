@@ -41,6 +41,7 @@ import type { StudyBankJob, StudyBankRequest } from '../study-bank'
 import type { StudyOcrState } from '../study-library'
 import type { StudyTrail } from '../study-trail'
 import type { StudySubtopics } from '../study-outline'
+import type { StudyIdeaSet } from '../study-ideas'
 import type { ClassScheduleView } from '../class-schedule'
 import type { StudyLibrarySearch, StudySourceInventory } from '../study-library'
 import type { StudySourceRecommendations } from '../study-sources'
@@ -331,12 +332,19 @@ export interface OfficeAPI {
   advanceStudyCycle(): Promise<StudyCycleState>
   /** Desativa a seleção do ciclo, mantendo tópico e evidências no histórico local. */
   resetStudyCycle(): Promise<StudyCycleState>
-  /** Volta a um ciclo guardado no histórico (troca de tópico), sem apagar nada do ciclo ativo. */
   /** The subtopics built so far, by topic title. */
   readStudySubtopics(): Promise<Record<string, StudySubtopics>>
   /** Builds (or rebuilds) a trail topic's subtopics from its book's table of contents. */
   buildStudySubtopics(topic: string): Promise<StudySubtopics>
+  /** Ideias de software já geradas, por tópico estudado. */
+  readStudyIdeas(): Promise<Record<string, StudyIdeaSet>>
+  /** Gera (ou refaz) as ideias de software de um tópico estudado e as guarda. */
+  generateStudyIdeas(topic: string): Promise<StudyIdeaSet>
+  /** Volta a um ciclo guardado no histórico (troca de tópico), sem apagar nada do ciclo ativo. */
   resumeStudyCycle(cycleId: string): Promise<StudyCycleState>
+  deleteStudyCycle(cycleId: string): Promise<StudyCycleState>
+  /** Deletes bank questions (with a backup of the file); resolves with how many went. */
+  deleteStudyQuestions(ids: string[]): Promise<number>
   /** Lê os tópicos de `trilha zettel.md` do vault, para escolher o tópico do ciclo. Só lê. */
   readStudyTrail(): Promise<StudyTrail>
   /** Lê a grade semanal de aulas.md do vault para o quadro "Horário de aula" (semana atual, com exceções). Só lê. */

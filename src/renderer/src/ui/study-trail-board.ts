@@ -11,6 +11,7 @@ import { announce, asDialog, FocusReturn, isTyping, rove } from './a11y'
 import { h, icon } from './dom'
 import { cleanError } from './modals/common'
 import { dressStudyWindow, STUDY_WHO } from './study-kit'
+import { openStudyIdeas } from './study-ideas'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
 
@@ -162,6 +163,7 @@ export async function openStudyTrailBoard(root: HTMLElement, toast: Toast, onSta
       h('div', { class: 'board-title' }, icon('list', 18), 'Trilha de estudos'),
       h('span', { class: 'board-count' }, `${openTotal} tópico${openTotal === 1 ? '' : 's'} em aberto`),
       h('span', { class: 'grow' }),
+      h('button', { class: 'btn btn-small', type: 'button', onclick: () => void openStudyIdeas(root, toast) }, 'Ideias de software'),
       h('button', { class: 'icon-btn', type: 'button', title: 'Fechar (Esc)', onclick: close }, icon('x', 16)),
     ),
     lists.length

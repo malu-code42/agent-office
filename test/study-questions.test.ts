@@ -57,6 +57,14 @@ describe('study question bank codec', () => {
     expect(again.unknownLines).toEqual(['Texto manual que não conheço'])
   })
 
+  it('round-trips the subtopic and reads a record written before it existed', () => {
+    expect(decodeStudyBank(encodeStudyQuestion(question({ subtopic: 'Lei de Coulomb' }))).questions[0]!.subtopic).toBe('Lei de Coulomb')
+    const old = encodeStudyQuestion(question()).replace(/^- Subtema: .*\n/m, '')
+    expect(old).not.toContain('Subtema')
+    expect(decodeStudyBank(old).questions[0]).toEqual(question())
+    expect(decodeStudyBank(encodeStudyQuestion(question())).questions[0]!.subtopic).toBeUndefined()
+  })
+
   it('round-trips a multiple choice question with its passage and checks the key letter', () => {
     const choice = question({
       passage: 'A Ciência da Computação estuda algoritmos.',
@@ -113,6 +121,20 @@ describe('study question bank codec', () => {
       expect(after.unknownLines).toEqual(['Nota manual'])
       expect(readdirSync(join(vault, '.agent-office-backups'))).toHaveLength(1)
       expect(service.removeUnusableQuestions()).toBe(0)
+    } finally {
+      rmSync(vault, { recursive: true, force: true })
+    }
+  })
+
+  it('removes only the chosen questions after a backup', () => {
+    const vault = mkdtempSync(join(tmpdir(), 'study-bank-'))
+    try {
+      const mk = (id: string) => question({ id, question: `Pergunta ${id}`, options: ['1/4', '1/2', '1/3', '1', '0'], answer: 'B' })
+      writeFileSync(join(vault, 'questoes-estudo.md'), ['q-aaaaaaaa', 'q-bbbbbbbb', 'q-cccccccc'].map((id) => encodeStudyQuestion(mk(id))).join('\n'))
+      const service = new StudyQuestionService(vault, { webSearch: async () => [] })
+      expect(service.removeQuestions(['q-aaaaaaaa', 'q-cccccccc', 'q-naoexiste'])).toBe(2)
+      expect(decodeStudyBank(readFileSync(join(vault, 'questoes-estudo.md'), 'utf8')).questions.map((q) => q.id)).toEqual(['q-bbbbbbbb'])
+      expect(readdirSync(join(vault, '.agent-office-backups'))).toHaveLength(1)
     } finally {
       rmSync(vault, { recursive: true, force: true })
     }
