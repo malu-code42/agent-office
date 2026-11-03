@@ -80,6 +80,10 @@
   width: min(440px, calc(100vw - 32px));
 }
 
+.backdrop-confirm .modal-foot {
+  flex-wrap: wrap;
+}
+
 .confirm-text {
   color: var(--muted);
   line-height: 1.55;
