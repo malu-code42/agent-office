@@ -31,14 +31,18 @@ export interface StudyBankLinks {
 }
 
 const SVG = 'http://www.w3.org/2000/svg'
-function svgIcon(paths: string, width = '2'): SVGSVGElement {
+function svgIcon(shapes: [string, Record<string, string>][], width = '2'): SVGSVGElement {
   const svg = document.createElementNS(SVG, 'svg')
   svg.setAttribute('viewBox', '0 0 16 16')
   svg.setAttribute('fill', 'none')
   svg.setAttribute('stroke', 'currentColor')
   svg.setAttribute('stroke-width', width)
   svg.setAttribute('aria-hidden', 'true')
-  svg.innerHTML = paths
+  for (const [tag, attrs] of shapes) {
+    const el = document.createElementNS(SVG, tag)
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v)
+    svg.append(el)
+  }
   return svg
 }
 
@@ -48,7 +52,10 @@ export function studySeal(question: StudyQuestion): HTMLElement {
     return h(
       'span',
       { class: 'seal seal-agents', title: 'Conferida por autor, resolvedor cego e verificador; ninguém leu' },
-      svgIcon('<rect x="3" y="5" width="10" height="8"/><path d="M8 2v3M6 9h0M10 9h0"/>'),
+      svgIcon([
+        ['rect', { x: '3', y: '5', width: '10', height: '8' }],
+        ['path', { d: 'M8 2v3M6 9h0M10 9h0' }],
+      ]),
       'Verificada por agentes',
     )
   return h('span', { class: 'seal seal-none' }, 'Sem conferência')

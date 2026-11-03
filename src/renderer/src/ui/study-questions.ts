@@ -310,6 +310,9 @@ function topicRow(
   )
 }
 
+/** The cycle's default questions per subtopic (study-cycle.ts); below it the diagnosis will not start. */
+const DIAGNOSIS_PER_SUBTOPIC = 3
+
 /** The parts of a topic and how many new questions each has; a part with none is the gap the diagnosis would miss. */
 function coverage(entry: StudySubtopics | undefined, questions: StudyQuestion[], isAnswered: (q: StudyQuestion) => boolean): HTMLElement | null {
   if (!entry) return null
@@ -320,9 +323,14 @@ function coverage(entry: StudySubtopics | undefined, questions: StudyQuestion[],
     { class: 'bq-crumb', role: 'group', 'aria-label': 'Cobertura por subtema' },
     ...entry.subtopics.map((sub) => {
       const fresh = questions.filter((q) => q.subtopic === sub.name && !isAnswered(q)).length
+      const short = fresh < DIAGNOSIS_PER_SUBTOPIC
+      const where = sub.sections.map((x) => `${x.title} (p. ${x.page})`).join('; ')
       return h(
         'span',
-        { class: `bq-pill${fresh ? ' ok' : ''}`, title: sub.sections.map((x) => `${x.title} (p. ${x.page})`).join('; ') },
+        {
+          class: `bq-pill${short ? '' : ' ok'}`,
+          title: short ? `${where}. O diagnóstico só começa com ${DIAGNOSIS_PER_SUBTOPIC} por subtema: monte o banco para completar.` : where,
+        },
         `${sub.name} · ${fresh ? plural(fresh, 'nova', 'novas') : 'sem questões'}`,
       )
     }),
