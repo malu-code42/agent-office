@@ -30,6 +30,11 @@ for (const worktree of worktrees) {
     failed = true
     continue
   }
+  // A worktree without dependencies cannot be linted (the config imports them); it is not a lint failure.
+  if (worktree !== root && !existsSync(resolve(worktree, 'node_modules'))) {
+    console.warn(`lint: skipping ${worktree} (no node_modules)`)
+    continue
+  }
   const targets = lintTargets.filter((target) => existsSync(resolve(worktree, target)))
   const result = spawnSync(
     process.execPath,
