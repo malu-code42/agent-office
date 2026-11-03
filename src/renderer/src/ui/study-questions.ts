@@ -2,7 +2,7 @@ import { disciplineIdOf, STUDY_BANK_DEFAULT_PER_TOPIC, type StudyBankJob, type S
 import { studyBankStats, type StudyBankStats } from '@shared/study-bank-stats'
 import type { StudySubtopics } from '@shared/study-outline'
 import { answeredStudyQuestions, isStudyQuestionAnswered } from '@shared/study-cycle'
-import { STUDY_QUESTION_LIMITS, type StudyQuestion } from '@shared/study-questions'
+import { freshChoiceCount, STUDY_QUESTION_LIMITS, type StudyQuestion } from '@shared/study-questions'
 import { h } from './dom'
 import { cleanError, confirmDialog, modal } from './modals/common'
 import { studyQuestionCard } from './study-bank'
@@ -348,7 +348,7 @@ function coverage(entry: StudySubtopics | undefined, questions: StudyQuestion[],
     'div',
     { class: 'bq-crumb', role: 'group', 'aria-label': 'Cobertura por subtema' },
     ...entry.subtopics.map((sub) => {
-      const fresh = questions.filter((q) => q.subtopic === sub.name && !isAnswered(q)).length
+      const fresh = freshChoiceCount(questions, sub.name, isAnswered)
       const short = fresh < DIAGNOSIS_PER_SUBTOPIC
       const where = sub.sections.map((x) => `${x.title} (p. ${x.page})`).join('; ')
       return h(
@@ -357,7 +357,7 @@ function coverage(entry: StudySubtopics | undefined, questions: StudyQuestion[],
           class: `bq-pill${short ? '' : ' ok'}`,
           title: short ? `${where}. O diagnóstico só começa com ${DIAGNOSIS_PER_SUBTOPIC} por subtema: monte o banco para completar.` : where,
         },
-        `${sub.name} · ${fresh ? plural(fresh, 'nova', 'novas') : 'sem questões'}`,
+        `${sub.name} · ${fresh ? plural(fresh, 'nova', 'novas') : 'sem questões'}${short && fresh ? ` · faltam ${DIAGNOSIS_PER_SUBTOPIC - fresh}` : ''}`,
       )
     }),
   )

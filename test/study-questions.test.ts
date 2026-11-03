@@ -3,6 +3,7 @@ import {
   choiceOf,
   decodeStudyBank,
   encodeStudyQuestion,
+  freshChoiceCount,
   gradeChoice,
   isChoiceQuestion,
   rankStudyQuestions,
@@ -96,6 +97,14 @@ describe('study question bank codec', () => {
     expect(gradeChoice(question(), 'B')).toBeNull()
     expect(isChoiceQuestion(choice)).toBe(true)
     expect(isChoiceQuestion(question())).toBe(false)
+  })
+
+  it('counts only new multiple-choice questions of the subtopic', () => {
+    const choice = { ...question(), subtopic: 'A', options: ['x', 'y'], answer: 'B' }
+    const open = { ...question(), subtopic: 'A' }
+    const other = { ...choice, subtopic: 'B' }
+    expect(freshChoiceCount([choice, open, other], 'A', () => false)).toBe(1)
+    expect(freshChoiceCount([choice, open, other], 'A', () => true)).toBe(0)
   })
 
   it('flags a statement that cites a text nobody shows', () => {

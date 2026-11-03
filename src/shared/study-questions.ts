@@ -49,6 +49,10 @@ export const STUDY_CHOICE_COUNT = 5
 export const isChoiceQuestion = (q: Pick<StudyQuestion, 'options' | 'answer'>): boolean =>
   !!q.options?.length && !!q.answer && /^[A-Z]$/.test(q.answer) && q.answer.charCodeAt(0) - 65 < q.options.length
 
+/** New multiple-choice questions of a subtopic: the only ones the study cycle can serve. */
+export const freshChoiceCount = (questions: StudyQuestion[], subtopic: string, isAnswered: (q: StudyQuestion) => boolean): number =>
+  questions.filter((q) => q.subtopic === subtopic && isChoiceQuestion(q) && !isAnswered(q)).length
+
 const TEXT_REFERENCE =
   /\b(?:o|no|do|ao|neste|nesse|deste|desse|este|esse)\s+(?:texto|trecho|excerto|fragmento)\b|\b(?:texto|trecho|excerto|fragmento)\s+(?:acima|abaixo|apresentado|citado|dado|anterior)\b|\b(?:segundo|conforme|de acordo com)\s+(?:a|o)\s+(?:fonte|material|autora?|livro|apostila|slide|página|capítulo)\b/i
 
