@@ -183,3 +183,25 @@ describe('questionsBySubtopic', () => {
     expect(r.picked.map((x) => x.subtopic)).toEqual(['A'])
   })
 })
+
+describe('questionsBySubtopic with a trail topic (AO-23)', () => {
+  const q = (id: string, topic: string, subtopic: string) =>
+    ({ id: `q-${id}-aaaaaaaa`, topic, subtopic, tags: [], question: `p ${id}`, answerStatus: 'verified' }) as never
+  it('puts a stored subtopic with no question in short', () => {
+    const r = questionsBySubtopic([q('1', 'Filas', 'A')], 'Filas', 1, { exact: 'Filas', known: ['A', 'B'] })!
+    expect(r.subtopics).toEqual(['A', 'B'])
+    expect(r.short).toEqual(['B'])
+  })
+  it('does not mix topics that share words', () => {
+    const bank = [q('1', 'Filas', 'A'), q('2', 'Filas de prioridade', 'A'), q('3', 'Filas de prioridade', 'Heap')]
+    expect(questionsForTopic(bank, 'Filas', 10).length).toBe(3)
+    expect(questionsForTopic(bank, 'Filas', 10, 'Filas').map((x) => x.id)).toEqual(['q-1-aaaaaaaa'])
+    const r = questionsBySubtopic(bank, 'Filas', 1, { exact: 'Filas' })!
+    expect(r.subtopics).toEqual(['A'])
+    expect(r.picked).toHaveLength(1)
+  })
+  it('counts the old questions without subtopic', () => {
+    const old = { id: 'q-0-aaaaaaaa', topic: 'Filas', tags: [], question: 'p0', answerStatus: 'verified' } as never
+    expect(questionsBySubtopic([old, q('1', 'Filas', 'A')], 'Filas', 1, { exact: 'Filas' })!.untagged).toBe(1)
+  })
+})
