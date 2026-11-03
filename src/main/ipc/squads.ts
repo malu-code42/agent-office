@@ -37,7 +37,7 @@ import { readProjectDocuments } from '../project-workflow-documents'
 export function registerSquadsIpc(ctx: IpcContext): void {
   const { store, manager, defaultBrain } = ctx
   ipcMain.handle('office:listSquads', (_e, cwd: unknown) => (pathSchema.safeParse(cwd).success && isDir(cwd) ? inspectSquads(cwd) : []))
-  ipcMain.handle('office:runSquad', async (_e, cwd: unknown, code: unknown, mode: unknown, note: unknown, _confirmOverride: unknown) => {
+  const runSquadCycle = async (cwd: unknown, code: unknown, mode: unknown, note: unknown) => {
     if (!pathSchema.safeParse(cwd).success || !isDir(cwd)) throw new Error('Essa pasta de squads não existe mais.')
     // Orchestrators work in the squad room of their project's floor.
     if (projectFor(store.settings.projects, cwd)?.cwd !== cwd)
@@ -116,7 +116,10 @@ export function registerSquadsIpc(ctx: IpcContext): void {
         ctx.creation.setStartupError(squad.code, active.id, err instanceof Error ? err.message : String(err))
       throw err
     }
-  })
+  }
+  ipcMain.handle('office:runSquad', (_e, cwd: unknown, code: unknown, mode: unknown, note: unknown, _confirmOverride: unknown) =>
+    runSquadCycle(cwd, code, mode, note),
+  )
 
   const workflowProject = (raw: unknown) => {
     const projectId = parse(projectWorkflowProjectIdSchema, raw, 'Andar de projeto inválido.')
@@ -213,6 +216,22 @@ export function registerSquadsIpc(ctx: IpcContext): void {
       saveDrift: (summary) => {
         ctx.projectWorkflows.saveDriftReport(floor().id, summary)
         return 'Relatório de drift registrado no fluxo do andar. Nada foi alterado: a usuária decide se atualiza o design doc ou o código.'
+      },
+      // The floor's own permission mode, never a more permissive one: so no override card is needed.
+      runSquad: async (code, note) => {
+        const agent = await runSquadCycle(floor().cwd, code, undefined, note)
+        return `Ciclo do squad ${agent.name} iniciado (${agent.status}). Acompanhe pelo escritório; use squad_message para mandar um recado.`
+      },
+      messageSquad: (code, text) => {
+        const cwd = floor().cwd
+        const orch = ctx.manager
+          .list()
+          .filter((a) => a.role === 'orchestrator' && a.squad === code && a.cwd === cwd)
+          .at(-1)
+        if (!orch) throw new Error(`O squad ${code} não está rodando. Inicie um ciclo com squad_run.`)
+        const sent = `Recado de Emi: ${text}`
+        void ctx.manager.sendMessage(orch.id, sent, sent)
+        return `Recado entregue ao orquestrador de ${orch.name}, que o repassa aos membros do squad.`
       },
       createSquad: async (req) => {
         const project = floor()

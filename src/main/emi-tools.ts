@@ -9,7 +9,7 @@ import { squadMemberSchema } from './validate'
 
 export const EMI_SERVER = 'emi'
 /** Tools the user confirms on the permission card before they run: they approve or write something. */
-export const EMI_CONFIRM_TOOLS = new Set([`mcp__${EMI_SERVER}__plan_approve`, `mcp__${EMI_SERVER}__squad_create`])
+export const EMI_CONFIRM_TOOLS = new Set([`mcp__${EMI_SERVER}__plan_approve`, `mcp__${EMI_SERVER}__squad_create`, `mcp__${EMI_SERVER}__squad_run`])
 
 const ticketKeys = z.array(z.string().min(1).max(40)).min(1).max(30)
 
@@ -63,6 +63,10 @@ export interface EmiToolDeps {
   saveDrift(summary: string): string
   /** Proposes and approves the squad through the "Criar squad" path; returns the created squad. */
   createSquad(squad: EmiSquad): Promise<SquadInfo>
+  /** Starts a cycle of the squad through the "Rodar squad" path, in the floor's permission mode. */
+  runSquad(code: string, note: string): Promise<string>
+  /** Sends a note to the squad's running orchestrator, who relays it to the members. */
+  messageSquad(code: string, text: string): string
 }
 
 function squadLine(q: SquadInfo): string {
@@ -77,7 +81,7 @@ export function emiTools(deps: EmiToolDeps): McpSdkServerConfigWithInstance {
     version: '1.0.0',
     instructions:
       'Plano EGM e squads deste andar. plan_get e squads_list leem o estado atual; drift_report_save registra o relatório de drift; ' +
-      'plan_approve e squad_create mostram um cartão à usuária e só valem depois que ela aprovar.',
+      'plan_approve, squad_create e squad_run mostram um cartão à usuária e só valem depois que ela aprovar; squad_message manda recado a um squad em execução.',
     tools: emiToolDefs(deps),
   })
 }
@@ -133,6 +137,24 @@ export function emiToolDefs(deps: EmiToolDeps) {
           const squad = await deps.createSquad(args)
           return `Squad ${squad.icon} ${squad.name} criado em squads/${squad.code}, com os tickets atribuídos.`
         })(),
+    ),
+    tool(
+      'squad_run',
+      'Inicia um ciclo de um squad deste andar (como a janela "Rodar squad"), no modo de permissões do andar. A usuária confirma no cartão antes de rodar.',
+      {
+        code: z.string().trim().min(1).max(64).describe('Squad code, e.g. sala-1 (see squads_list)'),
+        note: z.string().trim().max(2000).optional().describe('Optional note to the squad, in pt-BR'),
+      },
+      (args) => run(() => deps.runSquad(args.code, args.note ?? ''))(),
+    ),
+    tool(
+      'squad_message',
+      'Manda um recado ao orquestrador de um squad que está rodando; ele o repassa aos membros. Os membros não recebem mensagens diretas.',
+      {
+        code: z.string().trim().min(1).max(64).describe('Squad code, e.g. sala-1'),
+        text: z.string().trim().min(1).max(2000).describe('The note, in pt-BR'),
+      },
+      (args) => run(() => deps.messageSquad(args.code, args.text))(),
     ),
   ]
 }

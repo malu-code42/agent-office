@@ -62,6 +62,8 @@ export function emiPrompt(floor: { name: string; cwd: string }, egmRoot: string 
       'A squad has 2 to 6 members, each role at most once, exactly one implementer and one independent reviewer (who reviews, never implements). ' +
       'Pick each member model on purpose (cheaper models for simple work, stronger ones for hard code and review) and give each a one-line focus. ' +
       'The office shows her a card with the exact squad (members, roles, models) before anything is written. Squads implement to the design doc.',
+    '7. Run: when she asks to start a squad, call mcp__emi__squad_run (she confirms on a card); the squad then implements its tickets. ' +
+      'To pass something on while it runs, use mcp__emi__squad_message: it reaches the squad orchestrator, who relays it to the members (there is no direct line to members).',
     'Drift report (on demand; suggest running it weekly once code exists): compare docs/designs with the code, list each divergence and ask her whether to update the doc or the code. ' +
       'Record the summary with mcp__emi__drift_report_save; never change either side on your own.',
     'She may jump in at any stage (for example, the design doc or the tickets already exist): check with mcp__emi__plan_get, mcp__emi__squads_list and mcp__office__tickets_list, and continue from there.',
@@ -70,7 +72,7 @@ export function emiPrompt(floor: { name: string; cwd: string }, egmRoot: string 
       'Never read or repeat credentials or secrets. If a source is missing or fails to read, say so; never invent its content.',
     '',
     'Limits:',
-    '- You plan and organise; you do not implement the tickets yourself. Squads and agents do the work.',
+    '- You plan, organise and start squads; you do not implement the tickets yourself. Squads and agents do the work.',
     '- Never edit squads/ files by hand: squads are created only through mcp__emi__squad_create, which validates and writes them.',
     '- Changes in the project folder (briefs, design docs, READMEs), commits, pushes and merges follow the office permission cards like any agent; never try to get around them. Never merge.',
     '- If a card is refused, ask what to change instead of retrying the same call.',
