@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto'
-
 export const CARD_SECTIONS = ['information', 'examplePractice', 'application', 'connections', 'sources'] as const
 export type CardSection = (typeof CARD_SECTIONS)[number]
 
@@ -102,8 +100,44 @@ const SECTION_TITLES: Record<CardSection, string> = {
   sources: 'Fontes',
 }
 
+// Plain SHA-256: this module is bundled into the renderer, which has no node:crypto (the build fails on it).
+const nthPrime = (index: number): number => {
+  let n = 2
+  for (let found = 0; ; n++) {
+    let prime = true
+    for (let d = 2; d * d <= n; d++) if (n % d === 0) prime = false
+    if (prime && found++ === index) return n
+  }
+}
+const SHA_K = Array.from({ length: 64 }, (_, i) => Math.floor((Math.cbrt(nthPrime(i)) % 1) * 2 ** 32) >>> 0)
+
 export function studyNoteHash(text: string): string {
-  return createHash('sha256').update(text, 'utf8').digest('hex')
+  const data = new TextEncoder().encode(text)
+  const padded = new Uint8Array(((data.length + 9 + 63) >> 6) << 6)
+  padded.set(data)
+  padded[data.length] = 0x80
+  const view = new DataView(padded.buffer)
+  view.setUint32(padded.length - 8, Math.floor((data.length * 8) / 2 ** 32))
+  view.setUint32(padded.length - 4, (data.length * 8) >>> 0)
+  const h = Array.from({ length: 8 }, (_, i) => Math.floor((Math.sqrt(nthPrime(i)) % 1) * 2 ** 32) >>> 0)
+  const w = new Array<number>(64)
+  const rotr = (x: number, n: number) => (x >>> n) | (x << (32 - n))
+  for (let off = 0; off < padded.length; off += 64) {
+    for (let i = 0; i < 16; i++) w[i] = view.getUint32(off + i * 4)
+    for (let i = 16; i < 64; i++) {
+      const s0 = rotr(w[i - 15]!, 7) ^ rotr(w[i - 15]!, 18) ^ (w[i - 15]! >>> 3)
+      const s1 = rotr(w[i - 2]!, 17) ^ rotr(w[i - 2]!, 19) ^ (w[i - 2]! >>> 10)
+      w[i] = (w[i - 16]! + s0 + w[i - 7]! + s1) >>> 0
+    }
+    let [a, b, c, d, e, f, g, k] = h as [number, number, number, number, number, number, number, number]
+    for (let i = 0; i < 64; i++) {
+      const t1 = (k + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + SHA_K[i]! + w[i]!) >>> 0
+      const t2 = ((rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) >>> 0
+      ;[k, g, f, e, d, c, b, a] = [g, f, e, (d + t1) >>> 0, c, b, a, (t1 + t2) >>> 0]
+    }
+    ;[a, b, c, d, e, f, g, k].forEach((v, i) => (h[i] = (h[i]! + v) >>> 0))
+  }
+  return h.map((v) => v.toString(16).padStart(8, '0')).join('')
 }
 
 export function validateStudyCardDraft(raw: unknown): StudyCardDraft {
