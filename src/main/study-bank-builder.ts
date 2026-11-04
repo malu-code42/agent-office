@@ -12,6 +12,7 @@ import type { StudyLibraryHit } from '@shared/study-library'
 import { isChoiceQuestion, STUDY_QUESTION_LIMITS, type StudyQuestion } from '@shared/study-questions'
 import type { StudySubtopics } from '@shared/study-outline'
 import type { StudyTrail, StudyTrailTopic } from '@shared/study-trail'
+import { log } from './log'
 import { askClaude, generateGroundedQuestion, tooSimilar, type AskJson, type GroundedFailure } from './study-questions-grounded'
 
 /** A bank error that ends the whole run: the bank is full or changed in Obsidian during the write. */
@@ -106,14 +107,19 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
     }
   }
 
-  /** The topic's subtopics (built from its book once, then kept); none when the book has no usable table of contents. */
-  const subtopicsFor = async (topic: StudyTrailTopic): Promise<string[]> => {
-    if (!deps.subtopics || options.signal?.aborted) return []
+  /**
+   * The topic's subtopics (built from its book once, then kept). No table of contents (`sem-indice`) keeps the whole-topic goal;
+   * subtopics that did not agree (`sem-acordo`) or could not be built block the topic, so it never gets questions without them.
+   */
+  const subtopicsFor = async (topic: StudyTrailTopic): Promise<{ names: string[] } | { blocked: StudyBankReason }> => {
+    if (!deps.subtopics || options.signal?.aborted) return { names: [] }
     try {
       const entry = deps.subtopics.get(topic.title) ?? (await deps.subtopics.build(topic))
-      return entry.status === 'ok' ? entry.subtopics.map((s) => s.name) : []
-    } catch {
-      return []
+      if (entry.status === 'sem-acordo') return { blocked: 'sem-acordo' }
+      return { names: entry.status === 'ok' ? entry.subtopics.map((s) => s.name) : [] }
+    } catch (err) {
+      log.warn(`Subtemas de "${topic.title}" não montados: ${err instanceof Error ? err.message : String(err)}`)
+      return { blocked: 'sem-subtemas' }
     }
   }
 
@@ -126,7 +132,13 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
     const fresh = (list: StudyQuestion[]) => list.filter((q) => isChoiceQuestion(q) && !deps.isAnswered?.(q))
     const have = fresh(onTopic)
     // With subtopics, each gets its own goal (`perSubtopic`) or an equal share of the topic's, so the topic is covered rather than drawn from one corner of the book.
-    const names = await subtopicsFor(topic)
+    const gate = await subtopicsFor(topic)
+    if ('blocked' in gate) {
+      results.push({ id: topic.id, topic: topic.title, discipline: topic.discipline, disciplineId, goal: perTopic, had: have.length, added: 0, reason: gate.blocked })
+      options.onProgress?.({ kind: 'done', result: results[results.length - 1]! })
+      continue
+    }
+    const names = gate.names
     const share = options.perSubtopic ?? (names.length ? Math.ceil(perTopic / names.length) : perTopic)
     const goal = options.perSubtopic && names.length ? options.perSubtopic * names.length : perTopic
     const start: StudyBankTopicResult = {

@@ -36,7 +36,25 @@ export function tocEntries(pages: string[]): OutlineEntry[] {
   return found.slice(0, TOC_LINES).map((entry, id) => ({ id, ...entry }))
 }
 
-export type SubtopicCheck = { ok: true; subtopics: SubtopicDraft[] } | { ok: false; reason: string }
+/** The words of a title that can tell one topic from another: accent-free, at least 5 letters, plural "s" dropped. */
+const keyWords = (text: string): Set<string> =>
+  new Set(
+    text
+      .normalize('NFD')
+      .replace(/\p{M}/gu, '')
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((word) => word.length >= 5)
+      .map((word) => word.replace(/s$/, '')),
+  )
+
+/** How many lines of a table of contents share a key word with the topic. Tells which book is about the topic. */
+export function tocScore(topic: string, outline: OutlineEntry[]): number {
+  const words = keyWords(topic)
+  return outline.filter((entry) => [...keyWords(entry.title)].some((word) => words.has(word))).length
+}
+
+export type SubtopicCheck ={ ok: true; subtopics: SubtopicDraft[] } | { ok: false; reason: string }
 
 /** Rules the code enforces on a proposed list, whoever wrote it. Its sections must exist in the table and belong to one subtopic only. */
 export function checkSubtopics(raw: unknown, outline: OutlineEntry[]): SubtopicCheck {

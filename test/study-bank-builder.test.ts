@@ -72,6 +72,18 @@ describe('buildStudyBank', () => {
     expect(subtopics.build).not.toHaveBeenCalled()
   })
 
+  it('blocks a topic whose subtopics did not agree or could not be built, with no questions made without them', async () => {
+    const { bank, ask, deps } = setup()
+    const disagreed = { topic: 'Sistemas de numeração', source: 'L.pdf', builtAt: 1, status: 'sem-acordo' as const, reason: 'x', subtopics: [] }
+    const first = await buildStudyBank(trail, { ...deps, subtopics: { get: () => disagreed, build: vi.fn() } }, { perTopic: 2, topic: 'Sistemas de numeração' })
+    expect(first.results[0]).toMatchObject({ reason: 'sem-acordo', added: 0 })
+    const broken = { ...deps, subtopics: { get: () => undefined, build: async () => Promise.reject(new Error('sem ask')) } }
+    const second = await buildStudyBank(trail, broken, { perTopic: 2, topic: 'Sistemas de numeração' })
+    expect(second.results[0]).toMatchObject({ reason: 'sem-subtemas', added: 0 })
+    expect(bank).toHaveLength(0)
+    expect(ask.mock.calls.some(([system]) => String(system).includes('write one multiple-choice'))).toBe(false)
+  })
+
   it('does not count questions from before the subtopics toward any subtopic (AO-24)', async () => {
     const { bank, deps } = setup()
     await buildStudyBank(trail, deps, { perTopic: 4, topic: 'Sistemas de numeração' })
