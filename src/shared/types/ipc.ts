@@ -38,6 +38,7 @@ import type { WritingVersion } from '../writing'
 import type { DecodedStudyBank, StudyQuestion } from '../study-questions'
 import type { StudyCycleState } from '../study-cycle'
 import type { StudyBankJob, StudyBankRequest } from '../study-bank'
+import type { StudyReadiness } from '../study-readiness'
 import type { StudyTrail } from '../study-trail'
 import type { StudySubtopics } from '../study-outline'
 import type { StudyIdeaSet } from '../study-ideas'
@@ -313,6 +314,14 @@ export interface OfficeAPI {
   cancelStudyBank(): Promise<void>
   /** Esquece o relatório ou o aviso da última montagem. */
   dismissStudyBank(): Promise<void>
+  /** O último relatório de prontidão de cada disciplina, como guardado; não recalcula. */
+  readStudyReadiness(): Promise<Record<string, StudyReadiness>>
+  /** Confere a prontidão da disciplina por código (sem modelo): só refaz os tópicos que não estão prontos. */
+  checkStudyReadiness(discipline: string): Promise<StudyReadiness>
+  /** Abre uma pasta indicada pelo relatório de prontidão (cria a pasta se faltar). */
+  openStudyFolder(path: string): Promise<void>
+  /** Pede livros na web para um tópico travado (ação da pessoa; não faz parte da conferência). */
+  suggestStudyBooks(discipline: string, topic: string): Promise<StudyReadiness>
   generateStudyQuestions(token: string): Promise<StudyQuestionGeneration>
   /** Salva somente candidatas escolhidas pela pessoa, se o banco não mudou desde a busca. */
   saveStudyQuestions(token: string, selection: StudyQuestion[], reviewConfirmed: boolean): Promise<void>

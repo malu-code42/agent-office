@@ -72,6 +72,14 @@ describe('buildStudyBank', () => {
     expect(subtopics.build).not.toHaveBeenCalled()
   })
 
+  it('gives each subtopic perSubtopic questions, so the topic total is perSubtopic times its subtopics', async () => {
+    const { bank, deps } = setup()
+    const entry = { topic: 'Sistemas de numeração', source: 'L.pdf', builtAt: 1, status: 'ok' as const, subtopics: ['Base binária', 'Conversão', 'Complemento'].map((name) => ({ name, sections: [] })) }
+    await buildStudyBank(trail, { ...deps, subtopics: { get: () => entry, build: vi.fn() } }, { perTopic: 1, perSubtopic: 2, topic: 'Sistemas de numeração' })
+    expect(bank).toHaveLength(6)
+    expect(bank.filter((q) => q.subtopic === 'Complemento')).toHaveLength(2)
+  })
+
   it('blocks a topic whose subtopics did not agree or could not be built, with no questions made without them', async () => {
     const { bank, ask, deps } = setup()
     const disagreed = { topic: 'Sistemas de numeração', source: 'L.pdf', builtAt: 1, status: 'sem-acordo' as const, reason: 'x', subtopics: [] }

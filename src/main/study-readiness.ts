@@ -1,5 +1,7 @@
 import { join } from 'node:path'
 import { disciplineIdOf, studyBankFolders, type StudyBankStop } from '@shared/study-bank'
+import type { StudyBookSuggestion } from '@shared/study-bank'
+
 import type { StudyLibraryHit, StudySourceInfo } from '@shared/study-library'
 import type { StudySubtopics } from '@shared/study-outline'
 import type { StudyProofFailure, StudyReadiness, StudyReadinessTopic } from '@shared/study-readiness'
@@ -27,21 +29,33 @@ interface Deps {
  * under textbooks). A PDF with no selectable text is not indexed: it makes a topic "precisa-ocr" only
  * when its name matches the topic (the search finds it by name). Subtopics are read from the store,
  * never built here, and no web or model is called.
+ * With `previous`, a topic that was "pronto" there is kept as it was and not checked again; the rest are checked.
  */
-export async function checkDisciplineReadiness(trail: StudyTrail, discipline: string, deps: Deps, now = Date.now()): Promise<StudyReadiness> {
+export async function checkDisciplineReadiness(
+  trail: StudyTrail,
+  discipline: string,
+  deps: Deps,
+  now = Date.now(),
+  previous?: StudyReadiness,
+): Promise<StudyReadiness> {
   const topics = studyBankTopics(trail, { discipline })
   if (!topics.length) throw new Error('Nenhum tópico da trilha corresponde à disciplina.')
   // Verified, not background: a PDF still being read would look like one with no passages.
   const { sources, missingFolder } = await deps.library.inventory(true)
   const out: StudyReadinessTopic[] = []
   for (const topic of topics) {
+    const before = previous?.topics.find((t) => t.topic === topic.title)
+    if (before?.state === 'pronto') {
+      out.push(before)
+      continue
+    }
     const { folders } = studyBankFolders(disciplineIdOf(topic.id), topic.discipline)
     const found = (await deps.library.search(topic.title, folders)).hits
     const hits = found.filter((hit) => !NAME_ONLY.test(hit.excerpt))
     const named = new Set(found.filter((hit) => NAME_ONLY.test(hit.excerpt)).map((hit) => hit.sourceRef))
     const scanned = sources.filter((s) => s.scanned && named.has(s.path)).map((s) => s.name)
     const paths = folders.map((f) => join(deps.vault, f))
-    const base = { id: topic.id, topic: topic.title, folders: paths }
+    const base = { id: topic.id, topic: topic.title, folders: paths, ...(before?.books ? { books: before.books } : {}) }
     if (!hits.length && scanned.length) {
       out.push({ ...base, state: 'precisa-ocr', reason: `Sem texto selecionável: ${scanned.join(', ')}. Precisa de um PDF com texto selecionável; coloque a versão digital do livro em uma destas pastas: ${paths.join(', ')}.` })
     } else if (!hits.length) {
@@ -53,8 +67,9 @@ export async function checkDisciplineReadiness(trail: StudyTrail, discipline: st
       out.push({ ...base, state: 'poucos-trechos', reason: `Só ${hits.length} trecho(s) sobre "${topic.title}" nos livros da pasta; são necessários ${MIN_PASSAGES}.` })
     } else {
       const entry = deps.subtopics.get(topic.title)
-      if (entry?.status === 'ok') out.push({ ...base, state: 'pronto', reason: `${hits.length} trechos e ${entry.subtopics.length} subtemas.` })
-      else out.push({ ...base, state: 'sem-subtemas', reason: entry?.reason ?? 'Os subtemas ainda não foram montados.' })
+      // A topic with no subtopics would get a total of 0 (total = questions per subtopic × subtopics): not ready.
+      if (entry?.status === 'ok' && entry.subtopics.length) out.push({ ...base, state: 'pronto', reason: `${hits.length} trechos e ${entry.subtopics.length} subtemas.` })
+      else out.push({ ...base, state: 'sem-subtemas', reason: entry?.status === 'ok' ? 'O sumário do livro não trouxe subtemas.' : (entry?.reason ?? 'Os subtemas ainda não foram montados.') })
     }
   }
   return { discipline, builtAt: now, topics: out }
@@ -132,4 +147,41 @@ export class StudyReadinessStore {
   save(report: StudyReadiness): void {
     writeJsonAtomic(this.file, { ...this.read(), [report.discipline]: report }, { mode: 0o600 })
   }
+}
+
+/** Runs jobs one after another: a check and a book search each read the saved report and write it back. */
+export class SerialQueue {
+  private tail: Promise<unknown> = Promise.resolve()
+
+  run<T>(job: () => Promise<T>): Promise<T> {
+    const next = this.tail.then(job)
+    this.tail = next.catch(() => undefined)
+    return next
+  }
+}
+
+/** The folder is opened only if the saved report names it: the window asks only for those. */
+export function openableFolder(store: StudyReadinessStore, folder: string): string {
+  const folders = Object.values(store.read()).flatMap((r) => r.topics.flatMap((t) => t.folders))
+  if (!folders.includes(folder)) throw new Error('Essa pasta não está no relatório de prontidão.')
+  return folder
+}
+
+/**
+ * Puts the books on a topic that is not ready, in the report as it is saved now (not as it was before
+ * the search, so a check that ran meanwhile is kept). Run it in the same queue as the checks.
+ */
+export async function suggestTopicBooks(
+  store: StudyReadinessStore,
+  discipline: string,
+  topic: string,
+  search: () => Promise<StudyBookSuggestion[]>,
+): Promise<StudyReadiness> {
+  if (!store.read()[discipline]?.topics.some((t) => t.topic === topic)) throw new Error('Confira a prontidão da disciplina antes de sugerir livros.')
+  const books = await search()
+  const current = store.read()[discipline]
+  if (!current) throw new Error('Confira a prontidão da disciplina antes de sugerir livros.')
+  const next = { ...current, topics: current.topics.map((t) => (t.topic === topic && t.state !== 'pronto' ? { ...t, books } : t)) }
+  store.save(next)
+  return next
 }
