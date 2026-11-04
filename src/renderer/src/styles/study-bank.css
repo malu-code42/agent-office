@@ -45,6 +45,52 @@
   font-family: var(--mono);
 }
 
+/* readiness report, above "Montar banco" */
+.bk-ready-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.bk-ready-list,
+.bk-folders {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bk-ready-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 8px 12px;
+  border: 2px solid var(--outline);
+  font-size: 12.5px;
+}
+
+.bk-ready-row > .field-hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.bk-folders li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.bk-folders code {
+  font-family: var(--mono);
+  font-size: 12px;
+  word-break: break-all;
+}
+
 .bk-steps {
   border: 2px solid var(--outline);
   background: var(--sunken);

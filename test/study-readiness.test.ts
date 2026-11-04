@@ -3,9 +3,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { checkDisciplineReadiness, StudyReadinessStore } from '../src/main/study-readiness'
+import { checkDisciplineReadiness, openableFolder, SerialQueue, StudyReadinessStore, suggestTopicBooks } from '../src/main/study-readiness'
+import type { StudyBookSuggestion } from '../src/shared/study-bank'
 import type { StudyLibraryHit, StudySourceInfo } from '../src/shared/study-library'
 import type { StudySubtopics } from '../src/shared/study-outline'
+import { isStudyReadinessReady, type StudyReadinessState } from '../src/shared/study-readiness'
 import { parseStudyTrail } from '../src/shared/study-trail'
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({ query: vi.fn() }))
@@ -76,6 +78,7 @@ function library(counts: Record<string, number> = {}, sources: StudySourceInfo[]
 }
 
 const noSubtopics = { get: () => undefined }
+const subtopicsOk = { get: (): StudySubtopics => ({ topic: 'x', source: 'L.pdf', builtAt: 1, status: 'ok', subtopics: [{ name: 'A', sections: [] }] }) }
 
 const scannedPdf = (path: string): StudySourceInfo => ({
   path,
@@ -183,6 +186,40 @@ describe('checkDisciplineReadiness', () => {
     expect(report.topics.some((t) => t.state === 'precisa-ocr')).toBe(false)
   })
 
+  it('checks again only the topics that are not ready, and keeps the ready ones as they were', async () => {
+    const first = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library({ 'Circuitos elétricos': 3 }), subtopics: subtopicsOk }, 1)
+    const again = library({ Amplificadores: 3 })
+    const second = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: again, subtopics: subtopicsOk }, 2, first)
+    expect(second.topics[0]).toEqual(first.topics[0])
+    expect(second.topics[1]!.state).toBe('pronto')
+    expect(again.search.mock.calls.map(([query]) => query)).not.toContain('Circuitos elétricos')
+  })
+
+  it('keeps the books found for a topic that is still not ready when it is checked again', async () => {
+    const first = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library(), subtopics: noSubtopics }, 1)
+    const book = { title: 'Diodos e Transistores', author: 'Autor', url: 'https://exemplo.org/livro', access: 'paid' as const }
+    const withBooks = { ...first, topics: first.topics.map((t) => (t.topic === 'Diodos' ? { ...t, books: [book] } : t)) }
+    const again = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library(), subtopics: noSubtopics }, 2, withBooks)
+    expect(again.topics.find((t) => t.topic === 'Diodos')).toMatchObject({ state: 'sem-fonte', books: [book] })
+  })
+
+  it('is ready only when every topic of the discipline is pronto', () => {
+    const topic = (name: string, state: StudyReadinessState) => ({ id: null, topic: name, state, reason: '', folders: [] })
+    const titles = ['A', 'B']
+    expect(isStudyReadinessReady({ discipline: 'P2-HW', builtAt: 1, topics: [topic('A', 'pronto'), topic('B', 'pronto')] }, titles)).toBe(true)
+    expect(isStudyReadinessReady({ discipline: 'P2-HW', builtAt: 1, topics: [topic('A', 'pronto'), topic('B', 'sem-fonte')] }, titles)).toBe(false)
+    expect(isStudyReadinessReady({ discipline: 'P2-HW', builtAt: 1, topics: [] }, titles)).toBe(false)
+    expect(isStudyReadinessReady({ discipline: 'P2-HW', builtAt: 1, topics: [topic('A', 'pronto'), topic('B', 'pronto')] }, [])).toBe(false)
+    expect(isStudyReadinessReady(undefined, titles)).toBe(false)
+  })
+
+  it('is not ready when a topic was added to the trail after the check', () => {
+    const topic = (name: string) => ({ id: null, topic: name, state: 'pronto' as const, reason: '', folders: [] })
+    const report = { discipline: 'P2-HW', builtAt: 1, topics: [topic('A'), topic('B')] }
+    expect(isStudyReadinessReady(report, ['A', 'B', 'Tópico novo'])).toBe(false)
+    expect(isStudyReadinessReady(report, ['A', 'B'])).toBe(true)
+  })
+
   it('refuses a discipline with no topics in the trail', async () => {
     await expect(checkDisciplineReadiness(trail, 'P9-XX', { vault: VAULT, library: library(), subtopics: noSubtopics })).rejects.toThrow(/Nenhum tópico/)
   })
@@ -209,5 +246,81 @@ describe('StudyReadinessStore', () => {
   it('reads nothing from a missing file', () => {
     dir = mkdtempSync(join(tmpdir(), 'readiness-'))
     expect(new StudyReadinessStore(dir).read()).toEqual({})
+  })
+})
+
+describe('book search, folder and queue', () => {
+  let dir = ''
+  afterEach(() => rmSync(dir, { recursive: true, force: true }))
+  const book = { title: 'Diodos e Transistores', author: 'Autor', url: 'https://exemplo.org/livro', access: 'paid' as const }
+
+  it('the build check blocks a discipline whose topic added after the last report is not pronto', async () => {
+    // The last report had only the first topic, ready; the rest of the trail was added since.
+    const last = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library({ 'Circuitos elétricos': 3 }), subtopics: subtopicsOk }, 1)
+    const older = { ...last, topics: last.topics.slice(0, 1) }
+    const rechecked = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library({ 'Circuitos elétricos': 3 }), subtopics: subtopicsOk }, 2, older)
+    expect(isStudyReadinessReady(rechecked, TOPICS)).toBe(false)
+    expect(rechecked.topics.find((t) => t.topic === 'Amplificadores')).toMatchObject({ state: 'sem-fonte' })
+  })
+
+  it('does not mark a topic pronto when its subtopics list is empty, so its total would be 0', async () => {
+    const empty = { get: (): StudySubtopics => ({ topic: 'x', source: 'L.pdf', builtAt: 1, status: 'ok', subtopics: [] }) }
+    const report = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library({ 'Circuitos elétricos': 3 }), subtopics: empty }, 1)
+    expect(report.topics[0]).toMatchObject({ state: 'sem-subtemas' })
+  })
+
+  it('puts the books on the topic and keeps a check that finished while the search ran', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'readiness-'))
+    const store = new StudyReadinessStore(dir)
+    const base = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library(), subtopics: noSubtopics }, 1)
+    store.save(base)
+    let release!: (books: StudyBookSuggestion[]) => void
+    const pending = suggestTopicBooks(store, 'P2-HW', 'Diodos', () => new Promise((resolve) => (release = resolve)))
+    // A check of the discipline saves a new report while the search is still waiting.
+    store.save({ ...base, builtAt: 9, topics: base.topics.map((t) => (t.topic === 'Amplificadores' ? { ...t, reason: 'nova' } : t)) })
+    release([book])
+    const result = await pending
+    expect(store.read()['P2-HW']).toEqual(result)
+    expect(result.builtAt).toBe(9)
+    expect(result.topics.find((t) => t.topic === 'Amplificadores')?.reason).toBe('nova')
+    expect(result.topics.find((t) => t.topic === 'Diodos')?.books).toEqual([book])
+  })
+
+  it('does not search for a topic the saved report does not have, and does not write', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'readiness-'))
+    const store = new StudyReadinessStore(dir)
+    const search = vi.fn(async () => [book])
+    await expect(suggestTopicBooks(store, 'P2-HW', 'Diodos', search)).rejects.toThrow(/prontidão/)
+    expect(search).not.toHaveBeenCalled()
+    expect(store.read()).toEqual({})
+  })
+
+  it('opens only a folder the saved report names', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'readiness-'))
+    const store = new StudyReadinessStore(dir)
+    const base = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library(), subtopics: noSubtopics }, 1)
+    store.save(base)
+    const folder = base.topics[0]!.folders[0]!
+    expect(openableFolder(store, folder)).toBe(folder)
+    expect(() => openableFolder(store, join(VAULT, 'outra pasta'))).toThrow(/não está no relatório/)
+  })
+
+  it('runs queued jobs one after another, and a failed job does not stop the next', async () => {
+    const queue = new SerialQueue()
+    const order: string[] = []
+    let release!: () => void
+    const first = queue.run(() => new Promise<void>((resolve) => (release = () => (order.push('a'), resolve()))))
+    const failed = queue.run(() => Promise.reject(new Error('falhou'))).then(
+      () => 'ok',
+      (error: Error) => error.message,
+    )
+    const last = queue.run(async () => void order.push('b'))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(order).toEqual([])
+    release()
+    await first
+    expect(await failed).toBe('falhou')
+    await last
+    expect(order).toEqual(['a', 'b'])
   })
 })

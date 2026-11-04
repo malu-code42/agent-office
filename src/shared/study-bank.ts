@@ -3,6 +3,8 @@
 
 export const STUDY_BANK_DEFAULT_PER_TOPIC = 20
 export const STUDY_BANK_MAX_PER_TOPIC = 50
+/** Questions per subtopic offered first in the builder. */
+export const STUDY_BANK_DEFAULT_PER_SUBTOPIC = 4
 
 /** One step of the agent chain, in order. */
 export type StudyBankStep = 'author' | 'quote' | 'similar' | 'solver' | 'verifier'

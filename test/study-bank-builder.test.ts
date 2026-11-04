@@ -72,6 +72,14 @@ describe('buildStudyBank', () => {
     expect(subtopics.build).not.toHaveBeenCalled()
   })
 
+  it('gives each subtopic perSubtopic questions, so the topic total is perSubtopic times its subtopics', async () => {
+    const { bank, deps } = setup()
+    const entry = { topic: 'Sistemas de numeração', source: 'L.pdf', builtAt: 1, status: 'ok' as const, subtopics: ['Base binária', 'Conversão', 'Complemento'].map((name) => ({ name, sections: [] })) }
+    await buildStudyBank(trail, { ...deps, subtopics: { get: () => entry, build: vi.fn() } }, { perTopic: 1, perSubtopic: 2, topic: 'Sistemas de numeração' })
+    expect(bank).toHaveLength(6)
+    expect(bank.filter((q) => q.subtopic === 'Complemento')).toHaveLength(2)
+  })
+
   it('does not count questions from before the subtopics toward any subtopic (AO-24)', async () => {
     const { bank, deps } = setup()
     await buildStudyBank(trail, deps, { perTopic: 4, topic: 'Sistemas de numeração' })
