@@ -65,7 +65,7 @@ Resultado (2026-10-31):
   o vault fica idêntico à edição externa e nenhum backup é criado. Depois de reler, cada fluxo grava só o próprio
   arquivo e preserva a edição.
 - **Novo**, no mesmo arquivo: trava que falha se algum teste citar o vault real (`vault-agent-office`), a pasta de
-  dados do app (`AppData/Roaming/agent-office`) ou os caches de PDF/OCR.
+  dados do app (`AppData/Roaming/agent-office`) ou o cache de PDF.
 
 ### 2. Typecheck, lint, testes, build, contraste e vazamento
 
@@ -104,7 +104,6 @@ Observações (não bloqueiam; mudanças visuais passam antes pelo canvas):
 
 ## Pendências fora deste ticket
 
-- OCR dos PDFs escaneados da Cora: segue com o app aberto (cerca de 3 300 páginas).
 - "Use a cabeça! Java" tem só 33 páginas e pode estar incompleto.
 - Decisões da usuária em aberto: fluxo "Cora busca obra na internet", 12 perguntas do ciclo da Bonnie, plugin EGM da
   Emi, etiqueta de dinheiro da Casa.

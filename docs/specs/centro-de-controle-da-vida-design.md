@@ -182,7 +182,7 @@ O protótipo da sala de reunião (#56) foi aprovado e a sala está entregue (#57
 
 ## 9. Perfis locais de competência (2026-10-27)
 
-O design detalhado e os critérios de verificação estão em `docs/superpowers/specs/2026-10-27-perfis-locais-squads-e-estudo-design.md`. A entrega é dividida em: (1) catálogo local e seleção/materialização para squads de desenvolvimento; (2) perfis do ciclo de estudo, autorizados no escopo limitado reconciliado com #75 e confirmado pela usuária em 2026-10-28. Nunca enviar biblioteca/vault integral, conteúdo não selecionado ou dados além do mínimo pertinente à etapa.
+O design detalhado e os critérios de verificação estão em `docs/specs/2026-10-27-perfis-locais-squads-e-estudo-design.md`. A entrega é dividida em: (1) catálogo local e seleção/materialização para squads de desenvolvimento; (2) perfis do ciclo de estudo, autorizados no escopo limitado reconciliado com #75 e confirmado pela usuária em 2026-10-28. Nunca enviar biblioteca/vault integral, conteúdo não selecionado ou dados além do mínimo pertinente à etapa.
 
 ## 8. Fronteiras públicas de teste acordadas (2026-10-27)
 

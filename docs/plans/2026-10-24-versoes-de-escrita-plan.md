@@ -1,6 +1,6 @@
 # Plano de implementação — trechos de escrita versionados
 
-**Spec aprovada:** `docs/superpowers/specs/2026-10-24-versoes-de-escrita-design.md`
+**Spec aprovada:** `docs/specs/2026-10-24-versoes-de-escrita-design.md`
 **Issue:** #46
 **Executor/revisor preferido:** GPT-6 Luna High, em sessões/contextos separados
 **Branch:** `agent/ticket46-escrita`

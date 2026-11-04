@@ -196,7 +196,7 @@
 
 ## Atualização de 2026-10-27 — perfis locais
 
-- Referência: `docs/superpowers/specs/2026-10-27-perfis-locais-squads-e-estudo-design.md`.
+- Referência: `docs/specs/2026-10-27-perfis-locais-squads-e-estudo-design.md`.
 - Squads de desenvolvimento: implementar catálogo local e seleção manual de especialidade sobre papéis executáveis existentes; preservar exatamente um implementador e um revisor independente, aprovação humana, validação de modelo/conta e materialização atômica. Sem dependência do Paperclip e sem chamadas externas na composição manual.
 - Estudo: autorização reconciliada em 2026-10-28 com #75 e confirmação explícita da usuária. Tutor avalia diagnóstico, Curador avalia prática e Verificador confere reteste, apenas nas chamadas explícitas já existentes e com o mínimo de material selecionado (tópico, pergunta e trecho/fonte pertinente); nunca enviar biblioteca/vault integral, conteúdo não selecionado ou dados além do recorte autorizado. Busca/consulta de fontes segue local. Preservar gates e pausa/aguardo.
 - Squads/dados existentes não sofrem migração ou regravação automática. Este incremento permanece sem commit, push ou merge.

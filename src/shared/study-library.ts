@@ -7,8 +7,8 @@ export interface StudyLibraryHit {
   score: number
 }
 
-/** What Cora can do with a file of "study sources": read it, wait for OCR, or only find it by name. */
-export type StudySourceStatus = 'lida' | 'ocr' | 'lendo' | 'so-nome' | 'grande' | 'ilegivel'
+/** What Cora can do with a file of "study sources": read it, wait for the read to finish, or only find it by name. */
+export type StudySourceStatus = 'lida' | 'lendo' | 'so-nome' | 'grande' | 'ilegivel'
 
 export interface StudySourceInfo {
   /** Path relative to the vault. */
@@ -17,9 +17,13 @@ export interface StudySourceInfo {
   ext: string
   size: number
   status: StudySourceStatus
-  /** PDF only: pages, and how many have no text (scanned pages the OCR still has to read). */
+  /** PDF only: pages, and how many have no text (scanned pages). */
   pages?: number
   blankPages?: number
+  /** PDF only: a scan (images, no text); Cora cannot read it, so the user must remove it from the sources. */
+  scanned?: true
+  /** PDF only: many pages without text, though not a scan; the book should be adjusted. */
+  gaps?: true
 }
 
 export interface StudySourceInventory {
@@ -28,8 +32,6 @@ export interface StudySourceInventory {
   complete: boolean
   /** The "study sources" folder does not exist yet. */
   missingFolder?: true
-  /** Scanned PDFs handed to the background OCR by this check. */
-  ocrQueued: number
 }
 
 export interface StudyLibrarySearch {
@@ -113,6 +115,3 @@ export function studySnippet(text: string, query: StudyQuery, max = 320): string
   const cut = clean.slice(start, start + max).trim()
   return `${start > 0 ? '…' : ''}${cut}${start + max < clean.length ? '…' : ''}`
 }
-
-/** The background OCR as the corner notice shows it; null when idle. */
-export type StudyOcrState = { name: string; done: number; total: number; waiting: number } | null

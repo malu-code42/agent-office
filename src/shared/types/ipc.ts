@@ -38,7 +38,6 @@ import type { WritingVersion } from '../writing'
 import type { DecodedStudyBank, StudyQuestion } from '../study-questions'
 import type { StudyCycleState } from '../study-cycle'
 import type { StudyBankJob, StudyBankRequest } from '../study-bank'
-import type { StudyOcrState } from '../study-library'
 import type { StudyTrail } from '../study-trail'
 import type { StudySubtopics } from '../study-outline'
 import type { StudyIdeaSet } from '../study-ideas'
@@ -204,7 +203,6 @@ export type OfficeEvent =
   | { type: 'agent:upsert'; agent: AgentSummary }
   /** Andamento da montagem do banco de questões (null: relatório dispensado). */
   | { type: 'study-bank'; job: StudyBankJob | null }
-  | { type: 'study-ocr'; state: StudyOcrState }
   | { type: 'agent:removed'; agentId: string }
   | { type: 'agent:log'; agentId: string; entry: LogEntry }
   /** New log entries of the agent's subagents, grouped: one event per agent every ~250 ms at most. */
@@ -351,7 +349,7 @@ export interface OfficeAPI {
   readClassSchedule(): Promise<ClassScheduleView>
   /** Busca trechos apenas nos arquivos locais de estudo; nenhum conteúdo é enviado a modelos. */
   searchStudyLibrary(query: string): Promise<StudyLibrarySearch>
-  /** Todos os arquivos de "study sources" e o que a Cora faz com cada um; com `verify`, termina de ler os PDFs e manda os escaneados ao OCR. */
+  /** Todos os arquivos de "study sources" e o que a Cora faz com cada um; com `verify`, termina de ler os PDFs. */
   studySourceInventory(verify: boolean): Promise<StudySourceInventory>
   /**
    * Fontes da Cora para cada tema, da melhor para a pior, com página (slide ou seção) de início e de fim.

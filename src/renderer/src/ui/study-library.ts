@@ -60,14 +60,13 @@ export function studySourceItem(r: StudySourceRecommendation, toast: Toast, comp
 
 const STATUS_LABEL: Record<StudySourceStatus, string> = {
   lida: 'Lida',
-  ocr: 'Precisa de OCR',
   lendo: 'Lendo…',
   'so-nome': 'Só pelo nome',
   grande: 'Grande demais',
   ilegivel: 'Ilegível',
 }
 /** What each state asks of the user, worst first. */
-const STATUS_ORDER: StudySourceStatus[] = ['ilegivel', 'ocr', 'lendo', 'grande', 'so-nome', 'lida']
+const STATUS_ORDER: StudySourceStatus[] = ['ilegivel', 'lendo', 'grande', 'so-nome', 'lida']
 
 const fileSize = (bytes: number): string =>
   bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`
@@ -88,10 +87,12 @@ function inventoryRow(s: StudySourceInfo): HTMLElement {
 function inventoryView(inv: StudySourceInventory, verify: () => void, busy: boolean): HTMLElement[] {
   if (inv.missingFolder) return [h('p', { class: 'field-hint' }, 'A pasta “study sources” ainda não existe no vault.')]
   const count = (status: StudySourceStatus) => inv.sources.filter((s) => s.status === status).length
-  const pending = count('ocr') + count('lendo')
+  const pending = count('lendo')
   const chips = STATUS_ORDER.filter((status) => count(status)).map((status) =>
     h('span', { class: `study-inv-chip study-inv-status-${status}` }, `${count(status)} · ${STATUS_LABEL[status]}`),
   )
+  const scanned = inv.sources.filter((s) => s.scanned)
+  const partial = inv.sources.filter((s) => s.gaps)
   const sorted = [...inv.sources].sort(
     (a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status) || a.path.localeCompare(b.path, 'pt-BR'),
   )
@@ -108,6 +109,18 @@ function inventoryView(inv: StudySourceInventory, verify: () => void, busy: bool
         busy ? 'Verificando…' : pending ? `Verificar e integrar (${pending})` : 'Verificar de novo',
       ),
     ),
+    ...(scanned.length
+      ? [h('p', { class: 'field-hint' }, `PDF escaneado (só imagem), a Cora não lê. Retire das fontes: ${scanned.map((s) => s.path).join(', ')}`)]
+      : []),
+    ...(partial.length
+      ? [
+          h(
+            'p',
+            { class: 'field-hint' },
+            `PDF com páginas sem texto (imagem ou em branco), a Cora não lê essas páginas. Ajuste o livro: ${partial.map((s) => `${s.path} (${s.blankPages}/${s.pages})`).join(', ')}`,
+          ),
+        ]
+      : []),
     ...(inv.complete ? [] : [h('p', { class: 'field-hint' }, 'Algumas pastas ou atalhos não foram percorridos.')]),
     ...(sorted.length ? inventoryGroups(sorted) : [h('p', { class: 'field-hint' }, 'Nenhum arquivo na pasta.')]),
   ]
@@ -220,8 +233,6 @@ export function openStudyLibrary(root: HTMLElement, toast: Toast, topic = ''): v
     render()
     try {
       inventory = await window.office.studySourceInventory(verify)
-      if (verify)
-        toast(inventory.ocrQueued ? `${inventory.ocrQueued} PDF(s) escaneado(s) no OCR, em segundo plano.` : 'Nada pendente de OCR.', 'ok')
       announce(`${inventory.sources.length} fontes.`)
     } catch (error) {
       toast(cleanError(error), 'err')
@@ -278,7 +289,7 @@ export function openStudyLibrary(root: HTMLElement, toast: Toast, topic = ''): v
       librarySection('Pesquisar trechos', 'Passagens dos arquivos locais que falam do pedido. Separe termos com vírgula.', hitsList),
       librarySection(
         'Fontes disponíveis',
-        '“Verificar e integrar” termina de ler os PDFs novos e manda os escaneados para o OCR, em segundo plano.',
+        '“Verificar e integrar” termina de ler os PDFs novos.',
         inventoryList,
       ),
     ],

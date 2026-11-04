@@ -1,6 +1,6 @@
 # Plano de implementação — biblioteca de mídias
 
-**Design aprovado:** `docs/superpowers/specs/2026-10-23-biblioteca-de-midias-design.md`
+**Design aprovado:** `docs/specs/2026-10-23-biblioteca-de-midias-design.md`
 **Issue:** #45
 **Execução preferida pela usuária:** Luna em todas as fases; implementação e revisão em contextos separados
 **Branch de trabalho:** `agent/ticket45-midias`

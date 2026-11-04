@@ -13,7 +13,7 @@ import {
   type StudyQuestion,
 } from '@shared/study-questions'
 import { writeFileAtomic, writeFileAtomicChecked } from './fs-safe'
-import { PdfTextCache, type PdfExtractor, type PdfOcrJob } from './study-pdf'
+import { PdfTextCache, type PdfExtractor } from './study-pdf'
 
 export const STUDY_BANK_FILE = 'questoes-estudo.md'
 export const STUDY_SOURCES_DIRECTORY = 'study sources'
@@ -112,10 +112,10 @@ export class StudyQuestionService {
   constructor(
     vault: string,
     private readonly providers: StudySearchProviders = {},
-    options: { atomicWrite?: CheckedAtomicWrite; pdfCacheDir?: string; extractPdf?: PdfExtractor; ocrPdf?: (job: PdfOcrJob) => void } = {},
+    options: { atomicWrite?: CheckedAtomicWrite; pdfCacheDir?: string; extractPdf?: PdfExtractor } = {},
   ) {
     this.vault = resolve(vault)
-    this.pdf = new PdfTextCache(options.pdfCacheDir, options.extractPdf, options.ocrPdf)
+    this.pdf = new PdfTextCache(options.pdfCacheDir, options.extractPdf)
     this.atomicWrite =
       options.atomicWrite ??
       ((path, contents, beforeRename) => writeFileAtomicChecked(path, contents, beforeRename, `.tmp-${randomUUID()}`))
