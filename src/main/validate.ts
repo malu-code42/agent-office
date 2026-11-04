@@ -220,7 +220,8 @@ export const studyQuestionSaveArgsSchema = z.tuple([z.string().uuid(), z.array(s
 export const studyBankBuildArgsSchema = z.tuple([
   z
     .object({
-      discipline: z.string().regex(/^P\d-[A-Z]+$/).optional(),
+      // Required: the bank is built only for a discipline whose readiness is checked before the build.
+      discipline: z.string().regex(/^P\d-[A-Z]+$/),
       topic: z.string().trim().min(1).max(200).optional(),
       perTopic: z.number().int().min(1).max(50).optional(),
       perSubtopic: z.number().int().min(1).max(50).optional(),

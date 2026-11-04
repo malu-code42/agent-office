@@ -219,11 +219,9 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const [request] = parse(studyBankBuildArgsSchema, args, 'Montagem do banco inválida.')
     const trail = parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE))
     // The window's gate is not enough: the trail is checked again here, against the same trail the build reads.
-    if (request.discipline) {
-      const report = await checkDiscipline(trail, request.discipline)
-      const titles = studyBankTopics(trail, { discipline: request.discipline }).map((t) => t.title)
-      if (!isStudyReadinessReady(report, titles)) throw new Error('A disciplina ainda tem tópicos sem prontidão. Confira a prontidão antes de montar.')
-    }
+    const report = await checkDiscipline(trail, request.discipline)
+    const titles = studyBankTopics(trail, { discipline: request.discipline }).map((t) => t.title)
+    if (!isStudyReadinessReady(report, titles)) throw new Error('A disciplina ainda tem tópicos sem prontidão. Confira a prontidão antes de montar.')
     const library = studyLibrary()
     const bank = studyService()
     // Open questions and ones citing a text the student never sees go out (with a backup).

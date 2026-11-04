@@ -243,6 +243,11 @@ export async function openStudyBankBuilder(
 
   const start = async (request: StudyBankRequest) => {
     if (busy) return
+    // A job with no discipline (from "Todas as disciplinas") cannot be built again: the build needs one.
+    if (!request.discipline) {
+      toast('Escolha a disciplina antes de montar.', 'err')
+      return
+    }
     busy = true
     try {
       job = await window.office.startStudyBank(request)
