@@ -37,8 +37,11 @@ Hoje o coordenador do squad volta à usuária várias vezes para perguntar, e el
 | D8 | Agentes zeram o contexto a cada ticket e ao fim do grupo, para economizar tokens. |
 | D9 | Rotina diária em horário fixo, executada por um agente novo. Ela só **propõe** grupos; a usuária aceita. Nunca reagrupa um grupo em execução. |
 | D10 | A Emi tem um quadro de grupos por objetivo na sua sala; a usuária escolhe qual iniciar. |
-| D11 | Os grupos 4 e 5 viram um só: "Andares de projeto" (AO-40, 47, 49, 50, 51, 54, 57, 58). A Emi verifica a ordem entre eles. |
+| D11 | Os antigos grupos 4 e 5 viram um só, "Funcionamento dos squads": AO-47, 49, 50, 51, 54, 56, 57, 58 e AO-60. É o primeiro grupo a rodar, antes do resto. A Emi verifica a ordem entre eles. AO-40 (visual) fica solto. |
 | D12 | A entrega é fatiada em etapas (abaixo). |
+| D13 | A Emi recebe permissão para controlar tudo do andar de projeto: squads, tickets e criar/excluir agentes (AO-60). Merge, push na `main` e segredos continuam fora do alcance dela. |
+| D14 | A rotina de agrupamento roda todo dia às 8h. |
+| D15 | Os "quadros" com "Passo 1/5" e "Passo 2/6" sobre as mesas são o passo do pipeline do squad (de `squads/<code>/state.json`, desenhado em `src/renderer/src/game/squads.ts`). A popup abre ao clicar neles. |
 
 ## Como as lacunas ficam escritas
 
@@ -64,7 +67,5 @@ O ticket precisa se bastar, porque cada ticket começa sem contexto.
 
 ## Em aberto
 
-- Qual é exatamente o "quadro das fases dos projetos" onde a popup abre. Não foi localizado no código; é preciso a usuária apontar a tela.
-- O horário fixo da rotina diária.
 - Onde o coordenador envia hoje as perguntas, para a popup substituir esse caminho.
 - Como a ordem e as dependências entre os tickets dos grupos 4 e 5 são verificadas (a Emi faz isso antes do pré-voo).
