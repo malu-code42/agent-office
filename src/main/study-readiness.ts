@@ -1,11 +1,12 @@
 import { join } from 'node:path'
-import { disciplineIdOf, studyBankFolders } from '@shared/study-bank'
+import { disciplineIdOf, studyBankFolders, type StudyBankStop } from '@shared/study-bank'
 import type { StudyBookSuggestion } from '@shared/study-bank'
+
 import type { StudyLibraryHit, StudySourceInfo } from '@shared/study-library'
 import type { StudySubtopics } from '@shared/study-outline'
-import type { StudyReadiness, StudyReadinessTopic } from '@shared/study-readiness'
+import type { StudyProofFailure, StudyReadiness, StudyReadinessTopic } from '@shared/study-readiness'
 import type { StudyTrail } from '@shared/study-trail'
-import { studyBankTopics } from './study-bank-builder'
+import { buildStudyBank, studyBankTopics } from './study-bank-builder'
 import { loadJson, reportLoad, writeJsonAtomic } from './fs-safe'
 
 export const STUDY_READINESS_FILE = 'study-readiness.json'
@@ -72,6 +73,53 @@ export async function checkDisciplineReadiness(
     }
   }
   return { discipline, builtAt: now, topics: out }
+}
+
+const PROOF_REASON: Record<StudyProofFailure, string> = {
+  unsupported: 'O livro não sustenta uma questão sobre o tópico.',
+  similar: 'As questões feitas saíram parecidas demais com outras do tópico.',
+  refused: 'A prova foi recusada: a resposta não estava clara no livro.',
+}
+
+const sameTopic = (a: StudyReadinessTopic, b: StudyReadinessTopic) => a.id === b.id && a.topic === b.topic
+
+/**
+ * Makes one exam question for each ready topic of the report, through the bank builder (perTopic 1, and
+ * subtopics off so the builder does not split it). A question that passes joins the bank; one that fails
+ * locks the topic ('travado') with its reason, saved on top of the stored report at once. A model or bank
+ * stop leaves the topic ready to retry.
+ */
+export async function proveReadyTopics(
+  trail: StudyTrail,
+  report: StudyReadiness,
+  deps: { build: Parameters<typeof buildStudyBank>[1]; store: StudyReadinessStore },
+  signal?: AbortSignal,
+): Promise<{ report: StudyReadiness; stop?: StudyBankStop; message?: string }> {
+  let current = report
+  for (const item of report.topics) {
+    if (item.state !== 'pronto') continue
+    if (signal?.aborted) return { report: current, stop: 'cancelled' }
+    // The stored report may be newer than the one given: a topic that a newer check no longer marks ready is not proved.
+    const live = deps.store.read()[report.discipline] ?? current
+    if (!live.topics.some((t) => sameTopic(t, item) && t.state === 'pronto')) continue
+    // The id picks exactly one topic of the trail (a title can repeat). Subtopics are off: one question per topic.
+    const built = await buildStudyBank(trail, { ...deps.build, subtopics: undefined }, {
+      discipline: report.discipline,
+      topic: item.id ?? item.topic,
+      perTopic: 1,
+      signal,
+    })
+    if (built.stop) return { report: current, stop: built.stop, message: built.message }
+    const result = built.results[0]
+    if (!result || built.results.length !== 1) throw new Error(`O tópico "${item.topic}" não está na trilha, ou está repetido nela.`)
+    if (result.added || result.reason === 'complete') continue
+    // The bank reports 'little' when the chain could not support a question, which is the 'unsupported' failure.
+    const failure: StudyProofFailure = result.reason === 'similar' || result.reason === 'refused' ? result.reason : 'unsupported'
+    const topics = live.topics.map((t) => (sameTopic(t, item) ? { ...t, state: 'travado' as const, failure, reason: PROOF_REASON[failure] } : t))
+    current = { ...live, topics }
+    deps.store.save(current)
+  }
+  return { report: current }
 }
 
 const isReport = (value: unknown): value is StudyReadiness => {

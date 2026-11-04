@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import {
   checkSubtopics,
   listsAgree,
+  tocScore,
   type OutlineEntry,
   type SubtopicCheck,
   type StudySubtopics,
@@ -59,8 +60,14 @@ export async function buildSubtopics(
     const verdict = (await ask(ARBITER_PROMPT, { topic, outline, A: a.subtopics, B: b.subtopics })) as { pick?: unknown } | null
     chosen = verdict?.pick === 'A' ? a : verdict?.pick === 'B' ? b : null
   }
-  if (!chosen?.ok)
-    return { ...base, status: 'sem-acordo', reason: 'As listas feitas separadamente não concordaram; o tópico segue sem subtemas.', subtopics: [] }
+  if (!chosen?.ok) {
+    // Say which path failed: an invalid list (its rule) or two valid lists that the third agent did not pick between.
+    const invalid = [a, b].flatMap((check) => (check.ok ? [] : [check.reason]))
+    const reason = invalid.length
+      ? `Uma lista não passou nas regras: ${invalid.join(' ')}`
+      : 'As listas feitas separadamente não concordaram e o árbitro não escolheu nenhuma.'
+    return { ...base, status: 'sem-acordo', reason, subtopics: [] }
+  }
   return { ...base, status: 'ok', agreed, subtopics: chosen.subtopics.map((s) => withSections(s, outline)) }
 }
 
@@ -84,10 +91,14 @@ export async function buildTopicSubtopics(
   const { folders } = studyBankFolders(disciplineIdOf(topic.id), topic.discipline)
   const hits = (await library.search(topic.title, folders)).hits
   const books = [...new Set(hits.map((hit) => fileOf(hit.sourceRef)).filter((file) => /\.pdf$/i.test(file)))].slice(0, MAX_BOOKS)
+  // The book whose table of contents talks most about the topic, not the first one that has a table: the search order alone picked unrelated books.
+  let best: { book: string; outline: OutlineEntry[]; score: number } | undefined
   for (const book of books) {
     const outline = await library.outline(book)
-    if (outline.length) return buildSubtopics(topic.title, book, outline, ask)
+    const score = outline.length ? tocScore(topic.title, outline) : -1
+    if (outline.length && (!best || score > best.score)) best = { book, outline, score }
   }
+  if (best) return buildSubtopics(topic.title, best.book, best.outline, ask)
   return buildSubtopics(topic.title, books[0] ?? '', [], ask)
 }
 

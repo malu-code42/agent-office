@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { checkSubtopics, listsAgree, tocEntries, type OutlineEntry } from '../src/shared/study-outline'
+import { checkSubtopics, listsAgree, tocEntries, tocScore, type OutlineEntry } from '../src/shared/study-outline'
 import type { StudySubtopics } from '../src/shared/study-outline'
 import { dataNotices } from '../src/main/fs-safe'
 import { buildSubtopics, buildTopicSubtopics, StudySubtopicStore, STUDY_SUBTOPICS_FILE } from '../src/main/study-subtopics'
@@ -80,6 +80,51 @@ describe('buildTopicSubtopics', () => {
       async () => null,
     )
     expect(none).toMatchObject({ status: 'sem-indice', source: 'curto.pdf' })
+  })
+})
+
+describe('buildTopicSubtopics book choice', () => {
+  it('uses the book whose table of contents is about the topic, not the first one that has a table', async () => {
+    const about = Array.from({ length: 12 }, (_, id) => ({ id, title: `Portas lógicas parte ${id}`, page: 10 + id }))
+    const library = {
+      search: async () => ({ hits: [{ sourceRef: 'geral.pdf:1' }, { sourceRef: 'portas.pdf:2' }] as never }),
+      outline: async (path: string) => (path === 'geral.pdf' ? outline : about),
+    }
+    const out = await buildTopicSubtopics({ id: 'x', title: 'Portas lógicas', discipline: 'D' } as never, library, async () => ({
+      subtopics: list([0, 1], [2, 3], [4, 5]),
+    }))
+    expect(out).toMatchObject({ status: 'ok', source: 'portas.pdf' })
+  })
+})
+
+describe('buildSubtopics reasons', () => {
+  const same = list([0, 1], [2, 3], [4, 5])
+  it('says which list broke a rule', async () => {
+    const ask = async () => ({ subtopics: list([99], [98], [97]) })
+    const out = await buildSubtopics('T', 'livro.pdf', outline, ask)
+    expect(out.status).toBe('sem-acordo')
+    expect(out.reason).toContain('Uma lista não passou nas regras')
+    expect(out.reason).toContain('não existem no índice')
+  })
+  it('says the third agent picked none when both lists are valid and differ', async () => {
+    let calls = 0
+    const ask = async (system: string) =>
+      system.includes('Two people') ? { pick: 'none' } : { subtopics: calls++ === 0 ? same : list([6, 7], [8, 9], [10, 11]) }
+    const out = await buildSubtopics('T', 'livro.pdf', outline, ask)
+    expect(out.status).toBe('sem-acordo')
+    expect(out.reason).toContain('o árbitro não escolheu nenhuma')
+  })
+})
+
+describe('tocScore', () => {
+  it('counts the lines that share a word with the topic, ignoring accents, case and plurals', () => {
+    const toc: OutlineEntry[] = [
+      { id: 0, title: 'Portas Lógicas e circuitos', page: 1 },
+      { id: 1, title: 'Porta comum', page: 2 },
+      { id: 2, title: 'Lei de Ohm', page: 3 },
+    ]
+    expect(tocScore('Portas lógicas', toc)).toBe(2)
+    expect(tocScore('Álgebra booleana', toc)).toBe(0)
   })
 })
 
