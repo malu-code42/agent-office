@@ -186,18 +186,7 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
         continue
       }
       // One passage per question: the author can only repeat itself past the passages there are.
-      const needed = mine.length + missing
       hits = distinct(hits)
-      if (hits.length < needed) {
-        // The discipline's own books come first; the other books of the library (what Cora shows) fill what is left.
-        try {
-          const own = new Set(hits.map((hit) => hit.sourceRef))
-          const more = (await deps.library.search(unit.query)).hits.filter((hit) => !NAME_ONLY.test(hit.excerpt) && !own.has(hit.sourceRef))
-          hits = distinct([...hits, ...more])
-        } catch (error) {
-          return { results, stop: 'error', message: (error as Error).message }
-        }
-      }
       // Only as many questions as there are passages left (a short book still gives what it can; the report says it fell short).
       const toMake = Math.min(missing, hits.length - mine.length)
       if (toMake < 1) {
