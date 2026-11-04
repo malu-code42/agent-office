@@ -2,6 +2,8 @@ import { join } from 'node:path'
 import {
   checkSubtopics,
   listsAgree,
+  SUBTOPICS_RULE,
+  TOC_MIN_SCORE,
   tocScore,
   type OutlineEntry,
   type SubtopicCheck,
@@ -44,7 +46,7 @@ export async function buildSubtopics(
   ask: AskJson,
   now = Date.now(),
 ): Promise<StudySubtopics> {
-  const base = { topic, source, builtAt: now }
+  const base = { topic, source, builtAt: now, rule: SUBTOPICS_RULE }
   if (!outline.length) return { ...base, status: 'sem-indice', reason: 'O livro não tem um índice que eu consiga ler.', subtopics: [] }
   const payload = { topic, outline }
   const [first, second] = await Promise.all([ask(MAKER_PROMPT, payload), ask(MAKER_PROMPT, payload)])
@@ -76,10 +78,12 @@ const withSections = (draft: SubtopicDraft, outline: OutlineEntry[]) => ({
   sections: draft.entries.map((id) => outline.find((entry) => entry.id === id)!).map(({ title, page }) => ({ title, page })),
 })
 
-const MAX_BOOKS = 3
 const fileOf = (sourceRef: string): string => sourceRef.replace(/#.*$/, '').replace(/:\d+$/, '')
 
-/** Builds the subtopics of a trail topic from the table of contents of the first of its discipline's PDFs that has one. */
+/**
+ * Builds the subtopics of a trail topic from the table of contents of the book that talks most about it. Every PDF of the search is
+ * scored (none is cut off before). No book with a table: `sem-indice`. Tables exist but none is about the topic: `sem-acordo`, never a random book.
+ */
 export async function buildTopicSubtopics(
   topic: StudyTrailTopic,
   library: {
@@ -90,16 +94,27 @@ export async function buildTopicSubtopics(
 ): Promise<StudySubtopics> {
   const { folders } = studyBankFolders(disciplineIdOf(topic.id), topic.discipline)
   const hits = (await library.search(topic.title, folders)).hits
-  const books = [...new Set(hits.map((hit) => fileOf(hit.sourceRef)).filter((file) => /\.pdf$/i.test(file)))].slice(0, MAX_BOOKS)
-  // The book whose table of contents talks most about the topic, not the first one that has a table: the search order alone picked unrelated books.
+  const books = [...new Set(hits.map((hit) => fileOf(hit.sourceRef)).filter((file) => /\.pdf$/i.test(file)))]
   let best: { book: string; outline: OutlineEntry[]; score: number } | undefined
+  let withIndex: string | undefined
   for (const book of books) {
     const outline = await library.outline(book)
-    const score = outline.length ? tocScore(topic.title, outline) : -1
-    if (outline.length && (!best || score > best.score)) best = { book, outline, score }
+    if (!outline.length) continue
+    withIndex ??= book
+    const score = tocScore(topic.title, outline)
+    if (score >= TOC_MIN_SCORE && (!best || score > best.score)) best = { book, outline, score }
   }
   if (best) return buildSubtopics(topic.title, best.book, best.outline, ask)
-  return buildSubtopics(topic.title, books[0] ?? '', [], ask)
+  if (!withIndex) return buildSubtopics(topic.title, books[0] ?? '', [], ask)
+  return {
+    topic: topic.title,
+    source: withIndex,
+    builtAt: Date.now(),
+    rule: SUBTOPICS_RULE,
+    status: 'sem-acordo',
+    reason: 'Nenhum livro com índice trata deste tópico; não escolhi um livro ao acaso.',
+    subtopics: [],
+  }
 }
 
 export const STUDY_SUBTOPICS_FILE = 'study-subtopics.json'
@@ -137,6 +152,7 @@ export class StudySubtopicStore {
   }
 }
 
+// An entry built by another rule (e.g. the first book without a check, before AO-43) is not kept: it is built again.
 const isEntry = (value: unknown): value is StudySubtopics => {
   const e = value as StudySubtopics | null
   return (
@@ -144,6 +160,7 @@ const isEntry = (value: unknown): value is StudySubtopics => {
     typeof e.topic === 'string' &&
     typeof e.source === 'string' &&
     typeof e.builtAt === 'number' &&
+    e.rule === SUBTOPICS_RULE &&
     (e.status === 'ok' || e.status === 'sem-indice' || e.status === 'sem-acordo') &&
     Array.isArray(e.subtopics) &&
     e.subtopics.every((s) => !!s && typeof s.name === 'string' && Array.isArray(s.sections))

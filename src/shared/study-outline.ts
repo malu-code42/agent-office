@@ -36,7 +36,13 @@ export function tocEntries(pages: string[]): OutlineEntry[] {
   return found.slice(0, TOC_LINES).map((entry, id) => ({ id, ...entry }))
 }
 
-/** The words of a title that can tell one topic from another: accent-free, at least 5 letters, plural "s" dropped. */
+/** Generic words of study books (accent-free, plural "s" dropped): they match any topic, so they cannot tell one book from another. */
+const GENERIC_WORDS = new Set([
+  'introducao', 'principio', 'sistema', 'conceito', 'capitulo', 'exemplo', 'exercicio', 'resumo', 'aplicacao',
+  'fundamento', 'analise', 'circuito', 'metodo', 'tecnica', 'processo', 'tabela', 'figura', 'unidade', 'estudo', 'parte',
+])
+
+/** The words of a title that can tell one topic from another: accent-free, at least 5 letters, plural "s" dropped, no generic words. */
 const keyWords = (text: string): Set<string> =>
   new Set(
     text
@@ -45,8 +51,12 @@ const keyWords = (text: string): Set<string> =>
       .toLowerCase()
       .split(/[^a-z0-9]+/)
       .filter((word) => word.length >= 5)
-      .map((word) => word.replace(/s$/, '')),
+      .map((word) => word.replace(/s$/, ''))
+      .filter((word) => !GENERIC_WORDS.has(word)),
   )
+
+/** The least score for a book to count as being about the topic: at least one line of its table shares a key word with it. */
+export const TOC_MIN_SCORE = 1
 
 /** How many lines of a table of contents share a key word with the topic. Tells which book is about the topic. */
 export function tocScore(topic: string, outline: OutlineEntry[]): number {
@@ -54,7 +64,7 @@ export function tocScore(topic: string, outline: OutlineEntry[]): number {
   return outline.filter((entry) => [...keyWords(entry.title)].some((word) => words.has(word))).length
 }
 
-export type SubtopicCheck ={ ok: true; subtopics: SubtopicDraft[] } | { ok: false; reason: string }
+export type SubtopicCheck = { ok: true; subtopics: SubtopicDraft[] } | { ok: false; reason: string }
 
 /** Rules the code enforces on a proposed list, whoever wrote it. Its sections must exist in the table and belong to one subtopic only. */
 export function checkSubtopics(raw: unknown, outline: OutlineEntry[]): SubtopicCheck {
@@ -98,11 +108,16 @@ export function listsAgree(a: SubtopicDraft[], b: SubtopicDraft[]): boolean {
   return match(a, b) && match(b, a) && overlap(a.flatMap((x) => x.entries), b.flatMap((x) => x.entries)) >= 0.7
 }
 
+/** Version of how the book was chosen (by score, AO-43). Stored entries of another version are built again. */
+export const SUBTOPICS_RULE = 2
+
 export interface StudySubtopics {
   topic: string
   /** The book the table of contents came from. */
   source: string
   builtAt: number
+  /** The SUBTOPICS_RULE it was built with. */
+  rule: number
   status: 'ok' | 'sem-indice' | 'sem-acordo'
   /** Plain reason when the status is not ok. */
   reason?: string
