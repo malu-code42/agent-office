@@ -1,0 +1,88 @@
+import { join } from 'node:path'
+import { disciplineIdOf, studyBankFolders } from '@shared/study-bank'
+import type { StudyLibraryHit, StudySourceInfo } from '@shared/study-library'
+import type { StudySubtopics } from '@shared/study-outline'
+import type { StudyReadiness, StudyReadinessTopic } from '@shared/study-readiness'
+import type { StudyTrail } from '@shared/study-trail'
+import { studyBankTopics } from './study-bank-builder'
+import { loadJson, reportLoad, writeJsonAtomic } from './fs-safe'
+
+export const STUDY_READINESS_FILE = 'study-readiness.json'
+/** Fewer passages than this and the bank would make only a handful of questions from the topic. */
+const MIN_PASSAGES = 3
+const NAME_ONLY = /O nome corresponde|Encontrado pelo nome/
+
+interface Deps {
+  /** The vault root: the folders in the report are full paths under it. */
+  vault: string
+  library: {
+    search(query: string, scope?: readonly string[]): Promise<{ hits: StudyLibraryHit[] }>
+    inventory(verify?: boolean): Promise<{ sources: StudySourceInfo[]; missingFolder?: true }>
+  }
+  subtopics: { get(topic: string): StudySubtopics | undefined }
+}
+
+/**
+ * The state of each topic of a discipline, read from its own books only (the discipline's folders
+ * under textbooks). A PDF with no selectable text is not indexed: it makes a topic "precisa-ocr" only
+ * when its name matches the topic (the search finds it by name). Subtopics are read from the store,
+ * never built here, and no web or model is called.
+ */
+export async function checkDisciplineReadiness(trail: StudyTrail, discipline: string, deps: Deps, now = Date.now()): Promise<StudyReadiness> {
+  const topics = studyBankTopics(trail, { discipline })
+  if (!topics.length) throw new Error('Nenhum tópico da trilha corresponde à disciplina.')
+  // Verified, not background: a PDF still being read would look like one with no passages.
+  const { sources, missingFolder } = await deps.library.inventory(true)
+  const out: StudyReadinessTopic[] = []
+  for (const topic of topics) {
+    const { folders } = studyBankFolders(disciplineIdOf(topic.id), topic.discipline)
+    const found = (await deps.library.search(topic.title, folders)).hits
+    const hits = found.filter((hit) => !NAME_ONLY.test(hit.excerpt))
+    const named = new Set(found.filter((hit) => NAME_ONLY.test(hit.excerpt)).map((hit) => hit.sourceRef))
+    const scanned = sources.filter((s) => s.scanned && named.has(s.path)).map((s) => s.name)
+    const paths = folders.map((f) => join(deps.vault, f))
+    const base = { id: topic.id, topic: topic.title, folders: paths }
+    if (!hits.length && scanned.length) {
+      out.push({ ...base, state: 'precisa-ocr', reason: `Sem texto selecionável: ${scanned.join(', ')}. Precisa de um PDF com texto selecionável; coloque a versão digital do livro em uma destas pastas: ${paths.join(', ')}.` })
+    } else if (!hits.length) {
+      const reason = missingFolder
+        ? `A pasta "study sources" ainda não existe; crie-a e coloque o livro em uma destas pastas: ${paths.join(', ')}.`
+        : `Nenhum trecho sobre "${topic.title}" nos livros da pasta.`
+      out.push({ ...base, state: 'sem-fonte', reason })
+    } else if (hits.length < MIN_PASSAGES) {
+      out.push({ ...base, state: 'poucos-trechos', reason: `Só ${hits.length} trecho(s) sobre "${topic.title}" nos livros da pasta; são necessários ${MIN_PASSAGES}.` })
+    } else {
+      const entry = deps.subtopics.get(topic.title)
+      if (entry?.status === 'ok') out.push({ ...base, state: 'pronto', reason: `${hits.length} trechos e ${entry.subtopics.length} subtemas.` })
+      else out.push({ ...base, state: 'sem-subtemas', reason: entry?.reason ?? 'Os subtemas ainda não foram montados.' })
+    }
+  }
+  return { discipline, builtAt: now, topics: out }
+}
+
+const isReport = (value: unknown): value is StudyReadiness => {
+  const r = value as StudyReadiness | null
+  return !!r && typeof r.discipline === 'string' && typeof r.builtAt === 'number' && Array.isArray(r.topics)
+}
+
+/** The last readiness report of each discipline, in a userData file. Replaced only by a new check of that discipline. */
+export class StudyReadinessStore {
+  private readonly file: string
+
+  constructor(dataDir: string) {
+    this.file = join(dataDir, STUDY_READINESS_FILE)
+  }
+
+  read(): Record<string, StudyReadiness> {
+    const result = loadJson<Record<string, unknown>>(this.file, {
+      valid: (value): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value),
+    })
+    reportLoad(this.file, result)
+    const all = result.status === 'ok' || result.status === 'restored' ? result.data : {}
+    return Object.fromEntries(Object.entries(all).filter((pair): pair is [string, StudyReadiness] => isReport(pair[1])))
+  }
+
+  save(report: StudyReadiness): void {
+    writeJsonAtomic(this.file, { ...this.read(), [report.discipline]: report }, { mode: 0o600 })
+  }
+}
