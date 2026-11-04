@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { disciplineIdOf, studyBankFolders, type StudyBookSuggestion } from '@shared/study-bank'
+import { disciplineIdOf, studyBankFolders } from '@shared/study-bank'
 import type { StudyLibraryHit, StudySourceInfo } from '@shared/study-library'
 import type { StudySubtopics } from '@shared/study-outline'
 import type { StudyReadiness, StudyReadinessTopic } from '@shared/study-readiness'
@@ -13,36 +13,42 @@ const MIN_PASSAGES = 3
 const NAME_ONLY = /O nome corresponde|Encontrado pelo nome/
 
 interface Deps {
+  /** The vault root: the folders in the report are full paths under it. */
+  vault: string
   library: {
     search(query: string, scope?: readonly string[]): Promise<{ hits: StudyLibraryHit[] }>
-    inventory(verify?: boolean): Promise<{ sources: StudySourceInfo[] }>
+    inventory(verify?: boolean): Promise<{ sources: StudySourceInfo[]; missingFolder?: true }>
   }
   subtopics: { get(topic: string): StudySubtopics | undefined }
-  /** Textbooks on the web for a topic with no passage; a failure just means no suggestion. */
-  suggestBooks?: (topic: string, discipline: string) => Promise<StudyBookSuggestion[]>
 }
 
 /**
  * The state of each topic of a discipline, read from its own books only (the discipline's folders
- * under textbooks). A PDF with no selectable text is not indexed: a topic it would have covered is
- * "precisa-ocr". Subtopics are read from the store, never built here.
+ * under textbooks). A PDF with no selectable text is not indexed: it makes a topic "precisa-ocr" only
+ * when its name matches the topic (the search finds it by name). Subtopics are read from the store,
+ * never built here, and no web or model is called.
  */
 export async function checkDisciplineReadiness(trail: StudyTrail, discipline: string, deps: Deps, now = Date.now()): Promise<StudyReadiness> {
   const topics = studyBankTopics(trail, { discipline })
   if (!topics.length) throw new Error('Nenhum tópico da trilha corresponde à disciplina.')
   // Verified, not background: a PDF still being read would look like one with no passages.
-  const { sources } = await deps.library.inventory(true)
+  const { sources, missingFolder } = await deps.library.inventory(true)
   const out: StudyReadinessTopic[] = []
   for (const topic of topics) {
     const { folders } = studyBankFolders(disciplineIdOf(topic.id), topic.discipline)
-    const hits = (await deps.library.search(topic.title, folders)).hits.filter((hit) => !NAME_ONLY.test(hit.excerpt))
-    const scanned = sources.filter((s) => s.scanned && folders.some((f) => s.path.startsWith(f))).map((s) => s.name)
-    const base = { id: topic.id, topic: topic.title, folders: [...folders] }
+    const found = (await deps.library.search(topic.title, folders)).hits
+    const hits = found.filter((hit) => !NAME_ONLY.test(hit.excerpt))
+    const named = new Set(found.filter((hit) => NAME_ONLY.test(hit.excerpt)).map((hit) => hit.sourceRef))
+    const scanned = sources.filter((s) => s.scanned && named.has(s.path)).map((s) => s.name)
+    const paths = folders.map((f) => join(deps.vault, f))
+    const base = { id: topic.id, topic: topic.title, folders: paths }
     if (!hits.length && scanned.length) {
-      out.push({ ...base, state: 'precisa-ocr', reason: `Sem texto selecionável: ${scanned.join(', ')}. Precisa de OCR, que o app não faz; coloque um PDF com texto.` })
+      out.push({ ...base, state: 'precisa-ocr', reason: `Sem texto selecionável: ${scanned.join(', ')}. Precisa de um PDF com texto selecionável; coloque a versão digital do livro em uma destas pastas: ${paths.join(', ')}.` })
     } else if (!hits.length) {
-      const books = deps.suggestBooks ? await suggest(deps.suggestBooks, topic.title, topic.discipline) : []
-      out.push({ ...base, state: 'sem-fonte', reason: `Nenhum trecho sobre "${topic.title}" nos livros da pasta.`, ...(books.length ? { books } : {}) })
+      const reason = missingFolder
+        ? `A pasta "study sources" ainda não existe; crie-a e coloque o livro em uma destas pastas: ${paths.join(', ')}.`
+        : `Nenhum trecho sobre "${topic.title}" nos livros da pasta.`
+      out.push({ ...base, state: 'sem-fonte', reason })
     } else if (hits.length < MIN_PASSAGES) {
       out.push({ ...base, state: 'poucos-trechos', reason: `Só ${hits.length} trecho(s) sobre "${topic.title}" nos livros da pasta; são necessários ${MIN_PASSAGES}.` })
     } else {
@@ -52,14 +58,6 @@ export async function checkDisciplineReadiness(trail: StudyTrail, discipline: st
     }
   }
   return { discipline, builtAt: now, topics: out }
-}
-
-async function suggest(fn: NonNullable<Deps['suggestBooks']>, topic: string, discipline: string): Promise<StudyBookSuggestion[]> {
-  try {
-    return await fn(topic, discipline)
-  } catch {
-    return []
-  }
 }
 
 const isReport = (value: unknown): value is StudyReadiness => {

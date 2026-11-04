@@ -1,6 +1,4 @@
-import type { StudyBookSuggestion } from './study-bank'
-
-// Before "Gerar": what each topic of a discipline still lacks. Checked by code, no model call.
+// Before "Gerar": what each topic of a discipline still lacks. Checked by code, no model call and no web call.
 
 export type StudyReadinessState = 'pronto' | 'sem-fonte' | 'poucos-trechos' | 'sem-subtemas' | 'precisa-ocr'
 
@@ -11,10 +9,8 @@ export interface StudyReadinessTopic {
   state: StudyReadinessState
   /** What is missing or what is ready, in plain words. */
   reason: string
-  /** Where a book for the topic goes: the discipline's folders under study sources/textbooks. */
+  /** Where a book for the topic goes: full paths of the discipline's folders under study sources/textbooks (vault root + folder). */
   folders: string[]
-  /** For 'sem-fonte': textbooks found on the web, open ones first. */
-  books?: StudyBookSuggestion[]
 }
 
 export interface StudyReadiness {
