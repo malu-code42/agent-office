@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { query } from '@anthropic-ai/claude-agent-sdk'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { checkDisciplineReadiness, StudyReadinessStore } from '../src/main/study-readiness'
 import type { StudyLibraryHit, StudySourceInfo } from '../src/shared/study-library'
@@ -101,6 +102,7 @@ describe('checkDisciplineReadiness', () => {
     }
     expect(lib.search.mock.calls.every(([, scope]) => scope !== undefined)).toBe(true)
     expect(subtopics.build).not.toHaveBeenCalled()
+    expect(query).not.toHaveBeenCalled()
   })
 
   it('reports a topic with no passage in the discipline folders as sem-fonte, not filled from the library', async () => {
@@ -158,6 +160,17 @@ describe('checkDisciplineReadiness', () => {
     })
     expect(report.topics.find((t) => t.topic === 'Ondas')).toMatchObject({ state: 'sem-subtemas' })
     expect(report.topics.find((t) => t.topic === 'Diodos')).toMatchObject({ state: 'precisa-ocr' })
+  })
+
+  it('does not mark a topic precisa-ocr when its scanned PDF is in the folders but other pages of its text books match', async () => {
+    const path = 'study sources/textbooks/Eletrônica/Diodos.pdf'
+    const report = await checkDisciplineReadiness(trail, 'P2-HW', {
+      vault: VAULT,
+      library: library({ Diodos: 3 }, [scannedPdf(path)], { Diodos: [path] }),
+      subtopics: noSubtopics,
+    })
+    expect(report.topics.find((t) => t.topic === 'Diodos')).toMatchObject({ state: 'sem-subtemas' })
+    expect(report.topics.some((t) => t.state === 'precisa-ocr')).toBe(false)
   })
 
   it('keeps a topic sem-fonte when the scanned PDF in the folders is not a candidate for it', async () => {
