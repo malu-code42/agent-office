@@ -24,7 +24,7 @@ import { createCompletionUndo } from '../tasks-undo'
 import { PersonalRoutineStore } from '../personal-routines-store'
 import { personalRoutineTaskFingerprintFromLine, personalRoutineTaskFingerprintFromTask } from '../personal-routine-fingerprint'
 import { buildStudyBank, studyBankTopics } from '../study-bank-builder'
-import { StudyReadinessStore, type ReadinessSource } from '../study-readiness'
+import { checkDisciplineReadiness, StudyReadinessStore, type ReadinessSource } from '../study-readiness'
 import { askClaude } from '../study-questions-grounded'
 import { buildTopicSubtopics, StudySubtopicStore } from '../study-subtopics'
 import { generateIdeas, StudyIdeaStore } from '../study-ideas'
@@ -68,6 +68,7 @@ import {
   resetStudyCycleArgsSchema,
   resumeStudyCycleArgsSchema,
   studySubtopicsArgsSchema,
+  studyReadinessArgsSchema,
   deleteStudyQuestionsArgsSchema,
   searchStudyLibraryArgsSchema,
   studySourceInventoryArgsSchema,
@@ -260,6 +261,16 @@ export function registerTasksIpc(ctx: IpcContext): void {
     subtopicStore.save(entry)
     return entry
   })
+  // Checks each topic of a discipline by code (books, subtopics already stored) and keeps the report: the only source of "pronto".
+  ipcMain.handle('office:checkStudyReadiness', async (_e, ...args: unknown[]) => {
+    const [discipline] = parse(studyReadinessArgsSchema, args, 'Disciplina inválida.')
+    const vault = requireVault()
+    const trail = parseStudyTrail(readOptionalFile(vault, STUDY_TRAIL_FILE))
+    const report = await checkDisciplineReadiness(trail, discipline, { vault, library: studyLibrary(), subtopics: { get: (topic) => subtopicStore.read()[topic] } })
+    readinessStore.save(report)
+    return report
+  })
+  ipcMain.handle('office:readStudyReadiness', () => readinessStore.read())
   // Software ideas for the topics the student has studied (a topic of the study cycles), one stored set per topic.
   const ideaStore = new StudyIdeaStore(ctx.store.dataDirectory)
   ipcMain.handle('office:readStudyIdeas', () => ideaStore.read())
