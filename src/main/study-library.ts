@@ -27,7 +27,7 @@ import {
 } from '@shared/study-library'
 import { tocEntries, type OutlineEntry } from '@shared/study-outline'
 import { rankStudySources, type StudySourceDoc, type StudySourceRecommendations } from '@shared/study-sources'
-import { needsOcr, pagesWithoutText, type PdfExtractor, type PdfOcrJob } from './study-pdf'
+import { isScanned, pagesWithoutText, type PdfExtractor } from './study-pdf'
 import { markdownUnits, PdfTextCache, pdfSearchText, pdfUnits, pptxText, slideUnits, textUnits } from './study-source-text'
 
 const SOURCE_DIR = 'study sources'
@@ -97,10 +97,10 @@ export class StudyLibrary {
    * `pdf.cacheDir`: where PDF pages are cached (the app data folder; without it PDFs are parsed on
    * every search). `pdf.extract`: the parser (the app's worker thread; in-thread by default).
    */
-  constructor(vault: string, pdf: { cacheDir?: string; extract?: PdfExtractor; ocr?: (job: PdfOcrJob) => void } = {}) {
+  constructor(vault: string, pdf: { cacheDir?: string; extract?: PdfExtractor } = {}) {
     this.vault = realpathSync(resolve(vault))
     this.sourceRoot = join(this.vault, SOURCE_DIR)
-    this.pdf = new PdfTextCache(pdf.cacheDir, pdf.extract, pdf.ocr)
+    this.pdf = new PdfTextCache(pdf.cacheDir, pdf.extract)
   }
 
   /** `scope`: only files whose path inside the vault starts with one of these prefixes (e.g. a discipline's textbook folders). */
@@ -213,7 +213,7 @@ export class StudyLibrary {
   }
 
   /** Walks the study sources folder and reads what Cora can read (within the limits). Null when there is no folder. */
-  private async scan(coldBudgetMs = PDF_COLD_BUDGET_MS, ocr = false): Promise<SourceScan | null> {
+  private async scan(coldBudgetMs = PDF_COLD_BUDGET_MS): Promise<SourceScan | null> {
     const root = this.checkedSourceRoot()
     if (!root) return null
     const { paths, complete: walked } = walkSources(root)
@@ -243,7 +243,7 @@ export class StudyLibrary {
             // A PDF counts by the text taken out of it: its images weigh on disk, not in the search.
             const info = statSync(path)
             if (info.size > MAX_PDF_BYTES) throw new Error(TOO_BIG)
-            const pages = await this.pdf.pagesBy(path, info, () => readLocalStudyFile(path, root, MAX_PDF_BYTES).buffer, deadline, ocr)
+            const pages = await this.pdf.pagesBy(path, info, () => readLocalStudyFile(path, root, MAX_PDF_BYTES).buffer, deadline)
             if (pages === 'pending') {
               pending++
               file.status = 'lendo'
@@ -286,12 +286,11 @@ export class StudyLibrary {
 
   /**
    * Every file of "study sources" and what Cora can do with it. With `verify` the cold PDFs are
-   * parsed to the end (instead of in the background), which also hands the scanned ones to the OCR.
+   * parsed to the end (instead of in the background).
    */
   async inventory(verify = false): Promise<StudySourceInventory> {
-    const scan = await this.scan(verify ? VERIFY_BUDGET_MS : PDF_COLD_BUDGET_MS, verify)
-    if (!scan) return { sources: [], complete: true, missingFolder: true, ocrQueued: 0 }
-    let ocrQueued = 0
+    const scan = await this.scan(verify ? VERIFY_BUDGET_MS : PDF_COLD_BUDGET_MS)
+    if (!scan) return { sources: [], complete: true, missingFolder: true }
     const sources = scan.files.map((file): StudySourceInfo => {
       const ext = extname(file.path).toLowerCase()
       let status: StudySourceStatus = file.status ?? (file.kind ? 'lida' : 'so-nome')
@@ -305,14 +304,11 @@ export class StudyLibrary {
       if (file.pages) {
         info.pages = file.pages.length
         info.blankPages = pagesWithoutText(file.pages).length
-        if (needsOcr(file.pages)) {
-          info.status = 'ocr'
-          ocrQueued++
-        }
+        if (isScanned(file.pages)) info.scanned = true
       }
       return info
     })
-    return { sources, complete: scan.walked, ocrQueued }
+    return { sources, complete: scan.walked }
   }
 
   source(token: string, hitId: string): StudyLibraryHit {

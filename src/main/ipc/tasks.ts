@@ -10,7 +10,6 @@ import { parseStudyTrail, STUDY_TRAIL_FILE, trailGoalTopics } from '@shared/stud
 import { routineWeekMarks } from '@shared/routine-personal'
 import { personalRoutineOverview } from '../routines-personal'
 import { openPdfAtPage } from '../pdf-viewer'
-import { pdfOcrQueue, workerOcrRunner } from '../study-ocr'
 import { focusItems, focusKey } from '@shared/planning'
 import { ARCHIVE_LIST, fillCompletions, parseTasksFile, type TaskList, type TaskRef } from '@shared/tasks'
 import type { Proposal } from '@shared/proposals'
@@ -107,10 +106,6 @@ export function registerTasksIpc(ctx: IpcContext): void {
   const pdfCacheDir = join(ctx.store.dataDirectory, 'study-pdf-cache')
   // pdf.js runs in a worker thread, so a first read of a big library never freezes the window.
   const extractPdf = workerPdfExtractor()
-  // Scanned PDFs (pages without text) are read by OCR, one at a time in the background; local only.
-  const ocrPdf = pdfOcrQueue(pdfCacheDir, workerOcrRunner(join(ctx.store.dataDirectory, 'ocr-lang')), (state) =>
-    ctx.broadcast({ type: 'study-ocr', state }),
-  )
   const read = (vaultPath: unknown) => {
     const board = readTasksAt(writer, vaultPath)
     fillCompletions(board.lists, ctx.planning.completions())
@@ -125,7 +120,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const vault = requireVault()
     let service = studyServices.get(vault)
     if (!service) {
-      service = new StudyQuestionService(vault, claudeStudyQuestionProviders(), { pdfCacheDir, extractPdf, ocrPdf })
+      service = new StudyQuestionService(vault, claudeStudyQuestionProviders(), { pdfCacheDir, extractPdf })
       studyServices.set(vault, service)
     }
     return service
@@ -146,7 +141,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const vault = requireVault()
     let library = studyLibraries.get(vault)
     if (!library) {
-      library = new StudyLibrary(vault, { cacheDir: pdfCacheDir, extract: extractPdf, ocr: ocrPdf })
+      library = new StudyLibrary(vault, { cacheDir: pdfCacheDir, extract: extractPdf })
       studyLibraries.set(vault, library)
     }
     return library
@@ -324,7 +319,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const [questionId, cause, nextStep] = parse(reviewStudyGapArgsSchema, args, 'Revisão da lacuna inválida.')
     return studyCycleService().reviewGap(questionId, cause, nextStep)
   })
-  // Everything in "study sources" and its state; `verify` also finishes the cold PDFs and hands the scanned ones to the OCR.
+  // Everything in "study sources" and its state; `verify` also finishes the cold PDFs.
   ipcMain.handle('office:studySourceInventory', (_e, ...args: unknown[]) => {
     const [verify] = parse(studySourceInventoryArgsSchema, args, 'Pedido de inventário da Cora inválido.')
     return studyLibrary().inventory(verify)

@@ -1,6 +1,6 @@
 # Plano — perfis locais de competência
 
-Fonte de requisitos: `docs/superpowers/specs/2026-10-27-perfis-locais-squads-e-estudo-design.md`.
+Fonte de requisitos: `docs/specs/2026-10-27-perfis-locais-squads-e-estudo-design.md`.
 
 ## Escopo executável agora
 

@@ -200,7 +200,6 @@
   border-color: var(--green);
 }
 
-.study-inv-status-ocr,
 .study-inv-status-lendo,
 .study-inv-status-grande {
   color: var(--amber);
@@ -236,7 +235,6 @@
   border-left: 3px solid var(--ctl-line);
 }
 
-.study-inv-ocr,
 .study-inv-lendo {
   border-left-color: var(--amber);
 }

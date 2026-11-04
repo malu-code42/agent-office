@@ -82,7 +82,7 @@ describe('vault fixture: edição concorrente em todos os arquivos', () => {
 
 describe('testes nunca apontam para o vault real nem para os dados do app', () => {
   const root = resolve(__dirname)
-  const real = [/vault-agent-office/i, /AppData[\\/]+Roaming[\\/]+agent-office/i, /study-pdf-cache|ocr-lang/]
+  const real = [/vault-agent-office/i, /AppData[\\/]+Roaming[\\/]+agent-office/i, /study-pdf-cache/]
   const files = (dir: string): string[] =>
     readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
       e.isDirectory() ? files(join(dir, e.name)) : /\.(ts|mjs|js)$/.test(e.name) ? [join(dir, e.name)] : [],
