@@ -17,6 +17,7 @@ import {
   type StudyNotesRead,
 } from '@shared/study-cards'
 import { writeFileAtomicChecked } from './fs-safe'
+import { assertTopicReady, type ReadinessSource } from './study-readiness'
 
 const NOTES_FILE = 'notas-estudo.md'
 const CARDS_DIRECTORY = 'cartoes-estudo'
@@ -44,6 +45,7 @@ export class StudyCardsService {
   constructor(
     vault: string,
     private readonly interpreter: StudyCardInterpreter,
+    private readonly readiness: ReadinessSource,
   ) {
     this.vault = realpathSync(resolve(vault))
   }
@@ -58,6 +60,7 @@ export class StudyCardsService {
   /** Pins the chosen notes under a token. Nothing leaves the machine here: the student writes the card next. */
   startDraft(noteIds: string[]): { token: string; sourceSnapshots: StudyNoteSnapshot[] } {
     const selected = this.selectNotes(noteIds)
+    this.assertNotesReady(selected)
     const token = randomUUID()
     this.drafts.set(token, { notes: selected, expiresAt: Date.now() + DRAFT_TTL })
     if (this.drafts.size > 100) this.drafts.delete(this.drafts.keys().next().value!)
@@ -78,6 +81,7 @@ export class StudyCardsService {
   /** Connections, sources and feedback for what the student wrote. Wikilinks outside the vault's known targets are dropped. */
   async assist(token: string, input: unknown): Promise<StudyCardAssist> {
     const notes = this.draftSources(token)
+    this.assertNotesReady(notes)
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Texto do cartão inválido.')
     const raw = input as Record<string, unknown>
     const authored: StudyCardAuthored = {
@@ -111,6 +115,14 @@ export class StudyCardsService {
     // The model's text is held to the same rules as a saved card.
     validateStudyCardDraft({ ...authored, sourceSnapshots: notes, sections: { ...authored, ...assist } })
     return assist
+  }
+
+  /** A note without a topic cannot show its readiness, so it does not generate a card either. */
+  private assertNotesReady(notes: StudyNoteSnapshot[]): void {
+    for (const note of notes) {
+      if (!note.topic) throw new Error(`A nota "${note.title}" não tem tópico. Cartões só são gerados de notas de um tópico pronto.`)
+      assertTopicReady(this.readiness, note.topic)
+    }
   }
 
   private linkTargets(): string[] {

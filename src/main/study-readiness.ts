@@ -60,6 +60,24 @@ export async function checkDisciplineReadiness(trail: StudyTrail, discipline: st
   return { discipline, builtAt: now, topics: out }
 }
 
+/** What the generators read: the trail and the last readiness report of each discipline. */
+export interface ReadinessSource {
+  trail(): StudyTrail
+  reports(): Record<string, StudyReadiness>
+}
+
+/** Cards, projects and zettels of a topic are generated only when its readiness is "pronto"; otherwise this throws the reason. */
+export function assertTopicReady(source: ReadinessSource, topic: string): void {
+  const [trailTopic] = studyBankTopics(source.trail(), { topic })
+  if (!trailTopic) throw new Error(`"${topic}" não está na trilha de estudos.`)
+  const discipline = disciplineIdOf(trailTopic.id)
+  const report = source.reports()[discipline]
+  if (!report) throw new Error(`Ainda não há relatório de prontidão da disciplina ${discipline}. Prepare a disciplina antes de gerar.`)
+  const entry = report.topics.find((item) => item.id === trailTopic.id)
+  if (!entry) throw new Error(`"${topic}" não está no relatório de prontidão. Prepare a disciplina de novo.`)
+  if (entry.state !== 'pronto') throw new Error(`"${topic}" ainda não está pronto: ${entry.reason}`)
+}
+
 const isReport = (value: unknown): value is StudyReadiness => {
   const r = value as StudyReadiness | null
   return !!r && typeof r.discipline === 'string' && typeof r.builtAt === 'number' && Array.isArray(r.topics)
