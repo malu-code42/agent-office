@@ -92,6 +92,7 @@ function inventoryView(inv: StudySourceInventory, verify: () => void, busy: bool
     h('span', { class: `study-inv-chip study-inv-status-${status}` }, `${count(status)} · ${STATUS_LABEL[status]}`),
   )
   const scanned = inv.sources.filter((s) => s.scanned)
+  const partial = inv.sources.filter((s) => s.blankPages && !s.scanned)
   const sorted = [...inv.sources].sort(
     (a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status) || a.path.localeCompare(b.path, 'pt-BR'),
   )
@@ -110,6 +111,15 @@ function inventoryView(inv: StudySourceInventory, verify: () => void, busy: bool
     ),
     ...(scanned.length
       ? [h('p', { class: 'field-hint' }, `PDF escaneado (só imagem), a Cora não lê. Retire das fontes: ${scanned.map((s) => s.path).join(', ')}`)]
+      : []),
+    ...(partial.length
+      ? [
+          h(
+            'p',
+            { class: 'field-hint' },
+            `PDF com páginas sem texto (imagem ou em branco), a Cora não lê essas páginas. Ajuste o livro: ${partial.map((s) => `${s.path} (${s.blankPages}/${s.pages})`).join(', ')}`,
+          ),
+        ]
       : []),
     ...(inv.complete ? [] : [h('p', { class: 'field-hint' }, 'Algumas pastas ou atalhos não foram percorridos.')]),
     ...(sorted.length ? inventoryGroups(sorted) : [h('p', { class: 'field-hint' }, 'Nenhum arquivo na pasta.')]),

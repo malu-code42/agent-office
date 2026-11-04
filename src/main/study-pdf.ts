@@ -53,7 +53,7 @@ export type FileInfo = { mtimeMs: number; size: number }
 /** A page with fewer characters than this has no text layer (a scan, an image, a blank page). */
 const EMPTY_PAGE_CHARS = 40
 /** A PDF counts as scanned when at least this share of its pages has no text: a scan, not a few blank pages. */
-const SCANNED_EMPTY_SHARE = 0.2
+const SCANNED_EMPTY_SHARE = 0.5
 
 /** The indexes (0-based) of the pages without a text layer. */
 export function pagesWithoutText(pages: string[]): number[] {
