@@ -68,7 +68,10 @@ export interface ReadinessSource {
 
 /** Cards, projects and zettels of a topic are generated only when its readiness is "pronto"; otherwise this throws the reason. */
 export function assertTopicReady(source: ReadinessSource, topic: string): void {
-  const [trailTopic] = studyBankTopics(source.trail(), { topic })
+  const matches = studyBankTopics(source.trail(), { topic })
+  // A title can repeat across disciplines: guessing the first one could release a locked topic.
+  if (matches.length > 1) throw new Error(`"${topic}" existe em mais de uma disciplina da trilha, então não dá para saber qual está pronto. Dê nomes diferentes aos tópicos na trilha.`)
+  const [trailTopic] = matches
   if (!trailTopic) throw new Error(`"${topic}" não está na trilha de estudos.`)
   const discipline = disciplineIdOf(trailTopic.id)
   const report = source.reports()[discipline]
