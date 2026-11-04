@@ -25,6 +25,19 @@ describe('assertTopicReady', () => {
     expect(() => assertTopicReady(source({}), TOPIC)).toThrow(/relatório de prontidão da disciplina P2-HW/)
   })
 
+  it('refuses a title repeated in two disciplines instead of releasing the first one', () => {
+    const twice = parseStudyTrail(
+      '## 2º período\n### [P2-HW] Hardware I — 60 h\n- [ ] [P2-HW-01] Circuitos elétricos.\n### [P2-ED] Eletrônica — 60 h\n- [ ] [P2-ED-01] Circuitos elétricos.',
+    )
+    const both: Record<string, StudyReadiness> = {
+      'P2-HW': { discipline: 'P2-HW', builtAt: 1, topics: [{ id: 'P2-HW-01', topic: TOPIC, state: 'pronto', reason: '', folders: [] }] },
+      'P2-ED': { discipline: 'P2-ED', builtAt: 1, topics: [{ id: 'P2-ED-01', topic: TOPIC, state: 'poucos-trechos', reason: 'Só 2 trecho(s).', folders: [] }] },
+    }
+    const ambiguous: ReadinessSource = { trail: () => twice, reports: () => both }
+    expect(() => assertTopicReady(ambiguous, TOPIC)).toThrow(/mais de uma disciplina/)
+    expect(() => assertTopicReady(ambiguous, twice.topics[0]!.label)).not.toThrow()
+  })
+
   it('throws when the topic is not in the trail or in the report', () => {
     expect(() => assertTopicReady(source(report('pronto')), 'Tópico fora da trilha')).toThrow(/não está na trilha/)
     const other: Record<string, StudyReadiness> = { 'P2-HW': { discipline: 'P2-HW', builtAt: 1, topics: [] } }

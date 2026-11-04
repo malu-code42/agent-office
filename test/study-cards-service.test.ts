@@ -138,6 +138,17 @@ describe('biblioteca de cartões de estudo', () => {
     expect(assist).not.toHaveBeenCalled()
   })
 
+  it('refuses to save a card when the topic was locked after the draft started', () => {
+    const root = vault()
+    const noteId = 'sn-sc-123-abcdefgh-q-12345678-note10'
+    writeFileSync(join(root, 'notas-estudo.md'), note(noteId, 'Nota de tópico que trava depois.'))
+    const service = new StudyCardsService(root, noAssist, readiness)
+    const started = service.startDraft([noteId])
+    reports = reportWith('poucos-trechos')
+    expect(() => service.saveDraft(started.token, draft())).toThrow(/ainda não está pronto: Só 2 trecho/)
+    expect(existsSync(join(root, 'cartoes-estudo'))).toBe(false)
+  })
+
   it('does not start a card without a readiness report or from a note without topic', () => {
     const root = vault()
     const noteId = 'sn-sc-123-abcdefgh-q-12345678-note8'

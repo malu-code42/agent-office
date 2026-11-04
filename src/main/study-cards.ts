@@ -144,6 +144,8 @@ export class StudyCardsService {
   saveDraft(token: string, input: unknown): StudyCardSummary {
     const snapshot = this.drafts.get(token)
     if (!snapshot || snapshot.expiresAt < Date.now()) throw new Error('O rascunho expirou. Selecione as notas e gere outro rascunho.')
+    // The topic may have been locked since the draft started: a card is not saved from it.
+    this.assertNotesReady(snapshot.notes)
     const currentNotes = this.readNotes().notes
     for (const selected of snapshot.notes) {
       const current = currentNotes.find((note) => note.id === selected.id)
