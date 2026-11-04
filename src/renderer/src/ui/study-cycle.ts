@@ -230,7 +230,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
   /** The diagnosis questions Bonnie picked for the chosen topic (the user may change them). */
   const selected = new Set<string>()
   /** Questions per subtopic in the diagnosis (2 to 5); the user may change it. */
-  let perSubtopic = 3
+  const perSubtopic = 3
   const pickForTopic = () => {
     selected.clear()
     if (!topic.trim()) return
@@ -409,25 +409,6 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
       },
     })
     const bySub = topic.trim() ? bySubtopic() : null
-    const subtopicPicker = () =>
-      bySub
-        ? h(
-            'div',
-            { class: 'sk-row' },
-            h('span', { class: 'sk-small' }, `${bySub.subtopics.length} subtemas · questões por subtema:`),
-            h(
-              'select',
-              {
-                onchange: (event: Event) => {
-                  perSubtopic = Number((event.currentTarget as HTMLSelectElement).value)
-                  pickForTopic()
-                  render()
-                },
-              },
-              ...[2, 3, 4, 5].map((n) => h('option', { value: String(n), selected: n === perSubtopic || undefined }, String(n))),
-            ),
-          )
-        : null
     const shortBanner = () =>
       bySub?.short.length
         ? h(
@@ -438,7 +419,7 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
               'Faltam questões novas',
               `Em: ${bySub.short.join(', ')}. ${
                 bySub.short.some((name) => bySub.picked.some((q) => q.subtopic === name))
-                  ? `O diagnóstico só começa com ${perSubtopic} por subtema: monte o banco para completar ou escolha menos questões por subtema.`
+                  ? `O diagnóstico só começa com ${perSubtopic} por subtema: monte o banco para completar.`
                   : 'Esses subtemas não têm nenhuma questão: monte o banco para completar.'
               }`,
             ),
@@ -464,7 +445,6 @@ export async function openStudyCycle(root: HTMLElement, toast: Toast, options: S
               `A Bonnie separou ${selected.size} ${selected.size === 1 ? 'questão nova' : 'questões novas'} deste tópico.`,
             ),
             h('div', { class: 'sk-row' }, ...[...byOrigin].map(([origin, n]) => studyChip(`${origin} ${n}`))),
-            subtopicPicker(),
             shortBanner(),
             untaggedNote(),
             h(

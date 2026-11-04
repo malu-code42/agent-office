@@ -3,7 +3,7 @@ import {
   isAgentVerified,
   splitStudyRationale,
   studyBankFolders,
-  STUDY_BANK_DEFAULT_PER_TOPIC,
+  STUDY_BANK_DEFAULT_PER_SUBTOPIC,
   STUDY_BANK_MAX_PER_TOPIC,
   STUDY_BANK_REASON,
   STUDY_BANK_STEPS,
@@ -11,8 +11,10 @@ import {
   type StudyBankJob,
   type StudyBankRequest,
   type StudyBankTopicResult,
+  type StudyBookSuggestion,
 } from '@shared/study-bank'
 import { studyBankStats } from '@shared/study-bank-stats'
+import { isStudyReadinessReady, type StudyReadiness, type StudyReadinessTopic } from '@shared/study-readiness'
 import { answeredStudyQuestions, isStudyQuestionAnswered, type StudyCycleState } from '@shared/study-cycle'
 import { isChoiceQuestion, STUDY_QUESTION_LIMITS, studyOptionText, type StudyQuestion } from '@shared/study-questions'
 import type { StudySubtopics } from '@shared/study-outline'
@@ -178,13 +180,19 @@ export async function openStudyBankBuilder(
   let cycles: StudyCycleState
   let job: StudyBankJob | null
   let subtopics: Record<string, StudySubtopics>
+  let readiness: Record<string, StudyReadiness>
   try {
-    ;[trail, { questions: bank }, cycles, job, subtopics] = await Promise.all([
+    ;[trail, { questions: bank }, cycles, job, subtopics, readiness] = await Promise.all([
       window.office.readStudyTrail(),
       window.office.readStudyQuestions(),
       window.office.readStudyCycle(),
       window.office.studyBankStatus(),
       window.office.readStudySubtopics().catch((): Record<string, StudySubtopics> => ({})),
+      // The last report of each discipline, shown as saved; a discipline with none is checked when picked.
+      window.office.readStudyReadiness().catch((error: unknown): Record<string, StudyReadiness> => {
+        toast(cleanError(error), 'err')
+        return {}
+      }),
     ])
   } catch (error) {
     toast(cleanError(error), 'err')
@@ -194,12 +202,19 @@ export async function openStudyBankBuilder(
 
   let discipline = preset.discipline ?? ''
   let topic = preset.topic ?? ''
-  let perTopic = preset.perTopic ?? STUDY_BANK_DEFAULT_PER_TOPIC
-  /** Questions per subtopic; 0 splits the topic's total among its subtopics. */
-  let perSubtopic = preset.perSubtopic ?? 0
+  /** Questions per subtopic: each topic's total is this times its subtopics. */
+  let perSubtopic = preset.perSubtopic ?? STUDY_BANK_DEFAULT_PER_SUBTOPIC
   /** The form is shown even with a last report, after "Montar outro". */
   let forceForm = false
   let busy = false
+  /** A readiness check is running. */
+  let checking = false
+  /** Topics whose books are being searched in the background. */
+  const searching = new Set<string>()
+  /** Topics whose book search failed: not asked again in this window, so a failing search does not repeat. */
+  const failedSearch = new Set<string>()
+  /** Disciplines asked for while a check ran: each is checked after the one running. */
+  const waiting: string[] = []
 
   const disciplines = new Map<string, { name: string; topics: StudyTrailTopic[] }>()
   for (const item of trail.topics) {
@@ -228,6 +243,11 @@ export async function openStudyBankBuilder(
 
   const start = async (request: StudyBankRequest) => {
     if (busy) return
+    // A job with no discipline (from "Todas as disciplinas") cannot be built again: the build needs one.
+    if (!request.discipline) {
+      toast('Escolha a disciplina antes de montar.', 'err')
+      return
+    }
     busy = true
     try {
       job = await window.office.startStudyBank(request)
@@ -260,20 +280,77 @@ export async function openStudyBankBuilder(
   }
 
   // ---- A: start ----
+  /** Runs a readiness step for a discipline (check or book search) and keeps its report in view. */
+  const work = async (name: string, run: () => Promise<StudyReadiness>): Promise<void> => {
+    checking = true
+    render()
+    try {
+      readiness = { ...readiness, [name]: await run() }
+    } catch (error) {
+      toast(cleanError(error), 'err')
+    } finally {
+      checking = false
+      render()
+    }
+  }
+  /** Checks the discipline (no model), then looks for books for its stuck topics in the background. */
+  const checkReadiness = (name: string): void => {
+    if (checking) {
+      if (!waiting.includes(name)) waiting.push(name)
+      toast(`Checagem em andamento. ${disciplines.get(name)?.name ?? name} será conferida em seguida.`, 'info')
+      return
+    }
+    // The search runs on the report the check just saved, for the discipline selected now; then the next waiting check.
+    void work(name, () => window.office.checkStudyReadiness(name)).then(() => {
+      if (discipline) void searchBooks(discipline)
+      const next = waiting.shift()
+      if (next) checkReadiness(next)
+    })
+  }
+  /** Book search per stuck topic, one at a time, without blocking the window: each list shows when it arrives. */
+  const searchBooks = async (name: string): Promise<void> => {
+    if (checking) return
+    for (const t of readiness[name]?.topics ?? []) {
+      if (t.state === 'pronto' || t.books || searching.has(t.topic) || failedSearch.has(t.topic)) continue
+      searching.add(t.topic)
+      render()
+      try {
+        readiness = { ...readiness, [name]: await window.office.suggestStudyBooks(name, t.topic) }
+      } catch (error) {
+        failedSearch.add(t.topic)
+        toast(cleanError(error), 'err')
+      } finally {
+        searching.delete(t.topic)
+        render()
+      }
+    }
+  }
+  const openFolder = (path: string): void => {
+    void window.office.openStudyFolder(path).catch((error: unknown) => toast(cleanError(error), 'err'))
+  }
+  const copyPath = (path: string): void => {
+    void navigator.clipboard.writeText(path).then(
+      () => toast('Caminho copiado.', 'ok'),
+      (error: unknown) => toast(cleanError(error), 'err'),
+    )
+  }
+
   const formView = (): void => {
     title.textContent = 'Montar banco de questões'
     const answered = answeredStudyQuestions(cycles)
-    const stats = studyBankStats(bank, trail.topics, { goal: perTopic, isAnswered: (q) => isStudyQuestionAnswered(answered, q) })
+    const stats = studyBankStats(bank, trail.topics, { isAnswered: (q) => isStudyQuestionAnswered(answered, q) })
     const fresh = new Map<string, number>()
     for (const d of stats.disciplines) for (const t of d.topics) if (t.id) fresh.set(t.id, t.fresh)
     const chosen = discipline ? (disciplines.get(discipline)?.topics ?? []) : [...disciplines.values()].flatMap((d) => d.topics)
     const scope = topic ? chosen.filter((t) => [t.id, t.label, t.title].includes(topic)) : chosen
-    // Topics whose subtopics are already known get perSubtopic × their count; the others keep the topic total.
+    // The topic's total is perSubtopic × its subtopics; a topic whose subtopics are not known has no goal yet.
     const goalOf = (t: StudyTrailTopic): number => {
       const entry = subtopics[t.title]
-      return perSubtopic && entry?.status === 'ok' && entry.subtopics.length ? perSubtopic * entry.subtopics.length : perTopic
+      return entry?.status === 'ok' ? perSubtopic * entry.subtopics.length : 0
     }
-    const complete = scope.filter((t) => (fresh.get(t.id ?? '') ?? 0) >= goalOf(t)).length
+    const report = discipline ? readiness[discipline] : undefined
+    const ready = isStudyReadinessReady(report, (disciplines.get(discipline)?.topics ?? []).map((t) => t.title))
+    const complete = scope.filter((t) => goalOf(t) > 0 && (fresh.get(t.id ?? '') ?? 0) >= goalOf(t)).length
     const room = Math.max(0, STUDY_QUESTION_LIMITS.count - bank.length)
     const newMax = Math.min(
       room,
@@ -288,7 +365,11 @@ export async function openStudyBankBuilder(
         onchange: (event: Event) => {
           discipline = (event.currentTarget as HTMLSelectElement).value
           topic = ''
-          render()
+          if (discipline && !readiness[discipline]) checkReadiness(discipline)
+          else {
+            render()
+            if (discipline && !checking) void searchBooks(discipline)
+          }
         },
       },
       h('option', { value: '', selected: !discipline }, `Todas as disciplinas (${disciplines.size} · ${trail.topics.length} tópicos)`),
@@ -315,35 +396,69 @@ export async function openStudyBankBuilder(
         h('option', { value: t.id ?? t.label, selected: (t.id ?? t.label) === topic }, t.title),
       ),
     )
-    const count = h('input', {
-      class: 'input',
-      type: 'number',
-      min: '1',
-      max: String(STUDY_BANK_MAX_PER_TOPIC),
-      value: String(perTopic),
-      'aria-describedby': 'study-bank-estimate',
-      onchange: (event: Event) => {
-        const value = Number((event.currentTarget as HTMLInputElement).value)
-        perTopic = Math.max(
-          1,
-          Math.min(STUDY_BANK_MAX_PER_TOPIC, Number.isFinite(value) ? Math.round(value) : STUDY_BANK_DEFAULT_PER_TOPIC),
-        )
-        render()
-      },
-    })
     const perSub = h('input', {
       class: 'input',
       type: 'number',
       min: '1',
       max: String(STUDY_BANK_MAX_PER_TOPIC),
-      value: perSubtopic ? String(perSubtopic) : '',
-      placeholder: 'dividir o total',
+      value: String(perSubtopic),
+      'aria-describedby': 'study-bank-estimate',
       onchange: (event: Event) => {
         const value = Math.round(Number((event.currentTarget as HTMLInputElement).value))
-        perSubtopic = Number.isFinite(value) && value > 0 ? Math.min(STUDY_BANK_MAX_PER_TOPIC, value) : 0
+        perSubtopic = Number.isFinite(value) && value > 0 ? Math.min(STUDY_BANK_MAX_PER_TOPIC, value) : STUDY_BANK_DEFAULT_PER_SUBTOPIC
         render()
       },
     })
+    const readyRow = (t: StudyReadinessTopic): HTMLElement => {
+      if (t.state === 'pronto')
+        return h('li', { class: 'bk-ready-row' }, h('span', { class: 'bk-reason has' }, 'Pronto'), h('b', {}, t.topic), h('span', { class: 'field-hint' }, t.reason))
+      return h(
+        'li',
+        { class: 'bk-ready-row' },
+        h('span', { class: 'bk-reason refused' }, 'Travado'),
+        h('b', {}, t.topic),
+        h('span', { class: 'field-hint' }, t.reason),
+        h(
+          'ul',
+          { class: 'bk-folders', 'aria-label': `Pastas indicadas para ${t.topic}` },
+          ...t.folders.map((folder) =>
+            h(
+              'li',
+              {},
+              h('code', {}, folder),
+              h('button', { class: 'btn', type: 'button', onclick: () => openFolder(folder) }, 'Abrir pasta'),
+              h('button', { class: 'btn', type: 'button', onclick: () => copyPath(folder) }, 'Copiar caminho'),
+            ),
+          ),
+        ),
+        searching.has(t.topic) ? h('span', { class: 'field-hint', role: 'status' }, 'Buscando livros…') : null,
+        t.books && !t.books.length ? h('span', { class: 'field-hint' }, 'Nenhum livro encontrado na web.') : null,
+        bookList(t.books),
+      )
+    }
+    const readinessView = (): HTMLElement[] => {
+      if (!discipline) return [h('p', { class: 'field-hint' }, 'Escolha uma disciplina para ver se os tópicos estão prontos para o banco.')]
+      if (!report) return [h('p', { class: 'field-hint', role: 'status' }, checking ? 'Checagem em andamento…' : 'Sem relatório de prontidão.')]
+      const okCount = report.topics.filter((t) => t.state === 'pronto').length
+      const stuck = report.topics.some((t) => t.state !== 'pronto')
+      return [
+        h(
+          'div',
+          { class: 'bk-ready-head', role: 'status' },
+          h('b', {}, `${okCount} de ${report.topics.length} tópicos prontos`),
+          h('span', { class: 'grow' }),
+          stuck
+            ? h(
+                'button',
+                { class: 'btn', type: 'button', disabled: checking, onclick: () => checkReadiness(discipline) },
+                checking ? 'Conferindo…' : 'Reconferir travados',
+              )
+            : null,
+        ),
+        ...(stuck ? [h('p', { class: 'field-hint' }, 'Montar banco libera quando todos os tópicos da disciplina estiverem prontos.')] : []),
+        h('ul', { class: 'bk-ready-list', 'aria-label': 'Prontidão por tópico' }, ...report.topics.map(readyRow)),
+      ]
+    }
     body.replaceChildren(
       ...(job && job.status === 'stopped' ? [stopNotice(job)] : []),
       h(
@@ -354,16 +469,14 @@ export async function openStudyBankBuilder(
       trail.topics.length
         ? h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Disciplina'), disciplineSelect)
         : h('p', { class: 'field-hint' }, trail.found ? 'A trilha não tem tópicos.' : 'trilha zettel.md não encontrada no vault.'),
+      ...readinessView(),
       h(
         'div',
         { class: 'bk-row' },
         h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Tópico (opcional)'), topicSelect),
-        h('label', { class: 'field bk-narrow' }, h('span', { class: 'field-label' }, 'Questões por tópico'), count),
-        h('label', { class: 'field bk-narrow' }, h('span', { class: 'field-label' }, 'Por subtema (opcional)'), perSub),
+        h('label', { class: 'field bk-narrow' }, h('span', { class: 'field-label' }, 'Questões por subtema'), perSub),
       ),
-      ...(perSubtopic
-        ? [h('p', { class: 'field-hint' }, 'Cada subtema recebe esse número; o total do tópico passa a ser a soma. Tópicos sem subtemas usam “Questões por tópico”.')]
-        : []),
+      h('p', { class: 'field-hint' }, 'Cada subtema recebe esse número; o total de cada tópico é esse número vezes o de seus subtemas.'),
       h(
         'div',
         { class: 'bk-estimate', id: 'study-bank-estimate' },
@@ -372,7 +485,7 @@ export async function openStudyBankBuilder(
           'span',
           {},
           h('b', {}, String(complete)),
-          ` já ${complete === 1 ? 'tem' : 'têm'} ${perTopic} novas e ${complete === 1 ? 'será pulado' : 'serão pulados'}`,
+          ` já ${complete === 1 ? 'tem' : 'têm'} as questões e ${complete === 1 ? 'será pulado' : 'serão pulados'}`,
         ),
         h('span', {}, 'até ', h('b', {}, newMax.toLocaleString('pt-BR')), ' questões novas'),
         h('span', {}, duration(newMax)),
@@ -413,9 +526,10 @@ export async function openStudyBankBuilder(
         {
           class: 'btn btn-primary',
           type: 'button',
-          disabled: busy || !scope.length || !newMax,
+          disabled: busy || checking || !ready || !newMax,
           onclick: () =>
-            void start({ ...(discipline ? { discipline } : {}), ...(topic ? { topic } : {}), perTopic, ...(perSubtopic ? { perSubtopic } : {}) }),
+            // perTopic 1: the topic's total comes from perSubtopic × its subtopics, not from a per-topic count.
+            void start({ discipline, ...(topic ? { topic } : {}), perTopic: 1, perSubtopic }),
         },
         busy ? 'Começando…' : 'Montar banco',
       ),
@@ -533,7 +647,7 @@ export async function openStudyBankBuilder(
         'div',
         { class: 'bk-counts' },
         h('div', { class: 'bk-count acc' }, h('b', {}, j.added.toLocaleString('pt-BR')), h('span', {}, 'questões adicionadas')),
-        h('div', { class: 'bk-count ok' }, h('b', {}, String(full)), h('span', {}, `tópicos com ${j.perTopic}/${j.perTopic}`)),
+        h('div', { class: 'bk-count ok' }, h('b', {}, String(full)), h('span', {}, 'tópicos completos')),
         h('div', { class: 'bk-count warn' }, h('b', {}, String(short.length)), h('span', {}, 'tópicos abaixo da meta')),
       ),
       ...[...groups.values()].map((rows) => disciplineReport(rows, j)),
@@ -632,20 +746,7 @@ export async function openStudyBankBuilder(
       reason === 'no-book' && r.folder ? `${info.text} Coloque o livro em “${r.folder}” e monte de novo.` : info.text,
       h('span', { class: 'grow' }),
       ...actions,
-      r.books?.length
-        ? h(
-            'ul',
-            { class: 'bk-books' },
-            ...r.books.map((b) =>
-              h(
-                'li',
-                {},
-                h('a', { href: '#', onclick: (e: Event) => (e.preventDefault(), void window.office.openExternal(b.url)) }, b.title),
-                ` ${b.author} · ${b.access === 'open' ? `livre${b.license ? ` (${b.license})` : ''}` : 'pago'}`,
-              ),
-            ),
-          )
-        : null,
+      bookList(r.books),
     )
   }
 
@@ -749,8 +850,27 @@ export async function openStudyBankBuilder(
   openWindow = el
   root.append(el)
   render()
+  if (discipline && !readiness[discipline]) checkReadiness(discipline)
+  else if (discipline) void searchBooks(discipline)
   renderChip()
   el.querySelector<HTMLElement>('select, .btn-primary, .btn')?.focus()
+}
+
+/** The books found on the web for a topic: title (a link), author and access. */
+function bookList(books: StudyBookSuggestion[] | undefined): HTMLElement | null {
+  if (!books?.length) return null
+  return h(
+    'ul',
+    { class: 'bk-books' },
+    ...books.map((b) =>
+      h(
+        'li',
+        {},
+        h('a', { href: '#', onclick: (e: Event) => (e.preventDefault(), void window.office.openExternal(b.url)) }, b.title),
+        ` ${b.author} · ${b.access === 'open' ? `livre${b.license ? ` (${b.license})` : ''}` : 'pago'}`,
+      ),
+    ),
+  )
 }
 
 // ---- background notice ----
