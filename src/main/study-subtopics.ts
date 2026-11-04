@@ -3,6 +3,7 @@ import {
   checkSubtopics,
   listsAgree,
   SUBTOPICS_RULE,
+  TOC_MARGIN,
   TOC_MIN_SCORE,
   tocScore,
   type OutlineEntry,
@@ -82,7 +83,7 @@ const fileOf = (sourceRef: string): string => sourceRef.replace(/#.*$/, '').repl
 
 /**
  * Builds the subtopics of a trail topic from the table of contents of the book that talks most about it. Every PDF of the search is
- * scored (none is cut off before). No book with a table: `sem-indice`. Tables exist but none is about the topic: `sem-acordo`, never a random book.
+ * scored (none is cut off before). No book with a table: `sem-indice`. No table is about the topic, or two are about it equally: `sem-acordo`, never a random book.
  */
 export async function buildTopicSubtopics(
   topic: StudyTrailTopic,
@@ -95,26 +96,23 @@ export async function buildTopicSubtopics(
   const { folders } = studyBankFolders(disciplineIdOf(topic.id), topic.discipline)
   const hits = (await library.search(topic.title, folders)).hits
   const books = [...new Set(hits.map((hit) => fileOf(hit.sourceRef)).filter((file) => /\.pdf$/i.test(file)))]
-  let best: { book: string; outline: OutlineEntry[]; score: number } | undefined
+  const about: { book: string; outline: OutlineEntry[]; score: number }[] = []
   let withIndex: string | undefined
   for (const book of books) {
     const outline = await library.outline(book)
     if (!outline.length) continue
     withIndex ??= book
     const score = tocScore(topic.title, outline)
-    if (score >= TOC_MIN_SCORE && (!best || score > best.score)) best = { book, outline, score }
+    if (score >= TOC_MIN_SCORE) about.push({ book, outline, score })
   }
-  if (best) return buildSubtopics(topic.title, best.book, best.outline, ask)
+  about.sort((x, y) => y.score - x.score)
+  const [best, runnerUp] = about
+  if (best && (!runnerUp || best.score - runnerUp.score >= TOC_MARGIN)) return buildSubtopics(topic.title, best.book, best.outline, ask)
   if (!withIndex) return buildSubtopics(topic.title, books[0] ?? '', [], ask)
-  return {
-    topic: topic.title,
-    source: withIndex,
-    builtAt: Date.now(),
-    rule: SUBTOPICS_RULE,
-    status: 'sem-acordo',
-    reason: 'Nenhum livro com índice trata deste tópico; não escolhi um livro ao acaso.',
-    subtopics: [],
-  }
+  const reason = best
+    ? 'Mais de um livro trata deste tópico com pontuação parecida; não escolhi um ao acaso.'
+    : 'Nenhum livro com índice trata deste tópico; não escolhi um livro ao acaso.'
+  return { topic: topic.title, source: (best ?? { book: withIndex }).book, builtAt: Date.now(), rule: SUBTOPICS_RULE, status: 'sem-acordo', reason, subtopics: [] }
 }
 
 export const STUDY_SUBTOPICS_FILE = 'study-subtopics.json'

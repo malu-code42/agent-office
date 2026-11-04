@@ -58,6 +58,9 @@ const keyWords = (text: string): Set<string> =>
 /** The least score for a book to count as being about the topic: at least one line of its table shares a key word with it. */
 export const TOC_MIN_SCORE = 1
 
+/** The lead the best book needs over the next one: closer scores are a tie that word matching cannot break. */
+export const TOC_MARGIN = 2
+
 /** How many lines of a table of contents share a key word with the topic. Tells which book is about the topic. */
 export function tocScore(topic: string, outline: OutlineEntry[]): number {
   const words = keyWords(topic)

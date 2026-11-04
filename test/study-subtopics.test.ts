@@ -97,6 +97,23 @@ describe('buildTopicSubtopics', () => {
     expect(asked).toBe(false)
   })
 
+  it('blocks when two books are about the topic with close scores, instead of choosing one at random', async () => {
+    const twelve = Array.from({ length: 12 }, (_, id) => ({ id, title: `Portas lógicas ${id}`, page: 10 + id }))
+    const eleven = twelve.slice(1)
+    const library = {
+      search: async () => ({ hits: [{ sourceRef: 'a.pdf:1' }, { sourceRef: 'b.pdf:2' }] as never }),
+      outline: async (path: string) => (path === 'a.pdf' ? twelve : eleven),
+    }
+    let asked = false
+    const out = await buildTopicSubtopics({ id: 'x', title: 'Portas lógicas', discipline: 'D' } as never, library, async () => {
+      asked = true
+      return { subtopics: list([0, 1], [2, 3], [4, 5]) }
+    })
+    expect(out).toMatchObject({ status: 'sem-acordo', source: 'a.pdf', subtopics: [] })
+    expect(out.reason).toContain('pontuação parecida')
+    expect(asked).toBe(false)
+  })
+
   it('considers a book that is past the first three hits of the search', async () => {
     const about = Array.from({ length: 12 }, (_, id) => ({ id, title: `Portas lógicas ${id}`, page: 10 + id }))
     const hits = ['a', 'b', 'c', 'd'].map((n) => ({ sourceRef: `${n}.pdf:1` }))

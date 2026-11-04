@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { parseStudyTrail } from '../src/shared/study-trail'
 import { buildStudyBank } from '../src/main/study-bank-builder'
 import { SUBTOPICS_RULE } from '../src/shared/study-outline'
+import { STUDY_BANK_REASON } from '../src/shared/study-bank'
 import { STUDY_QUESTION_LIMITS, type StudyQuestion } from '../src/shared/study-questions'
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({ query: vi.fn() }))
@@ -83,6 +84,16 @@ describe('buildStudyBank', () => {
     expect(second.results[0]).toMatchObject({ reason: 'sem-subtemas', added: 0 })
     expect(bank).toHaveLength(0)
     expect(ask.mock.calls.some(([system]) => String(system).includes('write one multiple-choice'))).toBe(false)
+  })
+
+  it('tells the user a locked topic is locked, with the reason shown for each blocked case', async () => {
+    const disagreed = { topic: 'Sistemas de numeração', source: 'L.pdf', builtAt: 1, rule: SUBTOPICS_RULE, status: 'sem-acordo' as const, reason: 'x', subtopics: [] }
+    const { deps } = setup()
+    const first = await buildStudyBank(trail, { ...deps, subtopics: { get: () => disagreed, build: vi.fn() } }, { perTopic: 2, topic: 'Sistemas de numeração' })
+    expect(STUDY_BANK_REASON[first.results[0].reason!].text).toContain('fica travado')
+    const broken = { ...deps, subtopics: { get: () => undefined, build: async () => Promise.reject(new Error('sem ask')) } }
+    const second = await buildStudyBank(trail, broken, { perTopic: 2, topic: 'Sistemas de numeração' })
+    expect(STUDY_BANK_REASON[second.results[0].reason!].text).toContain('fica travado')
   })
 
   it('does not count questions from before the subtopics toward any subtopic (AO-24)', async () => {
