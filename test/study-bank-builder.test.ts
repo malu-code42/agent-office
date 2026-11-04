@@ -214,12 +214,11 @@ describe('buildStudyBank passages', () => {
     expect(ask).toHaveBeenCalledTimes(3)
   })
 
-  it('fills the missing passages with the other books of the library', async () => {
-    const { deps, search, ask } = setup()
+  it('never fills missing passages from the other books of the library', async () => {
+    const { deps, search } = setup()
     search.mockImplementation(async (_query: string, scope?: readonly string[]) => ({ hits: scope ? [variant(1), variant(2)] : [variant(5, 'Lógica e Matemática Discreta'), variant(6, 'Lógica e Matemática Discreta')] }))
     const { results } = await buildStudyBank(trail, deps, { perTopic: 4, discipline: 'P1-ICC' })
-    expect(results[0]).toMatchObject({ added: 4 })
-    expect(results[0]!.reason).toBeUndefined()
-    expect(ask).toHaveBeenCalled()
+    expect(results[0]).toMatchObject({ added: 2, reason: 'little' })
+    expect(search.mock.calls.every(([, scope]) => scope !== undefined)).toBe(true)
   })
 })
