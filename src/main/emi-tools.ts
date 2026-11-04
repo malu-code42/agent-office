@@ -8,8 +8,13 @@ import { SQUAD_NAME_MAX, SQUAD_ROOM_COUNT, type SquadInfo } from '@shared/types'
 import { squadMemberSchema } from './validate'
 
 export const EMI_SERVER = 'emi'
-/** Tools the user confirms on the permission card before they run: they approve or write something. */
-export const EMI_CONFIRM_TOOLS = new Set([`mcp__${EMI_SERVER}__plan_approve`, `mcp__${EMI_SERVER}__squad_create`, `mcp__${EMI_SERVER}__squad_run`])
+/**
+ * Tools the user confirms on the permission card before they run: they approve, write something,
+ * or delete a squad or an agent (AO-60). Pause, resume, disable and hiring an agent run without a card.
+ */
+export const EMI_CONFIRM_TOOLS = new Set(
+  ['plan_approve', 'squad_create', 'squad_run', 'squad_delete', 'agent_delete'].map((t) => `mcp__${EMI_SERVER}__${t}`),
+)
 
 const ticketKeys = z.array(z.string().min(1).max(40)).min(1).max(30)
 
@@ -67,6 +72,14 @@ export interface EmiToolDeps {
   runSquad(code: string, note: string): Promise<string>
   /** Sends a note to the squad's running orchestrator, who relays it to the members. */
   messageSquad(code: string, text: string): string
+  /** Pauses (or disables) a squad of the floor, or resumes it (`null`). Changes nothing in squads/. */
+  setSquadState(code: string, state: 'paused' | 'disabled' | null): string
+  /** Deletes a squad folder of the floor. Runs only after the user's card. */
+  deleteSquad(code: string): string
+  /** Hires a new agent on the floor, in the floor's permission mode. */
+  createAgent(name: string, task: string): Promise<string>
+  /** Dismisses an agent of the floor, by id or name. Runs only after the user's card. */
+  deleteAgent(ref: string): string
 }
 
 function squadLine(q: SquadInfo): string {
@@ -81,7 +94,8 @@ export function emiTools(deps: EmiToolDeps): McpSdkServerConfigWithInstance {
     version: '1.0.0',
     instructions:
       'Plano EGM e squads deste andar. plan_get e squads_list leem o estado atual; drift_report_save registra o relatório de drift; ' +
-      'plan_approve, squad_create e squad_run mostram um cartão à usuária e só valem depois que ela aprovar; squad_message manda recado a um squad em execução.',
+      'plan_approve, squad_create, squad_run, squad_delete e agent_delete mostram um cartão à usuária e só valem depois que ela aprovar; ' +
+      'squad_message manda recado a um squad em execução; squad_pause, squad_resume e squad_disable mudam o estado de um squad do andar; agent_create contrata um agente do andar.',
     tools: emiToolDefs(deps),
   })
 }
@@ -155,6 +169,45 @@ export function emiToolDefs(deps: EmiToolDeps) {
         text: z.string().trim().min(1).max(2000).describe('The note, in pt-BR'),
       },
       (args) => run(() => deps.messageSquad(args.code, args.text))(),
+    ),
+    tool(
+      'squad_pause',
+      'Pausa um squad do andar: ele não inicia novos ciclos até ser retomado. Não mexe em arquivos.',
+      { code: z.string().trim().min(1).max(64).describe('Squad code, e.g. sala-1') },
+      (args) => run(() => deps.setSquadState(args.code, 'paused'))(),
+    ),
+    tool(
+      'squad_resume',
+      'Retoma um squad pausado ou desativado do andar, para ele voltar a rodar.',
+      { code: z.string().trim().min(1).max(64).describe('Squad code, e.g. sala-1') },
+      (args) => run(() => deps.setSquadState(args.code, null))(),
+    ),
+    tool(
+      'squad_disable',
+      'Desativa um squad do andar: ele fica fora da lista de squads rodáveis até ser retomado. Não mexe em arquivos.',
+      { code: z.string().trim().min(1).max(64).describe('Squad code, e.g. sala-1') },
+      (args) => run(() => deps.setSquadState(args.code, 'disabled'))(),
+    ),
+    tool(
+      'squad_delete',
+      'Exclui a pasta squads/<code> de um squad do andar. A usuária confirma no cartão antes de valer. Recusado se o squad estiver rodando.',
+      { code: z.string().trim().min(1).max(64).describe('Squad code, e.g. sala-1') },
+      (args) => run(() => deps.deleteSquad(args.code))(),
+    ),
+    tool(
+      'agent_create',
+      'Contrata um agente novo para este andar, na pasta do projeto e no modo de permissões do andar.',
+      {
+        name: z.string().trim().min(1).max(40).describe('Nome do agente, em pt-BR'),
+        task: z.string().trim().min(1).max(4000).describe('O que o agente deve fazer, em pt-BR; a tarefa completa vai num ticket'),
+      },
+      (args) => run(() => deps.createAgent(args.name, args.task))(),
+    ),
+    tool(
+      'agent_delete',
+      'Dispensa um agente do andar, pelo id ou pelo nome. Só agentes parados; a usuária confirma no cartão antes de valer.',
+      { agent: z.string().trim().min(1).max(80).describe('Id ou nome do agente no andar') },
+      (args) => run(() => deps.deleteAgent(args.agent))(),
     ),
   ]
 }

@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { callHandler, ipcMain } from './mocks/electron'
 import { registerSquadsIpc } from '../src/main/ipc/squads'
 import { SquadCreation } from '../src/main/squad-creation'
+import { SquadStatusStore } from '../src/main/squad-status'
 import { SquadProposalStore } from '../src/main/squad-proposals'
 import { SquadQueueStore } from '../src/main/squad-queues'
 import { TicketBoard } from '../src/main/tickets'
@@ -67,6 +68,7 @@ beforeEach(() => {
     board,
     defaultBrain: () => ({}),
     creation,
+    squadStatus: new SquadStatusStore(dataDir),
     broadcast: (e: unknown) => broadcast.push(e),
     rereadSquads: () => [],
     win: () => null,

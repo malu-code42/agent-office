@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { randomUUID } from 'node:crypto'
-import { realpathSync } from 'node:fs'
+import { lstatSync, realpathSync } from 'node:fs'
 import { isAbsolute, relative, sep, join } from 'node:path'
 import { z } from 'zod'
 import { projectFor } from '@shared/projects'
@@ -8,7 +8,8 @@ import { squadInRoom } from '@shared/squad-rooms'
 import { ticketBrief } from '@shared/tickets'
 import { SQUAD_ROOM_COUNT, type ProjectFloor } from '@shared/types'
 import { emiTools } from '../emi-tools'
-import { copySquadRuntime, findSquad, inspectSquads, isDir, squadInfo, validateSquad } from '../squads'
+import { copySquadRuntime, findSquad, inspectSquads, isDir, squadDir, squadInfo, validateSquad } from '../squads'
+import { isBeingCreated, removeSquad } from '../squad-writer'
 import { createWorktree, excludeSquadRuntime } from '../git'
 import {
   checkedSquadMode,
@@ -36,7 +37,9 @@ import { readProjectDocuments } from '../project-workflow-documents'
 /** Squads of a project floor. */
 export function registerSquadsIpc(ctx: IpcContext): void {
   const { store, manager, defaultBrain } = ctx
-  ipcMain.handle('office:listSquads', (_e, cwd: unknown) => (pathSchema.safeParse(cwd).success && isDir(cwd) ? inspectSquads(cwd) : []))
+  ipcMain.handle('office:listSquads', (_e, cwd: unknown) =>
+    pathSchema.safeParse(cwd).success && isDir(cwd) ? ctx.squadStatus.apply(cwd, inspectSquads(cwd)) : [],
+  )
   const runSquadCycle = async (cwd: unknown, code: unknown, mode: unknown, note: unknown) => {
     if (!pathSchema.safeParse(cwd).success || !isDir(cwd)) throw new Error('Essa pasta de squads não existe mais.')
     // Orchestrators work in the squad room of their project's floor.
@@ -48,6 +51,8 @@ export function registerSquadsIpc(ctx: IpcContext): void {
       throw new Error(
         `A definição do squad não foi encontrada em ${join(String(cwd), 'squads', plain.success ? plain.data : '<código>', 'squad.yaml')}. Restaure ou corrija esse arquivo manualmente e feche/reabra o Agent Office; o Agent Office não recria definições.`,
       )
+    const state = ctx.squadStatus.get(cwd, squad.code)
+    if (state) throw new Error(`O squad ${squad.code} está ${state === 'paused' ? 'pausado' : 'desativado'}; retome-o antes de rodar.`)
     try {
       validateSquad(squad)
     } catch (err) {
@@ -172,7 +177,7 @@ export function registerSquadsIpc(ctx: IpcContext): void {
   ctx.manager.emiTools = (projectId) => {
     const floor = () => workflowProject(projectId)
     return emiTools({
-      squads: () => inspectSquads(floor().cwd),
+      squads: () => ctx.squadStatus.apply(floor().cwd, inspectSquads(floor().cwd)),
       plan: () => {
         const w = ctx.projectWorkflows.get(floor().id)
         const ticket = (id: string) => {
@@ -261,6 +266,59 @@ export function registerSquadsIpc(ctx: IpcContext): void {
           if (ctx.creation.get(id)?.status === 'pending') ctx.creation.discard(id)
           throw err
         }
+      },
+      setSquadState: (code, state) => {
+        const cwd = floor().cwd
+        const squad = findSquad(cwd, squadCodeSchema.parse(code))
+        if (!squad) throw new Error(`O squad ${code} não existe neste andar. Use squads_list para ver os códigos.`)
+        ctx.squadStatus.set(cwd, squad.code, state)
+        ctx.broadcast({ type: 'squads', squads: ctx.rereadSquads() })
+        return state === 'paused'
+          ? `Squad ${squad.name} pausado: ele não inicia novos ciclos até ser retomado.`
+          : state === 'disabled'
+            ? `Squad ${squad.name} desativado: ele fica fora dos squads rodáveis até ser retomado.`
+            : `Squad ${squad.name} retomado.`
+      },
+      // Runs only after the user's card (EMI_CONFIRM_TOOLS). Refuses while the squad works or is being written.
+      deleteSquad: (code) => {
+        const cwd = floor().cwd
+        const squad = findSquad(cwd, squadCodeSchema.parse(code))
+        if (!squad) throw new Error(`O squad ${code} não existe neste andar.`)
+        const dir = squadDir(squad)
+        if (lstatSync(dir).isSymbolicLink()) throw new Error(`A pasta squads/${squad.code} é um link; não vou apagar.`)
+        if (isBeingCreated(dir)) throw new Error(`O squad ${squad.code} está sendo gravado agora; tente depois.`)
+        const busy = ctx.manager.list().find((a) => a.squad === squad.code && a.cwd === cwd && a.status !== 'idle')
+        if (busy) throw new Error(`${busy.name} ainda está rodando o squad ${squad.code}; espere ele parar.`)
+        const queue = ctx.creation.queue(squad.code)
+        if (queue?.active || queue?.cycle) throw new Error(`O squad ${squad.code} tem ticket em andamento ou atribuído; espere o ciclo terminar.`)
+        ctx.squadStatus.set(cwd, squad.code, null)
+        removeSquad(cwd, squad.code)
+        ctx.broadcast({ type: 'squads', squads: ctx.rereadSquads() })
+        return `Squad ${squad.name} excluído: a pasta squads/${squad.code} foi apagada.`
+      },
+      createAgent: async (name, task) => {
+        const project = floor()
+        const agent = await ctx.manager.hire({
+          name,
+          cwd: project.cwd,
+          task,
+          ...defaultBrain(),
+          permissionMode: project.permissionMode ?? store.settings.defaultPermissionMode,
+        })
+        return `Agente ${agent.name} contratado no andar ${project.name}.`
+      },
+      // Only idle agents of this floor; names that match more than one agent are refused.
+      deleteAgent: (ref) => {
+        const cwd = floor().cwd
+        const here = ctx.manager.list().filter((a) => a.cwd === cwd)
+        const byId = here.find((a) => a.id === ref)
+        const byName = here.filter((a) => a.name === ref)
+        if (!byId && byName.length > 1) throw new Error(`Há ${byName.length} agentes chamados ${ref}; use o id.`)
+        const agent = byId ?? byName[0]
+        if (!agent) throw new Error(`Não achei o agente ${ref} neste andar. Use o nome ou o id mostrado no escritório.`)
+        if (agent.status !== 'idle') throw new Error(`${agent.name} está ${agent.status}; espere ele parar antes de dispensar.`)
+        ctx.manager.fire(agent.id)
+        return `Agente ${agent.name} dispensado.`
       },
     })
   }

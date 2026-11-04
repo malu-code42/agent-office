@@ -104,6 +104,11 @@ describe('categorias que sempre pedem (auto)', () => {
       expect(decide('auto', 'Bash', { command }, WIN)).toEqual({ verdict: 'ask', why })
     })
   }
+  // AO-60: Emi's floor control never merges, so a merge still needs a card.
+  for (const command of ['gh pr merge 12 --squash', 'git push origin HEAD:main'])
+    it(`${command} pede cartão no modo automático`, () => {
+      expect(decide('auto', 'Bash', { command }, WIN).verdict).toBe('ask')
+    })
 })
 
 describe('"Sempre permitir"', () => {
