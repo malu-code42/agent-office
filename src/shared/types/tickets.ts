@@ -3,7 +3,7 @@ import type { AgentEngine, EffortLevel, OfficePermissionMode } from './agents'
 // ---------- tickets (kanban) ----------
 
 export type TicketStatus = 'backlog' | 'todo' | 'doing' | 'review' | 'done'
-export type TicketType = 'bug' | 'feature' | 'improvement' | 'task'
+export type TicketType = 'bug' | 'feature' | 'improvement' | 'task' | 'epic'
 export type TicketPriority = 'low' | 'medium' | 'high' | 'critical'
 
 /** Who did something on the board. Agents carry their office id while they are around. */
@@ -55,6 +55,8 @@ export interface Ticket {
   blockerPRs?: Record<string, string>
   /** Set only by the main process after the PR URL is verified against the project remote. */
   pullRequestUrl?: string
+  /** Key of the parent ticket (an "epic"), e.g. "AO-59". Only one level deep. */
+  parent?: string
   tags: string[]
   /** Story points. */
   estimate?: number
@@ -93,6 +95,8 @@ export interface TicketDraft {
   effort?: EffortLevel | null
   dueDate?: string | null
   blockedBy?: string[]
+  /** null clears it. */
+  parent?: string | null
 }
 
 export type TicketPatch = Partial<TicketDraft>

@@ -94,6 +94,28 @@ export class TicketBoard extends EventEmitter {
     return [...this.data.tickets, ...this.closed]
   }
 
+  private childrenOf(key: string): Ticket[] {
+    return this.allTickets().filter((t) => t.parent === key)
+  }
+
+  /** A parent is an existing epic, one level deep; `t` is the ticket that would get it. */
+  private assertParent(t: Ticket, parent: string): void {
+    if (parent === t.key) throw new Error('Um ticket não pode ser mãe de si mesmo.')
+    const mother = this.allTickets().find((x) => x.key === parent)
+    if (!mother) throw new Error(`A mãe ${parent} não existe.`)
+    if (mother.type !== 'epic') throw new Error(`${parent} não é um ticket-mãe (tipo Mãe).`)
+    if (mother.parent) throw new Error(`${parent} já é filho de ${mother.parent}; a mãe só tem um nível.`)
+    if (t.type === 'epic') throw new Error(`${t.key} é um ticket-mãe e não pode ter mãe.`)
+    if (this.childrenOf(t.key).length) throw new Error(`${t.key} tem filhos e não pode ter mãe.`)
+  }
+
+  /** A parent goes to "Feito" only when every child is done; moving it never moves the children. */
+  private assertMotherDone(t: Ticket, status: TicketStatus): void {
+    if (t.type !== 'epic' || status !== 'done') return
+    const open = this.childrenOf(t.key).filter((c) => c.status !== 'done')
+    if (open.length) throw new Error(`${t.key} só vai a Feito quando todos os filhos estiverem feitos. Faltam: ${open.map((c) => c.key).join(', ')}.`)
+  }
+
   private blockerSnapshots(ids: readonly string[], tickets: readonly Ticket[]): Record<string, string> {
     const byId = new Map(tickets.map((ticket) => [ticket.id, ticket]))
     return Object.fromEntries(
@@ -204,6 +226,7 @@ export class TicketBoard extends EventEmitter {
       effort: d.effort ?? undefined,
       dueDate: d.dueDate ?? undefined,
       blockedBy: d.blockedBy,
+      parent: d.parent ?? undefined,
       reporter: by,
       order: this.nextOrder(status),
       createdAt: now,
@@ -212,6 +235,7 @@ export class TicketBoard extends EventEmitter {
       activity: [],
     }
     this.log(ticket, by, `criou o ticket em ${labelOf(STATUSES, status)}`)
+    if (ticket.parent) this.assertParent(ticket, ticket.parent)
     if (ticket.blockedBy?.length) {
       const all = [...this.allTickets(), ticket]
       const problem = validateTicketBlockers(ticket.id, ticket.blockedBy, all, this.projects())
@@ -232,6 +256,10 @@ export class TicketBoard extends EventEmitter {
     const proposed = { ...t, ...(d.cwd !== undefined ? { cwd: d.cwd ?? undefined } : {}), ...(d.blockedBy ? { blockedBy: d.blockedBy } : {}) }
     const allTickets = this.allTickets()
     const proposedTickets = allTickets.map((item) => (item.id === t.id ? proposed : item))
+    if (d.parent) this.assertParent({ ...t, type: d.type ?? t.type }, d.parent)
+    if (d.type && d.type !== 'epic' && t.type === 'epic' && this.childrenOf(t.key).length)
+      throw new Error(`${t.key} tem filhos: só um ticket-mãe pode ter filhos.`)
+    if (d.status === 'done') this.assertMotherDone(t, 'done')
     if (d.blockedBy !== undefined) {
       const problem = validateTicketBlockers(t.id, d.blockedBy, proposedTickets, this.projects())
       if (problem) throw new Error(problem)
@@ -271,6 +299,10 @@ export class TicketBoard extends EventEmitter {
     if (d.model !== undefined) t.model = d.model ?? undefined
     if (d.effort !== undefined) t.effort = d.effort ?? undefined
     if (d.dueDate !== undefined) t.dueDate = d.dueDate ?? undefined
+    if (d.parent !== undefined && d.parent !== (t.parent ?? null)) {
+      this.log(t, by, d.parent ? `ligou à mãe ${d.parent}` : `desligou da mãe ${t.parent}`)
+      t.parent = d.parent ?? undefined
+    }
     if (d.blockedBy !== undefined) {
       t.blockedBy = [...d.blockedBy]
       t.blockerPRs = this.blockerSnapshots(t.blockedBy, this.allTickets())
@@ -284,6 +316,7 @@ export class TicketBoard extends EventEmitter {
     const t = this.must(id)
     if (!STATUS_VALUES.includes(status)) throw new Error('Coluna inválida.')
     if (status === 'doing') this.assertCanStart(t.id)
+    this.assertMotherDone(t, status)
     if (status !== t.status) this.setStatus(t, status, by)
     const column = this.column(status).filter((x) => x.id !== t.id)
     const at = beforeId ? column.findIndex((x) => x.id === beforeId) : -1
@@ -376,6 +409,8 @@ export class TicketBoard extends EventEmitter {
     if (this.allTickets().some((ticket) => ticket.id !== id && blockerIdsFor(ticket).includes(id)))
       throw new Error('Este ticket ainda é bloqueador de outros tickets; remova os vínculos antes de excluí-lo.')
     const before = this.data.tickets.length
+    const gone = this.get(id)
+    if (gone) for (const child of this.childrenOf(gone.key)) { child.parent = undefined; this.changed(child) }
     this.data.tickets = this.data.tickets.filter((t) => t.id !== id)
     if (this.data.tickets.length === before) return
     this.emitEvent({ type: 'ticket:removed', ticketId: id })
@@ -540,7 +575,7 @@ export class TicketBoard extends EventEmitter {
               const others = args.all_floors ? '' : ' neste andar. Use all_floors=true para ver os outros andares'
               if (args.closed) {
                 const found = this.listClosed(args.search, 50).filter((t) => floor(t) && (!args.mine || t.assignee?.id === agent.id))
-                return found.length ? found.map((t) => `${listLine(t)} · fechado`).join('\n') : `Nenhum ticket fechado com esses filtros${others}.`
+                return found.length ? found.map((t) => `${listLine(t, this.childrenOf(t.key))} · fechado`).join('\n') : `Nenhum ticket fechado com esses filtros${others}.`
               }
               const q = args.search?.toLowerCase().trim()
               const shown = this.list()
@@ -550,7 +585,7 @@ export class TicketBoard extends EventEmitter {
                 .filter((t) => !q || [t.title, t.description, ...t.tags].some((v) => v.toLowerCase().includes(q)))
                 .sort((a, b) => STATUS_VALUES.indexOf(a.status) - STATUS_VALUES.indexOf(b.status) || a.order - b.order)
               if (!shown.length) return `Nenhum ticket com esses filtros${others}.`
-              return shown.map(listLine).join('\n')
+              return shown.map((t) => listLine(t, this.childrenOf(t.key))).join('\n')
             })(),
           { annotations: { readOnlyHint: true } },
         ),
@@ -563,7 +598,7 @@ export class TicketBoard extends EventEmitter {
               const t = this.byKey(args.key, true)
               if (!t) throw new Error(`Não achei o ticket ${args.key}. Use tickets_list para ver as chaves.`)
               const head = `Status: ${t.closedAt ? 'fechado' : t.status} · Responsável: ${t.assignee?.name ?? 'ninguém'}${t.cwd ? ` · Pasta: ${t.cwd}` : ''}`
-              return `${head}\n\n${ticketBrief(t)}`
+              return `${head}\n\n${ticketBrief(t, this.childrenOf(t.key))}`
             })(),
           { annotations: { readOnlyHint: true } },
         ),
@@ -582,6 +617,7 @@ export class TicketBoard extends EventEmitter {
             estimate: z.number().optional().describe('Pontos de esforço'),
             model: z.string().optional().describe('Modelo mais barato que dá conta, ex.: claude-haiku-4-5-20251001, claude-sonnet-5-5, claude-opus-5-5'),
             effort: z.enum(EFFORT_LEVELS as [EffortLevel, ...EffortLevel[]]).optional().describe('Esforço de raciocínio: low para trabalho mecânico, high/xhigh só para o difícil'),
+            parent: z.string().optional().describe('Chave do ticket-mãe (tipo Mãe), ex.: AO-59'),
           },
           (args) =>
             run(() => {
@@ -599,6 +635,7 @@ export class TicketBoard extends EventEmitter {
                   estimate: args.estimate,
                   model: args.model,
                   effort: args.effort,
+                  parent: args.parent,
                 },
                 me,
               )
@@ -614,11 +651,12 @@ export class TicketBoard extends EventEmitter {
             priority: z.enum(PRIORITY_VALUES).optional(),
             title: z.string().optional(),
             description: z.string().optional().describe('Substitui a descrição inteira'),
+            parent: z.string().nullable().optional().describe('Chave do ticket-mãe; null desliga'),
           },
           (args) =>
             run(() => {
               const t = find(args.key)
-              this.update(t.id, { status: args.status, priority: args.priority, title: args.title, description: args.description }, me)
+              this.update(t.id, { status: args.status, priority: args.priority, title: args.title, description: args.description, parent: args.parent }, me)
               return `${t.key} atualizado: ${labelOf(STATUSES, t.status)}, prioridade ${labelOf(PRIORITIES, t.priority)}.`
             })(),
         ),
@@ -648,11 +686,13 @@ export class TicketBoard extends EventEmitter {
   }
 }
 
-function listLine(t: Ticket): string {
+function listLine(t: Ticket, children: Ticket[]): string {
   const ok = t.acceptance.filter((c) => c.done).length
   const crit = t.acceptance.length ? ` · ${ok}/${t.acceptance.length} critérios` : ''
   const who = t.assignee ? ` · com ${t.assignee.name}` : ''
-  return `${t.key} [${t.status}] ${t.title} (${t.type}, ${t.priority}${crit}${who})`
+  const progress = t.type === 'epic' ? ` · ${children.filter((c) => c.status === 'done').length}/${children.length} filhos feitos` : ''
+  const mother = t.parent ? ` · mãe ${t.parent}` : ''
+  return `${t.key} [${t.status}] ${t.title} (${t.type}, ${t.priority}${crit}${who}${progress}${mother})`
 }
 
 function isDir(p: string | undefined | null): p is string {
@@ -669,7 +709,8 @@ function cleanText(v: unknown, max: number): string {
 
 /** Legacy or corrupted blocker fields are kept closed, never trusted to unlock work. */
 function normalizeBlockingFields(ticket: Ticket): void {
-  const raw = ticket as unknown as { blockedBy?: unknown; blockerPRs?: unknown; pullRequestUrl?: unknown }
+  const raw = ticket as unknown as { blockedBy?: unknown; blockerPRs?: unknown; pullRequestUrl?: unknown; parent?: unknown }
+  if (typeof raw.parent !== 'string' || !raw.parent) delete ticket.parent
   if (raw.blockedBy === undefined) delete ticket.blockedBy
   else if (!Array.isArray(raw.blockedBy) || raw.blockedBy.length > 200 || raw.blockedBy.some((id) => typeof id !== 'string' || !id))
     ticket.blockedBy = [INVALID_BLOCKER_ID]
@@ -728,6 +769,11 @@ function cleanDraft(d: TicketPatch, creating: boolean): TicketPatch {
   if (d.model !== undefined) out.model = cleanText(d.model, 100) || null
   if (d.effort !== undefined) out.effort = EFFORT_LEVELS.includes(d.effort as EffortLevel) ? (d.effort as EffortLevel) : null
   if (d.dueDate !== undefined) out.dueDate = typeof d.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.dueDate) ? d.dueDate : null
+  if (d.parent !== undefined) {
+    const m = d.parent === null || d.parent === '' ? null : /^(?:AO-)?(\d+)$/.exec(String(d.parent).trim().toUpperCase())
+    if (d.parent !== null && d.parent !== '' && !m) throw new Error('Mãe inválida: use a chave do ticket-mãe, ex.: AO-59.')
+    out.parent = m ? `${KEY_PREFIX}-${m[1]}` : null
+  }
   if (d.blockedBy !== undefined) {
     if (!Array.isArray(d.blockedBy) || d.blockedBy.some((id) => typeof id !== 'string')) throw new Error('Tickets bloqueadores inválidos.')
     out.blockedBy = [...d.blockedBy]
