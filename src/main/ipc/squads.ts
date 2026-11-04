@@ -291,20 +291,15 @@ export function registerSquadsIpc(ctx: IpcContext): void {
         if (busy) throw new Error(`${busy.name} ainda está rodando o squad ${squad.code}; espere ele parar.`)
         const queue = ctx.creation.queue(squad.code)
         if (queue?.active || queue?.cycle) throw new Error(`O squad ${squad.code} tem ticket em andamento ou atribuído; espere o ciclo terminar.`)
-        ctx.squadStatus.set(cwd, squad.code, null)
         removeSquad(cwd, squad.code)
+        ctx.squadStatus.set(cwd, squad.code, null)
         ctx.broadcast({ type: 'squads', squads: ctx.rereadSquads() })
         return `Squad ${squad.name} excluído: a pasta squads/${squad.code} foi apagada.`
       },
       createAgent: async (name, task) => {
         const project = floor()
-        const agent = await ctx.manager.hire({
-          name,
-          cwd: project.cwd,
-          task,
-          ...defaultBrain(),
-          permissionMode: project.permissionMode ?? store.settings.defaultPermissionMode,
-        })
+        // Always the default mode, never the floor's: a hire without a card must not inherit a permissive mode.
+        const agent = await ctx.manager.hire({ name, cwd: project.cwd, task, ...defaultBrain(), permissionMode: 'default' })
         return `Agente ${agent.name} contratado no andar ${project.name}.`
       },
       // Only idle agents of this floor; names that match more than one agent are refused.

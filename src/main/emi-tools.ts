@@ -196,7 +196,7 @@ export function emiToolDefs(deps: EmiToolDeps) {
     ),
     tool(
       'agent_create',
-      'Contrata um agente novo para este andar, na pasta do projeto e no modo de permissões do andar.',
+      'Contrata um agente novo para este andar, na pasta do projeto e no modo de permissões padrão (pergunta antes de agir), nunca no modo do andar.',
       {
         name: z.string().trim().min(1).max(40).describe('Nome do agente, em pt-BR'),
         task: z.string().trim().min(1).max(4000).describe('O que o agente deve fazer, em pt-BR; a tarefa completa vai num ticket'),

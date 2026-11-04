@@ -598,3 +598,18 @@ describe('busca de nomes (Glob) limitada ao lugar anunciado — juiz, achado do 
     expect(decide('auto', 'Read', { file_path: 'D:\\proj\\src\\a.ts' }, p)).toEqual({ verdict: 'allow' })
   })
 })
+
+// AO-60: a hire by Emi runs in the default mode, so merge, push to main, credentials and outside paths still ask.
+describe('agente contratado pela Emi (modo padrão)', () => {
+  const asks: [string, string, Record<string, string>][] = [
+    ['merge', 'Bash', { command: 'gh pr merge 12 --squash' }],
+    ['push para a main', 'Bash', { command: 'git push origin main' }],
+    ['credenciais SSH', 'Read', { file_path: 'C:\\Users\\x\\.ssh\\id_rsa' }],
+    ['credenciais AWS', 'Bash', { command: 'cat ~/.aws/credentials' }],
+    ['escrita fora da pasta', 'Write', { file_path: 'D:\\dados\\outro\\a.md' }],
+  ]
+  for (const [label, tool, input] of asks)
+    it(`${label} pede cartão`, () => {
+      expect(decide('default', tool, input, WIN).verdict).toBe('ask')
+    })
+})

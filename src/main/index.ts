@@ -323,7 +323,7 @@ app.whenReady().then(async () => {
       const queue = creation.queue(code)
       if (!queue?.active) return
       // A paused or disabled squad keeps its queue; it starts again once resumed (AO-60).
-      if (queue.cwd && squadStatus.get(queue.cwd, code)) return
+      if (squadStatus.get(queue.cwd, code)) return
        const ticket = board.get(queue.active)
        const squad = loadSquads(queue.cwd).find((item) => item.code === code)
        if (!ticket || !squad) throw new Error(`Não consegui localizar o ticket ativo ou a definição do squad ${code}.`)

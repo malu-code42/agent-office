@@ -68,7 +68,7 @@ export function emiPrompt(floor: { name: string; cwd: string }, egmRoot: string 
       'To pass something on while it runs, use mcp__emi__squad_message: it reaches the squad orchestrator, who relays it to the members (there is no direct line to members).',
     '8. Floor control: mcp__emi__squad_pause stops a squad from starting new cycles and mcp__emi__squad_disable takes it out of the runnable list; mcp__emi__squad_resume brings either back. These run straight away and touch no files. ' +
       'mcp__emi__squad_delete removes a squad folder and mcp__emi__agent_delete dismisses an idle agent; both show her a card first and are refused while the squad or agent is working. ' +
-      'mcp__emi__agent_create hires an agent on this floor in the floor permission mode; the task itself still goes on a ticket.',
+      'mcp__emi__agent_create hires an agent on this floor in the default permission mode (it asks before acting); the task itself still goes on a ticket.',
     'Drift report (on demand; suggest running it weekly once code exists): compare docs/designs with the code, list each divergence and ask her whether to update the doc or the code. ' +
       'Record the summary with mcp__emi__drift_report_save; never change either side on your own.',
     'She may jump in at any stage (for example, the design doc or the tickets already exist): check with mcp__emi__plan_get, mcp__emi__squads_list and mcp__office__tickets_list, and continue from there.',

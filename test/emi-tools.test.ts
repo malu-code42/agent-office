@@ -276,7 +276,8 @@ describe('ferramentas da Emi', () => {
     expect(fired).toEqual(['a1', 'a3'])
   })
 
-  it('contratar agente usa a pasta e o modo de permissões do andar', async () => {
+  it('contratar agente usa a pasta do andar e o modo padrão, mesmo se o andar for mais permissivo', async () => {
+    project.permissionMode = 'bypassPermissions'
     const r = await call(deps, 'agent_create', { name: 'Iris', task: 'Revisar a busca' })
     expect(r).toEqual({ isError: false, text: expect.stringContaining('Iris') })
     expect(hired).toEqual([expect.objectContaining({ name: 'Iris', cwd: project.cwd, permissionMode: 'default' })])

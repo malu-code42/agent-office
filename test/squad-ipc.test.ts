@@ -25,6 +25,7 @@ let dataDir: string
 let broadcast: unknown[]
 let manager: { runSquad: (...args: unknown[]) => unknown; list: () => unknown[]; pendingResults: () => unknown[] }
 let startRetry: ReturnType<typeof import('vitest').vi.fn>
+let squadStatus: SquadStatusStore
 
 const team = (): SquadProposalMember[] => [
   { id: 'maya', name: 'Maya', role: 'implementer', engine: 'claude', model: '', account: '', focus: 'Implementa' },
@@ -62,13 +63,14 @@ beforeEach(() => {
     player: () => ({ kind: 'player', name: 'Malu' }),
     generate: async () => team(),
   })
+  squadStatus = new SquadStatusStore(dataDir)
   const ctx = {
     store: { settings: settings() },
     manager,
     board,
     defaultBrain: () => ({}),
     creation,
-    squadStatus: new SquadStatusStore(dataDir),
+    squadStatus,
     broadcast: (e: unknown) => broadcast.push(e),
     rereadSquads: () => [],
     win: () => null,
@@ -186,5 +188,23 @@ describe('os canais de squad', () => {
     const worktree = runArgs[4] as Parameters<typeof worktreeState>[0]
     expect(worktree.base).toBe(git('rev-parse', 'HEAD').trim())
     expect(await worktreeState(worktree)).toMatchObject({ dirty: 0, ignored: expect.any(Number) })
+  })
+
+  it('squad pausado não cria ciclo: o runSquad recusa antes de qualquer worktree ou agente', async () => {
+    const ticket = board.create({ title: 'Refazer a busca', status: 'todo', cwd: project.cwd }, { kind: 'player', name: 'Malu' })
+    const proposal = await propose('proposta-8', 0, [ticket.id])
+    await creation.approve(proposal.id, 'Equipe da busca')
+    const runSquad = vi.fn(() => ({ id: 'agent-1' }))
+    manager.runSquad = runSquad
+    squadStatus.set(project.cwd, 'sala-1', 'paused')
+    let failure: Error | undefined
+    try {
+      await callHandler('office:runSquad', project.cwd, 'sala-1', 'default', '', false)
+    } catch (err) {
+      failure = err as Error
+    }
+    expect(failure?.message).toMatch(/pausado/)
+    expect(runSquad).not.toHaveBeenCalled()
+    expect(creation.queue('sala-1')?.cycle).toBeUndefined()
   })
 })
