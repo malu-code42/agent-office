@@ -22,6 +22,8 @@ export interface StudySourceInfo {
   blankPages?: number
   /** PDF only: a scan (images, no text); Cora cannot read it, so the user must remove it from the sources. */
   scanned?: true
+  /** PDF only: many pages without text, though not a scan; the book should be adjusted. */
+  gaps?: true
 }
 
 export interface StudySourceInventory {

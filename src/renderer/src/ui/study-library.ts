@@ -92,7 +92,7 @@ function inventoryView(inv: StudySourceInventory, verify: () => void, busy: bool
     h('span', { class: `study-inv-chip study-inv-status-${status}` }, `${count(status)} · ${STATUS_LABEL[status]}`),
   )
   const scanned = inv.sources.filter((s) => s.scanned)
-  const partial = inv.sources.filter((s) => s.blankPages && !s.scanned)
+  const partial = inv.sources.filter((s) => s.gaps)
   const sorted = [...inv.sources].sort(
     (a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status) || a.path.localeCompare(b.path, 'pt-BR'),
   )

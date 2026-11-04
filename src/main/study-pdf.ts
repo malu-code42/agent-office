@@ -60,10 +60,19 @@ export function pagesWithoutText(pages: string[]): number[] {
   return pages.flatMap((text, i) => (text.trim().length < EMPTY_PAGE_CHARS ? [i] : []))
 }
 
+/** Share of pages without text that is more than the usual blank pages of a book: the PDF should be adjusted. */
+const GAPS_EMPTY_SHARE = 0.2
+
+const emptyShare = (pages: string[]): number => pagesWithoutText(pages).length / pages.length
+
 /** Whether a PDF looks scanned: its pages are images, so there is no text to read. */
 export function isScanned(pages: string[]): boolean {
-  const empty = pagesWithoutText(pages).length
-  return empty > 0 && empty >= pages.length * SCANNED_EMPTY_SHARE
+  return pages.length > 0 && emptyShare(pages) >= SCANNED_EMPTY_SHARE
+}
+
+/** Whether many pages of the PDF have no text (but not enough to be a scan). */
+export function hasGaps(pages: string[]): boolean {
+  return pages.length > 0 && emptyShare(pages) >= GAPS_EMPTY_SHARE
 }
 
 /** PDF pages cached on disk (one JSON per file version). Without a folder it only parses. */

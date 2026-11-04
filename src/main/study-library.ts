@@ -27,7 +27,7 @@ import {
 } from '@shared/study-library'
 import { tocEntries, type OutlineEntry } from '@shared/study-outline'
 import { rankStudySources, type StudySourceDoc, type StudySourceRecommendations } from '@shared/study-sources'
-import { isScanned, pagesWithoutText, type PdfExtractor } from './study-pdf'
+import { hasGaps, isScanned, pagesWithoutText, type PdfExtractor } from './study-pdf'
 import { markdownUnits, PdfTextCache, pdfSearchText, pdfUnits, pptxText, slideUnits, textUnits } from './study-source-text'
 
 const SOURCE_DIR = 'study sources'
@@ -305,6 +305,7 @@ export class StudyLibrary {
         info.pages = file.pages.length
         info.blankPages = pagesWithoutText(file.pages).length
         if (isScanned(file.pages)) info.scanned = true
+        else if (hasGaps(file.pages)) info.gaps = true
       }
       return info
     })
