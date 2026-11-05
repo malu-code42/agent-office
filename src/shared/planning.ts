@@ -74,6 +74,27 @@ export function clockText(ms: number): string {
 /** Ids in planning.json are lowercase, as the reader stores them, so a comparison never misses on case. */
 export const focusKey = (id: string): string => id.toLowerCase()
 
+/** Groups by the current board, keeping unresolved focus items available without a guessed origin. */
+export function groupFocusItems(lists: readonly TaskList[], items: readonly FocusItem[]): { name: string | null; items: FocusItem[] }[] {
+  const byId = new Map<string, number>()
+  lists.forEach((list, index) => {
+    for (const task of list.tasks) if (task.id) byId.set(focusKey(task.id), index)
+  })
+  const grouped = lists.map((): FocusItem[] => [])
+  const unresolved: FocusItem[] = []
+  for (const item of items) {
+    const index = item.missing ? undefined : byId.get(focusKey(item.id))
+    if (index === undefined) unresolved.push(item)
+    else grouped[index].push(item)
+  }
+  const result: { name: string | null; items: FocusItem[] }[] = []
+  lists.forEach((list, index) => {
+    if (grouped[index].length) result.push({ name: list.name, items: grouped[index] })
+  })
+  if (unresolved.length) result.push({ name: null, items: unresolved })
+  return result
+}
+
 /** Each focused id in the order it was added, matched against the tasks that have an id. */
 export function focusItems(
   lists: TaskList[],

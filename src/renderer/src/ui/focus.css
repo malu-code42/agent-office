@@ -35,6 +35,12 @@
   padding: 28px 22px;
 }
 
+.focus-group-heading {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 2px 0;
+}
+
 .focus-card {
   padding: 10px 11px;
   background: var(--surface-2);
