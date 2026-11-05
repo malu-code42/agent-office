@@ -7,7 +7,7 @@ import { checkDisciplineReadiness, openableFolder, proveReadyTopics, SerialQueue
 import type { StudyBookSuggestion } from '../src/shared/study-bank'
 import { STUDY_AGENT_ATTRIBUTION, STUDY_AGENT_LICENSE } from '../src/shared/study-bank'
 import type { StudyLibraryHit, StudySourceInfo } from '../src/shared/study-library'
-import type { StudySubtopics } from '../src/shared/study-outline'
+import { SUBTOPICS_RULE, type StudySubtopics } from '../src/shared/study-outline'
 import { isStudyReadinessReady, type StudyReadinessState } from '../src/shared/study-readiness'
 import type { StudyQuestion } from '../src/shared/study-questions'
 import { parseStudyTrail } from '../src/shared/study-trail'
@@ -80,7 +80,7 @@ function library(counts: Record<string, number> = {}, sources: StudySourceInfo[]
 }
 
 const noSubtopics = { get: () => undefined }
-const subtopicsOk = { get: (): StudySubtopics => ({ topic: 'x', source: 'L.pdf', builtAt: 1, status: 'ok', subtopics: [{ name: 'A', sections: [] }] }) }
+const subtopicsOk = { get: (): StudySubtopics => ({ topic: 'x', source: 'L.pdf', builtAt: 1, rule: SUBTOPICS_RULE, status: 'ok', subtopics: [{ name: 'A', sections: [] }] }) }
 
 const scannedPdf = (path: string): StudySourceInfo => ({
   path,
@@ -131,7 +131,7 @@ describe('checkDisciplineReadiness', () => {
   })
 
   it('marks a topic whose subtopics did not agree as sem-subtemas, with the reason', async () => {
-    const disagreed: StudySubtopics = { topic: 'Diodos', source: 'Livro.pdf', builtAt: 1, status: 'sem-acordo', reason: 'As listas não concordaram.', subtopics: [] }
+    const disagreed: StudySubtopics = { topic: 'Diodos', source: 'Livro.pdf', builtAt: 1, rule: SUBTOPICS_RULE, status: 'sem-acordo', reason: 'As listas não concordaram.', subtopics: [] }
     const report = await checkDisciplineReadiness(trail, 'P2-HW', {
       vault: VAULT,
       library: library({ Diodos: 3 }),
@@ -266,7 +266,7 @@ describe('book search, folder and queue', () => {
   })
 
   it('does not mark a topic pronto when its subtopics list is empty, so its total would be 0', async () => {
-    const empty = { get: (): StudySubtopics => ({ topic: 'x', source: 'L.pdf', builtAt: 1, status: 'ok', subtopics: [] }) }
+    const empty = { get: (): StudySubtopics => ({ topic: 'x', source: 'L.pdf', builtAt: 1, rule: SUBTOPICS_RULE, status: 'ok', subtopics: [] }) }
     const report = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library({ 'Circuitos elétricos': 3 }), subtopics: empty }, 1)
     expect(report.topics[0]).toMatchObject({ state: 'sem-subtemas' })
   })
@@ -335,6 +335,7 @@ describe('proveReadyTopics', () => {
     topic: 'Ondas',
     source: 'Livro.pdf',
     builtAt: 1,
+    rule: SUBTOPICS_RULE,
     status: 'ok',
     subtopics: [{ name: 'Propagação', sections: [] }],
   }

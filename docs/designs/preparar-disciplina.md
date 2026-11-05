@@ -48,3 +48,14 @@ Hardware I com 13 de 13 tópicos prontos: cada um com fonte, subtemas que fechar
 - Só avisar sem travar: não dá a garantia que a usuária quer antes de gerar.
 - Tudo ou nada por disciplina: bloqueia tópicos que já estão prontos.
 - Tentar de novo os subtemas, ou seguir sem eles: descartadas pela usuária em favor de travar o tópico.
+
+## Identidade da prontidão — AO-64 (2026-11-04)
+
+- O ID da trilha identifica o tópico, mesmo quando dois tópicos têm o mesmo título. Estado, motivo e livros são preservados por ID.
+- Um ID informado nunca herda a prontidão de outro ID pelo título. IDs repetidos no relatório ou na trilha não comprovam prontidão.
+- Relatórios legados com ID ausente/nulo continuam legíveis. O fallback por título exige uma única ocorrência tanto no relatório quanto na disciplina atual da trilha. Uma reconferência preserva o estado legado inequívoco e grava o ID atual.
+- Dados legados ambíguos não liberam geração nem emprestam estado/livros aos homônimos. A pessoa precisa conferir a disciplina novamente; cada tópico passa pela checagem existente, sem revalidar os demais tópicos prontos (AO-62 permanece separado).
+- A janela e o gate do banco recebem os tópicos com seus IDs, não uma lista de títulos. Cartões e ideias usam o mesmo casamento do relatório; rótulos de notas/ciclos com ID preservam a identidade, enquanto títulos sem ID e repetidos são recusados.
+- A busca de livros envia o ID ao processo principal e usa o título somente como consulta. O resultado é aplicado apenas ao tópico selecionado, inclusive se o relatório mudar durante a busca.
+- A prova de questão resolve um único tópico antes de chamar o construtor; um título legado ambíguo exige nova preparação, sem iniciar geração.
+- Não há alteração no formato persistido, nas chaves dos subtemas/questões existentes, na fila (AO-63) ou no desenho da interface.

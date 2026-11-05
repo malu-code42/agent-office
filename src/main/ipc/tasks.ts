@@ -31,7 +31,14 @@ import { studiedTopics } from '@shared/study-ideas'
 import { suggestBooks } from '../study-book-suggestions'
 import { StudyBankJobs } from '../study-bank-job'
 import { isStudyReadinessReady } from '@shared/study-readiness'
-import { checkDisciplineReadiness, openableFolder, SerialQueue, StudyReadinessStore, suggestTopicBooks, type ReadinessSource } from '../study-readiness'
+import {
+  checkDisciplineReadiness,
+  openableFolder,
+  SerialQueue,
+  StudyReadinessStore,
+  suggestTopicBooks,
+  type ReadinessSource,
+} from '../study-readiness'
 import { answeredStudyQuestions, isStudyQuestionAnswered } from '@shared/study-cycle'
 import { StudyQuestionService } from '../study-questions'
 import { claudeStudyQuestionProviders } from '../study-questions-claude'
@@ -228,8 +235,9 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const trail = parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE))
     // The window's gate is not enough: the trail is checked again here, against the same trail the build reads.
     const report = await checkDiscipline(trail, request.discipline)
-    const titles = studyBankTopics(trail, { discipline: request.discipline }).map((t) => t.title)
-    if (!isStudyReadinessReady(report, titles)) throw new Error('A disciplina ainda tem tópicos sem prontidão. Confira a prontidão antes de montar.')
+    const topics = studyBankTopics(trail, { discipline: request.discipline })
+    if (!isStudyReadinessReady(report, topics))
+      throw new Error('A disciplina ainda tem tópicos sem prontidão. Confira a prontidão antes de montar.')
     const library = studyLibrary()
     const bank = studyService()
     // Open questions and ones citing a text the student never sees go out (with a backup).
@@ -272,7 +280,8 @@ export function registerTasksIpc(ctx: IpcContext): void {
   ipcMain.handle('office:readStudyIdeas', () => ideaStore.read())
   ipcMain.handle('office:generateStudyIdeas', async (_e, ...args: unknown[]) => {
     const [topic] = parse(studySubtopicsArgsSchema, args, 'Tópico inválido.')
-    if (!studiedTopics(studyCycleStore.read()).some((item) => item.topic === topic)) throw new Error('Esse tópico não está no ciclo de estudos.')
+    if (!studiedTopics(studyCycleStore.read()).some((item) => item.topic === topic))
+      throw new Error('Esse tópico não está no ciclo de estudos.')
     const set = await generateIdeas(topic, askClaude, readiness)
     ideaStore.save(set)
     return set
@@ -315,9 +324,15 @@ export function registerTasksIpc(ctx: IpcContext): void {
   ipcMain.handle('office:suggestStudyBooks', (_e, ...args: unknown[]) => {
     const [discipline, name] = parse(suggestStudyBooksArgsSchema, args, 'Tópico inválido.')
     return readinessQueue.run(() =>
-      suggestTopicBooks(readinessStore, discipline, name, async () => {
-        const trailTopic = parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE)).topics.find((t) => t.title === name)
-        return suggestBooks(name, trailTopic?.discipline ?? discipline)
+      suggestTopicBooks(readinessStore, discipline, name, async (selected) => {
+        const trail = parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE))
+        const matches = studyBankTopics(trail, { discipline }).filter((t) =>
+          selected.id ? t.id === selected.id : t.title === selected.topic,
+        )
+        const [trailTopic] = matches
+        if (matches.length !== 1 || !trailTopic)
+          throw new Error('O tópico mudou ou está repetido na trilha. Confira a prontidão da disciplina de novo.')
+        return suggestBooks(trailTopic.title, trailTopic.discipline)
       }),
     )
   })

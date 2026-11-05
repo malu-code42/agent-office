@@ -18,7 +18,11 @@ const vault = (): string => {
 const TRAIL = parseStudyTrail('## 2º período\n### [P2-HW] Hardware I — 60 h\n- [ ] [P2-HW-01] Circuitos elétricos.')
 const LABEL = TRAIL.topics[0]!.label
 const reportWith = (state: StudyReadinessState): Record<string, StudyReadiness> => ({
-  'P2-HW': { discipline: 'P2-HW', builtAt: 1, topics: [{ id: 'P2-HW-01', topic: 'Circuitos elétricos', state, reason: 'Só 2 trecho(s).', folders: [] }] },
+  'P2-HW': {
+    discipline: 'P2-HW',
+    builtAt: 1,
+    topics: [{ id: 'P2-HW-01', topic: 'Circuitos elétricos', state, reason: 'Só 2 trecho(s).', folders: [] }],
+  },
 })
 let reports = reportWith('pronto')
 const readiness: ReadinessSource = { trail: () => TRAIL, reports: () => reports }
@@ -149,6 +153,35 @@ describe('biblioteca de cartões de estudo', () => {
     expect(existsSync(join(root, 'cartoes-estudo'))).toBe(false)
   })
 
+  it('does not start or assist a card using the readiness of another topic with the same title', async () => {
+    const root = vault()
+    const twinTrail = parseStudyTrail(
+      '## 2º período\n### [P2-HW] Hardware I — 60 h\n- [ ] [P2-HW-01] Circuitos elétricos.\n- [ ] [P2-HW-02] Circuitos elétricos.',
+    )
+    const readyId = 'sn-sc-123-abcdefgh-q-12345678-ready'
+    const lockedId = 'sn-sc-123-abcdefgh-q-12345678-locked'
+    const legacyId = 'sn-sc-123-abcdefgh-q-12345678-legacy'
+    writeFileSync(
+      join(root, 'notas-estudo.md'),
+      [
+        note(readyId, 'Pronto.', '2026-10-25', twinTrail.topics[0]!.label),
+        note(lockedId, 'Travado.', '2026-10-25', twinTrail.topics[1]!.label),
+        note(legacyId, 'Legado.', '2026-10-25', 'Circuitos elétricos'),
+      ].join('\n'),
+    )
+    reports['P2-HW']!.topics.push({ ...reports['P2-HW']!.topics[0]!, id: 'P2-HW-02', state: 'sem-fonte' })
+    const assist = vi.fn(noAssist.assist)
+    const service = new StudyCardsService(root, { assist }, { trail: () => twinTrail, reports: () => reports })
+    expect(() => service.startDraft([readyId])).not.toThrow()
+    expect(() => service.startDraft([lockedId])).toThrow(/ainda não está pronto/)
+    expect(() => service.startDraft([legacyId])).toThrow(/mais de|repetido/)
+    const started = service.startDraft([readyId])
+    reports['P2-HW']!.topics = [reports['P2-HW']!.topics[1]!]
+    await expect(service.assist(started.token, authored)).rejects.toThrow(/não está no relatório/)
+    expect(assist).not.toHaveBeenCalled()
+    expect(() => service.saveDraft(started.token, draft())).toThrow(/não está no relatório/)
+  })
+
   it('does not start a card without a readiness report or from a note without topic', () => {
     const root = vault()
     const noteId = 'sn-sc-123-abcdefgh-q-12345678-note8'
@@ -166,10 +199,7 @@ describe('biblioteca de cartões de estudo', () => {
     const root = vault()
     const withTopic = 'sn-sc-123-abcdefgh-q-12345678-note5'
     const without = 'sn-sc-123-abcdefgh-q-12345678-note6'
-    writeFileSync(
-      join(root, 'notas-estudo.md'),
-      `${note(withTopic, 'Com tópico.')}\n${note(without, 'Sem tópico.', '2026-10-25', null)}`,
-    )
+    writeFileSync(join(root, 'notas-estudo.md'), `${note(withTopic, 'Com tópico.')}\n${note(without, 'Sem tópico.', '2026-10-25', null)}`)
     const service = new StudyCardsService(root, noAssist, readiness)
     expect(service.readNotes().notes.map((item) => item.topic)).toEqual([LABEL, undefined])
     const started = service.startDraft([withTopic])
