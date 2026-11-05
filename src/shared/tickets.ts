@@ -13,6 +13,7 @@ export const TYPES: { value: TicketType; label: string }[] = [
   { value: 'feature', label: 'Feature' },
   { value: 'improvement', label: 'Melhoria' },
   { value: 'bug', label: 'Bug' },
+  { value: 'epic', label: 'Mãe' },
 ]
 
 export const PRIORITIES: { value: TicketPriority; label: string }[] = [
@@ -34,7 +35,7 @@ export function neighborStatus(status: TicketStatus, dir: -1 | 1): TicketStatus 
  * The ticket as the agent reads it. Self-contained on purpose: an agent that
  * never saw the board can do the work from this text alone.
  */
-export function ticketBrief(t: Ticket): string {
+export function ticketBrief(t: Ticket, children: Ticket[] = []): string {
   const lines = [
     `# ${t.key} · ${t.title}`,
     '',
@@ -43,12 +44,17 @@ export function ticketBrief(t: Ticket): string {
       (t.model || t.effort ? ` · **Modelo:** ${[t.model, t.effort].filter(Boolean).join(' / ')}` : '') +
       (t.dueDate ? ` · **Prazo:** ${t.dueDate}` : ''),
   ]
+  if (t.parent) lines.push(`**Mãe:** ${t.parent}`)
   if (t.tags.length) lines.push(`**Tags:** ${t.tags.join(', ')}`)
   lines.push(`**Aberto por:** ${t.reporter.name}`)
   lines.push('', '## Contexto', '', t.description.trim() || '_Sem descrição. Leia o projeto e confirme o escopo antes de mudar algo grande._')
   if (t.acceptance.length) {
     lines.push('', '## Critérios de aceite', '')
     t.acceptance.forEach((c, i) => lines.push(`${i + 1}. [${c.done ? 'x' : ' '}] ${c.text}`))
+  }
+  if (children.length) {
+    lines.push('', '## Filhos', '')
+    for (const c of children) lines.push(`- ${c.key} [${c.closedAt ? 'fechado' : c.status}] ${c.title}`)
   }
   const notes = t.comments.slice(-5)
   if (notes.length) {
