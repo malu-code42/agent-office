@@ -28,6 +28,7 @@ const STUDY_TITLES: Record<StudyAct, string> = {
   desk: 'Sua carteira: sentar e estudar',
   questions: 'Banco de questões',
   cards: 'Notas e cartões',
+  ideas: 'Ideias de software',
   schedule: 'Horário de aula',
   trail: 'Trilha de estudos: escolher o tópico',
   cora: 'Cora · bibliotecária',

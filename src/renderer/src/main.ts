@@ -23,6 +23,7 @@ import { openStudyCycle, startStudyTopic } from './ui/study-cycle'
 import { openStudyTrailBoard } from './ui/study-trail-board'
 import { BONNIE_AGENT_ID } from '@shared/bonnie'
 import { openStudyCards } from './ui/study-cards'
+import { openStudyIdeas } from './ui/study-ideas'
 import { openStudyQuestions } from './ui/study-questions'
 import { openStudyLibrary } from './ui/study-library'
 import { mountStudyBankChip, openStudyBankBuilder } from './ui/study-bank'
@@ -287,7 +288,7 @@ async function boot(): Promise<void> {
     },
     // The study floor: Bonnie opens her chat; a teacher, the blackboard and the user's desk the study cycle;
     // the trail board in her office the trail by discipline; Cora and the shelves the library; the cabinet and
-    // the easel the question bank; the notes desk the cards; the schedule board its own week grid of aulas.md
+    // the easel the question bank; the cards table the cards; the computer the ideas; the schedule board its own week grid of aulas.md
     // ("Ver na agenda" goes on to the agenda).
     onStudy: (act, teacher) => {
       if (teacher) toast(`${teacher.name}: cuida de ${teacher.role} no ciclo da Bonnie.`, 'info')
@@ -302,6 +303,7 @@ async function boot(): Promise<void> {
       else if (act === 'library' || act === 'cora') openStudyLibrary(ui, toast, studyTopic)
       else if (act === 'questions') openBank()
       else if (act === 'cards') void openStudyCards(ui, toast)
+      else if (act === 'ideas') void openStudyIdeas(ui, toast)
       else if (act === 'schedule') void openStudySchedule(ui, toast, () => openAgenda(ui))
     },
     onMeetingRoomClick: (project) => {

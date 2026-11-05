@@ -17,9 +17,9 @@ type Rect = [number, number, number, number]
  * What a click on something of the study floor does: Cora's shelves (the library), the
  * blackboard (the current topic: the study cycle), the user's desk (sit and study), the
  * question bank, notes and cards, the class schedule, the study trail board in Bonnie's
- * office, Cora and Bonnie at their desks.
+ * office, the software ideas computer, Cora and Bonnie at their desks.
  */
-export type StudyAct = 'library' | 'cycle' | 'desk' | 'questions' | 'cards' | 'schedule' | 'trail' | 'cora' | 'bonnie'
+export type StudyAct = 'library' | 'cycle' | 'desk' | 'questions' | 'cards' | 'schedule' | 'trail' | 'cora' | 'bonnie' | 'ideas'
 
 export interface EstudosLayout {
   tile: number

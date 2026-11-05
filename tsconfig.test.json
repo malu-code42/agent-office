@@ -2,13 +2,18 @@
   "extends": "./tsconfig.node.json",
   "compilerOptions": {
     "composite": false,
-    "noEmit": true
+    "noEmit": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node", "vite/client"]
   },
   "include": [
     "vitest.config.ts",
     "test/**/*",
     "src/main/**/*",
     "src/shared/**/*",
+    "src/preload/api.d.ts",
+    "src/renderer/src/game/study.ts",
+    "src/renderer/src/world2d/overlays.ts",
     "src/renderer/src/world2d/pathfinding.ts",
     "src/renderer/src/world2d/plan.ts",
     "src/renderer/src/world2d/home-layout.ts",
