@@ -35,6 +35,7 @@ export class SquadPublicationGate {
 /** Keep failures after publication out of the previous ticket's retryable result. */
 export async function publishThenStartNext<T>(deps: {
   publish(): Promise<T>
+  finishTicket?(): void
   startNext(): Promise<void>
   publicationFailed(error: unknown): void
   nextStartFailed(error: unknown): void
@@ -47,6 +48,7 @@ export async function publishThenStartNext<T>(deps: {
   }
 
   try {
+    deps.finishTicket?.()
     await deps.startNext()
   } catch (error) {
     deps.nextStartFailed(error)
