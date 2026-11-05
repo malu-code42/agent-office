@@ -21,6 +21,7 @@ import { copySquadRuntime, inspectSquads, isDir, loadSquads } from './squads'
 import { SquadCreation } from './squad-creation'
 import { SquadProposalStore } from './squad-proposals'
 import { SquadQueueStore } from './squad-queues'
+import { SquadStatusStore } from './squad-status'
 import { MacJobs } from './mac-jobs'
 import { RoutineScheduler, RoutineStore } from './routines'
 import { BarTimerStore } from './bar-timer-store'
@@ -294,7 +295,8 @@ app.whenReady().then(async () => {
 
   // Each project floor shows the squads of its folder.
   const squadDefs = () => store.settings.projects.flatMap((p) => (isDir(p.cwd) ? loadSquads(p.cwd) : []))
-  const readSquads = () => store.settings.projects.flatMap((p) => (isDir(p.cwd) ? inspectSquads(p.cwd) : []))
+  const squadStatus = new SquadStatusStore(app.getPath('userData'))
+  const readSquads = () => store.settings.projects.flatMap((p) => (isDir(p.cwd) ? squadStatus.apply(p.cwd, inspectSquads(p.cwd)) : []))
   let squads = readSquads()
 
   // The squads the player proposed for the empty rooms and has not approved yet. They
@@ -320,6 +322,8 @@ app.whenReady().then(async () => {
     try {
       const queue = creation.queue(code)
       if (!queue?.active) return
+      // A paused or disabled squad keeps its queue; it starts again once resumed (AO-60).
+      if (squadStatus.get(queue.cwd, code)) return
        const ticket = board.get(queue.active)
        const squad = loadSquads(queue.cwd).find((item) => item.code === code)
        if (!ticket || !squad) throw new Error(`Não consegui localizar o ticket ativo ou a definição do squad ${code}.`)
@@ -631,6 +635,7 @@ app.whenReady().then(async () => {
     squads: () => squads,
     rereadSquads: () => (squads = readSquads()),
     creation,
+    squadStatus,
     retrySquadPublication,
     startActiveSquadTicket,
     onBattery: () => onBattery,

@@ -11,6 +11,7 @@ import type { PlanningStore } from '../planning'
 import type { RoutineScheduler } from '../routines'
 import type { QuitFlow } from '../quit'
 import type { SquadCreation } from '../squad-creation'
+import type { SquadStatusStore } from '../squad-status'
 import type { StatsReader } from '../stats'
 import type { Store } from '../store'
 import type { SystemMonitor } from '../system'
@@ -65,6 +66,7 @@ export interface IpcContext {
   rereadSquads(): SquadInfo[]
   /** The proposals of squads the player has not approved yet. */
   creation: SquadCreation
+  squadStatus: SquadStatusStore
   retrySquadPublication(code: string): Promise<void>
   startActiveSquadTicket(code: string): Promise<void>
   onBattery(): boolean
