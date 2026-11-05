@@ -7,6 +7,7 @@ import {
   type McpSdkServerConfigWithInstance,
   type PermissionResult,
   type PermissionUpdate,
+  type Query,
   type SDKMessage,
 } from '@anthropic-ai/claude-agent-sdk'
 import type {
@@ -39,6 +40,21 @@ import { LOG_LIMIT, PERSISTED_LOG, type Agent, type Pending, type Prompt } from 
  */
 export abstract class AgentBase extends EventEmitter {
   protected agents = new Map<string, Agent>()
+  /** AO-54: a closed conversation must not deliver late events into its replacement. */
+  protected replaced = new WeakSet<Query>()
+  private squadStarts = new Set<string>()
+
+  reserveSquadStart(cwd: string, code: string): (() => void) | undefined {
+    const key = JSON.stringify([cwd, code])
+    if (this.squadStarts.has(key)) return undefined
+    this.squadStarts.add(key)
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      this.squadStarts.delete(key)
+    }
+  }
   protected pending = new Map<string, Pending>()
   protected results: AgentResult[]
   /** In-process tools every office agent gets (the ticket board), built per agent. */
@@ -382,6 +398,7 @@ export abstract class AgentBase extends EventEmitter {
   protected abstract subagentMessage(agent: Agent, parentToolUseId: string, role: 'assistant' | 'user', content: unknown): void
   protected abstract retire(agent: Agent, sub: SubagentInfo, status: NonNullable<SubagentInfo['status']>, line?: string): void
   protected abstract clearSubagents(agent: Agent): void
+  protected abstract clearLimitWaiter(agentId: string): void
   protected abstract askPlayer(
     agent: Agent,
     tool: string,

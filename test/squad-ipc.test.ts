@@ -14,6 +14,7 @@ import { TicketBoard } from '../src/main/tickets'
 import type { IpcContext } from '../src/main/ipc/context'
 import type { Account, ProjectFloor, Settings, SquadProposalMember } from '@shared/types'
 import { worktreeState } from '../src/main/git'
+import * as gitModule from '../src/main/git'
 
 // The page sends the id of a proposal and the room it means: never a path. Every
 // argument is checked before the office does anything with it.
@@ -23,7 +24,12 @@ let creation: SquadCreation
 let board: TicketBoard
 let dataDir: string
 let broadcast: unknown[]
-let manager: { runSquad: (...args: unknown[]) => unknown; list: () => unknown[]; pendingResults: () => unknown[] }
+let manager: {
+  runSquad: (...args: unknown[]) => unknown
+  list: () => unknown[]
+  pendingResults: () => unknown[]
+  reserveSquadStart: (cwd: string, code: string) => (() => void) | undefined
+}
 let startRetry: ReturnType<typeof import('vitest').vi.fn>
 let squadStatus: SquadStatusStore
 
@@ -52,7 +58,20 @@ beforeEach(() => {
   project = { id: 'p1', name: 'Loja Aurora', cwd }
   board = new TicketBoard(dataDir)
   broadcast = []
-  manager = { runSquad: () => ({ id: 'agent-1' }), list: () => [], pendingResults: () => [] }
+  const starts = new Set<string>()
+  manager = {
+    runSquad: () => ({ id: 'agent-1' }),
+    list: () => [],
+    pendingResults: () => [],
+    reserveSquadStart: (cwd, code) => {
+      const key = `${cwd}:${code}`
+      if (starts.has(key)) return undefined
+      starts.add(key)
+      return () => {
+        starts.delete(key)
+      }
+    },
+  }
   startRetry = vi.fn(async () => undefined)
   creation = new SquadCreation({
     proposals: new SquadProposalStore(dataDir),
@@ -152,9 +171,15 @@ describe('os canais de squad', () => {
 
   it('a action de retry de startup chama inicialização do ticket, não publicação', async () => {
     creation.queue = (() => ({
-      code: 'sala-1', cwd: project.cwd, queue: [], updatedAt: 1,
+      code: 'sala-1',
+      cwd: project.cwd,
+      queue: [],
+      updatedAt: 1,
       active: 'ticket-1',
-      cycle: { ticketId: 'ticket-1', worktree: { path: 'saved', root: 'saved', repo: 'repo', branch: 'agent/saved', base: 'a'.repeat(40) } },
+      cycle: {
+        ticketId: 'ticket-1',
+        worktree: { path: 'saved', root: 'saved', repo: 'repo', branch: 'agent/saved', base: 'a'.repeat(40) },
+      },
     })) as typeof creation.queue
     await callHandler('office:retrySquadStart', 'sala-1')
     expect(startRetry).toHaveBeenCalledWith('sala-1')
@@ -206,5 +231,65 @@ describe('os canais de squad', () => {
     expect(failure?.message).toMatch(/pausado/)
     expect(runSquad).not.toHaveBeenCalled()
     expect(creation.queue('sala-1')?.cycle).toBeUndefined()
+  })
+
+  it('AO-54: dois inícios concorrentes não disputam o diário nem criam duas worktrees', async () => {
+    const ticket = board.create({ title: 'Ticket sintético', cwd: project.cwd }, { kind: 'player', name: 'Malu' })
+    const proposal = await propose('proposta-9', 0, [ticket.id])
+    await creation.approve(proposal.id, 'Equipe')
+    let finish!: (value: null) => void
+    const create = vi
+      .spyOn(gitModule, 'createWorktree')
+      .mockResolvedValue(null)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve
+          }),
+      )
+    try {
+      const first = Promise.resolve(callHandler('office:runSquad', project.cwd, 'sala-1', 'default', '', false)).catch(
+        (error: unknown) => error,
+      )
+      await expect(callHandler('office:runSquad', project.cwd, 'sala-1', 'default', '', false)).rejects.toThrow(/iniciado/)
+      expect(create).toHaveBeenCalledOnce()
+      finish(null)
+      expect(await first).toMatchObject({ message: expect.stringMatching(/repositório git/) })
+      // Failure releases the reservation, so retry can prepare the same ticket again.
+      create.mockResolvedValue(null)
+      await expect(callHandler('office:runSquad', project.cwd, 'sala-1', 'default', '', false)).rejects.toThrow(/repositório git/)
+      expect(create).toHaveBeenCalledTimes(2)
+    } finally {
+      finish(null)
+      create.mockRestore()
+    }
+  })
+
+  it('AO-54: pausa durante a preparação impede envio e preserva o ciclo para retomada', async () => {
+    const ticket = board.create({ title: 'Ticket sintético', cwd: project.cwd }, { kind: 'player', name: 'Malu' })
+    const proposal = await propose('proposta-10', 0, [ticket.id])
+    await creation.approve(proposal.id, 'Equipe')
+    const worktree = { path: project.cwd, root: project.cwd, repo: project.cwd, branch: 'agent/sintetico', base: 'a'.repeat(40) }
+    const create = vi.spyOn(gitModule, 'createWorktree').mockResolvedValue(worktree)
+    const exclude = vi.spyOn(gitModule, 'excludeSquadRuntime').mockImplementation(async () => {
+      squadStatus.set(project.cwd, 'sala-1', 'paused')
+    })
+    mkdirSync(join(project.cwd, '_opensquad', 'core'), { recursive: true })
+    writeFileSync(join(project.cwd, '_opensquad', 'core', 'runner.pipeline.md'), 'runner')
+    const run = vi.fn(() => ({ id: 'agent-1' }))
+    manager.runSquad = run
+    try {
+      await expect(callHandler('office:runSquad', project.cwd, 'sala-1', 'default', '', false)).rejects.toThrow(/pausado/)
+      expect(run).not.toHaveBeenCalled()
+      expect(creation.queue('sala-1')?.cycle).toMatchObject({ ticketId: ticket.id, worktree })
+      squadStatus.set(project.cwd, 'sala-1', null)
+      exclude.mockResolvedValue(undefined)
+      await callHandler('office:runSquad', project.cwd, 'sala-1', 'default', '', false)
+      expect(run).toHaveBeenCalledOnce()
+      expect(create).toHaveBeenCalledOnce()
+    } finally {
+      create.mockRestore()
+      exclude.mockRestore()
+    }
   })
 })

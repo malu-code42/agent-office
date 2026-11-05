@@ -61,65 +61,75 @@ export function registerSquadsIpc(ctx: IpcContext): void {
         { cause: err },
       )
     }
-    const inherited = projectFor(store.settings.projects, cwd)?.permissionMode ?? store.settings.defaultPermissionMode
-    const permissionMode = checkedSquadMode(mode, inherited, true)
-    if (
-      modeIsMorePermissive(permissionMode, inherited) &&
-      !(await confirmPermissionOverride(ctx.win(), `O squad ${squad.name} executará o ciclo com o modo selecionado.`))
-    )
-      throw new Error('Ciclo cancelado.')
-    const extra = (squadNoteSchema.parse(note) ?? '').trim().slice(0, 2000)
-    // A ticket cycle gets a fresh worktree from project HEAD. Squad definitions may be
-    // untracked, so copy their read-only runtime into the worktree without touching the
-    // canonical source or including it in result commits.
-    const queue = ctx.creation.queue(squad.code)
-    const active = queue?.active ? ctx.board.get(queue.active) : undefined
-    const ticketNote = active ? `\n\nA equipe começa pelo ticket ${active.key} (${active.title}):\n${ticketBrief(active)}` : ''
-    let worktree
-    if (active) {
-      const running = manager
-        .list()
-        .find((a) => a.role === 'orchestrator' && a.squad === squad.code && a.cwd === cwd && a.ticketId === active.id && a.worktree)
-      if (running && manager.pendingResults().some((result) => result.agentId === running.id && !result.isError))
-        throw new Error(`O resultado do ticket ${active.key} está aguardando publicação segura; não vou substituí-lo.`)
-      worktree = running?.worktree ?? (queue?.cycle?.ticketId === active.id ? queue.cycle.worktree : undefined)
-      if (!worktree) {
-        worktree = await createWorktree(cwd, `${squad.name}-${active.key}`, randomUUID())
-        if (!worktree) throw new Error('O ciclo de tickets de squad exige um repositório git para criar uma cópia isolada.')
-        ctx.creation.setCycle(squad.code, { ticketId: active.id, worktree })
-      }
-      try {
-        await excludeSquadRuntime(worktree, squad.code)
-        copySquadRuntime(cwd, squad.code, worktree.path)
-      } catch (err) {
-        // Keep both the cycle journal and worktree so the exact copy can be repaired/retried.
-        ctx.creation.setStartupError(squad.code, active.id, err instanceof Error ? err.message : String(err))
-        throw new Error(
-          `Não consegui preparar a definição isolada do squad: ${err instanceof Error ? err.message : String(err)}. A cópia ficou em ${worktree.root}.`,
-          { cause: err },
-        )
-      }
-    }
+    const release = manager.reserveSquadStart(cwd, squad.code)
+    if (!release) throw new Error('O ciclo desse squad já está sendo iniciado.')
     try {
-      const agent = await manager.runSquad(
-        squadInfo({ ...squad, cwd: projectFor(store.settings.projects, cwd)!.cwd }),
-        `Rode um ciclo do squad ${squad.name} (squads/${squad.code}), do primeiro passo do pipeline até o fim.${ticketNote}${extra ? `\n\nRecado de ${store.settings.playerName}: ${extra}` : ''}`,
-        `Rodar um ciclo de ${squad.icon} ${squad.name}${extra ? `\n\n${extra}` : ''}`,
-        {
-          ...defaultBrain(),
-          model: 'claude-haiku-5-5',
-          // Same rule as tickets: a cycle reaches real systems, so it never runs with "bypass".
-          permissionMode,
-        },
-        worktree,
-        active?.id,
+      const inherited = projectFor(store.settings.projects, cwd)?.permissionMode ?? store.settings.defaultPermissionMode
+      const permissionMode = checkedSquadMode(mode, inherited, true)
+      if (
+        modeIsMorePermissive(permissionMode, inherited) &&
+        !(await confirmPermissionOverride(ctx.win(), `O squad ${squad.name} executará o ciclo com o modo selecionado.`))
       )
-      if (active) ctx.creation.clearStartupError(squad.code, active.id)
-      return agent
-    } catch (err) {
-      if (active && ctx.creation.queue(squad.code)?.cycle?.ticketId === active.id)
-        ctx.creation.setStartupError(squad.code, active.id, err instanceof Error ? err.message : String(err))
-      throw err
+        throw new Error('Ciclo cancelado.')
+      const extra = (squadNoteSchema.parse(note) ?? '').trim().slice(0, 2000)
+      // A ticket cycle gets a fresh worktree from project HEAD. Squad definitions may be
+      // untracked, so copy their read-only runtime into the worktree without touching the
+      // canonical source or including it in result commits.
+      const queue = ctx.creation.queue(squad.code)
+      const active = queue?.active ? ctx.board.get(queue.active) : undefined
+      const ticketNote = active ? `\n\nA equipe começa pelo ticket ${active.key} (${active.title}):\n${ticketBrief(active)}` : ''
+      let worktree
+      if (active) {
+        const running = manager
+          .list()
+          .find((a) => a.role === 'orchestrator' && a.squad === squad.code && a.cwd === cwd && a.ticketId === active.id && a.worktree)
+        if (running && manager.pendingResults().some((result) => result.agentId === running.id && !result.isError))
+          throw new Error(`O resultado do ticket ${active.key} está aguardando publicação segura; não vou substituí-lo.`)
+        worktree = running?.worktree ?? (queue?.cycle?.ticketId === active.id ? queue.cycle.worktree : undefined)
+        if (!worktree) {
+          worktree = await createWorktree(cwd, `${squad.name}-${active.key}`, randomUUID())
+          if (!worktree) throw new Error('O ciclo de tickets de squad exige um repositório git para criar uma cópia isolada.')
+          ctx.creation.setCycle(squad.code, { ticketId: active.id, worktree })
+        }
+        try {
+          await excludeSquadRuntime(worktree, squad.code)
+          copySquadRuntime(cwd, squad.code, worktree.path)
+        } catch (err) {
+          // Keep both the cycle journal and worktree so the exact copy can be repaired/retried.
+          ctx.creation.setStartupError(squad.code, active.id, err instanceof Error ? err.message : String(err))
+          throw new Error(
+            `Não consegui preparar a definição isolada do squad: ${err instanceof Error ? err.message : String(err)}. A cópia ficou em ${worktree.root}.`,
+            { cause: err },
+          )
+        }
+      }
+      const latestState = ctx.squadStatus.get(cwd, squad.code)
+      if (latestState)
+        throw new Error(`O squad ${squad.code} está ${latestState === 'paused' ? 'pausado' : 'desativado'}; retome-o antes de rodar.`)
+      if (ctx.creation.queue(squad.code)?.active !== active?.id) throw new Error('O ticket ativo mudou durante a preparação do ciclo.')
+      try {
+        const agent = await manager.runSquad(
+          squadInfo({ ...squad, cwd: projectFor(store.settings.projects, cwd)!.cwd }),
+          `Rode um ciclo do squad ${squad.name} (squads/${squad.code}), do primeiro passo do pipeline até o fim.${ticketNote}${extra ? `\n\nRecado de ${store.settings.playerName}: ${extra}` : ''}`,
+          `Rodar um ciclo de ${squad.icon} ${squad.name}${extra ? `\n\n${extra}` : ''}`,
+          {
+            ...defaultBrain(),
+            model: 'claude-haiku-5-5',
+            // Same rule as tickets: a cycle reaches real systems, so it never runs with "bypass".
+            permissionMode,
+          },
+          worktree,
+          active?.id,
+        )
+        if (active) ctx.creation.clearStartupError(squad.code, active.id)
+        return agent
+      } catch (err) {
+        if (active && ctx.creation.queue(squad.code)?.cycle?.ticketId === active.id)
+          ctx.creation.setStartupError(squad.code, active.id, err instanceof Error ? err.message : String(err))
+        throw err
+      }
+    } finally {
+      release()
     }
   }
   ipcMain.handle('office:runSquad', (_e, cwd: unknown, code: unknown, mode: unknown, note: unknown, _confirmOverride: unknown) =>
@@ -141,7 +151,9 @@ export function registerSquadsIpc(ctx: IpcContext): void {
     const [projectId, goal, brainstorm] = parse(projectWorkflowBrainstormArgsSchema, raw, 'Rascunho do brainstorm inválido.')
     return ctx.projectWorkflows.saveBrainstorm(workflowProject(projectId).id, goal, brainstorm)
   })
-  ipcMain.handle('office:approveProjectWorkflowBrainstorm', (_e, raw: unknown) => ctx.projectWorkflows.approveBrainstorm(workflowProject(raw).id))
+  ipcMain.handle('office:approveProjectWorkflowBrainstorm', (_e, raw: unknown) =>
+    ctx.projectWorkflows.approveBrainstorm(workflowProject(raw).id),
+  )
   ipcMain.handle('office:saveProjectWorkflowDesign', (_e, ...raw: unknown[]) => {
     const [projectId, design, criteria, designPath] = parse(projectWorkflowDesignArgsSchema, raw, 'Rascunho do design inválido.')
     return ctx.projectWorkflows.saveDesign(workflowProject(projectId).id, design, criteria, designPath)
@@ -290,7 +302,8 @@ export function registerSquadsIpc(ctx: IpcContext): void {
         const busy = ctx.manager.list().find((a) => a.squad === squad.code && a.cwd === cwd && a.status !== 'idle')
         if (busy) throw new Error(`${busy.name} ainda está rodando o squad ${squad.code}; espere ele parar.`)
         const queue = ctx.creation.queue(squad.code)
-        if (queue?.active || queue?.cycle) throw new Error(`O squad ${squad.code} tem ticket em andamento ou atribuído; espere o ciclo terminar.`)
+        if (queue?.active || queue?.cycle)
+          throw new Error(`O squad ${squad.code} tem ticket em andamento ou atribuído; espere o ciclo terminar.`)
         removeSquad(cwd, squad.code)
         ctx.squadStatus.set(cwd, squad.code, null)
         ctx.broadcast({ type: 'squads', squads: ctx.rereadSquads() })
@@ -356,7 +369,8 @@ export function registerSquadsIpc(ctx: IpcContext): void {
     const workflow = ctx.projectWorkflows.get(project.id)
     if (kind === 'brainstorm' && !workflow.goal.trim()) throw new Error('Informe o objetivo antes de pedir o brainstorm à Emi.')
     if (kind === 'design' && !workflow.brainstormApprovedAt) throw new Error('Aprove o brainstorm antes de gerar o rascunho do design.')
-    if ((kind === 'review' || kind === 'drift') && !workflow.designApprovedAt) throw new Error('Aprove o rascunho do design antes de continuar.')
+    if ((kind === 'review' || kind === 'drift') && !workflow.designApprovedAt)
+      throw new Error('Aprove o rascunho do design antes de continuar.')
     if ((kind === 'tickets' || kind === 'redistribution') && !workflow.reviewApprovedAt)
       throw new Error('Aprove a Revisão Goldfish antes de continuar.')
     const docs = (() => {
