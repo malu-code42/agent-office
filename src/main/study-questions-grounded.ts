@@ -20,6 +20,7 @@ const AUTHOR_PROMPT = [
   'Return ONLY a JSON object: {"question","choices","correct","rationale","needed","quote"}. "choices" is an array of exactly five different alternatives (text only, no letters);',
   '"correct" is the letter of the only right one, "A" to "E" (vary its position). The four wrong ones are plausible but clearly wrong by the excerpt.',
   'Every other value is a single line of plain text. "quote" is one passage copied VERBATIM from the excerpt that proves the right alternative.',
+  'Write mathematical expressions using LaTeX with $...$ for inline formulas or $$...$$ for display formulas. Escape backslashes correctly in JSON. Never change the verbatim quote.',
   '"needed" is what a student must know to solve this question, so she can study it after a miss: the concepts, and for a calculation the formulas, units and solving steps (without the numeric result).',
   'The student will NOT see the excerpt, only the question and the alternatives: the question must stand on its own and never mention a text, excerpt, passage or "segundo o texto".',
   '"avoid" lists questions that already exist: ask about a DIFFERENT fact or part of the excerpt, not the same idea reworded or sharing its key terms.',

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -20,7 +20,8 @@ function createStore(): ProfileMemoryStore {
 }
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'ao-profile-memory-'))
+  // macOS temporary roots can have a /var alias; the normal fixture must not look like a symlink attack.
+  dir = realpathSync(mkdtempSync(join(tmpdir(), 'ao-profile-memory-')))
 })
 
 afterEach(() => {

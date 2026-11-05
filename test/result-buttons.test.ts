@@ -95,7 +95,7 @@ describe('aviso de editor ausente por plataforma (ticket 01)', () => {
 })
 
 describe('findOnPath no Windows procura .exe, .cmd e .bat (ticket 01)', () => {
-  it('prefere .exe, depois .cmd e .bat, dentro do mesmo diretório', () => {
+  itWin('prefere .exe, depois .cmd e .bat, dentro do mesmo diretório', () => {
     const dir = tmp('fop')
     for (const f of ['ord.exe', 'ord.cmd', 'ord.bat', 'ord']) writeFileSync(join(dir, f), 'x')
     withPath([dir], () => {
@@ -107,7 +107,7 @@ describe('findOnPath no Windows procura .exe, .cmd e .bat (ticket 01)', () => {
     })
   })
 
-  it('achando gh-instalado-por-winget (gh.exe) — a causa antiga do "Abrir PR" morto', () => {
+  itWin('achando gh-instalado-por-winget (gh.exe) — a causa antiga do "Abrir PR" morto', () => {
     const dir = tmp('fop-gh')
     writeFileSync(join(dir, 'gh.exe'), 'x')
     withPath([dir], () => {
@@ -115,7 +115,7 @@ describe('findOnPath no Windows procura .exe, .cmd e .bat (ticket 01)', () => {
     })
   })
 
-  it('a ordem dos diretórios do PATH manda entre tipos diferentes', () => {
+  itWin('a ordem dos diretórios do PATH manda entre tipos diferentes', () => {
     const d1 = tmp('fop-a')
     const d2 = tmp('fop-b')
     writeFileSync(join(d1, 'nome.cmd'), 'x')
@@ -134,8 +134,7 @@ describe('findOnPath no Windows procura .exe, .cmd e .bat (ticket 01)', () => {
     })
   })
 
-  it('no Mac/Linux, procura o nome cru', () => {
-    if (process.platform === 'win32') return
+  it.skipIf(process.platform === 'win32')('no Mac/Linux, procura o nome cru', () => {
     const dir = tmp('fop-cru')
     writeFileSync(join(dir, 'editorzinho'), 'x')
     withPath([dir], () => {

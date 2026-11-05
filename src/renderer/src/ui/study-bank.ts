@@ -23,6 +23,7 @@ import { announce } from './a11y'
 import { h } from './dom'
 import { cleanError, confirmDialog, modal } from './modals/common'
 import { dressStudyWindow, STUDY_WHO } from './study-kit'
+import { studyMath } from './study-math-dom'
 
 type Toast = (text: string, kind?: 'info' | 'ok' | 'err') => void
 
@@ -93,11 +94,11 @@ export function studyQuestionCard(question: StudyQuestion, answered: boolean, di
       : h(
           'div',
           {},
-          question.passage ? h('p', { class: 'qc-passage' }, question.passage) : null,
-          h('p', { class: 'qc-q' }, question.question),
+          question.passage ? h('p', { class: 'qc-passage' }, studyMath(question.passage)) : null,
+          h('p', { class: 'qc-q' }, studyMath(question.question)),
         ),
     question.options?.length
-      ? h('ol', { class: 'qc-choices', type: 'A' }, ...question.options.map((option) => h('li', {}, option)))
+      ? h('ol', { class: 'qc-choices', type: 'A' }, ...question.options.map((option) => h('li', {}, studyMath(option))))
       : question.sourceOnly
         ? null
         : h('p', { class: 'qc-open' }, 'Questão aberta, de antes da múltipla escolha: não é oferecida e sai na próxima montagem.'),
@@ -111,12 +112,12 @@ export function studyQuestionCard(question: StudyQuestion, answered: boolean, di
                 'p',
                 {},
                 h('b', {}, 'Resposta: '),
-                isChoiceQuestion(question) ? studyOptionText(question, question.answer) : question.answer,
+                studyMath(isChoiceQuestion(question) ? studyOptionText(question, question.answer) : question.answer),
               )
             : null,
-          rationale ? h('p', {}, h('b', {}, 'Justificativa: '), rationale) : null,
+          rationale ? h('p', {}, h('b', {}, 'Justificativa: '), studyMath(rationale)) : null,
           quote ? h('span', { class: 'qc-label' }, `Trecho do livro${place ? ` · ${place}` : ''}`) : null,
-          quote ? h('blockquote', { class: 'qc-quote' }, `“${quote}”`) : null,
+          quote ? h('blockquote', { class: 'qc-quote' }, '“', studyMath(quote), '”') : null,
         )
       : null,
     h(

@@ -26,6 +26,7 @@
     "src/renderer/src/game/helper-slots.ts",
     "src/renderer/src/game/member-slots.ts",
     "src/renderer/src/ui/tour-plan.ts",
+    "src/renderer/src/ui/study-math.ts",
     "src/renderer/src/ui/personal-routines-model.ts",
     "src/renderer/src/ui/review-chat-choices.ts",
     "src/renderer/src/ui/result-rules.ts",
