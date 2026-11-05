@@ -258,8 +258,9 @@ def notes(sc, people=True):
     if people:
         x, y, face = NOTE_SEAT
         add((x, y, x + 8, y + 8), lambda: F.wood_chair(L, x, y, face))
-    add(NOTES_DESK, lambda: (F.desk(L, 296, 204, 40, 16), G.notebook(L, 302, 208, 12),
-                             G.cards_box(L, 316, 208, 12), F.mug(L, 328, 208, 12)), True)
+    # AO-33: the computer opens software ideas; the separate table keeps notes and cards.
+    add(NOTES_DESK, lambda: (F.desk(L, 296, 204, 40, 16), G.laptop(L, 310, 208, 12, face='-y'),
+                             F.mug(L, 328, 208, 12)), True)
     add((344, 194, 350, 200), lambda: F.lamp(L, 344, 194), True)
     add(CARDS_TABLE, lambda: (F.small_table(L, 330, 246, 30, 16), G.cards_box(L, 336, 250, 12),
                               G.cards_box(L, 348, 252, 12)), True)
