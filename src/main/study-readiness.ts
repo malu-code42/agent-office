@@ -5,6 +5,7 @@ import type { StudyBookSuggestion } from '@shared/study-bank'
 import type { StudyLibraryHit, StudySourceInfo } from '@shared/study-library'
 import type { StudySubtopics } from '@shared/study-outline'
 import type { StudyProofFailure, StudyReadiness, StudyReadinessTopic } from '@shared/study-readiness'
+import { readinessTopicOf } from '@shared/study-readiness'
 import type { StudyTrail } from '@shared/study-trail'
 import { buildStudyBank, studyBankTopics } from './study-bank-builder'
 import { loadJson, reportLoad, writeJsonAtomic } from './fs-safe'
@@ -44,9 +45,9 @@ export async function checkDisciplineReadiness(
   const { sources, missingFolder } = await deps.library.inventory(true)
   const out: StudyReadinessTopic[] = []
   for (const topic of topics) {
-    const before = previous?.topics.find((t) => t.topic === topic.title)
+    const before = readinessTopicOf(previous?.discipline === discipline ? previous : undefined, topic, topics)
     if (before?.state === 'pronto') {
-      out.push(before)
+      out.push({ ...before, id: topic.id, topic: topic.title })
       continue
     }
     const { folders } = studyBankFolders(disciplineIdOf(topic.id), topic.discipline)
@@ -57,19 +58,34 @@ export async function checkDisciplineReadiness(
     const paths = folders.map((f) => join(deps.vault, f))
     const base = { id: topic.id, topic: topic.title, folders: paths, ...(before?.books ? { books: before.books } : {}) }
     if (!hits.length && scanned.length) {
-      out.push({ ...base, state: 'precisa-ocr', reason: `Sem texto selecionável: ${scanned.join(', ')}. Precisa de um PDF com texto selecionável; coloque a versão digital do livro em uma destas pastas: ${paths.join(', ')}.` })
+      out.push({
+        ...base,
+        state: 'precisa-ocr',
+        reason: `Sem texto selecionável: ${scanned.join(', ')}. Precisa de um PDF com texto selecionável; coloque a versão digital do livro em uma destas pastas: ${paths.join(', ')}.`,
+      })
     } else if (!hits.length) {
       const reason = missingFolder
         ? `A pasta "study sources" ainda não existe; crie-a e coloque o livro em uma destas pastas: ${paths.join(', ')}.`
         : `Nenhum trecho sobre "${topic.title}" nos livros da pasta.`
       out.push({ ...base, state: 'sem-fonte', reason })
     } else if (hits.length < MIN_PASSAGES) {
-      out.push({ ...base, state: 'poucos-trechos', reason: `Só ${hits.length} trecho(s) sobre "${topic.title}" nos livros da pasta; são necessários ${MIN_PASSAGES}.` })
+      out.push({
+        ...base,
+        state: 'poucos-trechos',
+        reason: `Só ${hits.length} trecho(s) sobre "${topic.title}" nos livros da pasta; são necessários ${MIN_PASSAGES}.`,
+      })
     } else {
       const entry = deps.subtopics.get(topic.title)
       // A topic with no subtopics would get a total of 0 (total = questions per subtopic × subtopics): not ready.
-      if (entry?.status === 'ok' && entry.subtopics.length) out.push({ ...base, state: 'pronto', reason: `${hits.length} trechos e ${entry.subtopics.length} subtemas.` })
-      else out.push({ ...base, state: 'sem-subtemas', reason: entry?.status === 'ok' ? 'O sumário do livro não trouxe subtemas.' : (entry?.reason ?? 'Os subtemas ainda não foram montados.') })
+      if (entry?.status === 'ok' && entry.subtopics.length)
+        out.push({ ...base, state: 'pronto', reason: `${hits.length} trechos e ${entry.subtopics.length} subtemas.` })
+      else
+        out.push({
+          ...base,
+          state: 'sem-subtemas',
+          reason:
+            entry?.status === 'ok' ? 'O sumário do livro não trouxe subtemas.' : (entry?.reason ?? 'Os subtemas ainda não foram montados.'),
+        })
     }
   }
   return { discipline, builtAt: now, topics: out }
@@ -83,15 +99,19 @@ export interface ReadinessSource {
 
 /** Cards, projects and zettels of a topic are generated only when its readiness is "pronto"; otherwise this throws the reason. */
 export function assertTopicReady(source: ReadinessSource, topic: string): void {
-  const matches = studyBankTopics(source.trail(), { topic })
+  const trail = source.trail()
+  const matches = readyTrailTopics(trail, topic)
   // A title can repeat across disciplines: guessing the first one could release a locked topic.
-  if (matches.length > 1) throw new Error(`"${topic}" existe em mais de uma disciplina da trilha, então não dá para saber qual está pronto. Dê nomes diferentes aos tópicos na trilha.`)
+  if (matches.length > 1)
+    throw new Error(
+      `"${topic}" existe em mais de uma disciplina da trilha, então não dá para saber qual está pronto. Dê nomes diferentes aos tópicos na trilha.`,
+    )
   const [trailTopic] = matches
   if (!trailTopic) throw new Error(`"${topic}" não está na trilha de estudos.`)
   const discipline = disciplineIdOf(trailTopic.id)
   const report = source.reports()[discipline]
   if (!report) throw new Error(`Ainda não há relatório de prontidão da disciplina ${discipline}. Prepare a disciplina antes de gerar.`)
-  const entry = report.topics.find((item) => item.id === trailTopic.id)
+  const entry = readinessTopicOf(report, trailTopic, studyBankTopics(trail, { discipline }))
   if (!entry) throw new Error(`"${topic}" não está no relatório de prontidão. Prepare a disciplina de novo.`)
   if (entry.state !== 'pronto') throw new Error(`"${topic}" ainda não está pronto: ${entry.reason}`)
 }
@@ -102,7 +122,12 @@ const PROOF_REASON: Record<StudyProofFailure, string> = {
   refused: 'A prova foi recusada: a resposta não estava clara no livro.',
 }
 
-const sameTopic = (a: StudyReadinessTopic, b: StudyReadinessTopic) => a.id === b.id && a.topic === b.topic
+/** A label carries an explicit ID even if its title is old; never retry a missing ID as a title. */
+function readyTrailTopics(trail: StudyTrail, topic: string) {
+  const id = /^\[([^\]]+)\]/.exec(topic)?.[1]
+  const exact = trail.topics.filter((t) => t.id === (id ?? topic))
+  return id || exact.length ? exact : studyBankTopics(trail, { topic })
+}
 
 /**
  * Makes one exam question for each ready topic of the report, through the bank builder (perTopic 1, and
@@ -117,26 +142,36 @@ export async function proveReadyTopics(
   signal?: AbortSignal,
 ): Promise<{ report: StudyReadiness; stop?: StudyBankStop; message?: string }> {
   let current = report
+  const scope = studyBankTopics(trail, { discipline: report.discipline })
   for (const item of report.topics) {
     if (item.state !== 'pronto') continue
     if (signal?.aborted) return { report: current, stop: 'cancelled' }
     // The stored report may be newer than the one given: a topic that a newer check no longer marks ready is not proved.
     const live = deps.store.read()[report.discipline] ?? current
-    if (!live.topics.some((t) => sameTopic(t, item) && t.state === 'pronto')) continue
+    const candidates = item.id ? scope.filter((t) => t.id === item.id) : scope.filter((t) => t.title === item.topic)
+    const [topic] = candidates
+    if (candidates.length !== 1 || !topic)
+      throw new Error(`O tópico "${item.topic}" não está na trilha, ou está repetido nela. Prepare a disciplina de novo.`)
+    const entry = readinessTopicOf(live, topic, scope)
+    if (entry?.state !== 'pronto') continue
     // The id picks exactly one topic of the trail (a title can repeat). Subtopics are off: one question per topic.
-    const built = await buildStudyBank(trail, { ...deps.build, subtopics: undefined }, {
-      discipline: report.discipline,
-      topic: item.id ?? item.topic,
-      perTopic: 1,
-      signal,
-    })
+    const built = await buildStudyBank(
+      trail,
+      { ...deps.build, subtopics: undefined },
+      {
+        discipline: report.discipline,
+        topic: topic.id ?? topic.label,
+        perTopic: 1,
+        signal,
+      },
+    )
     if (built.stop) return { report: current, stop: built.stop, message: built.message }
     const result = built.results[0]
     if (!result || built.results.length !== 1) throw new Error(`O tópico "${item.topic}" não está na trilha, ou está repetido nela.`)
     if (result.added || result.reason === 'complete') continue
     // The bank reports 'little' when the chain could not support a question, which is the 'unsupported' failure.
     const failure: StudyProofFailure = result.reason === 'similar' || result.reason === 'refused' ? result.reason : 'unsupported'
-    const topics = live.topics.map((t) => (sameTopic(t, item) ? { ...t, state: 'travado' as const, failure, reason: PROOF_REASON[failure] } : t))
+    const topics = live.topics.map((t) => (t === entry ? { ...t, state: 'travado' as const, failure, reason: PROOF_REASON[failure] } : t))
     current = { ...live, topics }
     deps.store.save(current)
   }
@@ -196,13 +231,21 @@ export async function suggestTopicBooks(
   store: StudyReadinessStore,
   discipline: string,
   topic: string,
-  search: () => Promise<StudyBookSuggestion[]>,
+  search: (topic: StudyReadinessTopic) => Promise<StudyBookSuggestion[]>,
 ): Promise<StudyReadiness> {
-  if (!store.read()[discipline]?.topics.some((t) => t.topic === topic)) throw new Error('Confira a prontidão da disciplina antes de sugerir livros.')
-  const books = await search()
+  const before = store.read()[discipline]
+  const byId = before?.topics.filter((t) => t.id === topic) ?? []
+  const matches = byId.length ? byId : (before?.topics.filter((t) => t.topic === topic) ?? [])
+  const [selected] = matches
+  if (matches.length !== 1 || !selected)
+    throw new Error('Confira a prontidão da disciplina antes de sugerir livros. O tópico não existe ou está repetido.')
+  const books = await search(selected)
   const current = store.read()[discipline]
   if (!current) throw new Error('Confira a prontidão da disciplina antes de sugerir livros.')
-  const next = { ...current, topics: current.topics.map((t) => (t.topic === topic && t.state !== 'pronto' ? { ...t, books } : t)) }
+  const scope = current.topics.map((t) => ({ id: t.id, title: t.topic }))
+  const entry = readinessTopicOf(current, { id: selected.id, title: selected.topic }, scope)
+  if (!entry) throw new Error('O tópico mudou no relatório de prontidão. Prepare a disciplina de novo antes de sugerir livros.')
+  const next = { ...current, topics: current.topics.map((t) => (t === entry && t.state !== 'pronto' ? { ...t, books } : t)) }
   store.save(next)
   return next
 }

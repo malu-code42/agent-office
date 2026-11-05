@@ -311,16 +311,17 @@ export async function openStudyBankBuilder(
   const searchBooks = async (name: string): Promise<void> => {
     if (checking) return
     for (const t of readiness[name]?.topics ?? []) {
-      if (t.state === 'pronto' || t.books || searching.has(t.topic) || failedSearch.has(t.topic)) continue
-      searching.add(t.topic)
+      const key = `${name}:${t.id ?? t.topic}`
+      if (t.state === 'pronto' || t.books || searching.has(key) || failedSearch.has(key)) continue
+      searching.add(key)
       render()
       try {
-        readiness = { ...readiness, [name]: await window.office.suggestStudyBooks(name, t.topic) }
+        readiness = { ...readiness, [name]: await window.office.suggestStudyBooks(name, t.id ?? t.topic) }
       } catch (error) {
-        failedSearch.add(t.topic)
+        failedSearch.add(key)
         toast(cleanError(error), 'err')
       } finally {
-        searching.delete(t.topic)
+        searching.delete(key)
         render()
       }
     }
@@ -349,7 +350,7 @@ export async function openStudyBankBuilder(
       return entry?.status === 'ok' ? perSubtopic * entry.subtopics.length : 0
     }
     const report = discipline ? readiness[discipline] : undefined
-    const ready = isStudyReadinessReady(report, (disciplines.get(discipline)?.topics ?? []).map((t) => t.title))
+    const ready = isStudyReadinessReady(report, disciplines.get(discipline)?.topics ?? [])
     const complete = scope.filter((t) => goalOf(t) > 0 && (fresh.get(t.id ?? '') ?? 0) >= goalOf(t)).length
     const room = Math.max(0, STUDY_QUESTION_LIMITS.count - bank.length)
     const newMax = Math.min(
@@ -411,7 +412,13 @@ export async function openStudyBankBuilder(
     })
     const readyRow = (t: StudyReadinessTopic): HTMLElement => {
       if (t.state === 'pronto')
-        return h('li', { class: 'bk-ready-row' }, h('span', { class: 'bk-reason has' }, 'Pronto'), h('b', {}, t.topic), h('span', { class: 'field-hint' }, t.reason))
+        return h(
+          'li',
+          { class: 'bk-ready-row' },
+          h('span', { class: 'bk-reason has' }, 'Pronto'),
+          h('b', {}, t.topic),
+          h('span', { class: 'field-hint' }, t.reason),
+        )
       return h(
         'li',
         { class: 'bk-ready-row' },
@@ -431,14 +438,15 @@ export async function openStudyBankBuilder(
             ),
           ),
         ),
-        searching.has(t.topic) ? h('span', { class: 'field-hint', role: 'status' }, 'Buscando livros…') : null,
+        searching.has(`${discipline}:${t.id ?? t.topic}`) ? h('span', { class: 'field-hint', role: 'status' }, 'Buscando livros…') : null,
         t.books && !t.books.length ? h('span', { class: 'field-hint' }, 'Nenhum livro encontrado na web.') : null,
         bookList(t.books),
       )
     }
     const readinessView = (): HTMLElement[] => {
       if (!discipline) return [h('p', { class: 'field-hint' }, 'Escolha uma disciplina para ver se os tópicos estão prontos para o banco.')]
-      if (!report) return [h('p', { class: 'field-hint', role: 'status' }, checking ? 'Checagem em andamento…' : 'Sem relatório de prontidão.')]
+      if (!report)
+        return [h('p', { class: 'field-hint', role: 'status' }, checking ? 'Checagem em andamento…' : 'Sem relatório de prontidão.')]
       const okCount = report.topics.filter((t) => t.state === 'pronto').length
       const stuck = report.topics.some((t) => t.state !== 'pronto')
       return [
@@ -724,7 +732,12 @@ export async function openStudyBankBuilder(
     const reason = r.reason!
     const info = STUDY_BANK_REASON[reason]
     const retry = () =>
-      void start({ discipline: r.disciplineId, topic: r.id ?? r.topic, perTopic: j.perTopic, ...(j.perSubtopic ? { perSubtopic: j.perSubtopic } : {}) })
+      void start({
+        discipline: r.disciplineId,
+        topic: r.id ?? r.topic,
+        perTopic: j.perTopic,
+        ...(j.perSubtopic ? { perSubtopic: j.perSubtopic } : {}),
+      })
     const library = () => links.openLibrary(r.topic)
     const actions: HTMLElement[] =
       reason === 'no-book' || reason === 'no-passage'

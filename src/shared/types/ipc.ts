@@ -320,7 +320,7 @@ export interface OfficeAPI {
   checkStudyReadiness(discipline: string): Promise<StudyReadiness>
   /** Abre uma pasta indicada pelo relatório de prontidão (cria a pasta se faltar). */
   openStudyFolder(path: string): Promise<void>
-  /** Pede livros na web para um tópico travado (ação da pessoa; não faz parte da conferência). */
+  /** Pede livros para um tópico travado pelo ID; aceita título legado somente se for único no relatório e na trilha. */
   suggestStudyBooks(discipline: string, topic: string): Promise<StudyReadiness>
   generateStudyQuestions(token: string): Promise<StudyQuestionGeneration>
   /** Salva somente candidatas escolhidas pela pessoa, se o banco não mudou desde a busca. */

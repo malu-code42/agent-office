@@ -28,9 +28,34 @@ export interface StudyReadiness {
   topics: StudyReadinessTopic[]
 }
 
+export interface StudyReadinessTarget {
+  id?: string | null
+  title: string
+}
+
 /**
- * "Montar banco" is released only when every topic of the trail's discipline (`titles`) is in the report and pronto.
- * A topic added to the trail after the check is missing from the report, so it blocks until the next check.
+ * AO-64: IDs are authoritative. Title fallback needs one topic in both the current scope and the report;
+ * an entry with a different ID is never legacy evidence for the requested ID. Ambiguity requires a new check.
  */
-export const isStudyReadinessReady = (report: StudyReadiness | undefined, titles: readonly string[]): boolean =>
-  !!report && titles.length > 0 && titles.every((title) => report.topics.some((topic) => topic.topic === title && topic.state === 'pronto'))
+export function readinessTopicOf(
+  report: StudyReadiness | undefined,
+  target: StudyReadinessTarget,
+  scope: readonly StudyReadinessTarget[],
+): StudyReadinessTopic | undefined {
+  if (!report) return undefined
+  if (target.id) {
+    if (scope.filter((topic) => topic.id === target.id).length !== 1) return undefined
+    const exact = report.topics.filter((topic) => topic.id === target.id)
+    if (exact.length) return exact.length === 1 ? exact[0] : undefined
+  }
+  if (scope.filter((topic) => topic.title === target.title).length !== 1) return undefined
+  const named = report.topics.filter((topic) => topic.topic === target.title)
+  if (named.length !== 1 || named[0]!.id != null) return undefined
+  return named[0]
+}
+
+/** Every current trail topic must have its own ready entry. Strings support unambiguous legacy callers only. */
+export function isStudyReadinessReady(report: StudyReadiness | undefined, topics: readonly (StudyReadinessTarget | string)[]): boolean {
+  const scope = topics.map((topic) => (typeof topic === 'string' ? { title: topic } : topic))
+  return scope.length > 0 && scope.every((topic) => readinessTopicOf(report, topic, scope)?.state === 'pronto')
+}
