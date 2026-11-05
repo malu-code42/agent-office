@@ -31,7 +31,7 @@ import { studiedTopics } from '@shared/study-ideas'
 import { suggestBooks } from '../study-book-suggestions'
 import { StudyBankJobs } from '../study-bank-job'
 import { isStudyReadinessReady } from '@shared/study-readiness'
-import { checkDisciplineReadiness, openableFolder, SerialQueue, StudyReadinessStore, suggestTopicBooks } from '../study-readiness'
+import { checkDisciplineReadiness, openableFolder, SerialQueue, StudyReadinessStore, suggestTopicBooks, type ReadinessSource } from '../study-readiness'
 import { answeredStudyQuestions, isStudyQuestionAnswered } from '@shared/study-cycle'
 import { StudyQuestionService } from '../study-questions'
 import { claudeStudyQuestionProviders } from '../study-questions-claude'
@@ -107,6 +107,10 @@ export function registerTasksIpc(ctx: IpcContext): void {
   const studyLibraries = new Map<string, StudyLibrary>()
   const studyCards = new Map<string, StudyCardsService>()
   const studyCycleStore = new StudyCycleStore(ctx.store.dataDirectory)
+  const readiness: ReadinessSource = {
+    trail: () => parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE)),
+    reports: () => readinessStore.read(),
+  }
   // PDF pages extracted for Cora and the question scan, cached by path + mtime + size (never sent anywhere).
   const pdfCacheDir = join(ctx.store.dataDirectory, 'study-pdf-cache')
   // pdf.js runs in a worker thread, so a first read of a big library never freezes the window.
@@ -155,15 +159,19 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const vault = requireVault()
     let service = studyCards.get(vault)
     if (!service) {
-      service = new StudyCardsService(vault, {
-        assist(notes, authored, linkTargets) {
-          const settings = ctx.store.settings
-          const accountId = settings.defaultAccounts[0] ?? MAIN_ACCOUNT
-          const account = settings.accounts.find((candidate) => candidate.id === accountId)
-          if (!account) throw new Error('A conta Claude definida não existe mais. Confira as contas nas configurações.')
-          return claudeStudyCardInterpreter(settings, account).assist(notes, authored, linkTargets)
+      service = new StudyCardsService(
+        vault,
+        {
+          assist(notes, authored, linkTargets) {
+            const settings = ctx.store.settings
+            const accountId = settings.defaultAccounts[0] ?? MAIN_ACCOUNT
+            const account = settings.accounts.find((candidate) => candidate.id === accountId)
+            if (!account) throw new Error('A conta Claude definida não existe mais. Confira as contas nas configurações.')
+            return claudeStudyCardInterpreter(settings, account).assist(notes, authored, linkTargets)
+          },
         },
-      })
+        readiness,
+      )
       studyCards.set(vault, service)
     }
     return service
@@ -265,7 +273,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
   ipcMain.handle('office:generateStudyIdeas', async (_e, ...args: unknown[]) => {
     const [topic] = parse(studySubtopicsArgsSchema, args, 'Tópico inválido.')
     if (!studiedTopics(studyCycleStore.read()).some((item) => item.topic === topic)) throw new Error('Esse tópico não está no ciclo de estudos.')
-    const set = await generateIdeas(topic, askClaude)
+    const set = await generateIdeas(topic, askClaude, readiness)
     ideaStore.save(set)
     return set
   })
@@ -291,7 +299,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
       return report
     })
   ipcMain.handle('office:readStudyReadiness', () => readinessStore.read())
-  ipcMain.handle('office:checkStudyReadiness', (_e, ...args: unknown[]) => {
+  ipcMain.handle('office:checkStudyReadiness', async (_e, ...args: unknown[]) => {
     const [discipline] = parse(studyReadinessArgsSchema, args, 'Disciplina inválida.')
     return checkDiscipline(parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE)), discipline)
   })

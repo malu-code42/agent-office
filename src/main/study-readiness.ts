@@ -75,6 +75,27 @@ export async function checkDisciplineReadiness(
   return { discipline, builtAt: now, topics: out }
 }
 
+/** What the generators read: the trail and the last readiness report of each discipline. */
+export interface ReadinessSource {
+  trail(): StudyTrail
+  reports(): Record<string, StudyReadiness>
+}
+
+/** Cards, projects and zettels of a topic are generated only when its readiness is "pronto"; otherwise this throws the reason. */
+export function assertTopicReady(source: ReadinessSource, topic: string): void {
+  const matches = studyBankTopics(source.trail(), { topic })
+  // A title can repeat across disciplines: guessing the first one could release a locked topic.
+  if (matches.length > 1) throw new Error(`"${topic}" existe em mais de uma disciplina da trilha, então não dá para saber qual está pronto. Dê nomes diferentes aos tópicos na trilha.`)
+  const [trailTopic] = matches
+  if (!trailTopic) throw new Error(`"${topic}" não está na trilha de estudos.`)
+  const discipline = disciplineIdOf(trailTopic.id)
+  const report = source.reports()[discipline]
+  if (!report) throw new Error(`Ainda não há relatório de prontidão da disciplina ${discipline}. Prepare a disciplina antes de gerar.`)
+  const entry = report.topics.find((item) => item.id === trailTopic.id)
+  if (!entry) throw new Error(`"${topic}" não está no relatório de prontidão. Prepare a disciplina de novo.`)
+  if (entry.state !== 'pronto') throw new Error(`"${topic}" ainda não está pronto: ${entry.reason}`)
+}
+
 const PROOF_REASON: Record<StudyProofFailure, string> = {
   unsupported: 'O livro não sustenta uma questão sobre o tópico.',
   similar: 'As questões feitas saíram parecidas demais com outras do tópico.',

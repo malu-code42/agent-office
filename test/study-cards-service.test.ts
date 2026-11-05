@@ -1,9 +1,12 @@
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { decodeStudyCard } from '../src/shared/study-cards'
+import type { StudyReadiness, StudyReadinessState } from '../src/shared/study-readiness'
+import { parseStudyTrail } from '../src/shared/study-trail'
 import { StudyCardsService } from '../src/main/study-cards'
+import type { ReadinessSource } from '../src/main/study-readiness'
 
 const roots: string[] = []
 const vault = (): string => {
@@ -12,8 +15,16 @@ const vault = (): string => {
   return root
 }
 
-const note = (id: string, text: string, date = '2026-10-25'): string =>
-  `<!-- agent-office-study-note:${id} -->\n## ${date} · q-12345678\nFonte: study sources/probabilidade.md#Eventos:3\n\n${text}\n`
+const TRAIL = parseStudyTrail('## 2º período\n### [P2-HW] Hardware I — 60 h\n- [ ] [P2-HW-01] Circuitos elétricos.')
+const LABEL = TRAIL.topics[0]!.label
+const reportWith = (state: StudyReadinessState): Record<string, StudyReadiness> => ({
+  'P2-HW': { discipline: 'P2-HW', builtAt: 1, topics: [{ id: 'P2-HW-01', topic: 'Circuitos elétricos', state, reason: 'Só 2 trecho(s).', folders: [] }] },
+})
+let reports = reportWith('pronto')
+const readiness: ReadinessSource = { trail: () => TRAIL, reports: () => reports }
+
+const note = (id: string, text: string, date = '2026-10-25', topic: string | null = LABEL): string =>
+  `<!-- agent-office-study-note:${id} -->\n## ${date} · q-12345678\nFonte: study sources/probabilidade.md#Eventos:3\n${topic ? `Tópico: ${topic}\n` : ''}\n${text}\n`
 
 const authored = {
   title: 'Eventos independentes',
@@ -27,6 +38,10 @@ const draft = (title = authored.title) => ({
 })
 const noAssist = { assist: async () => ({ connections: '', sources: '', connectionsPending: true, sourcesPending: true, feedback: '' }) }
 
+beforeEach(() => {
+  reports = reportWith('pronto')
+})
+
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
@@ -37,7 +52,7 @@ describe('biblioteca de cartões de estudo', () => {
     const notesFile = join(root, 'notas-estudo.md')
     const noteId = 'sn-sc-123-abcdefgh-q-12345678-note1'
     writeFileSync(notesFile, note(noteId, 'Probabilidade conjunta usa eventos independentes.'))
-    const service = new StudyCardsService(root, noAssist)
+    const service = new StudyCardsService(root, noAssist, readiness)
     const read = service.readNotes()
     expect(read.notes).toHaveLength(1)
 
@@ -69,7 +84,7 @@ describe('biblioteca de cartões de estudo', () => {
     const notesFile = join(root, 'notas-estudo.md')
     const noteId = 'sn-sc-123-abcdefgh-q-12345678-note2'
     writeFileSync(notesFile, note(noteId, 'Versão selecionada.'))
-    const service = new StudyCardsService(root, noAssist)
+    const service = new StudyCardsService(root, noAssist, readiness)
     const started = service.startDraft([noteId])
     writeFileSync(notesFile, note(noteId, 'Versão atualizada no Obsidian.'))
     expect(() => service.saveDraft(started.token, draft())).toThrow(/mudou desde a geração/i)
@@ -79,7 +94,7 @@ describe('biblioteca de cartões de estudo', () => {
   it('rejects missing or duplicated note IDs before anything starts', () => {
     const root = vault()
     writeFileSync(join(root, 'notas-estudo.md'), note('sn-sc-123-abcdefgh-q-12345678-note3', 'Nota disponível.'))
-    const service = new StudyCardsService(root, noAssist)
+    const service = new StudyCardsService(root, noAssist, readiness)
     expect(() => service.startDraft(['sn-missing0000'])).toThrow(/não existe mais/i)
     expect(() => service.startDraft(['sn-sc-123-abcdefgh-q-12345678-note3', 'sn-sc-123-abcdefgh-q-12345678-note3'])).toThrow(/diferentes/i)
   })
@@ -96,7 +111,7 @@ describe('biblioteca de cartões de estudo', () => {
       sourcesPending: false,
       feedback: ' Dê um exemplo numérico. ',
     }))
-    const service = new StudyCardsService(root, { assist })
+    const service = new StudyCardsService(root, { assist }, readiness)
     const started = service.startDraft([noteId])
     const result = await service.assist(started.token, authored)
     expect(assist).toHaveBeenCalledWith(started.sourceSnapshots, authored, [heading])
@@ -106,19 +121,60 @@ describe('biblioteca de cartões de estudo', () => {
     await expect(service.assist(started.token, { ...authored, information: '' })).rejects.toThrow(/Informação/i)
   })
 
+  it('does not start or assist a card from a locked topic, and says why', async () => {
+    const root = vault()
+    const noteId = 'sn-sc-123-abcdefgh-q-12345678-note7'
+    writeFileSync(join(root, 'notas-estudo.md'), note(noteId, 'Nota de tópico travado.'))
+    const assist = vi.fn(async () => ({ connections: '', sources: '', connectionsPending: true, sourcesPending: true, feedback: '' }))
+    const service = new StudyCardsService(root, { assist }, readiness)
+
+    reports = reportWith('poucos-trechos')
+    expect(() => service.startDraft([noteId])).toThrow(/ainda não está pronto: Só 2 trecho/)
+
+    reports = reportWith('pronto')
+    const started = service.startDraft([noteId])
+    reports = reportWith('sem-fonte')
+    await expect(service.assist(started.token, authored)).rejects.toThrow(/ainda não está pronto/)
+    expect(assist).not.toHaveBeenCalled()
+  })
+
+  it('refuses to save a card when the topic was locked after the draft started', () => {
+    const root = vault()
+    const noteId = 'sn-sc-123-abcdefgh-q-12345678-note10'
+    writeFileSync(join(root, 'notas-estudo.md'), note(noteId, 'Nota de tópico que trava depois.'))
+    const service = new StudyCardsService(root, noAssist, readiness)
+    const started = service.startDraft([noteId])
+    reports = reportWith('poucos-trechos')
+    expect(() => service.saveDraft(started.token, draft())).toThrow(/ainda não está pronto: Só 2 trecho/)
+    expect(existsSync(join(root, 'cartoes-estudo'))).toBe(false)
+  })
+
+  it('does not start a card without a readiness report or from a note without topic', () => {
+    const root = vault()
+    const noteId = 'sn-sc-123-abcdefgh-q-12345678-note8'
+    const noTopicId = 'sn-sc-123-abcdefgh-q-12345678-note9'
+    writeFileSync(join(root, 'notas-estudo.md'), `${note(noteId, 'Sem relatório.')}\n${note(noTopicId, 'Sem tópico.', '2026-10-25', null)}`)
+    const service = new StudyCardsService(root, noAssist, readiness)
+    reports = {}
+    expect(() => service.startDraft([noteId])).toThrow(/relatório de prontidão/)
+    reports = reportWith('pronto')
+    expect(() => service.startDraft([noTopicId])).toThrow(/não tem tópico/)
+    expect(existsSync(join(root, 'cartoes-estudo'))).toBe(false)
+  })
+
   it('reads the topic of a note, and a saved card is listed under it and can be opened whole', () => {
     const root = vault()
     const withTopic = 'sn-sc-123-abcdefgh-q-12345678-note5'
     const without = 'sn-sc-123-abcdefgh-q-12345678-note6'
     writeFileSync(
       join(root, 'notas-estudo.md'),
-      `${note(withTopic, 'Com tópico.').replace('\n\nCom', '\nTópico: Probabilidade e Estatística\n\nCom')}\n${note(without, 'Sem tópico.')}`,
+      `${note(withTopic, 'Com tópico.')}\n${note(without, 'Sem tópico.', '2026-10-25', null)}`,
     )
-    const service = new StudyCardsService(root, noAssist)
-    expect(service.readNotes().notes.map((item) => item.topic)).toEqual(['Probabilidade e Estatística', undefined])
+    const service = new StudyCardsService(root, noAssist, readiness)
+    expect(service.readNotes().notes.map((item) => item.topic)).toEqual([LABEL, undefined])
     const started = service.startDraft([withTopic])
     const saved = service.saveDraft(started.token, draft())
-    expect(service.listCards().cards[0]).toMatchObject({ id: saved.id, topic: 'Probabilidade e Estatística' })
+    expect(service.listCards().cards[0]).toMatchObject({ id: saved.id, topic: LABEL })
     expect(service.readCard(saved.id).sections.application).toBe(authored.application)
     expect(() => service.readCard('../fora')).toThrow(/inválido/i)
   })
