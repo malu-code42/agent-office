@@ -20,7 +20,7 @@ import { pngAlpha } from './png-alpha'
 
 const EST = estudosData as unknown as EstudosLayout
 const ATLAS = atlasData as unknown as { frames: Record<string, [number, number, number, number]> }
-const ACTS: StudyAct[] = ['library', 'cycle', 'desk', 'questions', 'cards', 'schedule', 'trail', 'cora', 'bonnie']
+const ACTS: StudyAct[] = ['library', 'cycle', 'desk', 'questions', 'cards', 'schedule', 'trail', 'cora', 'bonnie', 'ideas']
 const tileOf = (c: { x: number; z: number }): [number, number] => [Math.floor(c.x), Math.floor(c.z)]
 
 describe('layout 2D do andar de estudos', () => {
@@ -159,5 +159,19 @@ describe('clique no andar de estudos', () => {
     expect(actAt(items, EST.hot, artToScreen(EST.origin, 200, 230), solid)).toBeNull()
     const globe = EST.static.find((s) => s.fp[0] === 108 && s.fp[1] === 184)!
     expect(actAt(items, EST.hot, { x: globe.x + 6, y: globe.y + 6 }, solid)).toBeNull()
+  })
+
+  it('o computador abre ideias na sala individual sem ocupar o acesso aos cartões', () => {
+    const computer = EST.static.find((s) => s.act === 'ideas')
+    expect(computer).toBeDefined()
+    expect(computer!.fp).toEqual([296, 204, 336, 220])
+    expect(EST.tags['Ideias de software']).toBeDefined()
+    expect(EST.static.some((s) => s.act === 'cards' && s.fp[0] === 330 && s.fp[1] === 246)).toBe(true)
+    const [x, y, z] = EST.tags['Ideias de software']
+    expect(studyZoneAt(EST, x / 16, y / 16)).toBe('Estudo individual · notas e cartões')
+    expect(z).toBeGreaterThan(12)
+    const grid = grid2d(EST)
+    const chair = studyPlan(EST, grid).notes
+    expect(grid.findPath(...EST.elevator.tile, Math.floor(chair.x), Math.floor(chair.z))).not.toBeNull()
   })
 })

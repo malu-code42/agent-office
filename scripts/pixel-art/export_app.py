@@ -521,7 +521,7 @@ def estudos(L, place, items, seat):
     # what a click on a piece of furniture does
     acts = {fp: 'library' for fp in E.LIB_SHELVES + [E.CLASS_SHELF, E.NOTE_SHELF]}
     acts.update({E.BOARD: 'cycle', E.STUDENT_DESK: 'desk', E.POSTER: 'questions', E.PROF_CABINET: 'questions',
-                 E.NOTES_DESK: 'cards', E.CARDS_TABLE: 'cards'})
+                 E.NOTES_DESK: 'ideas', E.CARDS_TABLE: 'cards'})
     acts.update({fp: 'cards' for fp in E.NOTE_CABINETS})
     for name, (x, y, w) in (('cora', E.CORA_DESK), ('bonnie', E.BONNIE_DESK)):
         acts[(x, y, x + w, y + 14)] = name
@@ -568,7 +568,8 @@ def estudos(L, place, items, seat):
         # HTML tags over the clickable things: art units x, y and height
         'tags': {
             'Biblioteca': [72, 4, 40], 'Tópico atual': [126, 152, 46], 'Horário de aula': [0, 188, 46],
-            'Questões': [163, 153, 34], 'Sua carteira': [148, 212, 26], 'Notas e cartões': [316, 212, 26],
+            'Questões': [163, 153, 34], 'Sua carteira': [148, 212, 26], 'Notas e cartões': [345, 254, 26],
+            'Ideias de software': [316, 212, 26],
             'Trilha de estudos': [(E.TRAIL[0] + E.TRAIL[1]) / 2, 0, E.TRAIL[3] + 6],
         },
         'cora': seat('estudos/cora', cx + cw - 13 - ws_front_shift(cw, True), cy - 12, '+y', col=F.CHAIRS[E.LOOK['cora'][0]]),

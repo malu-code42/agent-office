@@ -30,6 +30,7 @@ const OBJECT_TAGS: [string, StudyAct][] = [
   ['Questões', 'questions'],
   ['Sua carteira', 'desk'],
   ['Notas e cartões', 'cards'],
+  ['Ideias de software', 'ideas'],
   ['Trilha de estudos', 'trail'],
 ]
 
@@ -70,7 +71,9 @@ export class StudyFloor {
     }
     // a sitter's tag sits as low as Luna's (the 2D projection lifts every tag by TAG_LIFT)
     person(at(this.plan.cora.x, 0.35, this.plan.cora.z), 'Cora · bibliotecária', () => onAct('cora'))
-    this.bonnieTag = person(at(this.plan.bonnie.x, sitterTagY(null), this.plan.bonnie.z), 'Bonnie · diretora de estudos', () => onAct('bonnie'))
+    this.bonnieTag = person(at(this.plan.bonnie.x, sitterTagY(null), this.plan.bonnie.z), 'Bonnie · diretora de estudos', () =>
+      onAct('bonnie'),
+    )
     // Every teacher wears a tag with its role name (Tutor, Curador, Verificador, the cards pair);
     // the role it plays in the cycle shows on hover.
     for (const t of TEACHERS) {
