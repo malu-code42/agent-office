@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { decide, type AlwaysAllowRule, type PolicyScope } from '../src/main/permissions/policy'
+
+// This matrix exercises Windows paths on every host; POSIX semantics have their own matrix.
+vi.mock('node:path', async (importOriginal) => {
+  const path = await importOriginal<typeof import('node:path')>()
+  return { ...path, isAbsolute: path.win32.isAbsolute, resolve: path.win32.resolve, sep: path.win32.sep }
+})
 
 // O escritório é a autoridade de permissões (o CLI só obedece). A matriz pura: modo ×
 // ferramenta × caminho. Aqui não há Electron nem SDK: `decide` responde allow (roda sem
