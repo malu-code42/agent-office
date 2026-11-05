@@ -234,7 +234,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const [request] = parse(studyBankBuildArgsSchema, args, 'Montagem do banco inválida.')
     const trail = parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE))
     // The window's gate is not enough: the trail is checked again here, against the same trail the build reads.
-    const report = await checkDiscipline(trail, request.discipline)
+    const report = await checkDiscipline(trail, request.discipline, true)
     const topics = studyBankTopics(trail, { discipline: request.discipline })
     if (!isStudyReadinessReady(report, topics))
       throw new Error('A disciplina ainda tem tópicos sem prontidão. Confira a prontidão antes de montar.')
@@ -293,8 +293,8 @@ export function registerTasksIpc(ctx: IpcContext): void {
   const readinessStore = new StudyReadinessStore(ctx.store.dataDirectory)
   // Checks and book searches share one queue: each reads the saved report and writes it back.
   const readinessQueue = new SerialQueue()
-  /** One queued check of a discipline: keeps its ready topics, checks the rest, saves the report. */
-  const checkDiscipline = (trail: StudyTrail, discipline: string) =>
+  /** One queued check; builds revalidate ready topics' sources before saving the report. */
+  const checkDiscipline = (trail: StudyTrail, discipline: string, revalidateSources = false) =>
     readinessQueue.run(async () => {
       const vault = requireVault()
       const report = await checkDisciplineReadiness(
@@ -303,6 +303,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
         { vault, library: studyLibrary(), subtopics: { get: (topic) => subtopicStore.read()[topic] } },
         Date.now(),
         readinessStore.read()[discipline],
+        revalidateSources,
       )
       readinessStore.save(report)
       return report
