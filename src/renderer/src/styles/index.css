@@ -2,6 +2,7 @@
  * Estilos do renderer, um arquivo por componente. A ordem dos imports é a ordem da
  * cascata (a mesma do antigo styles.css): mude com cuidado. Cores e fontes em tokens.css.
  */
+@import 'katex/dist/katex.min.css';
 @import './tokens.css';
 @import './base.css';
 @import './tags.css';

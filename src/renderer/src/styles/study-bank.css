@@ -489,6 +489,12 @@
   line-height: 1.5;
 }
 
+.qc .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-align: center;
+}
+
 .qc-label {
   color: var(--dim);
   font: 500 11px var(--pixel);

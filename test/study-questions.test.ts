@@ -30,6 +30,60 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { STUDY_BANK_BYTE_LIMIT, StudyQuestionService } from '../src/main/study-questions'
 import { tinyPdf } from './helpers/tiny-pdf'
+import { studyMathParts } from '../src/renderer/src/ui/study-math'
+
+describe('study question formulas', () => {
+  it('keeps ordinary text and renders inline and block formulas', () => {
+    expect(studyMathParts('Questão antiga')).toEqual([{ text: 'Questão antiga' }])
+    const parts = studyMathParts('Se $x^2$ então $$\\frac{1}{2}$$.')
+    expect(parts[0]).toEqual({ text: 'Se ' })
+    expect(parts[1]).toMatchObject({ display: false, html: expect.stringContaining('katex') })
+    expect(parts[3]).toMatchObject({ display: true, html: expect.stringContaining('katex-display') })
+  })
+
+  it('preserves invalid formulas and unmatched delimiters', () => {
+    expect(studyMathParts('Antes $\\notacommand{x}$ e $aberta')).toEqual([
+      { text: 'Antes ' },
+      { text: '$\\notacommand{x}$' },
+      { text: ' e $aberta' },
+    ])
+  })
+
+  it('preserves currency while rendering nearby numeric and block formulas', () => {
+    const currency = 'De $5 and $10, ou R$ 5 e R$ 10.'
+    expect(studyMathParts(currency)).toEqual([{ text: currency }])
+    const parts = studyMathParts('Custos $5 e $10; calcule $5 + 2$ e $$x^2$$.')
+    expect(parts[0]).toEqual({ text: 'Custos $5 e $10; calcule ' })
+    expect(parts[1]).toMatchObject({ display: false, html: expect.stringContaining('katex') })
+    expect(parts[3]).toMatchObject({ display: true, html: expect.stringContaining('katex-display') })
+    expect(studyMathParts('$5$')[0]).toMatchObject({ display: false })
+    expect(studyMathParts('$1,25$')[0]).toMatchObject({ display: false })
+    expect(studyMathParts('Preço $5. Depois $x$.')[0]).toEqual({ text: 'Preço $5. Depois ' })
+  })
+
+  it('keeps escaped dollar signs literal without consuming subsequent formulas', () => {
+    const parts = studyMathParts('Preço \\$5 e \\$10; valor $x$ e $$y$$.')
+    expect(parts[0]).toEqual({ text: 'Preço \\$5 e \\$10; valor ' })
+    expect(parts[1]).toMatchObject({ display: false })
+    expect(parts[3]).toMatchObject({ display: true })
+  })
+
+  it('renders an inline formula followed immediately by a digit', () => {
+    const parts = studyMathParts('$x$2 e $$y$$3')
+    expect(parts[0]).toMatchObject({ display: false, html: expect.stringContaining('katex') })
+    expect(parts[1]).toEqual({ text: '2 e ' })
+    expect(parts[2]).toMatchObject({ display: true, html: expect.stringContaining('katex-display') })
+    expect(parts[3]).toEqual({ text: '3' })
+  })
+
+  it('never treats HTML as markup and refuses unsafe latex commands', () => {
+    const parts = studyMathParts('<script>alert(1)</script> $\\href{javascript:alert(1)}{clique}$ <img src=x onerror=alert(1)>')
+    expect(parts[0]).toEqual({ text: '<script>alert(1)</script> ' })
+    expect(parts[2]).toEqual({ text: ' <img src=x onerror=alert(1)>' })
+    const formula = parts[1]!
+    expect('html' in formula && formula.html).not.toMatch(/<a\b|href=|<script|<img\b/i)
+  })
+})
 
 const question = (overrides: Partial<StudyQuestion> = {}): StudyQuestion => ({
   id: 'q-12345678',
@@ -139,7 +193,10 @@ describe('study question bank codec', () => {
     const vault = mkdtempSync(join(tmpdir(), 'study-bank-'))
     try {
       const mk = (id: string) => question({ id, question: `Pergunta ${id}`, options: ['1/4', '1/2', '1/3', '1', '0'], answer: 'B' })
-      writeFileSync(join(vault, 'questoes-estudo.md'), ['q-aaaaaaaa', 'q-bbbbbbbb', 'q-cccccccc'].map((id) => encodeStudyQuestion(mk(id))).join('\n'))
+      writeFileSync(
+        join(vault, 'questoes-estudo.md'),
+        ['q-aaaaaaaa', 'q-bbbbbbbb', 'q-cccccccc'].map((id) => encodeStudyQuestion(mk(id))).join('\n'),
+      )
       const service = new StudyQuestionService(vault, { webSearch: async () => [] })
       expect(service.removeQuestions(['q-aaaaaaaa', 'q-cccccccc', 'q-naoexiste'])).toBe(2)
       expect(decodeStudyBank(readFileSync(join(vault, 'questoes-estudo.md'), 'utf8')).questions.map((q) => q.id)).toEqual(['q-bbbbbbbb'])

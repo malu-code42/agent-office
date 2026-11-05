@@ -6,7 +6,8 @@
 # run artifacts; only the publish job, in the "release" environment (main only, waits for a
 # reviewer), creates the release, from the files of its own run. A run from any other branch
 # can build but never publish, and no draft sits around for another run to swap files in.
-# A version that already has a release is skipped, so pushes that don't bump it cost nothing.
+# A push without a version change is skipped, even when this fork has no release for that version.
+# A version that already has a release is also skipped. Manual dispatch keeps its explicit release behavior.
 # Linux is best effort: if it fails, the release still goes out with Mac and Windows.
 #
 # Secrets (Settings → Secrets and variables → Actions). All optional: without them the
@@ -38,13 +39,25 @@ jobs:
       skip: ${{ steps.version.outputs.skip }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - name: Version to release
         id: version
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_EVENT: ${{ github.event_name }}
+          RELEASE_BEFORE: ${{ github.event.before }}
         run: |
           tag="v$(node -p "require('./package.json').version")"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [ "$RELEASE_EVENT" = "push" ]; then
+            comparison="$(node scripts/release-version.mjs "$RELEASE_BEFORE")"
+            if [ "$comparison" = "same" ]; then
+              echo "::notice::Versão sem alteração; nenhum release automático."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "::notice::$tag já tem release; nada a fazer."
             echo "skip=true" >> "$GITHUB_OUTPUT"
