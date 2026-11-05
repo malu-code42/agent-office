@@ -31,6 +31,7 @@ interface Deps {
  * when its name matches the topic (the search finds it by name). Subtopics are read from the store,
  * never built here, and no web or model is called.
  * With `previous`, a topic that was "pronto" there is kept as it was and not checked again; the rest are checked.
+ * At build time `revalidateSources` checks passages again without repeating the question proof.
  */
 export async function checkDisciplineReadiness(
   trail: StudyTrail,
@@ -38,6 +39,7 @@ export async function checkDisciplineReadiness(
   deps: Deps,
   now = Date.now(),
   previous?: StudyReadiness,
+  revalidateSources = false,
 ): Promise<StudyReadiness> {
   const topics = studyBankTopics(trail, { discipline })
   if (!topics.length) throw new Error('Nenhum tópico da trilha corresponde à disciplina.')
@@ -46,7 +48,7 @@ export async function checkDisciplineReadiness(
   const out: StudyReadinessTopic[] = []
   for (const topic of topics) {
     const before = readinessTopicOf(previous?.discipline === discipline ? previous : undefined, topic, topics)
-    if (before?.state === 'pronto') {
+    if (before?.state === 'pronto' && !revalidateSources) {
       out.push({ ...before, id: topic.id, topic: topic.title })
       continue
     }
@@ -74,6 +76,8 @@ export async function checkDisciplineReadiness(
         state: 'poucos-trechos',
         reason: `Só ${hits.length} trecho(s) sobre "${topic.title}" nos livros da pasta; são necessários ${MIN_PASSAGES}.`,
       })
+    } else if (before?.state === 'pronto') {
+      out.push({ ...before, id: topic.id, topic: topic.title })
     } else {
       const entry = deps.subtopics.get(topic.title)
       // A topic with no subtopics would get a total of 0 (total = questions per subtopic × subtopics): not ready.

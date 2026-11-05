@@ -6,6 +6,8 @@ import { PlanningStore } from '../src/main/planning'
 import { StudySubtopicStore } from '../src/main/study-subtopics'
 import { assertTopicReady, StudyReadinessStore, type ReadinessSource } from '../src/main/study-readiness'
 import { SUBTOPICS_RULE } from '../src/shared/study-outline'
+import { StudyQuestionService } from '../src/main/study-questions'
+import { query } from '@anthropic-ai/claude-agent-sdk'
 import { parseStudyTrail, STUDY_TRAIL_FILE } from '../src/shared/study-trail'
 
 const ipc = vi.hoisted(() => ({ handlers: new Map<string, (...args: unknown[]) => unknown>() }))
@@ -39,6 +41,7 @@ vi.mock('../src/main/study-book-suggestions', () => ({ suggestBooks: bookSearch 
 vi.mock('../src/main/study-bank-job', () => ({
   StudyBankJobs: class {
     start = startBank
+    status = () => undefined
   },
 }))
 vi.mock('../src/main/study-library', async (importOriginal) => {
@@ -85,6 +88,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.restoreAllMocks()
   rmSync(vault, { recursive: true, force: true })
   rmSync(data, { recursive: true, force: true })
 })
@@ -96,6 +100,46 @@ const source = (): ReadinessSource => ({
 })
 
 describe('checkStudyReadiness IPC', () => {
+  it('revalida fontes ao montar, sem alterar a reconferência dos prontos', async () => {
+    const saved = new StudyReadinessStore(data)
+    saved.save({
+      discipline: 'P2-HW',
+      builtAt: 1,
+      topics: [
+        { id: 'P2-HW-01', topic: 'Circuitos elétricos', state: 'pronto', reason: 'Antes pronto', folders: [] },
+        { id: 'P2-HW-02', topic: 'Diodos', state: 'pronto', reason: 'Antes pronto', folders: [] },
+      ],
+    })
+    const remove = vi.spyOn(StudyQuestionService.prototype, 'removeUnusableQuestions')
+    fakeLibrary.search.mockImplementationOnce(async () => ({ hits: [] }))
+
+    const rechecked = (await invoke('office:checkStudyReadiness', 'P2-HW')) as { topics: { state: string; reason: string }[] }
+    expect(rechecked.topics.map((t) => t.reason)).toEqual(['Antes pronto', 'Antes pronto'])
+    expect(fakeLibrary.search).not.toHaveBeenCalled()
+    await expect(invoke('office:startStudyBank', { discipline: 'P2-HW', perSubtopic: 1 })).rejects.toThrow(/sem prontidão/)
+    expect(saved.read()['P2-HW']!.topics[0]).toMatchObject({ state: 'sem-fonte', reason: expect.stringMatching(/Nenhum trecho/) })
+    expect(startBank).not.toHaveBeenCalled()
+    expect(remove).not.toHaveBeenCalled()
+    expect(query).not.toHaveBeenCalled()
+    expect(bookSearch).not.toHaveBeenCalled()
+    remove.mockRestore()
+  })
+
+  it('inicia o banco quando as fontes dos tópicos prontos ainda existem', async () => {
+    new StudyReadinessStore(data).save({
+      discipline: 'P2-HW',
+      builtAt: 1,
+      topics: [
+        { id: 'P2-HW-01', topic: 'Circuitos elétricos', state: 'pronto', reason: 'Antes pronto', folders: [] },
+        { id: 'P2-HW-02', topic: 'Diodos', state: 'pronto', reason: 'Antes pronto', folders: [] },
+      ],
+    })
+    const remove = vi.spyOn(StudyQuestionService.prototype, 'removeUnusableQuestions').mockReturnValue(0)
+    await expect(invoke('office:startStudyBank', { discipline: 'P2-HW', perSubtopic: 1 })).resolves.toMatchObject({ status: 'running' })
+    expect(fakeLibrary.search).toHaveBeenCalledTimes(2)
+    expect(startBank).toHaveBeenCalledOnce()
+    remove.mockRestore()
+  })
   it('grava o relatório e deixa pronto um tópico com fonte e subtemas', async () => {
     new StudySubtopicStore(data).save({
       topic: 'Circuitos elétricos',

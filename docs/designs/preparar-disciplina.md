@@ -62,3 +62,10 @@ Enquanto houver tópico travado, a janela mostra o que falta, títulos e autores
 - A busca de livros envia o ID ao processo principal e usa o título somente como consulta. O resultado é aplicado apenas ao tópico selecionado, inclusive se o relatório mudar durante a busca.
 - A prova de questão resolve um único tópico antes de chamar o construtor; um título legado ambíguo exige nova preparação, sem iniciar geração.
 - Não há alteração no formato persistido, nas chaves dos subtemas/questões existentes, na fila (AO-63) ou no desenho da interface.
+
+## Fontes ao iniciar a montagem — AO-62 (2026-11-05)
+
+- "Reconferir travados" continua preservando os tópicos prontos, conforme a decisão 6.
+- Ao iniciar "Montar banco", o processo principal verifica novamente as fontes e os trechos de todos os tópicos, inclusive os prontos. O relatório salvo é atualizado antes de avaliar o gate da disciplina.
+- Se o livro sumiu ou deixou de oferecer trechos suficientes, o tópico deixa de estar pronto e a montagem é recusada antes de limpar ou gerar questões. Essa checagem não chama modelo nem busca livros na web.
+- Se as fontes continuam suficientes, a prontidão anterior é preservada sem repetir a questão de prova. Essa revalidação não certifica novamente o conteúdo inteiro do livro nem substitui a conferência de cada questão durante a geração.
