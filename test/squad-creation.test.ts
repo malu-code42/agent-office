@@ -281,105 +281,23 @@ describe('a proposta', () => {
     expect(new SquadQueueStore(dataDir).get('squad-1')?.pendingPRs).toHaveLength(1)
   })
 
-  it('pula tickets bloqueados e os promove quando o bloqueador recebe PR confirmado', () => {
-    const player = { kind: 'player' as const, name: 'Malu' }
-    const first = board.create({ title: 'Ticket ativo', status: 'doing', cwd: project.cwd }, player)
-    const blocker = board.create({ title: 'Pré-requisito', status: 'review', cwd: project.cwd }, player)
-    const blocked = board.create({ title: 'Ticket bloqueado', status: 'todo', cwd: project.cwd }, player)
-    const free = board.create({ title: 'Ticket livre', status: 'todo', cwd: project.cwd }, player)
-    board.update(blocked.id, { blockedBy: [blocker.id] }, player)
-    for (const ticket of [blocked, free]) board.assign(ticket.id, { kind: 'agent', name: 'Squad 1', id: 'squad:squad-1' }, player)
-    const queues = new SquadQueueStore(dataDir)
-    queues.set({ code: 'squad-1', cwd: project.cwd, active: first.id, queue: [blocked.id, free.id], updatedAt: 1 })
-    const lifecycle = new SquadCreation({
-      proposals: new SquadProposalStore(dataDir),
-      queues,
-      board,
-      projects: () => [project],
-      settings,
-      player: () => player,
-    })
-
-    const moved = lifecycle.releaseTicketForReview('squad-1', {
-      ticketId: first.id,
-      ticketKey: first.key,
-      title: first.title,
-      url: 'https://github.com/org/repo/pull/10',
-      branch: 'agent/squad-1-first',
-      createdAt: 10,
-    })
-    expect(moved).toMatchObject({ active: free.id, queue: [blocked.id] })
-    expect(board.get(blocked.id)?.status).toBe('todo')
-    expect(board.get(free.id)?.status).toBe('doing')
-
-    board.recordPullRequest(blocker.id, 'https://github.com/org/repo/pull/11', { kind: 'agent', name: 'Malu' })
-    expect(lifecycle.reconcileBlockedQueues()).toEqual([])
-    expect(queues.get('squad-1')?.active).toBe(free.id)
-    lifecycle.releaseTicketForReview('squad-1', {
-      ticketId: free.id,
-      ticketKey: free.key,
-      title: free.title,
-      url: 'https://github.com/org/repo/pull/12',
-      branch: 'agent/squad-1-free',
-      createdAt: 12,
-    })
-    expect(queues.get('squad-1')?.active).toBe(blocked.id)
-    expect(board.get(blocked.id)?.status).toBe('doing')
-  })
-
-  it('mantém todos os tickets bloqueados em espera e os reavalia quando o PR chega', () => {
-    const player = { kind: 'player' as const, name: 'Malu' }
-    const first = board.create({ title: 'Ticket ativo', status: 'doing', cwd: project.cwd }, player)
-    const blocker = board.create({ title: 'Pré-requisito', status: 'review', cwd: project.cwd }, player)
-    const blocked = board.create({ title: 'Ticket bloqueado', status: 'todo', cwd: project.cwd }, player)
-    board.update(blocked.id, { blockedBy: [blocker.id] }, player)
-    board.assign(blocked.id, { kind: 'agent', name: 'Squad 1', id: 'squad:squad-1' }, player)
-    const queues = new SquadQueueStore(dataDir)
-    queues.set({ code: 'squad-1', cwd: project.cwd, active: first.id, queue: [blocked.id], updatedAt: 1 })
-    const lifecycle = new SquadCreation({
-      proposals: new SquadProposalStore(dataDir),
-      queues,
-      board,
-      projects: () => [project],
-      settings,
-      player: () => player,
-    })
-
-    lifecycle.releaseTicketForReview('squad-1', {
-      ticketId: first.id,
-      ticketKey: first.key,
-      title: first.title,
-      url: 'https://github.com/org/repo/pull/20',
-      branch: 'agent/squad-1-first',
-      createdAt: 20,
-    })
-    expect(queues.get('squad-1')).toMatchObject({ active: null, queue: [blocked.id] })
-    expect(board.get(blocked.id)?.status).toBe('todo')
-
-    board.recordPullRequest(blocker.id, 'https://github.com/org/repo/pull/21', { kind: 'agent', name: 'Malu' })
-    expect(lifecycle.reconcileBlockedQueues()).toEqual(['squad-1'])
-    expect(queues.get('squad-1')).toMatchObject({ active: blocked.id, queue: [] })
-    expect(board.get(blocked.id)?.status).toBe('doing')
-  })
-
   it('não confia em PR salvo de outro repositório no mesmo host durante a recuperação', async () => {
     const player = { kind: 'player' as const, name: 'Malu' }
-    const blocker = board.create({ title: 'Pré-requisito', status: 'review', cwd: project.cwd }, player)
-    const blocked = board.create({ title: 'Aguardando', status: 'todo', cwd: project.cwd }, player)
-    board.update(blocked.id, { blockedBy: [blocker.id] }, player)
+    const published = board.create({ title: 'Já publicado', status: 'review', cwd: project.cwd }, player)
+    const waiting = board.create({ title: 'Aguardando', status: 'todo', cwd: project.cwd }, player)
     const queues = new SquadQueueStore(dataDir)
     queues.set({
       code: 'squad-1',
       cwd: project.cwd,
-      active: null,
-      queue: [blocked.id],
+      active: waiting.id,
+      queue: [],
       pendingPRs: [
         {
-          ticketId: blocker.id,
-          ticketKey: blocker.key,
-          title: blocker.title,
+          ticketId: published.id,
+          ticketKey: published.key,
+          title: published.title,
           url: 'https://github.com/attacker/repo/pull/1',
-          branch: 'agent/blocker',
+          branch: 'agent/published',
           createdAt: 1,
         },
       ],
@@ -395,25 +313,23 @@ describe('a proposta', () => {
     })
 
     await lifecycle.verifyPendingPRs(async () => ({ host: 'github.com', repository: 'org/repo' }))
-    expect(board.get(blocker.id)?.pullRequestUrl).toBeUndefined()
-    expect(queues.get('squad-1')?.active).toBeNull()
+    expect(board.get(published.id)?.pullRequestUrl).toBeUndefined()
 
     queues.set({
       ...queues.get('squad-1')!,
       pendingPRs: [
         {
-          ticketId: blocker.id,
-          ticketKey: blocker.key,
-          title: blocker.title,
+          ticketId: published.id,
+          ticketKey: published.key,
+          title: published.title,
           url: 'https://github.com/org/repo/pull/1',
-          branch: 'agent/blocker',
+          branch: 'agent/published',
           createdAt: 1,
         },
       ],
     })
     await lifecycle.verifyPendingPRs(async () => ({ host: 'github.com', repository: 'org/repo' }))
-    expect(board.get(blocker.id)?.pullRequestUrl).toBe('https://github.com/org/repo/pull/1')
-    expect(queues.get('squad-1')?.active).toBe(blocked.id)
+    expect(board.get(published.id)?.pullRequestUrl).toBe('https://github.com/org/repo/pull/1')
   })
 
   it('não associa PR de uma fila a ticket de outro projeto', async () => {
@@ -448,6 +364,18 @@ describe('a proposta', () => {
     })
     await lifecycle.verifyPendingPRs(async () => ({ host: 'github.com', repository: 'org/repo' }))
     expect(board.get(ticket.id)?.pullRequestUrl).toBeUndefined()
+  })
+
+  it('fila antiga sem ticket ativo e com tickets esperando promove o primeiro ao iniciar (AO-103)', () => {
+    const player = { kind: 'player' as const, name: 'Malu' }
+    const first = board.create({ title: 'Primeiro', status: 'todo', cwd: project.cwd }, player)
+    const second = board.create({ title: 'Segundo', status: 'todo', cwd: project.cwd }, player)
+    const queues = new SquadQueueStore(dataDir)
+    queues.set({ code: 'squad-1', cwd: project.cwd, active: null, queue: [first.id, second.id], updatedAt: 1 })
+    new SquadCreation({ proposals: new SquadProposalStore(dataDir), queues, board, projects: () => [project], settings, player: () => player })
+    expect(queues.get('squad-1')).toMatchObject({ active: first.id, queue: [second.id] })
+    expect(board.get(first.id)?.status).toBe('doing')
+    expect(board.get(second.id)?.status).toBe('todo')
   })
 
   it('reconcilia a revisão e o ticket promovido após crash depois de verificar o host do PR', async () => {
@@ -890,19 +818,6 @@ describe('a aprovação', () => {
     expect(board.get(first.id)?.status).toBe('todo')
     expect(board.get(first.id)?.assignee?.id).toBe('squad:sala-1')
     expect(board.get(second.id)?.status).toBe('todo')
-  })
-
-  it('aprovação pula o primeiro ticket bloqueado e deixa-o na fila', async () => {
-    const blocker = board.create({ title: 'Pré-requisito', status: 'review', cwd: project.cwd }, { kind: 'player', name: 'Malu' })
-    const blocked = board.create({ title: 'Bloqueado', status: 'todo', cwd: project.cwd }, { kind: 'player', name: 'Malu' })
-    const ready = board.create({ title: 'Livre', status: 'todo', cwd: project.cwd }, { kind: 'player', name: 'Malu' })
-    board.update(blocked.id, { blockedBy: [blocker.id] }, { kind: 'player', name: 'Malu' })
-    const proposal = await propose(0, [blocked.id, ready.id])
-    const { queue } = await creation.approve(proposal.id, 'Equipe da busca')
-    expect(queue).toMatchObject({ active: ready.id, queue: [blocked.id] })
-    expect(board.get(blocked.id)?.status).toBe('todo')
-    expect(board.get(blocked.id)?.assignee?.id).toBe('squad:sala-1')
-    expect(board.get(ready.id)?.status).toBe('doing')
   })
 
   it('um ticket que já tem responsável não é roubado', async () => {

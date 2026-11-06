@@ -71,16 +71,14 @@ describe('resultado de ticket de squad', () => {
     const firstTicket = { id: 'ticket-1', key: 'AO-1', status: 'review', assignee: { kind: 'agent', name: 'Agente', id: result.agentId } }
     const ticket = { id: 'ticket-2', key: 'AO-2', status: 'review', cwd: 'C:/repo', assignee: { kind: 'agent', name: 'Agente', id: result.agentId } }
     const recordPullRequest = vi.fn()
-    const reconcileBlockedQueues = vi.fn(() => [])
     registerWorktreesIpc({
       manager: { agent: () => agent, result: () => ({ ...result, ticketId: ticket.id }), setChanges: vi.fn(), fire: vi.fn(), list: () => [], pendingResults: () => [] },
       win: () => ({}), nameOf: () => 'Agente', board: { list: () => [firstTicket, ticket], get: (id: string) => [firstTicket, ticket].find((item) => item.id === id), recordPullRequest, flush: vi.fn() },
-      creation: { reconcileBlockedQueues }, startActiveSquadTicket: vi.fn(),
+      creation: {}, startActiveSquadTicket: vi.fn(),
     } as unknown as IpcContext)
 
     await expect(callHandler('office:openResultPR', result.id, 'Entrega do ticket')).resolves.toBe(url)
     expect(recordPullRequest).toHaveBeenCalledWith(ticket.id, url, { kind: 'agent', name: 'Agente', id: result.agentId })
-    expect(reconcileBlockedQueues).toHaveBeenCalledOnce()
   })
 
   it('não abre PR de worktree antigo se o ticket mudou para outro repositório', async () => {
@@ -89,12 +87,12 @@ describe('resultado de ticket de squad', () => {
     vi.mocked(pullRequestRemoteIdentity).mockResolvedValue({ host: 'github.com', repository: 'org/repo' })
     vi.mocked(pullRequestRemoteIdentityForRepo).mockResolvedValue({ host: 'github.com', repository: 'other/repo' })
     agent = { ...individualAgent, worktree: { path: 'C:/repo/wt', root: 'C:/repo/wt', repo: 'C:/repo', branch: 'agent/task', base: 'a'.repeat(40) } }
-    const ticket = { id: 'ticket-1', key: 'AO-1', status: 'review', cwd: 'C:/other', blockedBy: ['blocker'], assignee: { kind: 'agent', name: 'Agente', id: result.agentId } }
+    const ticket = { id: 'ticket-1', key: 'AO-1', status: 'review', cwd: 'C:/other', assignee: { kind: 'agent', name: 'Agente', id: result.agentId } }
     const recordPullRequest = vi.fn()
     registerWorktreesIpc({
       manager: { agent: () => agent, result: () => ({ ...result, ticketId: ticket.id }), setChanges: vi.fn(), fire: vi.fn(), list: () => [], pendingResults: () => [] },
       win: () => ({}), nameOf: () => 'Agente', board: { list: () => [ticket], get: () => ticket, recordPullRequest, flush: vi.fn() },
-      creation: { reconcileBlockedQueues: vi.fn(() => []) }, startActiveSquadTicket: vi.fn(),
+      creation: {}, startActiveSquadTicket: vi.fn(),
     } as unknown as IpcContext)
 
     await expect(callHandler('office:openResultPR', result.id, 'Entrega')).rejects.toThrow('repositório errado')
