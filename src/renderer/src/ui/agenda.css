@@ -73,192 +73,144 @@
   transform: rotate(180deg);
 }
 
-/* ---------- dia: uma linha horizontal com balões ---------- */
+/* ---------- dia: colunas lado a lado (AO-90) ---------- */
+/* Escala vertical: 1,6 px por minuto (uma aula de 50 min tem 80 px). Mesmo valor de PX_PER_MINUTE em agenda.ts. */
 
 .tl-day {
+  --day-label: 54px;
   border: 1px solid var(--line-strong);
   background: var(--sunken);
-  padding: 0 28px 12px 20px;
+  padding: 14px 16px 14px 0;
 }
 
 .tl-day-stage {
   position: relative;
-  height: 420px;
+  margin-left: var(--day-label);
 }
 
-.tl-day-axis {
+.tl-day-hour {
   position: absolute;
   left: 0;
   right: 0;
-  top: 50%;
-  height: 4px;
-  margin-top: -2px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.32));
+  border-top: 2px solid var(--ctl-line);
 }
 
-.tl-day-tick {
+.tl-day-hour span {
   position: absolute;
-  top: calc(50% + 8px);
-  transform: translateX(-50%);
+  left: calc(-1 * var(--day-label) + 8px);
+  top: -10px;
   color: var(--muted);
-  font-size: 11.5px;
+  font-family: var(--mono);
+  font-size: 12.5px;
   font-variant-numeric: tabular-nums;
 }
 
-.tl-day-tick::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: -12px;
-  width: 1px;
-  height: 8px;
-  background: rgba(255, 255, 255, 0.35);
-}
-
+/* Fica atrás dos cartões (z-index menor): aparece no eixo e nas folgas entre eles. */
 .tl-day-now {
   position: absolute;
-  top: 8%;
-  bottom: 8%;
-  width: 2px;
-  margin-left: -1px;
-  background: var(--accent-hi);
+  left: calc(-1 * var(--day-label));
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  z-index: 1;
 }
 
 .tl-day-now b {
   position: absolute;
-  top: -2px;
-  left: 6px;
+  left: 4px;
+  top: 4px;
+  padding: 1px 5px;
+  background: var(--accent-solid);
+  color: var(--on-accent);
+  border: 2px solid var(--outline);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  color: var(--accent-hi);
-  font-size: 11.5px;
 }
 
-.tl-bal {
+.tl-dv-ev {
   position: absolute;
-  top: 50%;
-  width: 0;
-  height: 0;
-  background: none !important;
-  border: 0 !important;
-}
-
-.tl-bal-dot {
-  position: absolute;
-  left: -6px;
-  top: -6px;
-  width: 12px;
-  height: 12px;
-  border: 2px solid var(--sunken);
   z-index: 2;
+  box-sizing: border-box;
+  min-width: 0;
+  overflow: hidden;
+  padding: 6px 10px;
+  border: 2px solid var(--outline);
+  background: var(--surface-3);
+  color: var(--text);
+  line-height: 1.3;
 }
 
-.tl-bal-stem {
-  position: absolute;
-  left: -1px;
-  width: 2px;
-  background: var(--bal);
-  opacity: 0.8;
-}
-
-.tl-bal-up .tl-bal-stem {
-  bottom: 0;
-  height: var(--stem);
-}
-
-.tl-bal-down .tl-bal-stem {
-  top: 0;
-  height: var(--stem);
-}
-
-.tl-bal-box {
-  position: absolute;
-  z-index: 3;
-  left: -14px;
-  width: 150px;
-  padding: 7px 9px;
-  background: var(--bal-bg);
-  border: 2px solid var(--bal);
-  color: var(--bal-tx);
-  box-shadow: var(--shadow);
-}
-
-.tl-bal-dot {
-  background: var(--bal);
-}
-
-.tl-bal-up .tl-bal-box {
-  bottom: var(--stem);
-}
-
-.tl-bal-down .tl-bal-box {
-  top: var(--stem);
-}
-
-.tl-bal.conflict .tl-bal-box {
-  outline: 2px solid var(--red);
-  outline-offset: 1px;
-}
-
-.tl-bal-top {
+.tl-dv-top {
   display: flex;
   align-items: baseline;
   gap: 6px;
   font-size: 11.5px;
 }
 
-.tl-bal-top b {
-  font-size: 12.5px;
+.tl-dv-top b {
+  font-family: var(--mono);
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
-.tl-bal-title {
-  margin-top: 2px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text);
-  line-height: 1.3;
+.tl-dv-kind {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.tl-bal-note {
+/* Título inteiro: quebra de linha, nunca reticências. */
+.tl-dv-title {
+  margin-top: 1px;
+  font-size: 14px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.tl-dv-note {
   margin-top: 2px;
-  color: var(--muted);
   font-size: 11.5px;
 }
 
-.tl-bal.tl-ev-evento {
-  --bal: #5b9cf0;
-  --bal-bg: #263b5e;
-  --bal-tx: #c9dcff;
-  border-color: #5b9cf0;
+.tl-dv-ev.conflict {
+  outline: 2px solid var(--red);
+  outline-offset: -4px;
 }
 
-.tl-bal.tl-ev-aula {
-  --bal: var(--accent);
-  --bal-bg: #4c2e25;
-  --bal-tx: #ffd2c2;
-  border-color: var(--accent);
+/* Aula: superfície roxa escura. Compromisso: azul-claro sólido com texto escuro. */
+.tl-dv-aula {
+  background: var(--surface-3);
+  color: var(--text);
 }
 
-.tl-bal.tl-ev-tarefa {
-  --bal: #9cc3ff;
-  --bal-bg: #2a3b5e;
-  --bal-tx: #c9dcff;
-  border-color: #9cc3ff;
+.tl-dv-evento {
+  background: var(--blue);
+  color: var(--on-accent);
 }
 
-.tl-bal.tl-ev-feita,
-.tl-bal.tl-ev-concluida {
-  --bal: var(--green);
-  --bal-bg: #1d4334;
-  --bal-tx: var(--green-text);
-  border-color: var(--green);
+.tl-dv-tarefa {
+  background: var(--info-bg);
+  color: var(--text);
+  border-left-color: var(--blue);
 }
 
-.tl-bal.tl-ev-rotina {
-  --bal: var(--amber);
-  --bal-bg: #4a3d1d;
-  --bal-tx: var(--amber-text);
-  border-color: var(--amber);
+.tl-dv-feita,
+.tl-dv-concluida {
+  background: var(--ok-bg);
+  color: var(--green-text);
+}
+
+.tl-dv-rotina {
+  background: var(--warn-bg);
+  color: var(--amber-text);
+}
+
+.tl-tl-legend i.tl-dv-aula,
+.tl-tl-legend i.tl-dv-evento,
+.tl-tl-legend i.tl-dv-tarefa {
+  border: 2px solid var(--outline);
 }
 
 /* ---------- 7 dias: faixa por dia ---------- */
@@ -682,30 +634,12 @@
   .tl-stat b {
     font-size: 22px;
   }
-  .tl-bal-box {
-    width: 120px;
-    padding: 6px 8px;
-    font-size: 12.5px;
-  }
-  .tl-bal-box .tl-bal-title {
-    font-size: 12.5px;
-  }
   .tl-tl-track {
     margin: 0 10px 0 6px;
   }
 }
 
 @media (max-width: 480px) {
-  .tl-day {
-    padding: 0 16px 10px 12px;
-  }
-  .tl-day-stage {
-    height: 340px;
-  }
-  .tl-bal-box {
-    width: 100px;
-    left: -10px;
-  }
   .tl-stat {
     padding: 8px 10px;
   }
