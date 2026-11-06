@@ -2,6 +2,7 @@ import { homedir } from 'node:os'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import type { ProjectWorkflow, ProjectWorkflowDraftKind } from '@shared/types'
 import type { ProjectDocument } from './project-workflow-documents'
+import type { Account } from '@shared/types'
 import { accountEnv, mainAccount } from './accounts'
 import { claudeNotFoundMessage } from './claude-messages'
 import { findClaude } from './claude-path'
@@ -9,13 +10,18 @@ import { findClaude } from './claude-path'
 export type WorkflowGeneration = ProjectWorkflowDraftKind
 
 export interface WorkflowGenerator {
-  generate(input: {
-    kind: WorkflowGeneration
-    workflow: ProjectWorkflow
-    documents: ProjectDocument[]
-    squads?: string[]
-    tickets?: Array<{ id: string; title: string; description: string }>
-  }, signal?: AbortSignal): Promise<unknown>
+  generate(
+    input: {
+      kind: WorkflowGeneration
+      workflow: ProjectWorkflow
+      documents: ProjectDocument[]
+      squads?: string[]
+      tickets?: Array<{ id: string; title: string; description: string }>
+      /** Pasta do andar: dela vem a conta escolhida nos ajustes. */
+      cwd?: string
+    },
+    signal?: AbortSignal,
+  ): Promise<unknown>
 }
 
 const SYSTEM = [
@@ -56,12 +62,18 @@ function promptFor(input: Parameters<WorkflowGenerator['generate']>[0]): string 
   }
 }
 
-/** One isolated, tool-free Claude turn. Account and model are resolved once per invocation. */
-export function claudeProjectWorkflowGenerator(settings: { defaultModel?: string }): WorkflowGenerator {
-  const account = mainAccount()
+/**
+ * One isolated, tool-free Claude turn. Account and model are resolved once per invocation.
+ * AO-94: `accountFor` entrega a conta do andar (ajustes); sem ele, a principal.
+ */
+export function claudeProjectWorkflowGenerator(
+  settings: { defaultModel?: string },
+  accountFor?: (cwd: string | undefined) => Account | undefined,
+): WorkflowGenerator {
   const model = settings.defaultModel || undefined
   return {
     async generate(input, signal) {
+      const account = accountFor?.(input.cwd) ?? mainAccount()
       const executable = findClaude()
       if (!executable) throw new Error(claudeNotFoundMessage(process.platform))
       const abort = new AbortController()
