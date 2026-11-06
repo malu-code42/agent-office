@@ -329,6 +329,23 @@ export class TicketBoard extends EventEmitter {
     this.changed(t)
   }
 
+  /** Puts the given tickets of one column first, in the order given; the rest follow in their current order. */
+  reorder(status: TicketStatus, ids: string[]): void {
+    if (new Set(ids).size !== ids.length) throw new Error('Um ticket aparece mais de uma vez na lista.')
+    const column = this.column(status)
+    const picked = ids.map((id) => {
+      const t = column.find((x) => x.id === id)
+      if (!t) throw new Error(`Esse ticket não está na coluna ${labelOf(STATUSES, status)}.`)
+      return t
+    })
+    const ordered = [...picked, ...column.filter((x) => !ids.includes(x.id))]
+    ordered.forEach((x, i) => {
+      if (x.order === i) return
+      x.order = i
+      this.changed(x, false)
+    })
+  }
+
   comment(id: string, text: string, by: Actor): Ticket {
     const t = this.must(id)
     const body = cleanText(text, MAX_TEXT)
@@ -658,6 +675,19 @@ export class TicketBoard extends EventEmitter {
               const t = find(args.key)
               this.update(t.id, { status: args.status, priority: args.priority, title: args.title, description: args.description, parent: args.parent }, me)
               return `${t.key} atualizado: ${labelOf(STATUSES, t.status)}, prioridade ${labelOf(PRIORITIES, t.priority)}.`
+            })(),
+        ),
+        tool(
+          'ticket_reorder',
+          'Reordena os tickets de uma coluna do seu andar: os keys passados ficam primeiro, na ordem dada; os demais seguem. Não muda status.',
+          { status: agentStatus, keys: z.array(z.string()).min(1) },
+          (args) =>
+            run(() => {
+              const picked = args.keys.map((key) => find(key))
+              const outro = picked.find((t) => !onMyFloor(t))
+              if (outro) throw new Error(`${outro.key} é de outro andar; reordene só os tickets do seu andar.`)
+              this.reorder(args.status, picked.map((t) => t.id))
+              return `Reordenei ${labelOf(STATUSES, args.status)}: ${picked.map((t) => t.key).join(', ')} primeiro.`
             })(),
         ),
         tool(

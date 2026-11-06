@@ -612,4 +612,16 @@ describe('agente contratado pela Emi (modo padrão)', () => {
     it(`${label} pede cartão`, () => {
       expect(decide('default', tool, input, WIN).verdict).toBe('ask')
     })
+
+  // AO-60 critério 5: a própria Emi, mesmo no modo Automático, não faz merge, não dá push na main e não lê credenciais.
+  it('a Emi não faz merge, não dá push na main e não lê credenciais em nenhum modo de trabalho', () => {
+    const pedidos: [string, Record<string, string>][] = [
+      ['Bash', { command: 'gh pr merge 12 --squash' }],
+      ['Bash', { command: 'git push origin main' }],
+      ['Read', { file_path: 'C:\\Users\\x\\.ssh\\id_rsa' }],
+      ['Bash', { command: 'cat ~/.aws/credentials' }],
+    ]
+    for (const mode of ['default', 'acceptEdits', 'auto'] as const)
+      for (const [tool, input] of pedidos) expect(decide(mode, tool, input, WIN).verdict, `${mode} ${tool}`).toBe('ask')
+  })
 })
