@@ -1,4 +1,5 @@
 import {
+  BOOKS,
   disciplineIdOf,
   studyBankFolders,
   STUDY_BANK_DEFAULT_PER_TOPIC,
@@ -185,7 +186,10 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
 
       let hits: StudyLibraryHit[]
       try {
-        hits = (await deps.library.search(unit.query, scope)).hits.filter((hit) => !NAME_ONLY.test(hit.excerpt))
+        const passages = async (folders: readonly string[]) => (await deps.library.search(unit.query, folders)).hits.filter((hit) => !NAME_ONLY.test(hit.excerpt))
+        const own = await passages(scope)
+        // The discipline's folders can miss a passage the other textbooks have: then those are read too.
+        hits = own.length || fallback ? own : await passages([BOOKS])
       } catch (error) {
         return { results, stop: 'error', message: (error as Error).message }
       }
@@ -193,7 +197,7 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
       if (!first) {
         // With no folder of its own, nothing found means no book was put in the default folder.
         reason ??= fallback ? 'no-book' : 'no-passage'
-        if (fallback) folder = scope[0]
+        folder = scope[0]
         books = await booksFor(topic)
         continue
       }

@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from 'node:fs'
+import { mkdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { dialog, ipcMain, shell } from 'electron'
 import { z } from 'zod'
@@ -6,7 +6,7 @@ import { buildAgendaView, weekProgress } from '@shared/agenda'
 import { GOALS_FILES, parseGoals } from '@shared/goals'
 import { achievedDates } from '../goal-dates'
 import { buildClassSchedule } from '@shared/class-schedule'
-import { parseStudyTrail, STUDY_TRAIL_FILE, trailGoalTopics } from '@shared/study-trail'
+import { parseStudyTrail, STUDY_TRAIL_FILE, type StudyTrail, trailGoalTopics } from '@shared/study-trail'
 import { routineWeekMarks } from '@shared/routine-personal'
 import { personalRoutineOverview } from '../routines-personal'
 import { openPdfAtPage } from '../pdf-viewer'
@@ -30,6 +30,15 @@ import { generateIdeas, StudyIdeaStore } from '../study-ideas'
 import { studiedTopics } from '@shared/study-ideas'
 import { suggestBooks } from '../study-book-suggestions'
 import { StudyBankJobs } from '../study-bank-job'
+import { isStudyReadinessReady } from '@shared/study-readiness'
+import {
+  checkDisciplineReadiness,
+  openableFolder,
+  SerialQueue,
+  StudyReadinessStore,
+  suggestTopicBooks,
+  type ReadinessSource,
+} from '../study-readiness'
 import { answeredStudyQuestions, isStudyQuestionAnswered } from '@shared/study-cycle'
 import { StudyQuestionService } from '../study-questions'
 import { claudeStudyQuestionProviders } from '../study-questions-claude'
@@ -59,6 +68,9 @@ import {
   studyQuestionSearchArgsSchema,
   studyQuestionSaveArgsSchema,
   studyBankBuildArgsSchema,
+  studyReadinessArgsSchema,
+  studyFolderArgsSchema,
+  suggestStudyBooksArgsSchema,
   studyQuestionGenerateArgsSchema,
   startStudyCycleArgsSchema,
   answerStudyCycleArgsSchema,
@@ -102,6 +114,10 @@ export function registerTasksIpc(ctx: IpcContext): void {
   const studyLibraries = new Map<string, StudyLibrary>()
   const studyCards = new Map<string, StudyCardsService>()
   const studyCycleStore = new StudyCycleStore(ctx.store.dataDirectory)
+  const readiness: ReadinessSource = {
+    trail: () => parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE)),
+    reports: () => readinessStore.read(),
+  }
   // PDF pages extracted for Cora and the question scan, cached by path + mtime + size (never sent anywhere).
   const pdfCacheDir = join(ctx.store.dataDirectory, 'study-pdf-cache')
   // pdf.js runs in a worker thread, so a first read of a big library never freezes the window.
@@ -150,15 +166,19 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const vault = requireVault()
     let service = studyCards.get(vault)
     if (!service) {
-      service = new StudyCardsService(vault, {
-        assist(notes, authored, linkTargets) {
-          const settings = ctx.store.settings
-          const accountId = settings.defaultAccounts[0] ?? MAIN_ACCOUNT
-          const account = settings.accounts.find((candidate) => candidate.id === accountId)
-          if (!account) throw new Error('A conta Claude definida não existe mais. Confira as contas nas configurações.')
-          return claudeStudyCardInterpreter(settings, account).assist(notes, authored, linkTargets)
+      service = new StudyCardsService(
+        vault,
+        {
+          assist(notes, authored, linkTargets) {
+            const settings = ctx.store.settings
+            const accountId = settings.defaultAccounts[0] ?? MAIN_ACCOUNT
+            const account = settings.accounts.find((candidate) => candidate.id === accountId)
+            if (!account) throw new Error('A conta Claude definida não existe mais. Confira as contas nas configurações.')
+            return claudeStudyCardInterpreter(settings, account).assist(notes, authored, linkTargets)
+          },
         },
-      })
+        readiness,
+      )
       studyCards.set(vault, service)
     }
     return service
@@ -213,6 +233,11 @@ export function registerTasksIpc(ctx: IpcContext): void {
   ipcMain.handle('office:startStudyBank', async (_e, ...args: unknown[]) => {
     const [request] = parse(studyBankBuildArgsSchema, args, 'Montagem do banco inválida.')
     const trail = parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE))
+    // The window's gate is not enough: the trail is checked again here, against the same trail the build reads.
+    const report = await checkDiscipline(trail, request.discipline, true)
+    const topics = studyBankTopics(trail, { discipline: request.discipline })
+    if (!isStudyReadinessReady(report, topics))
+      throw new Error('A disciplina ainda tem tópicos sem prontidão. Confira a prontidão antes de montar.')
     const library = studyLibrary()
     const bank = studyService()
     // Open questions and ones citing a text the student never sees go out (with a backup).
@@ -255,14 +280,61 @@ export function registerTasksIpc(ctx: IpcContext): void {
   ipcMain.handle('office:readStudyIdeas', () => ideaStore.read())
   ipcMain.handle('office:generateStudyIdeas', async (_e, ...args: unknown[]) => {
     const [topic] = parse(studySubtopicsArgsSchema, args, 'Tópico inválido.')
-    if (!studiedTopics(studyCycleStore.read()).some((item) => item.topic === topic)) throw new Error('Esse tópico não está no ciclo de estudos.')
-    const set = await generateIdeas(topic, askClaude)
+    if (!studiedTopics(studyCycleStore.read()).some((item) => item.topic === topic))
+      throw new Error('Esse tópico não está no ciclo de estudos.')
+    const set = await generateIdeas(topic, askClaude, readiness)
     ideaStore.save(set)
     return set
   })
   ipcMain.handle('office:studyBankStatus', () => bankJobs.status())
   ipcMain.handle('office:cancelStudyBank', () => bankJobs.cancel())
   ipcMain.handle('office:dismissStudyBank', () => bankJobs.dismiss())
+  // The readiness report of each discipline: checked by code (no model, no web), kept until the next check.
+  const readinessStore = new StudyReadinessStore(ctx.store.dataDirectory)
+  // Checks and book searches share one queue: each reads the saved report and writes it back.
+  const readinessQueue = new SerialQueue()
+  /** One queued check; builds revalidate ready topics' sources before saving the report. */
+  const checkDiscipline = (trail: StudyTrail, discipline: string, revalidateSources = false) =>
+    readinessQueue.run(async () => {
+      const vault = requireVault()
+      const report = await checkDisciplineReadiness(
+        trail,
+        discipline,
+        { vault, library: studyLibrary(), subtopics: { get: (topic) => subtopicStore.read()[topic] } },
+        Date.now(),
+        readinessStore.read()[discipline],
+        revalidateSources,
+      )
+      readinessStore.save(report)
+      return report
+    })
+  ipcMain.handle('office:readStudyReadiness', () => readinessStore.read())
+  ipcMain.handle('office:checkStudyReadiness', async (_e, ...args: unknown[]) => {
+    const [discipline] = parse(studyReadinessArgsSchema, args, 'Disciplina inválida.')
+    return checkDiscipline(parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE)), discipline)
+  })
+  // Only the folders the saved report names can be opened; a missing one is created, where the book goes.
+  ipcMain.handle('office:openStudyFolder', async (_e, ...args: unknown[]) => {
+    const [folder] = parse(studyFolderArgsSchema, args, 'Pasta inválida.')
+    const target = openableFolder(readinessStore, folder)
+    mkdirSync(target, { recursive: true })
+    const error = await shell.openPath(target)
+    if (error) throw new Error(`Não consegui abrir a pasta: ${error}`)
+  })
+  // On request only (a web and model search): the books are kept in the report of the topic.
+  ipcMain.handle('office:suggestStudyBooks', (_e, ...args: unknown[]) => {
+    const [discipline, name] = parse(suggestStudyBooksArgsSchema, args, 'Tópico inválido.')
+    return suggestTopicBooks(readinessStore, discipline, name, async (selected) => {
+      const trail = parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE))
+      const matches = studyBankTopics(trail, { discipline }).filter((t) =>
+        selected.id ? t.id === selected.id : t.title === selected.topic,
+      )
+      const [trailTopic] = matches
+      if (matches.length !== 1 || !trailTopic)
+        throw new Error('O tópico mudou ou está repetido na trilha. Confira a prontidão da disciplina de novo.')
+      return suggestBooks(trailTopic.title, trailTopic.discipline)
+    }, readinessQueue)
+  })
   ipcMain.handle('office:saveStudyQuestions', async (_e, ...args: unknown[]) => {
     const [token, selection, reviewConfirmed] = parse(studyQuestionSaveArgsSchema, args, 'Seleção de questões inválida.')
     studyService().save(token, selection, reviewConfirmed)

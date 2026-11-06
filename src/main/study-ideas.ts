@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { parseIdeas, type StudyIdeaSet } from '@shared/study-ideas'
 import { loadJson, writeJsonAtomic } from './fs-safe'
+import { assertTopicReady, type ReadinessSource } from './study-readiness'
 import type { AskJson } from './study-questions-grounded'
 
 const PROMPT = [
@@ -10,7 +11,8 @@ const PROMPT = [
   'each "title" short and each "description" 1 to 3 sentences saying what to build and which part of the topic it exercises.',
 ].join(' ')
 
-export async function generateIdeas(topic: string, ask: AskJson, now = Date.now()): Promise<StudyIdeaSet> {
+export async function generateIdeas(topic: string, ask: AskJson, readiness: ReadinessSource, now = Date.now()): Promise<StudyIdeaSet> {
+  assertTopicReady(readiness, topic)
   const ideas = parseIdeas(await ask(PROMPT, { topic }))
   if (!ideas) throw new Error('O modelo não devolveu ideias válidas. Tente novamente.')
   return { topic, generatedAt: now, ideas }

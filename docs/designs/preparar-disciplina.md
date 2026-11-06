@@ -1,6 +1,7 @@
 # Preparar disciplina antes de gerar o material de estudo
 
 - **Data:** 2026-11-03
+- **Revisão:** 2026-11-04 (AO-48), conforme decisões posteriores da usuária nos comentários de AO-42 e AO-45.
 - **Origem:** conversa de grilling com a usuária (sem EGM completo, por escolha dela).
 - **Caso que motivou:** Hardware I (`P2-HW`, 13 tópicos) não conseguiu gerar todas as questões do banco.
 
@@ -15,20 +16,22 @@ O banco de questões só descobre durante a geração que um tópico não tem fo
 
 ## Decisões
 
-1. **Etapa "Preparar disciplina"**, passo 1 da janela do banco, antes de "Gerar". Confere, por tópico: fonte, subtemas e trechos. Gera um relatório de prontidão. "Gerar" libera só os tópicos prontos.
+1. **Etapa "Preparar disciplina"**, passo 1 da janela do banco, antes de "Gerar". Confere, por tópico: fonte, subtemas e trechos. A janela é a tela de correção, não só um aviso: mostra o relatório guardado e as ações para resolver cada tópico travado, sem depender de conversa com agente. "Gerar" só fica liberado quando todos os tópicos da disciplina estiverem prontos, conforme decisão posterior no AO-45.
 2. **Prova real:** nos tópicos prontos, gera 1 questão de verdade como teste. Se passar, ela fica no banco e conta para a meta do tópico.
 3. **Fontes:** só `textbooks/`, como hoje. Não se incluem livros que precisam de OCR. O status "pending-review" dos READMEs é ignorado. PDF sem texto aparece no relatório como "precisa de OCR, fora do escopo".
-4. **Tópico travado:** fica travado quando não tem fonte, ou quando os subtemas não fecham (`sem-acordo`). O relatório mostra o motivo, sugere livros da web (função `suggestBooks` já existente) e diz a pasta exata onde colocar o arquivo. Nada é baixado sozinho. A usuária só coloca livros nas pastas.
+4. **Tópico travado:** fica travado quando não tem fonte, ou quando os subtemas não fecham (`sem-acordo`). O relatório guarda, por tópico, o estado, o que falta, os livros sugeridos da web (título e autor, pela função `suggestBooks` já existente) e o caminho exato da pasta onde colocar o arquivo. A janela mostra esses campos, com botões "Abrir pasta" (no explorador de arquivos) e "Copiar caminho", além do próximo passo: "Coloque o PDF aí e clique em Reconferir travados". Nada é baixado sozinho. A usuária só coloca livros nas pastas.
 5. **Mesma base para tudo:** cartões, projetos de software e zettels usam o mesmo relatório. Tópico travado trava todos.
 6. **Reexecutar:** botão que reconfere só os tópicos travados e mantém os prontos.
-7. **Relatório guardado por disciplina** até a próxima preparação. Não some ao dispensar.
-8. **Quantidade:** a janela pede só "questões por tópico". O app reparte entre os subtemas. O campo "por subtema" e qualquer total escolhido pela usuária saem.
+7. **Relatório guardado por disciplina** até a próxima preparação. Não some ao dispensar. Reabrir a janela mostra o último relatório, incluindo motivos, livros sugeridos e pastas dos tópicos travados, com as ações de correção sempre visíveis. Quando a busca não retornar livros, o relatório registra a ausência de sugestões e a janela informa "Nenhum livro sugerido", em vez de deixar o campo vazio.
+8. **Quantidade:** conforme decisão posterior no AO-45, a usuária escolhe um número de questões por subtema, igual para todos os subtemas do tópico (por exemplo, 4). O total por tópico é derivado desse número e da quantidade de subtemas; não é escolhido separadamente.
 9. **Fonte da verdade da trilha:** `trilha zettel.md`.
 10. **Começa só por Hardware I.** Outras disciplinas depois.
 
 ## Critério de pronto
 
-Hardware I com 13 de 13 tópicos prontos: cada um com fonte, subtemas que fecharam e 1 questão de prova aprovada. Depois, a geração entrega o número de questões por tópico pedido pela usuária em todos os 13.
+Hardware I com 13 de 13 tópicos prontos: cada um com fonte, subtemas que fecharam e 1 questão de prova aprovada. Depois, a geração entrega o número de questões por subtema pedido pela usuária em todos os 13 tópicos.
+
+Enquanto houver tópico travado, a janela mostra o que falta, títulos e autores dos livros sugeridos, pasta com "Abrir pasta" e "Copiar caminho", e o próximo passo. Esses dados continuam visíveis ao reabrir a janela.
 
 ## Fora do escopo
 
@@ -46,5 +49,23 @@ Hardware I com 13 de 13 tópicos prontos: cada um com fonte, subtemas que fechar
 
 - EGM completo (brainstorm, draft, 5 estágios de revisão): caro para uma decisão de desenho que coube numa conversa.
 - Só avisar sem travar: não dá a garantia que a usuária quer antes de gerar.
-- Tudo ou nada por disciplina: bloqueia tópicos que já estão prontos.
+- Gerar apenas os tópicos prontos: opção inicial substituída pela decisão posterior no AO-45 de liberar a geração só com toda a disciplina pronta.
 - Tentar de novo os subtemas, ou seguir sem eles: descartadas pela usuária em favor de travar o tópico.
+
+## Identidade da prontidão — AO-64 (2026-11-04)
+
+- O ID da trilha identifica o tópico, mesmo quando dois tópicos têm o mesmo título. Estado, motivo e livros são preservados por ID.
+- Um ID informado nunca herda a prontidão de outro ID pelo título. IDs repetidos no relatório ou na trilha não comprovam prontidão.
+- Relatórios legados com ID ausente/nulo continuam legíveis. O fallback por título exige uma única ocorrência tanto no relatório quanto na disciplina atual da trilha. Uma reconferência preserva o estado legado inequívoco e grava o ID atual.
+- Dados legados ambíguos não liberam geração nem emprestam estado/livros aos homônimos. A pessoa precisa conferir a disciplina novamente; cada tópico passa pela checagem existente, sem revalidar os demais tópicos prontos (AO-62 permanece separado).
+- A janela e o gate do banco recebem os tópicos com seus IDs, não uma lista de títulos. Cartões e ideias usam o mesmo casamento do relatório; rótulos de notas/ciclos com ID preservam a identidade, enquanto títulos sem ID e repetidos são recusados.
+- A busca de livros envia o ID ao processo principal e usa o título somente como consulta. O resultado é aplicado apenas ao tópico selecionado, inclusive se o relatório mudar durante a busca.
+- A prova de questão resolve um único tópico antes de chamar o construtor; um título legado ambíguo exige nova preparação, sem iniciar geração.
+- Não há alteração no formato persistido, nas chaves dos subtemas/questões existentes, na fila (AO-63) ou no desenho da interface.
+
+## Fontes ao iniciar a montagem — AO-62 (2026-11-05)
+
+- "Reconferir travados" continua preservando os tópicos prontos, conforme a decisão 6.
+- Ao iniciar "Montar banco", o processo principal verifica novamente as fontes e os trechos de todos os tópicos, inclusive os prontos. O relatório salvo é atualizado antes de avaliar o gate da disciplina.
+- Se o livro sumiu ou deixou de oferecer trechos suficientes, o tópico deixa de estar pronto e a montagem é recusada antes de limpar ou gerar questões. Essa checagem não chama modelo nem busca livros na web.
+- Se as fontes continuam suficientes, a prontidão anterior é preservada sem repetir a questão de prova. Essa revalidação não certifica novamente o conteúdo inteiro do livro nem substitui a conferência de cada questão durante a geração.

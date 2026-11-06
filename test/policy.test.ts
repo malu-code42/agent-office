@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { decide, type AlwaysAllowRule, type PolicyScope } from '../src/main/permissions/policy'
+
+// This matrix exercises Windows paths on every host; POSIX semantics have their own matrix.
+vi.mock('node:path', async (importOriginal) => {
+  const path = await importOriginal<typeof import('node:path')>()
+  return { ...path, isAbsolute: path.win32.isAbsolute, resolve: path.win32.resolve, sep: path.win32.sep }
+})
 
 // O escritório é a autoridade de permissões (o CLI só obedece). A matriz pura: modo ×
 // ferramenta × caminho. Aqui não há Electron nem SDK: `decide` responde allow (roda sem
@@ -104,6 +110,11 @@ describe('categorias que sempre pedem (auto)', () => {
       expect(decide('auto', 'Bash', { command }, WIN)).toEqual({ verdict: 'ask', why })
     })
   }
+  // AO-60: Emi's floor control never merges, so a merge still needs a card.
+  for (const command of ['gh pr merge 12 --squash', 'git push origin HEAD:main'])
+    it(`${command} pede cartão no modo automático`, () => {
+      expect(decide('auto', 'Bash', { command }, WIN).verdict).toBe('ask')
+    })
 })
 
 describe('"Sempre permitir"', () => {
@@ -591,5 +602,32 @@ describe('busca de nomes (Glob) limitada ao lugar anunciado — juiz, achado do 
     expect(decide('auto', 'Glob', { pattern: '.env*' }, p)).toEqual({ verdict: 'ask', why: 'arquivo sensível' })
     expect(decide('auto', 'Grep', { pattern: 'x', path: 'D:\\proj\\src', glob: '*.ts' }, p)).toEqual({ verdict: 'allow' })
     expect(decide('auto', 'Read', { file_path: 'D:\\proj\\src\\a.ts' }, p)).toEqual({ verdict: 'allow' })
+  })
+})
+
+// AO-60: a hire by Emi runs in the default mode, so merge, push to main, credentials and outside paths still ask.
+describe('agente contratado pela Emi (modo padrão)', () => {
+  const asks: [string, string, Record<string, string>][] = [
+    ['merge', 'Bash', { command: 'gh pr merge 12 --squash' }],
+    ['push para a main', 'Bash', { command: 'git push origin main' }],
+    ['credenciais SSH', 'Read', { file_path: 'C:\\Users\\x\\.ssh\\id_rsa' }],
+    ['credenciais AWS', 'Bash', { command: 'cat ~/.aws/credentials' }],
+    ['escrita fora da pasta', 'Write', { file_path: 'D:\\dados\\outro\\a.md' }],
+  ]
+  for (const [label, tool, input] of asks)
+    it(`${label} pede cartão`, () => {
+      expect(decide('default', tool, input, WIN).verdict).toBe('ask')
+    })
+
+  // AO-60 critério 5: a própria Emi, mesmo no modo Automático, não faz merge, não dá push na main e não lê credenciais.
+  it('a Emi não faz merge, não dá push na main e não lê credenciais em nenhum modo de trabalho', () => {
+    const pedidos: [string, Record<string, string>][] = [
+      ['Bash', { command: 'gh pr merge 12 --squash' }],
+      ['Bash', { command: 'git push origin main' }],
+      ['Read', { file_path: 'C:\\Users\\x\\.ssh\\id_rsa' }],
+      ['Bash', { command: 'cat ~/.aws/credentials' }],
+    ]
+    for (const mode of ['default', 'acceptEdits', 'auto'] as const)
+      for (const [tool, input] of pedidos) expect(decide(mode, tool, input, WIN).verdict, `${mode} ${tool}`).toBe('ask')
   })
 })

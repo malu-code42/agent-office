@@ -3,6 +3,8 @@
 
 export const STUDY_BANK_DEFAULT_PER_TOPIC = 20
 export const STUDY_BANK_MAX_PER_TOPIC = 50
+/** Questions per subtopic offered first in the builder. */
+export const STUDY_BANK_DEFAULT_PER_SUBTOPIC = 4
 
 /** One step of the agent chain, in order. */
 export type StudyBankStep = 'author' | 'quote' | 'similar' | 'solver' | 'verifier'
@@ -23,7 +25,7 @@ export const STUDY_BANK_REASON: Record<StudyBankReason, { chip: string; text: st
   'no-passage': { chip: 'Nenhum trecho', text: 'Nenhum trecho dos livros cita o tópico.' },
   little: { chip: 'Pouco material', text: 'O livro tem pouco material sobre o tópico.' },
   // Travado: the subtopics did not agree, so the topic makes no questions until its book or its subtopics change.
-  'sem-acordo': { chip: 'Subtemas sem acordo', text: 'Os subtemas não fecharam: o tópico fica travado até o livro ou os subtemas mudarem.' },
+  'sem-acordo': { chip: 'Subtemas sem acordo', text: 'Os subtemas não fecharam ou nenhum livro (ou mais de um, empatado) trata claramente do tópico: o tópico fica travado até o livro ou os subtemas mudarem.' },
   'sem-subtemas': { chip: 'Subtemas não montados', text: 'Não consegui montar os subtemas deste tópico: o tópico fica travado.' },
   similar: { chip: 'Parecidas demais', text: 'As questões novas saíram parecidas demais com as que já existem.' },
   refused: { chip: 'Verificador recusou', text: 'O verificador recusou as questões: a resposta não estava clara no livro.' },
@@ -121,7 +123,8 @@ export function splitStudyRationale(rationale: string | undefined): { rationale:
   }
 }
 
-const BOOKS = 'study sources/textbooks/'
+/** Only books: `ocr/` and course materials stay out of every search (no OCR, per the design). */
+export const BOOKS = 'study sources/textbooks/'
 
 /** Where each discipline of the trail (by its id) reads from: vault folders under the study sources. */
 export const DISCIPLINE_SOURCES: Record<string, readonly string[]> = {

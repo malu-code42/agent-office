@@ -1,4 +1,5 @@
-import { type FocusItem, STEP_MAX } from '@shared/planning'
+import { groupFocusItems, type FocusItem, STEP_MAX } from '@shared/planning'
+import type { TaskList } from '@shared/tasks'
 import type { State } from '../state'
 import { arrowList, keepFocus, modalA11y, rove } from './a11y'
 import { h, icon } from './dom'
@@ -36,6 +37,12 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
     return
   }
   let current: FocusItem[] = items
+  let lists: TaskList[] = []
+  try {
+    lists = (await window.office.readTasks()).lists
+  } catch {
+    // Keep the focus usable even if the board cannot be read.
+  }
 
   // The approved look (HANDOFF 3.1): the same card of the board Tarefas, anchored above the dock.
   const title = h('span', { id: 'focus-t' }, 'Tarefas em foco')
@@ -203,7 +210,14 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
     change.hidden = validCount === 0
     list.hidden = next.length === 0
     empty.hidden = validCount > 0
-    keepFocus(list, () => list.replaceChildren(...next.map(card)))
+    keepFocus(list, () =>
+      list.replaceChildren(
+        ...groupFocusItems(lists, next).flatMap((group) => [
+          ...(group.name === null ? [] : [h('li', { class: 'focus-group-heading', role: 'presentation' }, group.name)]),
+          ...group.items.map(card),
+        ]),
+      ),
+    )
     const cards = [...list.querySelectorAll<HTMLElement>('.focus-card')]
     if (cards.length) rove(cards, 0)
   }
@@ -212,8 +226,10 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
   const complete = async (box: HTMLInputElement, item: TaskItem): Promise<void> => {
     try {
       const next = await window.office.completeTask({ id: item.id })
+      lists = next.board.lists
       paint(next.focus)
       offerUndo(toast, item.text, next.id, (undone) => {
+        lists = undone.board.lists
         if (backdrop.isConnected) paint(undone.focus)
         refreshTasksBoard(root, state, toast, undone.board)
       })
@@ -227,6 +243,7 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
   // Discarding asks for the reason; the task leaves the focus and the board is drawn again if it is open.
   const discard = (item: TaskItem): Promise<void> =>
     runDiscard(root, toast, { id: item.id }, item.text, (next) => {
+      lists = next.board.lists
       paint(next.focus)
       refreshTasksBoard(root, state, toast, next.board)
     })

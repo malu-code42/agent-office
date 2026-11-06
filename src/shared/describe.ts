@@ -145,6 +145,16 @@ export function describePermission(tool: string, input: Record<string, unknown> 
         title: `Posso iniciar o squad ${String(input.code ?? '')}?`,
         detail: `Um ciclo do squad ${String(input.code ?? '')} começa agora.${input.note ? `\nRecado: ${String(input.note)}` : ''}`,
       }
+    case 'mcp__emi__squad_delete':
+      return {
+        title: `Posso excluir o squad ${String(input.code ?? '')}?`,
+        detail: `A pasta squads/${String(input.code ?? '')} do andar será apagada, com a definição dos membros e o pipeline. Não dá para desfazer pelo escritório.`,
+      }
+    case 'mcp__emi__agent_delete':
+      return {
+        title: `Posso dispensar o agente ${String(input.agent ?? '')}?`,
+        detail: 'O agente sai do escritório. O histórico de custos fica para os relatórios.',
+      }
     default:
       return { title: `Posso usar ${tool}?`, detail: clip(input, 400) }
   }

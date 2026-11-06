@@ -63,6 +63,13 @@ let planning: PlanningStore
 let settings: { vaultPath?: string }
 let broadcast: ReturnType<typeof vi.fn>
 
+/** A trail with one topic and a stored readiness report that says it is pronto, so cards from its notes may be generated. */
+function readyCardTopic(): void {
+  writeFileSync(join(vault, 'trilha zettel.md'), '## 2º período\n### [P2-HW] Hardware I — 60 h\n- [ ] [P2-HW-01] Circuitos elétricos.')
+  const report = { 'P2-HW': { discipline: 'P2-HW', builtAt: 1, topics: [{ id: 'P2-HW-01', topic: 'Circuitos elétricos', state: 'pronto', reason: 'ok', folders: [] }] } }
+  writeFileSync(join(data, 'study-readiness.json'), JSON.stringify(report))
+}
+
 beforeEach(() => {
   vault = mkdtempSync(join(tmpdir(), 'ao-vault-'))
   data = mkdtempSync(join(tmpdir(), 'ao-focus-data-'))
@@ -205,8 +212,9 @@ describe('tasks IPC', () => {
     const noteId = 'sn-sc-123-abcdefgh-q-12345678-card'
     writeFileSync(
       join(vault, 'notas-estudo.md'),
-      `<!-- agent-office-study-note:${noteId} -->\n## Nota sintética\nFonte: study sources/fixture.md#exemplo:1\n\nConteúdo sintético.\n`,
+      `<!-- agent-office-study-note:${noteId} -->\n## Nota sintética\nFonte: study sources/fixture.md#exemplo:1\nTópico: Circuitos elétricos\n\nConteúdo sintético.\n`,
     )
+    readyCardTopic()
     settings.vaultPath = vault
     Object.assign(settings, {
       defaultAccounts: [],
@@ -232,8 +240,9 @@ describe('tasks IPC', () => {
     const noteId = 'sn-sc-123-abcdefgh-q-12345678-card2'
     writeFileSync(
       join(vault, 'notas-estudo.md'),
-      `<!-- agent-office-study-note:${noteId} -->\n## Nota fixture\nFonte: study sources/fixture.md#exemplo:1\n\nConteúdo sintético.\n`,
+      `<!-- agent-office-study-note:${noteId} -->\n## Nota fixture\nFonte: study sources/fixture.md#exemplo:1\nTópico: Circuitos elétricos\n\nConteúdo sintético.\n`,
     )
+    readyCardTopic()
     settings.vaultPath = vault
     Object.assign(settings, {
       defaultAccounts: [],

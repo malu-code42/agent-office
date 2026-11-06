@@ -25,9 +25,6 @@ import { ECONOMY_PLUGINS, ECONOMY_RULE, missingEconomyPlugins } from '../token-e
 
 /** Runs on the Claude Agent SDK: starting the query and turning its messages into status, activity and log. */
 export abstract class AgentSdk extends AgentOffice {
-  /** CLI processes closed on purpose to move to another account: their end is not an error. */
-  protected replaced = new WeakSet<Query>()
-
   protected run(agent: Agent, prompt: Prompt): void {
     const s = agent.summary
     agent.lastPrompt = prompt
@@ -339,7 +336,10 @@ export abstract class AgentSdk extends AgentOffice {
 
   protected async consume(agent: Agent, q: Query): Promise<void> {
     try {
-      for await (const msg of q) this.handle(agent, msg)
+      for await (const msg of q) {
+        if (this.replaced.has(q) || agent.query !== q) return
+        this.handle(agent, msg)
+      }
     } catch (err) {
       // Closed on purpose to move to another account: the new process carries on.
       if (this.replaced.has(q) || (agent.query && agent.query !== q)) return

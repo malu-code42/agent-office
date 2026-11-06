@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,6 +21,7 @@ const { SquadProposalStore } = await import('../src/main/squad-proposals')
 const { SquadQueueStore } = await import('../src/main/squad-queues')
 const { TicketBoard } = await import('../src/main/tickets')
 const { ProjectWorkflowStore } = await import('../src/main/project-workflows')
+const { SquadStatusStore } = await import('../src/main/squad-status')
 
 const team = (): SquadProposalMember[] => [
   { id: 'maya', name: 'Maya', role: 'implementer', engine: 'claude', model: 'sonnet', account: '', focus: 'Implementa a busca' },
@@ -39,8 +40,13 @@ describe('ferramentas da Emi', () => {
   let board: InstanceType<typeof TicketBoard>
   let creation: InstanceType<typeof SquadCreation>
   let broadcast: unknown[]
+  let squadStatus: InstanceType<typeof SquadStatusStore>
+  let agents: { id: string; name: string; cwd: string; status: string; role?: string; squad?: string }[]
+  let fired: string[]
+  let hired: { name: string; cwd: string; permissionMode: string }[]
 
   beforeEach(() => {
+    fired = []
     const cwd = mkdtempSync(join(tmpdir(), 'ao-emi-project-'))
     const data = mkdtempSync(join(tmpdir(), 'ao-emi-data-'))
     project = { id: 'p1', name: 'Loja Aurora', cwd }
@@ -57,13 +63,28 @@ describe('ferramentas da Emi', () => {
       workflows,
     })
     broadcast = []
-    const manager = { list: () => [], pendingResults: () => [] } as unknown as IpcContext['manager']
+    agents = []
+    hired = []
+    const manager = {
+      list: () => agents,
+      pendingResults: () => [],
+      fire: (id: string) => {
+        fired.push(id)
+        agents = agents.filter((a) => a.id !== id)
+      },
+      hire: async (req: { name: string; cwd: string; permissionMode: string }) => {
+        hired.push(req)
+        return { id: `new-${req.name}`, name: req.name }
+      },
+    } as unknown as IpcContext['manager']
     ipcMain.handlers.clear()
+    squadStatus = new SquadStatusStore(data)
     registerSquadsIpc({
       store: { settings },
       manager,
       board,
       creation,
+      squadStatus,
       projectWorkflows: workflows,
       player: () => ({ kind: 'player', name: 'Malu' }),
       broadcast: (e: unknown) => broadcast.push(e),
@@ -161,10 +182,14 @@ describe('ferramentas da Emi', () => {
   it('só aprovar o plano e criar squad pedem o cartão, que mostra a equipe exata', () => {
     const names = emiToolDefs(deps).map((t) => `mcp__emi__${t.name}`)
     expect(names.filter((n) => EMI_CONFIRM_TOOLS.has(n)).sort()).toEqual([
+      'mcp__emi__agent_delete',
       'mcp__emi__plan_approve',
       'mcp__emi__squad_create',
+      'mcp__emi__squad_delete',
       'mcp__emi__squad_run',
     ])
+    for (const free of ['squad_pause', 'squad_resume', 'squad_disable', 'agent_create'])
+      expect(EMI_CONFIRM_TOOLS.has(`mcp__emi__${free}`)).toBe(false)
     expect(describePermission('mcp__emi__squad_run', { code: 'sala-1' }).title).toBe('Posso iniciar o squad sala-1?')
     const card = describePermission('mcp__emi__squad_create', {
       name: 'Equipe da busca',
@@ -175,5 +200,86 @@ describe('ferramentas da Emi', () => {
     expect(card.title).toBe('Posso criar o squad Equipe da busca?')
     expect(card.detail).toContain('- Maya · Implementador · modelo sonnet')
     expect(card.detail).toContain('- Caio · Revisor independente · modelo opus')
+  })
+
+  // AO-60: the floor's squads and agents, changed by Emi.
+  const makeSquad = async () => {
+    const a = ticket('Indexar produtos')
+    await call(deps, 'plan_approve', plan([a.key]))
+    const created = await call(deps, 'squad_create', { name: 'Equipe da busca', brief: 'Refazer', tickets: [a.key], members: team() })
+    expect(created.isError).toBe(false)
+    return join(project.cwd, 'squads', 'sala-1')
+  }
+
+  it('pausar, desativar e retomar um squad não pedem cartão e não mexem em squads/', async () => {
+    const dir = await makeSquad()
+    const before = readFileSync(join(dir, 'squad.yaml'), 'utf8')
+
+    expect((await call(deps, 'squad_pause', { code: 'sala-1' })).text).toMatch(/pausado/)
+    expect(squadStatus.get(project.cwd, 'sala-1')).toBe('paused')
+    expect((await call(deps, 'squads_list')).text).toContain('Pausado: retome o squad')
+    expect(await call(deps, 'squad_run', { code: 'sala-1' })).toEqual({ isError: true, text: expect.stringContaining('pausado') })
+
+    expect((await call(deps, 'squad_disable', { code: 'sala-1' })).text).toMatch(/desativado/)
+    expect(squadStatus.get(project.cwd, 'sala-1')).toBe('disabled')
+    expect((await call(deps, 'squad_resume', { code: 'sala-1' })).text).toMatch(/retomado/)
+    expect(squadStatus.get(project.cwd, 'sala-1')).toBeUndefined()
+    expect((await call(deps, 'squads_list')).text).not.toContain('indisponível')
+
+    expect(readFileSync(join(dir, 'squad.yaml'), 'utf8')).toBe(before)
+  })
+
+  it('pausar squad inexistente é recusado e não grava estado', async () => {
+    const r = await call(deps, 'squad_pause', { code: 'sala-9' })
+    expect(r.isError).toBe(true)
+    expect(squadStatus.get(project.cwd, 'sala-9')).toBeUndefined()
+  })
+
+  it('excluir squad apaga só a pasta dele e recusa quando há agente ou ticket rodando', async () => {
+    const dir = await makeSquad()
+    agents = [{ id: 'o1', name: 'Orq', cwd: project.cwd, status: 'working', role: 'orchestrator', squad: 'sala-1' }]
+    const busy = await call(deps, 'squad_delete', { code: 'sala-1' })
+    expect(busy).toEqual({ isError: true, text: expect.stringContaining('ainda está rodando') })
+    expect(existsSync(dir)).toBe(true)
+
+    agents = []
+    expect((await call(deps, 'squad_delete', { code: 'sala-1' })).text).toMatch(/atribuído/)
+    expect(existsSync(dir)).toBe(true)
+    // The squad's queue holds its assigned ticket; with nothing assigned and nothing running, delete goes through.
+    vi.spyOn(creation, 'queue').mockReturnValue(undefined)
+    expect((await call(deps, 'squad_delete', { code: 'sala-1' })).text).toMatch(/excluído/)
+    expect(existsSync(dir)).toBe(false)
+    expect(existsSync(join(project.cwd, 'squads'))).toBe(true)
+    expect(broadcast.at(-1)).toEqual({ type: 'squads', squads: [] })
+  })
+
+  it('excluir squad com código inválido é recusado antes de tocar em disco', async () => {
+    const r = await call(deps, 'squad_delete', { code: '../x' })
+    expect(r.isError).toBe(true)
+  })
+
+  it('dispensar agente: só parado, do andar, sem nome ambíguo', async () => {
+    agents = [
+      { id: 'a1', name: 'Ada', cwd: project.cwd, status: 'idle' },
+      { id: 'a2', name: 'Bob', cwd: project.cwd, status: 'working' },
+      { id: 'a3', name: 'Dup', cwd: project.cwd, status: 'idle' },
+      { id: 'a4', name: 'Dup', cwd: project.cwd, status: 'idle' },
+      { id: 'a5', name: 'Eva', cwd: tmpdir(), status: 'idle' },
+    ]
+    expect((await call(deps, 'agent_delete', { agent: 'Bob' })).isError).toBe(true)
+    expect((await call(deps, 'agent_delete', { agent: 'Dup' })).text).toMatch(/use o id/)
+    expect((await call(deps, 'agent_delete', { agent: 'Eva' })).isError).toBe(true)
+    expect(fired).toEqual([])
+
+    expect((await call(deps, 'agent_delete', { agent: 'Ada' })).text).toMatch(/dispensado/)
+    expect((await call(deps, 'agent_delete', { agent: 'a3' })).isError).toBe(false)
+    expect(fired).toEqual(['a1', 'a3'])
+  })
+
+  it('contratar agente usa a pasta do andar e o modo padrão, mesmo se o andar for mais permissivo', async () => {
+    project.permissionMode = 'bypassPermissions'
+    const r = await call(deps, 'agent_create', { name: 'Iris', task: 'Revisar a busca' })
+    expect(r).toEqual({ isError: false, text: expect.stringContaining('Iris') })
+    expect(hired).toEqual([expect.objectContaining({ name: 'Iris', cwd: project.cwd, permissionMode: 'default' })])
   })
 })

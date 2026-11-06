@@ -1,5 +1,5 @@
-# Typecheck, lint, tests and build on every PR and every push to main, on macOS and Windows.
-# "CI verde" for branch protection = both "check (macos-latest)" and "check (windows-latest)".
+# Typecheck, lint, tests and build on every PR and every push to main, on Windows.
+# Required check: "check (windows-latest)". See ADR 0011 for the platform scope.
 # Prettier is not checked here: much of the code predates it (56 files would fail). Run
 # `npm run format -- <files>` on the files you touch; the check comes after one full format.
 name: CI
@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

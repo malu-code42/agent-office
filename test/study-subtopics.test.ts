@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { checkSubtopics, listsAgree, tocEntries, tocScore, type OutlineEntry } from '../src/shared/study-outline'
+import { checkSubtopics, listsAgree, SUBTOPICS_RULE, tocEntries, tocScore, type OutlineEntry } from '../src/shared/study-outline'
 import type { StudySubtopics } from '../src/shared/study-outline'
 import { dataNotices } from '../src/main/fs-safe'
 import { buildSubtopics, buildTopicSubtopics, StudySubtopicStore, STUDY_SUBTOPICS_FILE } from '../src/main/study-subtopics'
@@ -70,7 +70,7 @@ describe('buildTopicSubtopics', () => {
       search: async () => ({ hits: [{ sourceRef: 'curto.pdf:1' }, { sourceRef: 'longo.pdf:2' }] as never }),
       outline: async (path: string) => (path === 'curto.pdf' ? [] : outline),
     }
-    const out = await buildTopicSubtopics({ id: 'x', title: 'T', discipline: 'D' } as never, library, async () => ({
+    const out = await buildTopicSubtopics({ id: 'x', title: 'Seção', discipline: 'D' } as never, library, async () => ({
       subtopics: list([0, 1], [2, 3], [4, 5]),
     }))
     expect(out).toMatchObject({ status: 'ok', source: 'longo.pdf' })
@@ -80,6 +80,57 @@ describe('buildTopicSubtopics', () => {
       async () => null,
     )
     expect(none).toMatchObject({ status: 'sem-indice', source: 'curto.pdf' })
+  })
+
+  it('does not choose a book whose table has no line about the topic (score 0): blocked, asks nothing', async () => {
+    const library = {
+      search: async () => ({ hits: [{ sourceRef: 'geral.pdf:1' }] as never }),
+      outline: async () => outline,
+    }
+    let asked = false
+    const out = await buildTopicSubtopics({ id: 'x', title: 'Álgebra booleana', discipline: 'D' } as never, library, async () => {
+      asked = true
+      return { subtopics: list([0, 1], [2, 3], [4, 5]) }
+    })
+    expect(out).toMatchObject({ status: 'sem-acordo', source: 'geral.pdf', subtopics: [] })
+    expect(out.reason).toContain('não escolhi um livro ao acaso')
+    expect(asked).toBe(false)
+  })
+
+  it('blocks when two books are about the topic with close scores, instead of choosing one at random', async () => {
+    const twelve = Array.from({ length: 12 }, (_, id) => ({ id, title: `Portas lógicas ${id}`, page: 10 + id }))
+    const eleven = twelve.slice(1)
+    const library = {
+      search: async () => ({ hits: [{ sourceRef: 'a.pdf:1' }, { sourceRef: 'b.pdf:2' }] as never }),
+      outline: async (path: string) => (path === 'a.pdf' ? twelve : eleven),
+    }
+    let asked = false
+    const out = await buildTopicSubtopics({ id: 'x', title: 'Portas lógicas', discipline: 'D' } as never, library, async () => {
+      asked = true
+      return { subtopics: list([0, 1], [2, 3], [4, 5]) }
+    })
+    expect(out).toMatchObject({ status: 'sem-acordo', source: 'a.pdf', subtopics: [] })
+    expect(out.reason).toContain('pontuação parecida')
+    expect(asked).toBe(false)
+  })
+
+  it('considers a book that is past the first three hits of the search', async () => {
+    const about = Array.from({ length: 12 }, (_, id) => ({ id, title: `Portas lógicas ${id}`, page: 10 + id }))
+    const hits = ['a', 'b', 'c', 'd'].map((n) => ({ sourceRef: `${n}.pdf:1` }))
+    const library = {
+      search: async () => ({ hits: hits as never }),
+      outline: async (path: string) => (path === 'd.pdf' ? about : outline),
+    }
+    const out = await buildTopicSubtopics({ id: 'x', title: 'Portas lógicas', discipline: 'D' } as never, library, async () => ({
+      subtopics: list([0, 1], [2, 3], [4, 5]),
+    }))
+    expect(out).toMatchObject({ status: 'ok', source: 'd.pdf' })
+  })
+
+  it('does not count generic words of a book (introdução, sistemas) as a match', () => {
+    const generic: OutlineEntry[] = [{ id: 0, title: 'Introdução aos sistemas', page: 1 }]
+    expect(tocScore('Introdução aos sistemas', generic)).toBe(0)
+    expect(tocScore('Introdução à lógica', generic)).toBe(0)
   })
 })
 
@@ -151,9 +202,23 @@ describe('StudySubtopicStore', () => {
     topic,
     source: 'L.pdf',
     builtAt: 1,
+    rule: SUBTOPICS_RULE,
     status: 'sem-acordo',
     reason: 'x',
     subtopics: [],
+  })
+
+  it('builds again an old entry that has no rule mark (chosen before the score rule)', () => {
+    const { store, file } = setup()
+    const old = { topic: 'Velho', source: 'L.pdf', builtAt: 1, status: 'ok', subtopics: [{ name: 'P', sections: [] }] }
+    writeFileSync(file, JSON.stringify({ Velho: old, Novo: entry('Novo') }))
+    expect(Object.keys(store.read())).toEqual(['Novo'])
+  })
+
+  it('builds again an entry of another rule version', () => {
+    const { store, file } = setup()
+    writeFileSync(file, JSON.stringify({ Velho: { ...entry('Velho'), rule: SUBTOPICS_RULE - 1 } }))
+    expect(store.read()).toEqual({})
   })
 
   it('keeps every topic when saves run at the same time', async () => {

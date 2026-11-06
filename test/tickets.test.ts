@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -241,6 +241,21 @@ describe('fechar e reabrir', () => {
   })
 })
 
+describe('ticket removido do tipo Mãe', () => {
+  it('ticket salvo com parent ou tipo epic carrega sem erro: campo descartado, tipo vira task', () => {
+    board.create({ title: 'Antigo' }, me)
+    board.flush()
+    const file = join(dir, 'tickets.json')
+    const data = JSON.parse(readFileSync(file, 'utf8'))
+    data.tickets.push({ ...data.tickets[0], id: 'old-epic', key: 'AO-8', type: 'epic' }, { ...data.tickets[0], id: 'old-child', key: 'AO-9', parent: 'AO-8' })
+    writeFileSync(file, JSON.stringify(data))
+    // Not reload(): its flush() would rewrite the file from memory before loading.
+    const again = new TicketBoard(dir)
+    expect(again.byKey('AO-8')).toMatchObject({ type: 'task' })
+    expect(again.byKey('AO-9')).not.toHaveProperty('parent')
+  })
+})
+
 describe('ferramentas dos agentes', () => {
   const agent = { id: 'ag-1', name: 'Ada', cwd: dir, project: 'p1' } as AgentSummary
   type Tool = { name: string; handler: (args: Record<string, unknown>) => Promise<{ content: { text: string }[]; isError?: boolean }> }
@@ -282,5 +297,25 @@ describe('ferramentas dos agentes', () => {
     expect((await call('ticket_get', { key: 'AO-77' })).isError).toBe(true)
     expect((await call('tickets_list', { closed: true })).text).toContain(`${t.key} [done] Velho`)
     expect((await call('tickets_list', { closed: true, search: 'nada' })).text).toContain('Nenhum ticket fechado')
+  })
+
+  it('reordena uma coluna por ferramenta: chaves primeiro, sem mudar status; chave inválida não altera nada', async () => {
+    const call = tools([{ id: 'p1', name: 'Loja', cwd: dir }])
+    const outroDir = mkdtempSync(join(tmpdir(), 'ao-outro-'))
+    const outro = board.create({ title: 'Outro andar', status: 'todo', cwd: outroDir }, me)
+    for (const title of ['A', 'B', 'C']) await call('ticket_create', { title, description: '', acceptance: [], tags: [], status: 'todo' })
+    const ordem = async () => (await call('tickets_list', { status: ['todo'] })).text.split('\n').map((l) => l.split(' ')[0])
+    const outroOrder = board.byKey(outro.key)!.order
+    expect(await ordem()).toEqual(['AO-2', 'AO-3', 'AO-4'])
+    expect((await call('ticket_reorder', { status: 'todo', keys: ['AO-4', 'AO-2'] })).text).toBe('Reordenei A fazer: AO-4, AO-2 primeiro.')
+    expect(await ordem()).toEqual(['AO-4', 'AO-2', 'AO-3'])
+    expect(board.byKey(outro.key)!.order).toBe(outroOrder)
+    expect(board.byKey('AO-4')!.status).toBe('todo')
+    for (const bad of [{ keys: ['AO-404'] }, { keys: ['AO-2', 'AO-2'] }, { keys: ['AO-2'], status: 'review' }, { keys: [outro.key] }]) {
+      const r = await call('ticket_reorder', { status: 'todo', ...bad })
+      expect(r.isError).toBe(true)
+    }
+    expect(await ordem()).toEqual(['AO-4', 'AO-2', 'AO-3'])
+    expect(board.byKey(outro.key)!.order).toBe(outroOrder)
   })
 })

@@ -8,7 +8,7 @@ App Electron (TypeScript, ESM): escritório isométrico em pixel art (Canvas2D) 
 Scripts em `package.json`. Se `npm install` falhar com "Electron uninstall": `node node_modules/electron/install.js`.
 `npm run demo` abre agentes simulados, sem gastar tokens. `npm run lint` cobre só o checkout atual; `npm run lint -- --all` varre todas as worktrees Git.
 
-Antes de entregar: `npm run typecheck && npm run lint && npm test && npm run build` (o que o CI roda: macOS e Windows, Node 22).
+Antes de entregar: `npm run typecheck && npm run lint && npm test && npm run build` (o que o CI roda: Windows, Node 22; escopo no ADR 0011).
 
 Variáveis úteis: `AGENT_OFFICE_DEMO=1`, `AGENT_OFFICE_TOUR=1`, `AGENT_OFFICE_FAKE_UPDATE=0.9.0`,
 `AGENT_OFFICE_CLAUDE=<caminho>`, `AGENT_OFFICE_DATA_DIR=<pasta>` (troca o userData; use para não mexer nos dados reais).
@@ -26,12 +26,14 @@ Na dúvida se o arquivo se aplica, leia.
 ## Regras da casa
 
 ### Idioma
+
 - Todo texto visível ao usuário é **pt-BR**: UI, erros, notificações, mensagens de log. Não há i18n.
 - Prompts enviados aos agentes são em inglês.
 - Comentários: inglês na maior parte, português aceito. Siga o idioma do arquivo.
 - Textos que mudam por sistema operacional vão em `src/renderer/src/ui/os-text.ts` (`DARWIN`, `WIN32`, `OTHER`).
 
 ### Estilo
+
 - Prettier: sem ponto e vírgula, aspas simples, `trailingComma: all`, `printWidth: 140`.
   O CI não roda Prettier (arquivos antigos falhariam). Formate **só os arquivos que tocar**: `npm run format -- <arquivos>`.
 - ESLint: variável não usada é erro; prefixe com `_` para ignorar. TypeScript `strict` + `noUnusedLocals`.
@@ -41,6 +43,7 @@ Na dúvida se o arquivo se aplica, leia.
 - Comentários citam tickets `AO-NN` e ADRs. Comente o porquê, não o quê. `catch {}` vazio precisa de comentário.
 
 ### Segurança (não negociável)
+
 - O renderer é **não confiável**. Todo handler IPC recebe `unknown` e valida com zod em `validate.ts`.
 - Janela com `sandbox`, `contextIsolation`, navegação e `window.open` bloqueados. CSP estrita em `index.html`. Não afrouxe.
 - Processos externos: `execFile`/`spawn` com array de argumentos, **nunca** shell (ver `git/run.ts`, ADR 0006).
@@ -50,6 +53,7 @@ Na dúvida se o arquivo se aplica, leia.
 - O bridge escuta só em 127.0.0.1, exige token e rejeita `Origin`. Ele faz backup de `~/.claude/settings.json` e preserva hooks do usuário. Mantenha isso.
 
 ### Dados do usuário
+
 - Ficam em `app.getPath('userData')` (arquivos de dados listados em `DATA_FILES` de `backups.ts`; também `stats.json`,
   `bridge-token`, `logs/`, `backups/`, `study-pdf-cache/` — texto dos PDFs da Cora, lido em worker thread; só trechos vão a modelos, na montagem do banco iniciada pela usuária; `study-bank-job.json` — andamento da montagem do banco de questões).
 - Banco de questões: montado só pela IA (cadeia de agentes, sem revisão manual) e questões respondidas nunca se repetem. Ver §2.5 da spec do centro de controle antes de mexer em `study-*`.
@@ -62,6 +66,7 @@ Na dúvida se o arquivo se aplica, leia.
 - Claude é o único motor ativo. `engine: 'opencode'`, logs, resultados e uso correspondentes são registros históricos somente para leitura; nunca retomar/converter sem pedido explícito. Não reinstalar runtime, seletor ou consentimento OpenCode.
 
 ### Plataformas
+
 - Checagens inline com `process.platform === 'win32' | 'darwin'`; Linux costuma ser o `else`.
 - Funções puras recebem `platform`/`env` como parâmetro para serem testáveis (ex.: `claudeCandidates(env, platform, home)`).
 - Módulos só Windows: `win-processes.ts`, `terminal-launch.ts`, `badge.ts`. Só macOS: `mac-jobs.ts` (somente leitura).

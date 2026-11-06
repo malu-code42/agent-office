@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { parseStudyTrail } from '../src/shared/study-trail'
 import { buildStudyBank } from '../src/main/study-bank-builder'
+import { SUBTOPICS_RULE } from '../src/shared/study-outline'
+import { STUDY_BANK_REASON } from '../src/shared/study-bank'
 import { STUDY_QUESTION_LIMITS, type StudyQuestion } from '../src/shared/study-questions'
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({ query: vi.fn() }))
@@ -63,7 +65,7 @@ function setup(options: { verdict?: string; failAsk?: boolean; bank?: StudyQuest
 describe('buildStudyBank', () => {
   it('splits the goal equally among the topic subtopics and marks each question', async () => {
     const { bank, search, deps } = setup()
-    const entry = { topic: 'Sistemas de numeração', source: 'L.pdf', builtAt: 1, status: 'ok' as const, subtopics: ['Base binária', 'Conversão'].map((name) => ({ name, sections: [] })) }
+    const entry = { topic: 'Sistemas de numeração', source: 'L.pdf', builtAt: 1, rule: SUBTOPICS_RULE, status: 'ok' as const, subtopics: ['Base binária', 'Conversão'].map((name) => ({ name, sections: [] })) }
     const subtopics = { get: () => entry, build: vi.fn() }
     await buildStudyBank(trail, { ...deps, subtopics }, { perTopic: 4, topic: 'Sistemas de numeração' })
     expect(bank.map((q) => q.subtopic).sort()).toEqual(['Base binária', 'Base binária', 'Conversão', 'Conversão'])
@@ -72,9 +74,17 @@ describe('buildStudyBank', () => {
     expect(subtopics.build).not.toHaveBeenCalled()
   })
 
+  it('gives each subtopic perSubtopic questions, so the topic total is perSubtopic times its subtopics', async () => {
+    const { bank, deps } = setup()
+    const entry = { topic: 'Sistemas de numeração', source: 'L.pdf', builtAt: 1, rule: SUBTOPICS_RULE, status: 'ok' as const, subtopics: ['Base binária', 'Conversão', 'Complemento'].map((name) => ({ name, sections: [] })) }
+    await buildStudyBank(trail, { ...deps, subtopics: { get: () => entry, build: vi.fn() } }, { perTopic: 1, perSubtopic: 2, topic: 'Sistemas de numeração' })
+    expect(bank).toHaveLength(6)
+    expect(bank.filter((q) => q.subtopic === 'Complemento')).toHaveLength(2)
+  })
+
   it('blocks a topic whose subtopics did not agree or could not be built, with no questions made without them', async () => {
     const { bank, ask, deps } = setup()
-    const disagreed = { topic: 'Sistemas de numeração', source: 'L.pdf', builtAt: 1, status: 'sem-acordo' as const, reason: 'x', subtopics: [] }
+    const disagreed = { topic: 'Sistemas de numeração', source: 'L.pdf', builtAt: 1, rule: SUBTOPICS_RULE, status: 'sem-acordo' as const, reason: 'x', subtopics: [] }
     const first = await buildStudyBank(trail, { ...deps, subtopics: { get: () => disagreed, build: vi.fn() } }, { perTopic: 2, topic: 'Sistemas de numeração' })
     expect(first.results[0]).toMatchObject({ reason: 'sem-acordo', added: 0 })
     const broken = { ...deps, subtopics: { get: () => undefined, build: async () => Promise.reject(new Error('sem ask')) } }
@@ -84,11 +94,21 @@ describe('buildStudyBank', () => {
     expect(ask.mock.calls.some(([system]) => String(system).includes('write one multiple-choice'))).toBe(false)
   })
 
+  it('tells the user a locked topic is locked, with the reason shown for each blocked case', async () => {
+    const disagreed = { topic: 'Sistemas de numeração', source: 'L.pdf', builtAt: 1, rule: SUBTOPICS_RULE, status: 'sem-acordo' as const, reason: 'x', subtopics: [] }
+    const { deps } = setup()
+    const first = await buildStudyBank(trail, { ...deps, subtopics: { get: () => disagreed, build: vi.fn() } }, { perTopic: 2, topic: 'Sistemas de numeração' })
+    expect(STUDY_BANK_REASON[first.results[0].reason!].text).toContain('fica travado')
+    const broken = { ...deps, subtopics: { get: () => undefined, build: async () => Promise.reject(new Error('sem ask')) } }
+    const second = await buildStudyBank(trail, broken, { perTopic: 2, topic: 'Sistemas de numeração' })
+    expect(STUDY_BANK_REASON[second.results[0].reason!].text).toContain('fica travado')
+  })
+
   it('does not count questions from before the subtopics toward any subtopic (AO-24)', async () => {
     const { bank, deps } = setup()
     await buildStudyBank(trail, deps, { perTopic: 4, topic: 'Sistemas de numeração' })
     expect(bank).toHaveLength(4)
-    const entry = { topic: 'Sistemas de numeração', source: 'L.pdf', builtAt: 1, status: 'ok' as const, subtopics: ['Base binária', 'Conversão'].map((name) => ({ name, sections: [] })) }
+    const entry = { topic: 'Sistemas de numeração', source: 'L.pdf', builtAt: 1, rule: SUBTOPICS_RULE, status: 'ok' as const, subtopics: ['Base binária', 'Conversão'].map((name) => ({ name, sections: [] })) }
     await buildStudyBank(trail, { ...deps, subtopics: { get: () => entry, build: vi.fn() } }, { perTopic: 4, topic: 'Sistemas de numeração' })
     // The old four stay, unlabeled; each subtopic still gets its own share.
     expect(bank.filter((q) => !q.subtopic)).toHaveLength(4)
@@ -98,7 +118,7 @@ describe('buildStudyBank', () => {
 
   it('tells the author about the questions made for the earlier subtopics of the same topic', async () => {
     const { deps, ask } = setup()
-    const entry = { topic: 'Sistemas de numeração', source: 'L.pdf', builtAt: 1, status: 'ok' as const, subtopics: ['Base binária', 'Conversão'].map((name) => ({ name, sections: [] })) }
+    const entry = { topic: 'Sistemas de numeração', source: 'L.pdf', builtAt: 1, rule: SUBTOPICS_RULE, status: 'ok' as const, subtopics: ['Base binária', 'Conversão'].map((name) => ({ name, sections: [] })) }
     await buildStudyBank(trail, { ...deps, subtopics: { get: () => entry, build: vi.fn() } }, { perTopic: 2, topic: 'Sistemas de numeração' })
     const avoids = ask.mock.calls
       .filter(([system]) => String(system).includes('write one multiple-choice study question'))
@@ -232,5 +252,24 @@ describe('buildStudyBank passages', () => {
     const { results } = await buildStudyBank(trail, deps, { perTopic: 4, discipline: 'P1-ICC' })
     expect(results[0]).toMatchObject({ added: 2, reason: 'little' })
     expect(search.mock.calls.every(([, scope]) => scope !== undefined)).toBe(true)
+  })
+
+  it('reads the other textbooks when the topic folder has no passage, and still makes the questions', async () => {
+    const { deps, search, bank } = setup()
+    search.mockImplementation(async (_query: string, scope?: readonly string[]) => ({ hits: scope?.[0] === 'study sources/textbooks/' ? [1, 2, 3, 4].map((n) => variant(n, 'Lógica e Matemática Discreta')) : [] }))
+    const { results } = await buildStudyBank(trail, deps, { perTopic: 2, discipline: 'P1-ICC' })
+    expect(results[0]).toMatchObject({ added: 2 })
+    expect(results[0]!.reason).toBeUndefined()
+    expect(search).toHaveBeenCalledWith('Sistemas de numeração', ['study sources/textbooks/'])
+    expect(bank).toHaveLength(2)
+  })
+
+  it('reports no-passage with the topic folder when no textbook has a passage', async () => {
+    const { deps, search } = setup()
+    search.mockImplementation(async () => ({ hits: [] }))
+    const { results } = await buildStudyBank(trail, deps, { perTopic: 2, discipline: 'P1-ICC' })
+    expect(results[0]).toMatchObject({ added: 0, reason: 'no-passage', folder: 'study sources/textbooks/Introdução à Ciência da Computação/' })
+    expect(search).toHaveBeenCalledWith('Sistemas de numeração', ['study sources/textbooks/Introdução à Ciência da Computação/'])
+    expect(search).toHaveBeenCalledWith('Sistemas de numeração', ['study sources/textbooks/'])
   })
 })

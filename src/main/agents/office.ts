@@ -207,23 +207,23 @@ export abstract class AgentOffice extends AgentBase {
   ): AgentSummary {
     const same = [...this.agents.values()].find((a) => {
       const s = a.summary
-      return (
-        s.role === 'orchestrator' && s.squad === squad.code && s.cwd === squad.cwd && (ticketId ? s.ticketId === ticketId : !s.ticketId)
-      )
+      // AO-54: the room owns the coordinator; tickets own only its current conversation/worktree.
+      return s.role === 'orchestrator' && s.squad === squad.code && s.cwd === squad.cwd && !s.departed && s.engine !== 'opencode'
     })
     if (same) {
       if (this.busy(same)) throw new Error(`${same.summary.name} já está rodando um ciclo. Espere terminar ou interrompa pelo painel.`)
-      if (worktree && same.summary.worktree?.branch !== worktree.branch)
+      if (same.summary.quotaPaused)
+        throw new Error('Este ciclo está pausado pela cota. Aguarde na conta fixa ou encerre a tarefa antes de iniciar outro.')
+      if (worktree && same.summary.ticketId === ticketId && same.summary.worktree && same.summary.worktree.branch !== worktree.branch)
         throw new Error('O ticket já está vinculado a outra cópia isolada; preserve o branch existente.')
-      same.summary.permissionMode = defaults.permissionMode
-      if (worktree) {
-        same.summary.worktree = worktree
-        same.summary.ticketId = ticketId
-        this.watchSquad(same)
-      }
-      // Token economy: the squad keeps its memory in files, so re-reading every past cycle only costs tokens.
-      if (this.store.settings.freshSquadCycle !== false)
+      const changedTicket = same.summary.ticketId !== ticketId
+      // Ticket boundaries always reset context, regardless of the optional setting for free cycles.
+      if (ticketId || changedTicket || this.store.settings.freshSquadCycle !== false)
         this.freshStart(same.summary.id, 'Ciclo novo, conversa nova: o squad guarda a memória nos arquivos dele.')
+      same.summary.permissionMode = defaults.permissionMode
+      same.summary.worktree = worktree
+      same.summary.ticketId = ticketId
+      this.watchSquad(same)
       this.sendMessage(same.summary.id, task, display)
       return same.summary
     }
@@ -467,6 +467,16 @@ export abstract class AgentOffice extends AgentBase {
     return true
   }
 
+  /** AO-54: publication ends the ticket's context, even when the group has no next ticket or is paused. */
+  finishSquadTicket(id: string, ticketId: string): boolean {
+    const agent = this.agents.get(id)
+    if (!agent || agent.summary.role !== 'orchestrator' || agent.summary.ticketId !== ticketId) return false
+    if (agent.summary.engine === 'opencode' || agent.summary.quotaPaused || this.busy(agent)) return false
+    // Keep the delivery and its branch available for the user's review; only the session is disposable.
+    this.resetContext(agent, 'Ticket publicado, conversa encerrada: o próximo ticket começa com contexto novo.', true)
+    return true
+  }
+
   /** Same agent, brand-new conversation: closes the session and starts the next one from zero. */
   clearContext(id: string, note = 'Contexto limpo. A próxima mensagem começa uma conversa nova.'): void {
     const agent = this.agents.get(id)
@@ -475,15 +485,27 @@ export abstract class AgentOffice extends AgentBase {
       throw new Error('Registros históricos OpenCode não podem ser retomados. Crie um novo agente Claude se quiser recomeçar.')
     if (agent.summary.quotaPaused && this.results.some((result) => result.agentId === id && result.limit))
       throw new Error('Leia e encerre o resultado pausado pela cota antes de começar uma conversa nova.')
+    this.resetContext(agent, note)
+  }
+
+  private resetContext(agent: Agent, note: string, preserveResults = false): void {
+    const id = agent.summary.id
     this.cancelAgentRequests(id)
-    this.dropResults(id)
+    if (!preserveResults) this.dropResults(id)
+    this.clearLimitWaiter(id)
+    if (agent.query) this.replaced.add(agent.query)
     agent.input?.close()
     agent.query?.close()
     agent.input = undefined
     agent.query = undefined
     agent.started = false
     agent.compacting = false
+    agent.awaitingSnapshot = false
+    agent.task = undefined
+    agent.lastPrompt = undefined
+    agent.limitHit = undefined
     agent.resumeAccount = undefined
+    this.clearSubagents(agent)
     agent.summary.sessionId = randomUUID()
     agent.summary.context = undefined
     const hadProfile = agent.summary.profile

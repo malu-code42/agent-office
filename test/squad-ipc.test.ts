@@ -7,12 +7,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { callHandler, ipcMain } from './mocks/electron'
 import { registerSquadsIpc } from '../src/main/ipc/squads'
 import { SquadCreation } from '../src/main/squad-creation'
+import { SquadStatusStore } from '../src/main/squad-status'
 import { SquadProposalStore } from '../src/main/squad-proposals'
 import { SquadQueueStore } from '../src/main/squad-queues'
 import { TicketBoard } from '../src/main/tickets'
 import type { IpcContext } from '../src/main/ipc/context'
 import type { Account, ProjectFloor, Settings, SquadProposalMember } from '@shared/types'
 import { worktreeState } from '../src/main/git'
+import * as gitModule from '../src/main/git'
 
 // The page sends the id of a proposal and the room it means: never a path. Every
 // argument is checked before the office does anything with it.
@@ -22,8 +24,14 @@ let creation: SquadCreation
 let board: TicketBoard
 let dataDir: string
 let broadcast: unknown[]
-let manager: { runSquad: (...args: unknown[]) => unknown; list: () => unknown[]; pendingResults: () => unknown[] }
+let manager: {
+  runSquad: (...args: unknown[]) => unknown
+  list: () => unknown[]
+  pendingResults: () => unknown[]
+  reserveSquadStart: (cwd: string, code: string) => (() => void) | undefined
+}
 let startRetry: ReturnType<typeof import('vitest').vi.fn>
+let squadStatus: SquadStatusStore
 
 const team = (): SquadProposalMember[] => [
   { id: 'maya', name: 'Maya', role: 'implementer', engine: 'claude', model: '', account: '', focus: 'Implementa' },
@@ -50,7 +58,20 @@ beforeEach(() => {
   project = { id: 'p1', name: 'Loja Aurora', cwd }
   board = new TicketBoard(dataDir)
   broadcast = []
-  manager = { runSquad: () => ({ id: 'agent-1' }), list: () => [], pendingResults: () => [] }
+  const starts = new Set<string>()
+  manager = {
+    runSquad: () => ({ id: 'agent-1' }),
+    list: () => [],
+    pendingResults: () => [],
+    reserveSquadStart: (cwd, code) => {
+      const key = `${cwd}:${code}`
+      if (starts.has(key)) return undefined
+      starts.add(key)
+      return () => {
+        starts.delete(key)
+      }
+    },
+  }
   startRetry = vi.fn(async () => undefined)
   creation = new SquadCreation({
     proposals: new SquadProposalStore(dataDir),
@@ -61,12 +82,14 @@ beforeEach(() => {
     player: () => ({ kind: 'player', name: 'Malu' }),
     generate: async () => team(),
   })
+  squadStatus = new SquadStatusStore(dataDir)
   const ctx = {
     store: { settings: settings() },
     manager,
     board,
     defaultBrain: () => ({}),
     creation,
+    squadStatus,
     broadcast: (e: unknown) => broadcast.push(e),
     rereadSquads: () => [],
     win: () => null,
@@ -148,9 +171,15 @@ describe('os canais de squad', () => {
 
   it('a action de retry de startup chama inicialização do ticket, não publicação', async () => {
     creation.queue = (() => ({
-      code: 'sala-1', cwd: project.cwd, queue: [], updatedAt: 1,
+      code: 'sala-1',
+      cwd: project.cwd,
+      queue: [],
+      updatedAt: 1,
       active: 'ticket-1',
-      cycle: { ticketId: 'ticket-1', worktree: { path: 'saved', root: 'saved', repo: 'repo', branch: 'agent/saved', base: 'a'.repeat(40) } },
+      cycle: {
+        ticketId: 'ticket-1',
+        worktree: { path: 'saved', root: 'saved', repo: 'repo', branch: 'agent/saved', base: 'a'.repeat(40) },
+      },
     })) as typeof creation.queue
     await callHandler('office:retrySquadStart', 'sala-1')
     expect(startRetry).toHaveBeenCalledWith('sala-1')
@@ -184,5 +213,83 @@ describe('os canais de squad', () => {
     const worktree = runArgs[4] as Parameters<typeof worktreeState>[0]
     expect(worktree.base).toBe(git('rev-parse', 'HEAD').trim())
     expect(await worktreeState(worktree)).toMatchObject({ dirty: 0, ignored: expect.any(Number) })
+  })
+
+  it('squad pausado não cria ciclo: o runSquad recusa antes de qualquer worktree ou agente', async () => {
+    const ticket = board.create({ title: 'Refazer a busca', status: 'todo', cwd: project.cwd }, { kind: 'player', name: 'Malu' })
+    const proposal = await propose('proposta-8', 0, [ticket.id])
+    await creation.approve(proposal.id, 'Equipe da busca')
+    const runSquad = vi.fn(() => ({ id: 'agent-1' }))
+    manager.runSquad = runSquad
+    squadStatus.set(project.cwd, 'sala-1', 'paused')
+    let failure: Error | undefined
+    try {
+      await callHandler('office:runSquad', project.cwd, 'sala-1', 'default', '', false)
+    } catch (err) {
+      failure = err as Error
+    }
+    expect(failure?.message).toMatch(/pausado/)
+    expect(runSquad).not.toHaveBeenCalled()
+    expect(creation.queue('sala-1')?.cycle).toBeUndefined()
+  })
+
+  it('AO-54: dois inícios concorrentes não disputam o diário nem criam duas worktrees', async () => {
+    const ticket = board.create({ title: 'Ticket sintético', cwd: project.cwd }, { kind: 'player', name: 'Malu' })
+    const proposal = await propose('proposta-9', 0, [ticket.id])
+    await creation.approve(proposal.id, 'Equipe')
+    let finish!: (value: null) => void
+    const create = vi
+      .spyOn(gitModule, 'createWorktree')
+      .mockResolvedValue(null)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve
+          }),
+      )
+    try {
+      const first = Promise.resolve(callHandler('office:runSquad', project.cwd, 'sala-1', 'default', '', false)).catch(
+        (error: unknown) => error,
+      )
+      await expect(callHandler('office:runSquad', project.cwd, 'sala-1', 'default', '', false)).rejects.toThrow(/iniciado/)
+      expect(create).toHaveBeenCalledOnce()
+      finish(null)
+      expect(await first).toMatchObject({ message: expect.stringMatching(/repositório git/) })
+      // Failure releases the reservation, so retry can prepare the same ticket again.
+      create.mockResolvedValue(null)
+      await expect(callHandler('office:runSquad', project.cwd, 'sala-1', 'default', '', false)).rejects.toThrow(/repositório git/)
+      expect(create).toHaveBeenCalledTimes(2)
+    } finally {
+      finish(null)
+      create.mockRestore()
+    }
+  })
+
+  it('AO-54: pausa durante a preparação impede envio e preserva o ciclo para retomada', async () => {
+    const ticket = board.create({ title: 'Ticket sintético', cwd: project.cwd }, { kind: 'player', name: 'Malu' })
+    const proposal = await propose('proposta-10', 0, [ticket.id])
+    await creation.approve(proposal.id, 'Equipe')
+    const worktree = { path: project.cwd, root: project.cwd, repo: project.cwd, branch: 'agent/sintetico', base: 'a'.repeat(40) }
+    const create = vi.spyOn(gitModule, 'createWorktree').mockResolvedValue(worktree)
+    const exclude = vi.spyOn(gitModule, 'excludeSquadRuntime').mockImplementation(async () => {
+      squadStatus.set(project.cwd, 'sala-1', 'paused')
+    })
+    mkdirSync(join(project.cwd, '_opensquad', 'core'), { recursive: true })
+    writeFileSync(join(project.cwd, '_opensquad', 'core', 'runner.pipeline.md'), 'runner')
+    const run = vi.fn(() => ({ id: 'agent-1' }))
+    manager.runSquad = run
+    try {
+      await expect(callHandler('office:runSquad', project.cwd, 'sala-1', 'default', '', false)).rejects.toThrow(/pausado/)
+      expect(run).not.toHaveBeenCalled()
+      expect(creation.queue('sala-1')?.cycle).toMatchObject({ ticketId: ticket.id, worktree })
+      squadStatus.set(project.cwd, 'sala-1', null)
+      exclude.mockResolvedValue(undefined)
+      await callHandler('office:runSquad', project.cwd, 'sala-1', 'default', '', false)
+      expect(run).toHaveBeenCalledOnce()
+      expect(create).toHaveBeenCalledOnce()
+    } finally {
+      create.mockRestore()
+      exclude.mockRestore()
+    }
   })
 })

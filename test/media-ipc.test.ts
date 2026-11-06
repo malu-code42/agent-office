@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -14,7 +14,7 @@ let vault: string
 let posters: ReturnType<typeof createMediaPosters>
 
 beforeEach(() => {
-  vault = mkdtempSync(join(tmpdir(), 'ao-media-ipc-'))
+  vault = realpathSync(mkdtempSync(join(tmpdir(), 'ao-media-ipc-')))
   writeFileSync(join(vault, 'tarefas.md'), 'tarefas intactas\n')
   writeFileSync(join(vault, 'agenda.md'), 'agenda intacta\n')
   writeFileSync(join(vault, 'planning.json'), 'planning intacto\n')

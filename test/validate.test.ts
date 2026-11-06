@@ -59,6 +59,7 @@ import {
   saveStudyCardDraftArgsSchema,
   listStudyCardsArgsSchema,
   setStudyCardPhysicalArgsSchema,
+  studyBankBuildArgsSchema,
 } from '../src/main/validate'
 
 const dir = mkdtempSync(join(tmpdir(), 'ao-validate-'))
@@ -809,5 +810,16 @@ describe('argumentos IPC do ciclo de estudo', () => {
     expect(listStudyCardsArgsSchema.safeParse([]).success).toBe(true)
     expect(setStudyCardPhysicalArgsSchema.safeParse(['c-card00001', true]).success).toBe(true)
     expect(setStudyCardPhysicalArgsSchema.safeParse(['C:\\vault\\card.md', true]).success).toBe(false)
+  })
+})
+
+describe('argumentos IPC da montagem do banco', () => {
+  it('rejects a build with no discipline, so nothing is built without the readiness check', () => {
+    expect(() => parse(studyBankBuildArgsSchema, [{ perTopic: 1, perSubtopic: 4 }], 'Montagem do banco inválida.')).toThrow('Montagem do banco inválida.')
+    expect(() => parse(studyBankBuildArgsSchema, [{ topic: 'Diodos', perTopic: 1 }], 'Montagem do banco inválida.')).toThrow('Montagem do banco inválida.')
+  })
+
+  it('accepts a build for a discipline', () => {
+    expect(parse(studyBankBuildArgsSchema, [{ discipline: 'P2-HW', perTopic: 1, perSubtopic: 4 }], 'x')[0]).toMatchObject({ discipline: 'P2-HW' })
   })
 })

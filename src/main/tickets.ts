@@ -296,6 +296,26 @@ export class TicketBoard extends EventEmitter {
     this.changed(t)
   }
 
+  /** Puts the given tickets of one column first, in the order given; the rest follow in their current order. */
+  reorder(status: TicketStatus, ids: string[], inScope: (t: Ticket) => boolean = () => true): void {
+    if (new Set(ids).size !== ids.length) throw new Error('Um ticket aparece mais de uma vez na lista.')
+    // Só o andar de quem pede: tickets de outros andares mantêm posição e order.
+    const column = this.column(status).filter(inScope)
+    const picked = ids.map((id) => {
+      const t = column.find((x) => x.id === id)
+      if (!t) throw new Error(`Esse ticket não está na coluna ${labelOf(STATUSES, status)} deste andar.`)
+      return t
+    })
+    const ordered = [...picked, ...column.filter((x) => !ids.includes(x.id))]
+    // Reaproveita as posições já usadas pelo andar (sem renumerar a partir de 0, que colidiria com outros andares).
+    const slots = column.map((x) => x.order)
+    ordered.forEach((x, i) => {
+      if (x.order === slots[i]) return
+      x.order = slots[i]
+      this.changed(x, false)
+    })
+  }
+
   comment(id: string, text: string, by: Actor): Ticket {
     const t = this.must(id)
     const body = cleanText(text, MAX_TEXT)
@@ -623,6 +643,19 @@ export class TicketBoard extends EventEmitter {
             })(),
         ),
         tool(
+          'ticket_reorder',
+          'Reordena os tickets de uma coluna do seu andar: os keys passados ficam primeiro, na ordem dada; os demais seguem. Não muda status.',
+          { status: agentStatus, keys: z.array(z.string()).min(1) },
+          (args) =>
+            run(() => {
+              const picked = args.keys.map((key) => find(key))
+              const outro = picked.find((t) => !onMyFloor(t))
+              if (outro) throw new Error(`${outro.key} é de outro andar; reordene só os tickets do seu andar.`)
+              this.reorder(args.status, picked.map((t) => t.id), onMyFloor)
+              return `Reordenei ${labelOf(STATUSES, args.status)}: ${picked.map((t) => t.key).join(', ')} primeiro.`
+            })(),
+        ),
+        tool(
           'ticket_check',
           'Marca critérios de aceite como cumpridos (ou reabre). Posições começam em 1.',
           { key: z.string(), items: z.array(z.number().int()), done: z.boolean().default(true) },
@@ -670,6 +703,9 @@ function cleanText(v: unknown, max: number): string {
 /** Legacy or corrupted blocker fields are kept closed, never trusted to unlock work. */
 function normalizeBlockingFields(ticket: Ticket): void {
   const raw = ticket as unknown as { blockedBy?: unknown; blockerPRs?: unknown; pullRequestUrl?: unknown }
+  // Tickets saved by the removed "Mãe" type (or with a parent field) must still load.
+  delete (ticket as unknown as { parent?: unknown }).parent
+  if (!TYPE_VALUES.includes(ticket.type)) ticket.type = 'task'
   if (raw.blockedBy === undefined) delete ticket.blockedBy
   else if (!Array.isArray(raw.blockedBy) || raw.blockedBy.length > 200 || raw.blockedBy.some((id) => typeof id !== 'string' || !id))
     ticket.blockedBy = [INVALID_BLOCKER_ID]
