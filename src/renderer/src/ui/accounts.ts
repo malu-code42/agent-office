@@ -233,7 +233,7 @@ export function openAccounts(root: HTMLElement, state: State, toast: Toast): voi
       h(
         'div',
         { class: 'field-hint' },
-        'Marque duas ou mais para escolher entre contas disponíveis no início de cada tarefa. Uma tarefa em andamento nunca troca de conta: se a cota acabar, aguarde nesta conta ou encerre.',
+        'Marque duas ou mais para escolher entre contas disponíveis no início de cada tarefa. A troca vale só para o próximo ciclo ou tarefa: o que já está rodando, inclusive o ciclo de um squad, termina na conta em que começou. Se a cota acabar, aguarde nesta conta ou encerre.',
       ),
       pools,
     ],

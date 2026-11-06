@@ -39,6 +39,7 @@ describe('conta fixa do ciclo do squad', () => {
     const secondary = { id: 'other-account', name: 'Outra', provider: 'claude', color: '#654321' }
     manager.accounts = {
       pick: vi.fn(() => primary),
+      poolFor: vi.fn(() => [primary.id, secondary.id]),
       get: vi.fn((id: string) => (id === primary.id ? primary : id === secondary.id ? secondary : undefined)),
     } as never
 

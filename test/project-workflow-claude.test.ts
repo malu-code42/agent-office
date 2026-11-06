@@ -3,7 +3,7 @@ import type { ProjectWorkflow } from '../src/shared/types'
 
 const { query } = vi.hoisted(() => ({ query: vi.fn() }))
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({ query }))
-vi.mock('../src/main/accounts', () => ({ mainAccount: () => ({ id: 'main', name: 'Principal', provider: 'claude', color: '#000' }), accountEnv: () => ({ PATH: 'safe-test-path' }) }))
+vi.mock('../src/main/accounts', () => ({ mainAccount: () => ({ id: 'main', name: 'Principal', provider: 'claude', color: '#000' }), accountEnv: (account?: { id: string }) => ({ PATH: 'safe-test-path', ...(account?.id === 'malu' ? { CLAUDE_CONFIG_DIR: 'conta-malu' } : {}) }) }))
 vi.mock('../src/main/claude-path', () => ({ findClaude: () => 'claude-test-executable' }))
 
 import { claudeProjectWorkflowGenerator } from '../src/main/project-workflow-claude'
@@ -66,5 +66,16 @@ describe('claudeProjectWorkflowGenerator', () => {
     const generator = claudeProjectWorkflowGenerator({})
 
     await expect(generator.generate({ kind: 'brainstorm', workflow, documents: [] })).rejects.toThrow(/formato esperado/)
+  })
+
+  it('AO-94: usa a conta escolhida para o andar da pasta, não a principal', async () => {
+    query.mockReturnValue(answer('{"review":"ok"}'))
+    const accountFor = vi.fn(() => ({ id: 'malu', name: 'Malu', provider: 'claude' as const, color: '#fff' }))
+    const generator = claudeProjectWorkflowGenerator({}, accountFor)
+
+    await generator.generate({ kind: 'review', workflow, documents: [], cwd: '/andar' })
+
+    expect(accountFor).toHaveBeenCalledWith('/andar')
+    expect(query.mock.calls[0][0].options.env).toMatchObject({ CLAUDE_CONFIG_DIR: 'conta-malu' })
   })
 })

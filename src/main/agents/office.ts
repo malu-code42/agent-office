@@ -221,6 +221,11 @@ export abstract class AgentOffice extends AgentBase {
       if (ticketId || changedTicket || this.store.settings.freshSquadCycle !== false)
         this.freshStart(same.summary.id, 'Ciclo novo, conversa nova: o squad guarda a memória nos arquivos dele.')
       same.summary.permissionMode = defaults.permissionMode
+      // AO-94: a conta fica fixa durante o ciclo, mas cada runSquad é um ciclo novo. Se a conta guardada saiu do
+      // conjunto do andar (troca nos ajustes), solta-a para a próxima partida escolher entre as contas atuais.
+      same.summary.accounts = defaults.accounts?.length ? defaults.accounts : undefined
+      if (same.summary.account && this.accounts && !this.accounts.poolFor(same.summary).includes(same.summary.account))
+        same.summary.account = undefined
       same.summary.worktree = worktree
       same.summary.ticketId = ticketId
       this.watchSquad(same)

@@ -676,7 +676,7 @@ app
       barTimer,
       profileMemory,
       projectWorkflows,
-      projectWorkflowGenerator: claudeProjectWorkflowGenerator(store.settings),
+      projectWorkflowGenerator: claudeProjectWorkflowGenerator(store.settings, (cwd) => accounts.pick({ cwd: cwd ?? '', accounts: undefined, account: undefined })),
       writing,
       writingAssistant,
       mediaPosters,

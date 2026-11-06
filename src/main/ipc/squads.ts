@@ -393,6 +393,7 @@ export function registerSquadsIpc(ctx: IpcContext): void {
       kind,
       workflow,
       documents: docs.documents,
+      cwd: project.cwd,
       squads:
         kind === 'redistribution'
           ? ctx
