@@ -4,7 +4,7 @@ import type { State } from '../../state'
 import { arrowTabs, asDialog, FocusReturn } from '../a11y'
 import { h, icon } from '../dom'
 import { filterSelect } from './helpers'
-import { ALL_FLOORS, defaultFloor } from './model'
+import { ALL_FLOORS, defaultFloor, parseSortMap, SORT_OPTIONS, SORT_STORAGE_KEY, type SortKey } from './model'
 
 export interface BoardActions {
   openAgent(id: string): void
@@ -27,6 +27,9 @@ export abstract class BoardBase {
   protected prioFilter: HTMLSelectElement
   protected whoFilter: HTMLSelectElement
   protected tagFilter: HTMLSelectElement
+  /** Ordenação das colunas (AO-77). A escolha vale por andar e fica no localStorage. */
+  protected sortSelect: HTMLSelectElement
+  protected sortByFloor: Record<string, SortKey> = {}
   /** Opções com que o filtro de etiqueta foi desenhado; só é refeito quando elas mudam. */
   protected tagKey = ''
   /** '' = every floor, GROUND, or a project id. Chosen with the floor tabs; every open starts on every floor. */
@@ -61,6 +64,17 @@ export abstract class BoardBase {
     ])
     this.tagFilter = filterSelect('Todas as etiquetas', [])
     this.tagFilter.setAttribute('aria-label', 'Filtrar por etiqueta')
+    this.sortSelect = h(
+      'select',
+      { class: 'input board-filter', 'aria-label': 'Ordenar as listas', title: 'Ordenar os tickets de cada lista' },
+      ...SORT_OPTIONS.map((o) => h('option', { value: o.value }, `Ordenar: ${o.label}`)),
+    )
+    try {
+      this.sortByFloor = parseSortMap(localStorage.getItem(SORT_STORAGE_KEY))
+    } catch {
+      // localStorage indisponível: a ordenação só vale nesta sessão.
+    }
+    this.sortSelect.addEventListener('change', () => this.chooseSort(this.sortSelect.value))
     for (const c of [this.search, this.typeFilter, this.prioFilter, this.whoFilter, this.tagFilter]) {
       c.addEventListener('input', () => this.renderColumns())
     }
@@ -90,6 +104,7 @@ export abstract class BoardBase {
         this.prioFilter,
         this.whoFilter,
         this.tagFilter,
+        this.sortSelect,
         h('span', { class: 'grow' }),
         h('button', { class: 'btn', title: 'Tickets fechados: buscar, ler e reabrir', onclick: () => this.openClosed() }, icon('archive', 16), 'Fechados'),
         h('button', { class: 'btn btn-primary', onclick: () => this.create('todo') }, icon('plus', 16), 'Novo ticket'),
@@ -172,6 +187,7 @@ export abstract class BoardBase {
   // ---------- implemented by the later parts ----------
   protected abstract floorOf(t: Ticket): string
   protected abstract renderTabs(): void
+  protected abstract chooseSort(value: string): void
   protected abstract renderColumns(): void
   protected abstract renderDetail(): void
   protected abstract autoCloseText(t: Ticket): string
