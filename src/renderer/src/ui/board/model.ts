@@ -60,3 +60,35 @@ export function cardAgent(t: Ticket, agents: ReadonlyMap<string, AgentSummary>):
     id: agent ? agent.id : null,
   }
 }
+
+// ---------- filtros do quadro (AO-71) ----------
+
+/** Etiquetas usadas nos tickets, sem repetir e em ordem alfabética (pt-BR). */
+export function tagOptions(tickets: readonly Ticket[]): string[] {
+  return [...new Set(tickets.flatMap((t) => t.tags))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+}
+
+/** A etiqueta escolhida só vale se ainda existir nas opções do andar; senão volta para "Todas" (''). */
+export function resolveTag(tag: string, options: readonly string[]): string {
+  return options.includes(tag) ? tag : ''
+}
+
+export interface BoardFilters {
+  /** Busca de texto, já em minúsculas e sem espaços nas pontas. */
+  query: string
+  type: string
+  priority: string
+  who: 'all' | 'me' | 'agents' | 'none' | ''
+  tag: string
+}
+
+/** Todos os filtros combinam em E lógico; campo vazio não filtra. */
+export function matchesFilters(t: Ticket, f: BoardFilters): boolean {
+  if (f.type && t.type !== f.type) return false
+  if (f.priority && t.priority !== f.priority) return false
+  if (f.who === 'me' && t.assignee?.kind !== 'player') return false
+  if (f.who === 'agents' && t.assignee?.kind !== 'agent') return false
+  if (f.who === 'none' && t.assignee) return false
+  if (f.tag && !t.tags.includes(f.tag)) return false
+  return !f.query || [t.key, t.title, t.description, ...t.tags].some((v) => v.toLowerCase().includes(f.query))
+}

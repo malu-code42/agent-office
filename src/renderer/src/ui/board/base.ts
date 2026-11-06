@@ -26,6 +26,9 @@ export abstract class BoardBase {
   protected typeFilter: HTMLSelectElement
   protected prioFilter: HTMLSelectElement
   protected whoFilter: HTMLSelectElement
+  protected tagFilter: HTMLSelectElement
+  /** Opções com que o filtro de etiqueta foi desenhado; só é refeito quando elas mudam. */
+  protected tagKey = ''
   /** '' = every floor, GROUND, or a project id. Chosen with the floor tabs; every open starts on every floor. */
   protected floor = ALL_FLOORS
   protected tabBar: HTMLDivElement
@@ -56,7 +59,11 @@ export abstract class BoardBase {
       { value: 'agents', label: 'Com agentes' },
       { value: 'none', label: 'Sem responsável' },
     ])
-    for (const c of [this.search, this.typeFilter, this.prioFilter, this.whoFilter]) c.addEventListener('input', () => this.renderColumns())
+    this.tagFilter = filterSelect('Todas as etiquetas', [])
+    this.tagFilter.setAttribute('aria-label', 'Filtrar por etiqueta')
+    for (const c of [this.search, this.typeFilter, this.prioFilter, this.whoFilter, this.tagFilter]) {
+      c.addEventListener('input', () => this.renderColumns())
+    }
     this.tabBar = h('div', { class: 'board-tabs', role: 'tablist', 'aria-label': 'Andares' })
     arrowTabs(this.tabBar, '[role="tab"]')
 
@@ -82,6 +89,7 @@ export abstract class BoardBase {
         this.typeFilter,
         this.prioFilter,
         this.whoFilter,
+        this.tagFilter,
         h('span', { class: 'grow' }),
         h('button', { class: 'btn', title: 'Tickets fechados: buscar, ler e reabrir', onclick: () => this.openClosed() }, icon('archive', 16), 'Fechados'),
         h('button', { class: 'btn btn-primary', onclick: () => this.create('todo') }, icon('plus', 16), 'Novo ticket'),
