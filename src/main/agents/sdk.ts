@@ -16,11 +16,11 @@ import { BONNIE_PROMPT } from '../bonnie-prompt'
 import { BONNIE_BLOCKED_TOOLS, BONNIE_SERVER } from '../bonnie-tools'
 import { claudeNotFoundMessage } from '../claude-messages'
 import { findClaude } from '../claude-path'
-import { findSquad, memberAgents, orchestratorPrompt, teamGuard, validateSquad, type SquadDefinition } from '../squads'
+import { findSquad, memberAgents, teamGuard, validateSquad, type SquadDefinition } from '../squads'
 import { takeSnapshot } from '../git'
 import { InputQueue, kTokens, toMs, WRITE_TOOLS, type Agent, type Prompt } from './types'
 import { AgentOffice } from './office'
-import { COMMIT_RULE } from '../commit-rule'
+import { officeAgentPrompt } from '../agent-prompt'
 import { ECONOMY_PLUGINS, ECONOMY_RULE, missingEconomyPlugins } from '../token-economy'
 
 /** Runs on the Claude Agent SDK: starting the query and turning its messages into status, activity and log. */
@@ -227,14 +227,7 @@ export abstract class AgentSdk extends AgentOffice {
                 ? BONNIE_PROMPT
                 : emiFloor
                   ? emiPrompt(emiFloor, this.egmRoot())
-                  : `Your name in this office is ${s.name}. Your final message for each task is handed to the user in person as a report: ` +
-                    'open with the outcome in one or two sentences, then list the key details. Reply in the language the user wrote in. ' +
-                    'The office has a kanban board of tickets (keys like AO-12); use the mcp__office__ tools to read, open, comment on and move tickets when asked or when you are working on one.' +
-                    (wt
-                      ? `\n\nYou work in your own git worktree at ${wt.root} on branch ${wt.branch}, so other agents never touch your files. ` +
-                        `Make every change here; do not edit the main checkout at ${wt.repo}. Commit on your branch when you finish; the pull request is opened from the office.`
-                      : `\n\n${COMMIT_RULE}`) +
-                    (squad ? `\n\n${orchestratorPrompt(squad)}` : '')) + (bonnie ? '' : `\n\n${ECONOMY_RULE}`),
+                  : officeAgentPrompt(s.name, wt, squad)) + (bonnie ? '' : `\n\n${ECONOMY_RULE}`),
         },
         ...(squad ? { agents: memberAgents(squad) } : {}),
         hooks: { PreToolUse: [...(squad ? teamGuard(squad) : []), this.helperCapHook(agent, helperMax)] },

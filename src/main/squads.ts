@@ -1,4 +1,5 @@
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { COMMIT_RULE, COMMIT_RULE_PT } from './commit-rule'
 import { ECONOMY_RULE } from './token-economy'
 import { basename, isAbsolute, join, relative, sep } from 'node:path'
 import type { AgentDefinition, HookCallbackMatcher } from '@anthropic-ai/claude-agent-sdk'
@@ -233,7 +234,7 @@ export function memberAgents(s: SquadDefinition): Record<string, AgentDefinition
     if (m.execution !== 'subagent') continue
     out[m.id] = {
       description: `${m.icon} ${m.name}${m.title ? `, ${m.title}` : ''}${m.role ? ` (${m.role})` : ''}. Membro do squad ${s.name}.`,
-      prompt: `${s.prompts[m.id]}${m.role === 'implementer' ? '\n\nVocê é o implementador independente do squad; implemente a tarefa atribuída e registre decisões técnicas.' : m.role === 'reviewer' ? '\n\nVocê é o revisor independente do squad; revise criticamente o trabalho entregue e reporte problemas sem assumir a implementação.' : ''}\n\n${ECONOMY_RULE}`,
+      prompt: `${s.prompts[m.id]}${m.role === 'implementer' ? '\n\nVocê é o implementador independente do squad; implemente a tarefa atribuída e registre decisões técnicas.' : m.role === 'reviewer' ? '\n\nVocê é o revisor independente do squad; revise criticamente o trabalho entregue e reporte problemas sem assumir a implementação.' : ''}\n\n${COMMIT_RULE_PT}\n\n${ECONOMY_RULE}`,
       // AO-86: o que Emi julgou para o membro vale; sem escolha ele herda o par do orquestrador.
       ...(m.model ? { model: m.model } : {}),
       ...(m.effort ? { effort: m.effort } : {}),
@@ -295,6 +296,7 @@ export function orchestratorPrompt(s: SquadDefinition): string {
       : '',
     'Checkpoints: present EVERY checkpoint step (type: checkpoint) and every choice the runner asks the user for with the AskUserQuestion tool, never as plain text or a numbered list in a message. Put the step name in the question, keep the options short, and include the paths of files the user must review. Never pick an answer yourself or skip a checkpoint: without an answer the cycle waits. If the question is cancelled, stop and wait for instructions.',
     `Write \`squads/${s.code}/state.json\` exactly when the runner says to: the office reads it to show the current step.`,
+    `Rule for you and for the squad's work in the project: ${COMMIT_RULE}`,
     'Talk to the user in Brazilian Portuguese.',
   ]
     .filter(Boolean)

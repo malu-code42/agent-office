@@ -3,6 +3,7 @@ import { query } from '@anthropic-ai/claude-agent-sdk'
 import { accountEnv, mainAccount } from './accounts'
 import { claudeNotFoundMessage } from './claude-messages'
 import { findClaude } from './claude-path'
+import { COMMIT_RULE } from './commit-rule'
 import { IrisUnavailable, type IrisInterpreter } from './iris'
 
 /**
@@ -53,6 +54,8 @@ export const IRIS_INSTRUCTIONS = [
   '- Estudo avulso is only for a standalone question outside an active study cycle. If the user mentions a cycle,',
   '  Bonnie, or a current study stage, ask a question and do not choose this profile.',
   '- Agatha is only for a clearly requested writing or editing task. Never infer permission to rewrite text.',
+  '',
+  `You have no tools and never change files. The user's standing rule for the agents of the office, which you only pass on: ${COMMIT_RULE}`,
 ].join('\n')
 
 /**
