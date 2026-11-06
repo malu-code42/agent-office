@@ -24,6 +24,12 @@
   overflow: hidden;
 }
 
+/* height 100% resolves to auto here (the popup height is only a max), so the grid grew past the
+   popup and the list could not scroll; auto lets the row stretch to the body and .tcol-list scroll. */
+.foco-pop .foco-cols {
+  height: auto;
+}
+
 .foco-note {
   padding: 8px 12px 10px;
   color: var(--dim);
