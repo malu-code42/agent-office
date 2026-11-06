@@ -9,13 +9,20 @@ import {
   ALL_FLOORS,
   cardAgent,
   floorTabs,
+  DEFAULT_SORT,
+  manualOrder,
   matchesFilters,
+  resolveSort,
   resolveTag,
+  SORT_STORAGE_KEY,
+  sortTickets,
+  withSort,
   tagOptions,
   ticketFloor,
   ticketsOnFloor,
   type BoardFilters,
   type CardAgent,
+  type SortKey,
 } from './model'
 import { BoardBase } from './base'
 
@@ -71,6 +78,23 @@ export abstract class BoardColumns extends BoardBase {
     return ticketsOnFloor([...this.state.tickets.values()], this.floor, this.state.settings.projects)
   }
 
+  // ---------- ordenação (AO-77) ----------
+
+  /** Ordenação do andar mostrado; 'manual' (o `order` do ticket, o que o arrastar grava) quando nada foi escolhido. */
+  protected currentSort(): SortKey {
+    return resolveSort(this.sortByFloor[this.floor] ?? DEFAULT_SORT)
+  }
+
+  protected chooseSort(value: string): void {
+    this.sortByFloor = withSort(this.sortByFloor, this.floor, resolveSort(value))
+    try {
+      localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(this.sortByFloor))
+    } catch {
+      // Sem localStorage a escolha vale só até fechar o app.
+    }
+    this.renderColumns()
+  }
+
   // ---------- columns ----------
 
   protected visible(): Ticket[] {
@@ -102,6 +126,9 @@ export abstract class BoardColumns extends BoardBase {
   protected renderColumns(): void {
     this.renderTabs()
     this.renderTagFilter()
+    const sort = this.currentSort()
+    this.sortSelect.value = sort
+    this.cols.classList.toggle('sorted', sort !== DEFAULT_SORT)
     const shown = this.visible()
     const total = this.onFloor().length
     this.count.textContent = shown.length === total ? String(total) : `${shown.length} de ${total}`
@@ -109,9 +136,11 @@ export abstract class BoardColumns extends BoardBase {
     keepFocus(this.cols, () =>
       this.cols.replaceChildren(
         ...STATUSES.map((s) => {
-          let list = shown.filter((t) => t.status === s.value).sort((a, b) => a.order - b.order)
+          let list = shown.filter((t) => t.status === s.value).sort(manualOrder)
           const hidden = s.value === 'done' && list.length > DONE_SHOWN ? list.length - DONE_SHOWN : 0
+          // Os mais antigos escondidos são sempre os da ordem manual; a ordenação escolhida age só sobre o que aparece.
           if (hidden) list = list.slice(-DONE_SHOWN)
+          if (sort !== DEFAULT_SORT) list = sortTickets(list, sort)
           return this.column(s.value, s.label, list, hidden)
         }),
       ),
@@ -162,7 +191,8 @@ export abstract class BoardColumns extends BoardBase {
       if (!this.dragging) return
       e.preventDefault()
       e.dataTransfer!.dropEffect = 'move'
-      this.markDrop(list, beforeCard(list, e.clientY))
+      // Fora da ordem manual a posição dentro da lista não vale: só a coluna (o status) muda.
+      this.markDrop(list, this.currentSort() === DEFAULT_SORT ? beforeCard(list, e.clientY) : undefined)
     })
     list.addEventListener('dragleave', (e) => {
       if (!list.contains(e.relatedTarget as Node)) clearDropMarks(this.cols)
@@ -171,7 +201,7 @@ export abstract class BoardColumns extends BoardBase {
       e.preventDefault()
       const id = this.dragging
       if (!id) return
-      const before = beforeCard(list, e.clientY)?.dataset.id
+      const before = this.currentSort() === DEFAULT_SORT ? beforeCard(list, e.clientY)?.dataset.id : undefined
       clearDropMarks(this.cols)
       window.office.moveTicket(id, status, before).catch((err) => this.actions.toast(cleanError(err), 'err'))
     })
