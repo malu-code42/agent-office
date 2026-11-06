@@ -32,7 +32,8 @@ export class BarTimerStore {
     // A session whose deadline passed while the app was closed is interrupted, never completed.
     const settled = barSettle(loaded, this.now())
     this.session = settled
-    if (settled !== loaded) this.save()
+    // Sem avisar quem escuta: quem constrói a store ainda não tem a referência a ela (o aviso lançaria ReferenceError).
+    if (settled !== loaded) this.persist()
   }
 
   /** The session as it reads, in the views the bar and the popup show. */
@@ -85,8 +86,12 @@ export class BarTimerStore {
     return this.view()
   }
 
-  private save(): void {
+  private persist(): void {
     writeJsonAtomic(this.file, { timer: this.session } satisfies TimerFile, { space: 2, newline: true })
+  }
+
+  private save(): void {
+    this.persist()
     this.onChange?.()
   }
 }

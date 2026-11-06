@@ -75,6 +75,23 @@ describe('BarTimerStore', () => {
     expect(JSON.parse(readFileSync(join(dir, 'timer.json'), 'utf8')).timer.state).toBe('interrompida')
   })
 
+  it('does not notify from the constructor: whoever builds the store has no reference to it yet', () => {
+    const before = new BarTimerStore(dir, () => NOW)
+    before.start(5, undefined)
+
+    let calls = 0
+    new BarTimerStore(dir, () => NOW + 9 * MIN, () => {
+      calls++
+    })
+    expect(calls).toBe(0)
+    // after construction, every change still notifies
+    const live = new BarTimerStore(dir, () => NOW + 9 * MIN, () => {
+      calls++
+    })
+    live.reset()
+    expect(calls).toBe(1)
+  })
+
   it('a deadline that has not passed survives the restart and keeps counting', () => {
     const before = new BarTimerStore(dir, () => NOW)
     before.start(25, undefined)
