@@ -122,47 +122,387 @@
   background: rgba(62, 207, 142, 0.07);
 }
 
-.q {
+/* ---------- AO-101: card de pergunta (AskUserQuestion) ----------
+   Só os títulos usam a fonte pixel; o texto da pergunta e das opções usa a fonte de corpo. */
+
+.dialog-wide {
+  width: min(760px, calc(100vw - 32px));
+}
+
+.dialog-actions:empty {
+  display: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.q-flow {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  gap: 16px;
+  font-family: var(--font);
+}
+
+.q-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.q-step {
+  display: flex;
+  gap: 12px;
+}
+
+.q-step-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.q-num {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-3);
+  border: 2px solid var(--outline);
+  color: var(--muted);
+  font: 500 13px var(--mono);
+}
+
+.q-num-on {
+  background: var(--accent-solid);
+  color: var(--on-accent);
+}
+
+.q-step-name {
+  display: flex;
+  align-items: center;
   gap: 8px;
+  margin: 0;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.q-step-hi {
+  color: var(--accent-hi);
+}
+
+.q-context {
+  font-size: 15px;
+  line-height: 1.55;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+
+.q-context p,
+.q-context ul {
+  margin: 0;
+}
+
+.q-list {
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.q-ask {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.q-ask-big {
+  font-size: 21px;
+}
+
+.q-ask:focus-visible,
+.q-seq-title:focus-visible {
+  outline: 2px solid var(--accent-hi);
+  outline-offset: 2px;
+}
+
+.q-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
 }
 
 .q-options {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
   width: 100%;
 }
 
 .q-option {
-  padding: 8px 10px;
-  border: 1px solid var(--line-strong);
-  background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: 2px solid var(--line-strong);
+  background: var(--surface-2);
   text-align: left;
+  font-family: var(--font);
 }
 
 .q-option:hover {
   background: var(--hover);
 }
 
+.q-option:focus-visible,
+.q-other:focus-visible {
+  outline: 2px solid var(--accent-hi);
+  outline-offset: 2px;
+}
+
 .q-option.on {
   border-color: var(--accent);
-  background: var(--accent-bg);
+  background: var(--surface-3);
   color: var(--text);
-  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.q-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.q-mark {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  box-sizing: border-box;
+  border: 2px solid var(--outline);
+  background: var(--sunken);
+  border-radius: 50%;
+}
+
+.q-mark-sq {
+  border-radius: 0;
+}
+
+.q-option.on .q-mark {
+  background: var(--accent-solid);
+  box-shadow: inset 0 0 0 3px var(--surface-3);
+}
+
+.q-label {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.q-desc {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .q-option.on .q-desc {
   color: var(--text);
 }
 
-.q-label {
+.q-other-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.q-other {
+  min-height: 44px;
+  box-sizing: border-box;
+  font-size: 15px;
+}
+
+/* sequência de perguntas */
+.q-seq-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.q-seq-title {
+  margin: 0;
+  font-size: 17px;
+}
+
+.q-seq-count {
+  font: 500 13px var(--mono);
+  color: var(--muted);
+}
+
+.q-stepper {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 6px;
+}
+
+.q-stp {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  background: var(--surface-3);
+  border: 2px solid var(--outline);
+  font-size: 13px;
+}
+
+.q-stp-n {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--outline);
+  background: var(--sunken);
+  font: 500 13px var(--mono);
+}
+
+.q-stp-t {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.q-stp-done .q-stp-n {
+  background: var(--green);
+  color: var(--on-accent);
+}
+
+.q-stp-on {
+  background: var(--inv-bg);
+  color: var(--inv-text);
   font-weight: 600;
 }
 
-.q-desc {
+.q-stp-on .q-stp-n {
+  background: var(--accent-solid);
+  color: var(--on-accent);
+}
+
+.q-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.q-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-top: 2px solid var(--outline);
+  padding-top: 14px;
+}
+
+.q-footer .btn {
+  min-height: 44px;
+}
+
+.q-count {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
   color: var(--muted);
-  font-size: 11.5px;
+}
+
+.q-note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.q-review {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.q-rv {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  background: var(--surface-3);
+  border: 2px solid var(--outline);
+  box-shadow: var(--shadow-sm);
+}
+
+.q-rv-n {
+  width: 34px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  border-right: 2px solid var(--outline);
+  font: 500 14px var(--mono);
+  color: var(--accent-hi);
+}
+
+.q-rv-t {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.q-rv-q {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.q-rv-a {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.q-edit {
+  align-self: center;
+  margin-right: 10px;
+  min-height: 44px;
+  font-size: 13px;
 }
