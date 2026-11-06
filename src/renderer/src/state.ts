@@ -24,6 +24,7 @@ import type {
 import type { Proposal } from '@shared/proposals'
 import type { BarTimerView } from '@shared/barTimer'
 import { setBarTimerView } from './ui/timer-state'
+import { playBarTimerSound } from './ui/timer-sound'
 
 declare const window: {
   office: {
@@ -242,6 +243,9 @@ export class State {
         // The open popup of the Timer follows these events without a full render; the cache
         // is what the watchers see.
         setBarTimerView(e.timer)
+        break
+      case 'barTimerSound':
+        playBarTimerSound(e.cue)
         break
     }
     this.changed()

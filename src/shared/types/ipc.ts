@@ -259,6 +259,8 @@ export type OfficeEvent =
   | { type: 'focus:count'; count: number }
   /** The Timer of the bar changed (AO-64): the whole session as it reads, or null for a stopped Timer. */
   | { type: 'barTimer'; timer: BarTimerView | null }
+  /** Som do Timer (AO-91): o processo principal decide quando; o renderer só toca. */
+  | { type: 'barTimerSound'; cue: 'start' | 'end' }
   | { type: 'luna:profile-task'; profile: ProfileId; task: string }
   | { type: 'luna:media-draft'; draft: Extract<IrisResult, { kind: 'media-draft' }>['draft'] }
   | { type: 'luna:transcript'; text: string }
