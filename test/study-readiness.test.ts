@@ -277,7 +277,7 @@ describe('book search, folder and queue', () => {
     const base = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library(), subtopics: noSubtopics }, 1)
     store.save(base)
     let release!: (books: StudyBookSuggestion[]) => void
-    const pending = suggestTopicBooks(store, 'P2-HW', 'Diodos', () => new Promise((resolve) => (release = resolve)))
+    const pending = suggestTopicBooks(store, 'P2-HW', 'Diodos', () => new Promise((resolve) => (release = resolve)), new SerialQueue())
     // A check of the discipline saves a new report while the search is still waiting.
     store.save({ ...base, builtAt: 9, topics: base.topics.map((t) => (t.topic === 'Amplificadores' ? { ...t, reason: 'nova' } : t)) })
     release([book])
@@ -288,15 +288,25 @@ describe('book search, folder and queue', () => {
     expect(result.topics.find((t) => t.topic === 'Diodos')?.books).toEqual([book])
   })
 
-  it('lets a queued check run while the book search is still waiting', async () => {
+  it('lets a queued check finish while the book search is still pending', async () => {
     dir = mkdtempSync(join(tmpdir(), 'readiness-'))
     const store = new StudyReadinessStore(dir)
     const base = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library(), subtopics: noSubtopics }, 1)
     store.save(base)
     const queue = new SerialQueue()
     let release!: (books: StudyBookSuggestion[]) => void
-    const pending = suggestTopicBooks(store, 'P2-HW', 'Diodos', () => new Promise((resolve) => (release = resolve)), queue)
-    await expect(queue.run(async () => 'checked')).resolves.toBe('checked')
+    let searching = false
+    const search = () => {
+      searching = true
+      return new Promise<StudyBookSuggestion[]>((resolve) => (release = resolve))
+    }
+    const pending = suggestTopicBooks(store, 'P2-HW', 'Diodos', search, queue)
+    // Same wiring as checkDiscipline in src/main/ipc/tasks.ts: a check queued on the shared readiness queue.
+    const checked = await queue.run(() =>
+      checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library(), subtopics: noSubtopics }, 2),
+    )
+    expect(searching).toBe(true)
+    expect(checked.builtAt).toBe(2)
     release([book])
     expect((await pending).topics.find((t) => t.topic === 'Diodos')?.books).toEqual([book])
   })
@@ -305,7 +315,7 @@ describe('book search, folder and queue', () => {
     dir = mkdtempSync(join(tmpdir(), 'readiness-'))
     const store = new StudyReadinessStore(dir)
     const search = vi.fn(async () => [book])
-    await expect(suggestTopicBooks(store, 'P2-HW', 'Diodos', search)).rejects.toThrow(/prontidão/)
+    await expect(suggestTopicBooks(store, 'P2-HW', 'Diodos', search, new SerialQueue())).rejects.toThrow(/prontidão/)
     expect(search).not.toHaveBeenCalled()
     expect(store.read()).toEqual({})
   })

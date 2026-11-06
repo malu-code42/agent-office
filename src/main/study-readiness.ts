@@ -237,7 +237,7 @@ export async function suggestTopicBooks(
   discipline: string,
   topic: string,
   search: (topic: StudyReadinessTopic) => Promise<StudyBookSuggestion[]>,
-  queue: SerialQueue = new SerialQueue(),
+  queue: SerialQueue,
 ): Promise<StudyReadiness> {
   const before = store.read()[discipline]
   const byId = before?.topics.filter((t) => t.id === topic) ?? []
