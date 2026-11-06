@@ -1,6 +1,7 @@
 import { h } from '../dom'
 import { FEED_MAX } from './helpers'
 import { PanelComposer } from './composer'
+import { otherFieldEditing } from './focus-input'
 import { LUNA_AGENT_ID } from '@shared/luna'
 
 export type { PanelActions } from './helpers'
@@ -36,6 +37,8 @@ export class AgentPanel extends PanelComposer {
       this.feed.scrollTop = this.feed.scrollHeight
       this.stickToBottom = true
       if (this.searching) this.runSearch(true)
+      // a new conversation: the box is ready to type, unless another field is being edited
+      if (!otherFieldEditing(document.activeElement, this.input)) this.input.focus()
     }
   }
 

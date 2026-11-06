@@ -12,6 +12,7 @@
     "src/main/**/*",
     "src/shared/**/*",
     "src/preload/api.d.ts",
+    "src/renderer/src/env.d.ts",
     "src/renderer/src/game/study.ts",
     "src/renderer/src/world2d/overlays.ts",
     "src/renderer/src/world2d/pathfinding.ts",
