@@ -6,6 +6,7 @@ import {
   assertTopicReady,
   checkDisciplineReadiness,
   proveReadyTopics,
+  SerialQueue,
   StudyReadinessStore,
   suggestTopicBooks,
 } from '../src/main/study-readiness'
@@ -171,9 +172,10 @@ describe('AO-64: identidade da prontidão', () => {
     const saved = store()
     saved.save(report(entry('P2-HW-01', 'sem-fonte'), entry('P2-HW-02', 'sem-fonte')))
     const search = vi.fn(async () => [book])
-    await expect(suggestTopicBooks(saved, 'P2-HW', 'Ondas', search)).rejects.toThrow(/prontidão|repetido/)
+    const queue = new SerialQueue()
+    await expect(suggestTopicBooks(saved, 'P2-HW', 'Ondas', search, queue)).rejects.toThrow(/prontidão|repetido/)
     expect(search).not.toHaveBeenCalled()
-    const next = await suggestTopicBooks(saved, 'P2-HW', 'P2-HW-02', search)
+    const next = await suggestTopicBooks(saved, 'P2-HW', 'P2-HW-02', search, queue)
     expect(next.topics[0]!.books).toBeUndefined()
     expect(next.topics[1]!.books).toEqual([book])
   })
@@ -190,6 +192,7 @@ describe('AO-64: identidade da prontidão', () => {
         new Promise((resolve) => {
           release = resolve
         }),
+      new SerialQueue(),
     )
     saved.save(report(entry('P2-HW-02', 'sem-fonte')))
     release([book])
