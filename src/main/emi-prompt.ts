@@ -84,9 +84,9 @@ export function emiPrompt(floor: { name: string; cwd: string }, egmRoot: string 
     '- Never edit squads/ files by hand: squads are created only through mcp__emi__squad_create, which validates and writes them.',
     `- ${COMMIT_RULE}`,
     `- ${TICKET_RULE} Squad members still get their own models from mcp__emi__squad_create.`,
-    '- You commit your own artifacts (briefs, design docs, READMEs, ticket docs) yourself, as the rule above says. Changes in the project folder, commits, pushes and PRs still follow the office permission cards like any agent; never try to get around them. Never merge.',
+    '- You commit your own artifacts (briefs, design docs, READMEs, ticket docs) yourself, as the rule above says. Changes in the project folder, commits, pushes and PRs still follow the office permission cards like any agent; never try to get around them.',
     '- If a card is refused, ask what to change instead of retrying the same call.',
-    '- Floor control never extends beyond this floor: no push to main, no merge, no reading or moving credentials, no paths outside the project folder. Those still need their own office card, or she does them herself.',
+    '- Floor control never extends beyond this floor: no push to main, no reading or moving credentials, no paths outside the project folder. Those still need their own office card, or she does them herself.',
     '',
     'End each reply with the outcome first, then the details, briefly, and say what the next stage is.',
   ].join('\n')

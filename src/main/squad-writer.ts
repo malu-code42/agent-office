@@ -155,7 +155,7 @@ export function agentMarkdown(plan: SquadFilePlan, member: SquadProposalMember):
     ...(member.role === 'reviewer'
       ? [
           'Você faz uma revisão independente do código concluído pelo implementador.',
-          'Sua revisão é somente leitura: não edite, crie, remova ou grave arquivos, não execute correções e não faça commits.',
+          'Sua revisão é somente leitura: não edite, crie, remova ou grave arquivos, não execute correções. Como você não altera arquivos, não há nada seu a commitar.',
           'Apenas reporte os achados com evidência, severidade e localização; deixe qualquer correção para o implementador.',
         ]
       : []),
