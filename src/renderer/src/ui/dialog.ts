@@ -561,7 +561,11 @@ export class Dialog {
       .join(' · ')
     const ack = async () => {
       this.close()
-      await window.office.ackResult(r.id)
+      try {
+        await window.office.ackResult(r.id)
+      } catch (err) {
+        this.actions.toast(cleanError(err), 'err')
+      }
     }
     const endQuotaTask = async () => {
       this.close()
