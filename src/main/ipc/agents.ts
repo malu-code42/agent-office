@@ -128,8 +128,12 @@ export function registerAgentsIpc(ctx: IpcContext): void {
           typeof pr.url === 'string' &&
           isPullRequestUrl(pr.url, remote?.host ?? null, remote?.repository ?? null),
       )
-      if (!hasVerifiedPR)
-        throw new Error('O resultado do ticket continua guardado até existir uma fila íntegra com o PR verificado registrado.')
+      if (!hasVerifiedPR) {
+        const message =
+          'O resultado continua guardado: a fila do squad ainda não tem o PR verificado deste ticket. Retome a publicação pelo painel do squad; depois que o PR estiver registrado, clique em Recebido de novo.'
+        manager.noteAckBlocked(resultId, message)
+        throw new Error(message)
+      }
     }
     manager.ackResult(resultId)
     updateBadge()

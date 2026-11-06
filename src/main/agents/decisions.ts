@@ -227,6 +227,12 @@ export abstract class AgentDecisions extends AgentSubagents {
     return false
   }
 
+  noteAckBlocked(resultId: string, text: string): void {
+    const r = this.results.find((x) => x.id === resultId)
+    const agent = r && this.agents.get(r.agentId)
+    if (agent) this.addLog(agent, 'error', text)
+  }
+
   ackResult(resultId: string): void {
     const r = this.results.find((x) => x.id === resultId)
     if (!r) return
