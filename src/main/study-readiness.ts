@@ -63,7 +63,7 @@ export async function checkDisciplineReadiness(
       out.push({
         ...base,
         state: 'precisa-ocr',
-        reason: `Sem texto selecionável: ${scanned.join(', ')}. Precisa de um PDF com texto selecionável; coloque a versão digital do livro em uma destas pastas: ${paths.join(', ')}.`,
+        reason: `O PDF ${scanned.join(', ')} não tem texto selecionável. Tire esse arquivo da pasta e adicione um PDF com texto no lugar, em uma destas pastas: ${paths.join(', ')}.`,
       })
     } else if (!hits.length) {
       const reason = missingFolder
