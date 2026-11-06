@@ -25,6 +25,7 @@ import { SquadStatusStore } from './squad-status'
 import { MacJobs } from './mac-jobs'
 import { RoutineScheduler, RoutineStore } from './routines'
 import { BarTimerStore } from './bar-timer-store'
+import { BarTimerSound } from './bar-timer-sound'
 import { ProfileMemoryStore } from './profile-memory'
 import { ProjectWorkflowStore } from './project-workflows'
 import { claudeProjectWorkflowGenerator } from './project-workflow-claude'
@@ -100,6 +101,8 @@ function createWindow(): BrowserWindow {
       sandbox: true,
       spellcheck: false,
       backgroundThrottling: !headless,
+      // AO-91: o alarme do Timer vem do processo principal, sem gesto na hora; sem isto o Chromium pode manter o AudioContext suspenso.
+      autoplayPolicy: 'no-user-gesture-required',
     },
     paintWhenInitiallyHidden: true,
   })
@@ -259,9 +262,18 @@ app
     // The focus count goes to the renderer, so the dock always shows how many tasks are in it.
     const planning = new PlanningStore(app.getPath('userData'), Date.now, (count) => broadcast({ type: 'focus:count', count }))
     // The Timer of the bar (AO-64): its own store, outside planning.json; every change goes to the renderer as an event.
-    const barTimer = new BarTimerStore(app.getPath('userData'), Date.now, () =>
-      broadcast({ type: 'barTimer', timer: barTimer.view() ?? null }),
+    // O som (AO-91) é decidido aqui, no processo principal, para tocar com a janela minimizada.
+    const barSound: { current?: BarTimerSound } = {}
+    const barTimer = new BarTimerStore(app.getPath('userData'), Date.now, () => {
+      broadcast({ type: 'barTimer', timer: barTimer.view() ?? null })
+      barSound.current?.onChange()
+    })
+    barSound.current = new BarTimerSound(
+      () => barTimer.view() ?? null,
+      Date.now,
+      (cue) => broadcast({ type: 'barTimerSound', cue }),
     )
+    barSound.current.arm()
     const routineStore = new RoutineStore(app.getPath('userData'))
     // The memory of the profiles (AO-43): one short summary written by the person, per profile.
     const profileMemory = new ProfileMemoryStore(app.getPath('userData'))

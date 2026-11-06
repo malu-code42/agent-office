@@ -1,3 +1,4 @@
+import { unlockBarTimerSound } from './ui/timer-sound'
 import './styles/index.css'
 import { Game } from './game'
 import { latestProjectResult } from './game/result-destination'
@@ -75,6 +76,8 @@ async function boot(): Promise<void> {
   const initial = await window.office.getState()
   const initialNotices = initial.dataNotices ?? []
   const state = new State(initial)
+  // AO-91: o primeiro clique/tecla libera o áudio do Timer, para o alarme tocar depois sem gesto.
+  unlockBarTimerSound()
   const ui = document.getElementById('ui')!
   // Every <select> of the app opens the themed dropdown instead of the light menu of the system.
   enhanceSelects(document.body)
