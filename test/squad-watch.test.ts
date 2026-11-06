@@ -5,6 +5,8 @@ import {
   buildWatch,
   countRequests,
   filterRequests,
+  formatSpan,
+  formatTokens,
   nextRequest,
   overviewGroups,
   squadDetail,
@@ -494,5 +496,17 @@ describe('registro somente leitura', () => {
     s.logs = new Map()
     expect(activityLog(s, 'a', 'agents').map((e) => e.t)).toEqual([])
     expect(activityLog(s, 'a', 'all').map((e) => e.t)).toEqual([300, 250, 100])
+  })
+})
+
+describe('texto dos números', () => {
+  it('tempo e tokens em formato curto', () => {
+    expect(formatSpan(10_000)).toBe('agora')
+    expect(formatSpan(12 * MIN)).toBe('12min')
+    expect(formatSpan(72 * MIN)).toBe('1h12')
+    expect(formatSpan(125 * MIN)).toBe('2h05')
+    expect(formatTokens(950)).toBe('950')
+    expect(formatTokens(120_400)).toBe('120k')
+    expect(formatTokens(1_240_000)).toBe('1,2M')
   })
 })

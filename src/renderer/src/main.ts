@@ -51,7 +51,16 @@ import { enhanceSelects } from './ui/dropdown'
 import { autoStart, tourDone } from './ui/tour-plan'
 import { openBackstage, remindForgottenCopies } from './ui/backstage'
 import { mountQuitBanner } from './ui/quit'
-import { cleanError, confirmDialog, openCreateSquad, openNewAgent, openNewFloor, openResume, openSettings } from './ui/modals'
+import {
+  cleanError,
+  confirmDialog,
+  openCreateSquad,
+  openNewAgent,
+  openNewFloor,
+  openResume,
+  openSettings,
+  openSquadWatch,
+} from './ui/modals'
 import { osText } from './ui/os-text'
 
 // Errors nobody caught go to the app log (userData/logs), so a broken screen leaves a trace.
@@ -191,6 +200,19 @@ async function boot(): Promise<void> {
 
   const openItem = (agentId: string, itemId?: string) => {
     if (!dialog.open(agentId, itemId)) showAgent(agentId)
+  }
+
+  /** AO-108: acompanhar os squads de um andar de projeto: o atual, ou o da Emi que pediu. */
+  let closeSquadWatch: (() => void) | null = null
+  const openSquads = (agentId?: string) => {
+    const owner = agentId ? state.agents.get(agentId) : undefined
+    const floor = (owner?.project ? state.settings.projects.find((p) => p.id === owner.project) : undefined) ?? game.currentProject
+    if (!floor) {
+      toast('Suba para um andar de projeto para acompanhar os squads dele.', 'info')
+      return
+    }
+    closeSquadWatch?.()
+    closeSquadWatch = openSquadWatch(ui, state, floor, { toast, openItem: (id, itemId) => openItem(id, itemId) })
   }
 
   /** A project folder becomes a floor; the player rides up to it. */
@@ -363,6 +385,7 @@ async function boot(): Promise<void> {
       newAgent: () => void newAgent(),
       goFloor: (n) => game.goFloor(n),
       newFloor: () => void newFloor(),
+      squads: () => openSquads(),
       accounts: () => openAccounts(ui, state, toast),
       reports: () => openReports(ui, state, { project: game.currentProject, toast }),
       openProposal: (id) => void openProposalReview(ui, toast, id),
@@ -396,6 +419,7 @@ async function boot(): Promise<void> {
 
   const panel = new AgentPanel(ui, state, {
     goTo: (id) => game.goToAgent(id),
+    openSquads: (id) => openSquads(id),
     closeTerminal: (id) => void closeTerminal(id),
     openItem: (agentId, itemId) => openItem(agentId, itemId),
     toast,

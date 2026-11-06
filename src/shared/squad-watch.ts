@@ -501,3 +501,20 @@ export function activityLog(src: WatchSource, code: string, filter: LogFilter): 
     .slice(0, LOG_LIMIT)
     .map((e) => ({ ...e, text: clip(e.text, LOG_TEXT) }))
 }
+
+// ---------- texto curto dos números ----------
+
+/** 12min, 1h12; "agora" abaixo de um minuto. */
+export function formatSpan(ms: number): string {
+  const min = Math.floor(Math.max(0, ms) / 60_000)
+  if (min < 1) return 'agora'
+  if (min < 60) return `${min}min`
+  return `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`
+}
+
+/** 950, 120k, 1,2M. */
+export function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace('.', ',')}M`
+  if (n >= 1000) return `${Math.round(n / 1000)}k`
+  return String(n)
+}

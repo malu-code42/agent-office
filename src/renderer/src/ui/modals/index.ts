@@ -5,5 +5,6 @@ export { openNewAgent, worktreeToggle, type NewAgentChoice } from './new-agent'
 export { openSettings } from './settings'
 export { openResume } from './resume'
 export { openCreateSquad } from './create-squad'
+export { openSquadWatch, openSquadRecovery } from './squad-watch' // AO-108
 export { openNewFloor } from './new-floor'
 export { openProfileMemories } from './profile-memory' // AO-43
