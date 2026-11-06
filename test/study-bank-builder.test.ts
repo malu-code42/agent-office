@@ -268,7 +268,7 @@ describe('buildStudyBank passages', () => {
     const { deps, search } = setup()
     search.mockImplementation(async () => ({ hits: [] }))
     const { results } = await buildStudyBank(trail, deps, { perTopic: 2, discipline: 'P1-ICC' })
-    expect(results[0]).toMatchObject({ added: 0, reason: 'no-passage' })
+    expect(results[0]).toMatchObject({ added: 0, reason: 'no-passage', folder: 'study sources/textbooks/Introdução à Ciência da Computação/' })
     expect(search).toHaveBeenCalledWith('Sistemas de numeração', ['study sources/textbooks/Introdução à Ciência da Computação/'])
     expect(search).toHaveBeenCalledWith('Sistemas de numeração', ['study sources/textbooks/'])
   })

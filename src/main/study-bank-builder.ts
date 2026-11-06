@@ -197,7 +197,7 @@ export async function buildStudyBank(trail: StudyTrail, deps: Deps, options: Stu
       if (!first) {
         // With no folder of its own, nothing found means no book was put in the default folder.
         reason ??= fallback ? 'no-book' : 'no-passage'
-        if (fallback) folder = scope[0]
+        folder = scope[0]
         books = await booksFor(topic)
         continue
       }
