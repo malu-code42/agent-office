@@ -18,7 +18,6 @@ import {
 } from '@shared/types'
 import { squadInRoom } from '@shared/squad-rooms'
 import { pendingTickets, orderedTickets } from '@shared/squad-tickets'
-import { firstUnblockedTicketId, isTicketBlocked } from '@shared/ticket-blockers'
 import { isPullRequestUrl } from '@shared/pull-request-url'
 import { projectFor } from '@shared/projects'
 import { findSquad, inspectSquads, squadInfo, validateSquad } from './squads'
@@ -131,12 +130,7 @@ export class SquadCreation extends EventEmitter {
         }
         // The queue is persisted before assigning tickets. This state plus the proposal
         // is the recovery journal; repeating either write is idempotent.
-        const activeId =
-          savedQueue?.active ??
-          firstUnblockedTicketId(
-            picked.map((t) => t.id),
-            this.deps.board.ticketsForBlockers(),
-          )
+        const activeId = savedQueue?.active ?? this.firstOpenTicketId(picked.map((t) => t.id))
         const expectedQueue = {
           code: proposal.code,
           cwd: proposal.cwd,
@@ -168,22 +162,35 @@ export class SquadCreation extends EventEmitter {
     // Queue persistence is the PR-release journal. Repair board writes if the app died
     // after saving the verified PR URL but before the ticket/history flush completed.
     let repairedBoard = false
-    for (const queue of this.deps.queues.all()) {
+    for (let queue of this.deps.queues.all()) {
       const actor = { kind: 'agent' as const, name: `Squad ${queue.code}`, id: `squad:${queue.code}` }
+      // Filas salvas quando existia "bloqueado por" podem ter ficado sem ticket ativo mesmo com tickets esperando (AO-103).
+      if (!queue.active && queue.queue.length) {
+        const nextId = this.firstOpenTicketId(queue.queue)
+        if (nextId) {
+          queue = { ...queue, active: nextId, queue: queue.queue.filter((id) => id !== nextId), updatedAt: this.now() }
+          delete queue.cycle
+          this.deps.queues.set(queue)
+          repairedBoard = true
+        }
+      }
       if (queue.active) {
         const active = this.deps.board.get(queue.active)
-        if (
-          active &&
-          !isTicketBlocked(active, this.deps.board.ticketsForBlockers()) &&
-          (active.status === 'backlog' || active.status === 'todo')
-        ) {
+        if (active && (active.status === 'backlog' || active.status === 'todo')) {
           this.deps.board.move(active.id, 'doing', undefined, actor)
           repairedBoard = true
         }
       }
     }
     if (repairedBoard) this.deps.board.flush()
-    this.reconcileBlockedQueues(false)
+  }
+
+  /** First ticket of the list that is still on the board and not closed, keeping the queue order. */
+  private firstOpenTicketId(ids: readonly string[]): string | null {
+    return ids.find((id) => {
+      const ticket = this.deps.board.get(id)
+      return !!ticket && !ticket.closedAt
+    }) ?? null
   }
 
   private now(): number {
@@ -212,7 +219,7 @@ export class SquadCreation extends EventEmitter {
       if (!remotes.has(queue.cwd)) remotes.set(queue.cwd, await remoteIdentityForRepo(queue.cwd).catch(() => null))
       const remote = remotes.get(queue.cwd) ?? null
       for (const pr of queue.pendingPRs ?? []) {
-        const ticket = this.deps.board.getForBlockers(pr.ticketId)
+        const ticket = this.deps.board.getAny(pr.ticketId)
         const queueProject = this.deps.projects().find((project) => project.cwd === queue.cwd)
         const ticketProject = ticket ? projectFor(this.deps.projects(), ticket.cwd) : undefined
         if (
@@ -221,7 +228,7 @@ export class SquadCreation extends EventEmitter {
           !queueProject ||
           ticketProject?.id !== queueProject.id
         ) {
-          log.warn(`PR salvo do ticket ${pr.ticketKey} não foi aceito como bloqueio: repositório remoto não confirmado.`)
+          log.warn(`PR salvo do ticket ${pr.ticketKey} não foi aceito: repositório remoto não confirmado.`)
           continue
         }
         try {
@@ -237,7 +244,6 @@ export class SquadCreation extends EventEmitter {
       }
     }
     if (repaired) this.deps.board.flush()
-    this.reconcileBlockedQueues(false)
   }
 
   setCycle(code: string, cycle: SquadQueue['cycle']): void {
@@ -284,7 +290,7 @@ export class SquadCreation extends EventEmitter {
     const queue = this.deps.queues.get(code)
     if (!queue) throw new Error(`A fila do squad ${code} não existe.`)
     const queueProject = this.deps.projects().find((project) => project.cwd === queue.cwd)
-    const publishedTicket = this.deps.board.getForBlockers(pr.ticketId)
+    const publishedTicket = this.deps.board.getAny(pr.ticketId)
     if (!queueProject || projectFor(this.deps.projects(), publishedTicket?.cwd)?.id !== queueProject.id)
       throw new Error('O ticket e o PR não pertencem ao projeto desta fila; estado preservado.')
     const existing = queue.pendingPRs?.find((item) => item.ticketId === pr.ticketId || item.branch === pr.branch)
@@ -299,8 +305,7 @@ export class SquadCreation extends EventEmitter {
         // Persist the verified URL first; a crash before queue advancement is safely retried.
         this.deps.board.flush()
       }
-      const candidates = queue.queue
-      const nextId = firstUnblockedTicketId(candidates, this.deps.board.ticketsForBlockers())
+      const nextId = this.firstOpenTicketId(queue.queue)
       const next = {
         ...queue,
         active: nextId,
@@ -333,31 +338,6 @@ export class SquadCreation extends EventEmitter {
   /** The queue of every squad. */
   queues(): SquadQueue[] {
     return this.deps.queues.all()
-  }
-
-  /** Promote the next ready ticket when a verified PR resolves one or more blockers. */
-  reconcileBlockedQueues(emit = true): string[] {
-    const started: string[] = []
-    const tickets = this.deps.board.ticketsForBlockers()
-    for (const queue of this.deps.queues.all()) {
-      const ids = queue.active ? [queue.active, ...queue.queue] : queue.queue
-      if (!ids.length) continue
-      const active = queue.active ? tickets.find((ticket) => ticket.id === queue.active) : undefined
-      if (queue.active && active && !isTicketBlocked(active, tickets)) continue
-      const nextId = firstUnblockedTicketId(ids, tickets)
-      if (queue.active === nextId) continue
-      const nextQueue = { ...queue, active: nextId, queue: ids.filter((id) => id !== nextId), updatedAt: this.now() }
-      delete nextQueue.cycle
-      this.deps.queues.set(nextQueue)
-      if (active?.status === 'doing') this.deps.board.move(active.id, 'todo', undefined, this.deps.player())
-      const next = nextId ? this.deps.board.get(nextId) : undefined
-      if (next && (next.status === 'backlog' || next.status === 'todo'))
-        this.deps.board.move(next.id, 'doing', undefined, { kind: 'agent', name: `Squad ${queue.code}`, id: `squad:${queue.code}` })
-      if (nextId) started.push(queue.code)
-    }
-    if (started.length) this.deps.board.flush()
-    if (started.length && emit) this.changed()
-    return started
   }
 
   /** What the office knows about models and accounts: the answer is checked against it. */
@@ -687,10 +667,7 @@ export class SquadCreation extends EventEmitter {
     const actor = { kind: 'agent' as const, name: finalName, id: `squad:${code}` }
     try {
       this.assertApprovalCurrent(proposal, composition, 'created')
-      const activeId = firstUnblockedTicketId(
-        picked.map((t) => t.id),
-        this.deps.board.ticketsForBlockers(),
-      )
+      const activeId = this.firstOpenTicketId(picked.map((t) => t.id))
       const queue = {
         code,
         cwd: project.cwd,

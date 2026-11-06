@@ -709,7 +709,6 @@ const ticketFields = {
   model: z.string().trim().max(100).nullable().optional(),
   effort: z.enum(EFFORT_LEVELS as [EffortLevel, ...EffortLevel[]]).nullable().optional(),
   dueDate: z.string().max(10).nullable().optional(),
-  blockedBy: z.array(idSchema).max(200).optional(),
 }
 export const ticketDraftSchema: z.ZodType<TicketDraft> = z.object({ title: z.string().max(2000), ...ticketFields })
 export const ticketPatchSchema: z.ZodType<TicketPatch> = z.object({ title: z.string().max(2000).optional(), ...ticketFields })

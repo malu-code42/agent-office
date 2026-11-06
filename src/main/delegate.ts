@@ -35,7 +35,6 @@ export class TicketDesk {
     const t = this.board.get(ticketId)
     if (!t) throw new Error('Esse ticket não existe mais.')
     if (t.status === 'done') throw new Error('Esse ticket já está feito. Mova para outra coluna antes de delegar.')
-    this.board.assertCanStart(t.id)
 
     let agent: AgentSummary
     const display = `Ticket ${t.key}: ${t.title}`

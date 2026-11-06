@@ -1,6 +1,5 @@
 import type { AgentSummary, OfficePermissionMode, ProjectFloor } from '@shared/types'
 import type { State } from '../../state'
-import { unresolvedBlockerIds } from '@shared/ticket-blockers'
 import { h } from '../dom'
 import { cleanError, field, modal } from './common'
 import { modeOptions, MODES } from './brain'
@@ -154,19 +153,7 @@ export function openRunSquad(
     if (!id) return null
     const t = state.tickets.get(id)
     if (!t) return h('div', { class: 'squad-queue-line' }, 'ticket fora do quadro')
-    const blockers = unresolvedBlockerIds(t, [...state.tickets.values()])
-    return h(
-      'div',
-      { class: 'squad-queue-ticket' },
-      h('span', {}, h('b', {}, `${t.key} · `), t.title),
-      blockers.length
-        ? h(
-            'span',
-            { class: 'squad-queue-blocked' },
-            `Bloqueado por ${blockers.map((blockerId) => state.tickets.get(blockerId)?.key ?? blockerId).join(', ')}`,
-          )
-        : null,
-    )
+    return h('div', { class: 'squad-queue-ticket' }, h('span', {}, h('b', {}, `${t.key} · `), t.title))
   }
   const paintQueue = async () => {
     const paint = ++queuePaint
@@ -240,16 +227,6 @@ export function openRunSquad(
     queueBox.replaceChildren(
       h('div', { class: 'sec-title' }, 'Fila do squad'),
       h('div', { class: 'hint' }, 'Um ticket ativo por squad.'),
-      ...(!queue.active && queue.queue.length
-        ? [
-            h(
-              'div',
-              { class: 'panelbox amber', role: 'status' },
-              h('b', {}, 'Squad aguardando bloqueios'),
-              h('span', {}, 'Nenhum ticket da fila está liberado. A execução não começa até algum bloqueador ter PR confirmado.'),
-            ),
-          ]
-        : []),
       ...(queue.active
         ? [
             h(

@@ -256,6 +256,32 @@ describe('ticket removido do tipo Mãe', () => {
   })
 })
 
+describe('ticket salvo com "bloqueado por" (AO-103)', () => {
+  it('carrega sem erro: blockedBy e blockerPRs são descartados, também no arquivo de fechados', () => {
+    board.create({ title: 'Antigo' }, me)
+    board.flush()
+    const file = join(dir, 'tickets.json')
+    const data = JSON.parse(readFileSync(file, 'utf8'))
+    data.tickets.push(
+      { ...data.tickets[0], id: 'old-a', key: 'AO-8', blockedBy: ['old-b', 'sumiu'], blockerPRs: { 'old-b': 'https://github.com/org/repo/pull/1' } },
+      { ...data.tickets[0], id: 'old-b', key: 'AO-9', blockedBy: 'lixo', blockerPRs: [] },
+    )
+    writeFileSync(file, JSON.stringify(data))
+    // Not reload(): its flush() would rewrite the file from memory before loading.
+    const again = new TicketBoard(dir)
+    for (const key of ['AO-8', 'AO-9']) {
+      const t = again.byKey(key)!
+      expect(t).toBeDefined()
+      expect(t).not.toHaveProperty('blockedBy')
+      expect(t).not.toHaveProperty('blockerPRs')
+    }
+    // Ignora o campo vindo de fora e continua aceitando o resto do patch.
+    const patched = again.update(again.byKey('AO-8')!.id, { title: 'Novo', blockedBy: ['x'] } as never, me)
+    expect(patched.title).toBe('Novo')
+    expect(patched).not.toHaveProperty('blockedBy')
+  })
+})
+
 describe('ferramentas dos agentes', () => {
   const agent = { id: 'ag-1', name: 'Ada', cwd: dir, project: 'p1' } as AgentSummary
   type Tool = { name: string; handler: (args: Record<string, unknown>) => Promise<{ content: { text: string }[]; isError?: boolean }> }

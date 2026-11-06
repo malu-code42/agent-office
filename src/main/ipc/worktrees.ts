@@ -311,8 +311,6 @@ export function registerWorktreesIpc(ctx: IpcContext): void {
     const ticket = r.ticketId ? ctx.board.get(r.ticketId) : candidates.length === 1 ? candidates[0] : undefined
     const remote = await pullRequestRemoteIdentity(wt)
     const ticketRemote = ticket?.cwd ? await pullRequestRemoteIdentityForRepo(ticket.cwd).catch(() => null) : null
-    if (ticket?.blockedBy?.length && !ticketRemote)
-      throw new Error('Não consigo validar o remoto atual do ticket; nenhum bloqueio será liberado.')
     if (ticketRemote && (ticketRemote.host.toLowerCase() !== remote.host.toLowerCase() || ticketRemote.repository !== remote.repository))
       throw new Error('O remoto do ticket mudou desde o resultado; não vou abrir um PR no repositório errado.')
     // Files left over from before the task are not in the result, so "Commitar" skipped them.
@@ -350,19 +348,10 @@ export function registerWorktreesIpc(ctx: IpcContext): void {
           currentTicketRemote.host.toLowerCase() !== remote.host.toLowerCase() ||
           currentTicketRemote.repository !== remote.repository))
     )
-      throw new Error('A URL do PR não corresponde ao repositório atual do ticket; nenhum bloqueio foi liberado.')
+      throw new Error('A URL do PR não corresponde ao repositório atual do ticket.')
     if (ticket && currentTicketRemote && ticket.assignee?.id === r.agentId && ticket.status === 'review' && !ticket.pullRequestUrl) {
       ctx.board.recordPullRequest(ticket.id, url, { kind: 'agent', name: nameOf(r.agentId), id: r.agentId })
       ctx.board.flush()
-      const started = ctx.creation.reconcileBlockedQueues()
-      for (const code of started) {
-        try {
-          await ctx.startActiveSquadTicket(code)
-        } catch (err) {
-          const active = ctx.creation.queue(code)?.active
-          if (active) ctx.creation.setStartupError(code, active, err instanceof Error ? err.message : String(err))
-        }
-      }
     }
     return url
   })

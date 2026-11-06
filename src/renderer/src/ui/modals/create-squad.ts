@@ -12,7 +12,6 @@ import {
   type Ticket,
 } from '@shared/types'
 import { pendingTickets } from '@shared/squad-tickets'
-import { isTicketBlocked, unresolvedBlockerIds } from '@shared/ticket-blockers'
 import { competencyProfiles } from '@shared/competency-profiles'
 import type { State } from '../../state'
 import type { SquadRoom } from '../../world2d/plan'
@@ -114,14 +113,7 @@ function openCreateSquadReady(root: HTMLElement, state: State, opts: CreateSquad
         ? h(
             'div',
             { class: 'cs-chips' },
-            ...chosen.map((t) => {
-              const blockers = unresolvedBlockerIds(t, [...state.tickets.values()])
-              return h(
-                'span',
-                { class: `sbadge ${blockers.length ? 'sb-error' : 'sb-mute'}` },
-                `${t.key} · ${t.title}${blockers.length ? ` · Bloqueado por ${blockers.map((id) => state.tickets.get(id)?.key ?? id).join(', ')}` : ''}`,
-              )
-            }),
+            ...chosen.map((t) => h('span', { class: 'sbadge sb-mute' }, `${t.key} · ${t.title}`)),
           )
         : h('span', { class: 'hint' }, 'Nenhum ticket escolhido.'),
     )
@@ -232,14 +224,9 @@ function openCreateSquadReady(root: HTMLElement, state: State, opts: CreateSquad
       close(false)
       const queue = await window.office.squadQueue(squad.code).catch(() => undefined)
       const active = queue?.active ? state.tickets.get(queue.active) : undefined
-      const chosen = pickedTickets()
       toast(
         `${squad.name} criado em ${roomName}.` +
-          (active
-            ? ` ${active.key} ficou ativo. Tickets bloqueados permanecem na fila e serão pulados até haver PR confirmado.`
-            : chosen.length
-              ? ' Todos os tickets escolhidos estão bloqueados; o squad aguarda um PR confirmado.'
-              : ' Sem ticket ativo: o squad fica disponível.'),
+          (active ? ` ${active.key} ficou ativo.` : ' Sem ticket ativo: o squad fica disponível.'),
         'ok',
       )
       opts.onApproved?.(squad)
@@ -366,25 +353,12 @@ function openCreateSquadReady(root: HTMLElement, state: State, opts: CreateSquad
           if (box.checked) picked.add(t.id)
           else picked.delete(t.id)
         })
-        const blockers = unresolvedBlockerIds(t, [...state.tickets.values()])
         list.append(
           h(
             'label',
             { class: 'rev-check' },
             box,
-            h(
-              'span',
-              {},
-              h('b', {}, `${t.key} · `),
-              t.title,
-              blockers.length
-                ? h(
-                    'span',
-                    { class: 'cs-ticket-blocked' },
-                    `Bloqueado por ${blockers.map((id) => state.tickets.get(id)?.key ?? id).join(', ')}`,
-                  )
-                : null,
-            ),
+            h('span', {}, h('b', {}, `${t.key} · `), t.title),
           ),
         )
       }
@@ -415,11 +389,7 @@ function openCreateSquadReady(root: HTMLElement, state: State, opts: CreateSquad
           'div',
           { class: 'panelbox' },
           h('div', { class: 'sec-title' }, 'Tickets (opcional)'),
-          h(
-            'div',
-            { class: 'hint' },
-            'Tickets bloqueados continuam selecionáveis e na fila. O squad ativa o próximo ticket sem bloqueios; se todos estiverem bloqueados, aguarda o PR dos bloqueadores.',
-          ),
+          h('div', { class: 'hint' }, 'O primeiro ticket escolhido fica ativo; os outros esperam na fila do squad.'),
           list.children.length ? list : h('span', { class: 'hint' }, 'Nenhum ticket pendente neste andar.'),
         ),
       )
@@ -484,14 +454,7 @@ function openCreateSquadReady(root: HTMLElement, state: State, opts: CreateSquad
       })
       approveButton.addEventListener('click', () => void approve())
       syncName()
-      const allTickets = [...state.tickets.values()]
-      const firstReady = chosen.find((ticket) => !isTicketBlocked(ticket, allTickets))
-      const waiting = chosen.filter((ticket) => ticket.id !== firstReady?.id)
-      const attribution = !chosen.length
-        ? ticketAttribution(chosen)
-        : firstReady
-          ? `${firstReady.key} fica ativo; ${waiting.length ? `${waiting.map((ticket) => ticket.key).join(', ')} ficam na fila e os bloqueados serão pulados até haver PR confirmado.` : 'sem outros tickets na fila.'}`
-          : `Todos os tickets escolhidos estão bloqueados (${chosen.map((ticket) => ticket.key).join(', ')}). O squad aguarda e não inicia nenhum até haver PR confirmado.`
+      const attribution = ticketAttribution(chosen)
       // The field of the adjustment and its button are built together: the button wakes
       // up with the text of the field.
       const adjArea = h('textarea', {
