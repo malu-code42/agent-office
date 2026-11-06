@@ -122,7 +122,8 @@ export abstract class PanelHead extends PanelSearch {
                       : a.builtIn
                         ? 'Secretária'
                         : a.role === 'orchestrator'
-                          ? 'Orquestrador'
+                          ? // AO-107: o nome é de uma figura; o grupo a que a sala pertence fica no subtítulo.
+                            `Orquestrador · ${this.state.squads.find((q) => q.code === a.squad && q.cwd === a.cwd)?.name ?? a.squad ?? 'squad'}`
                           : 'Agente',
                   accountChip(this.state, a),
                 )
