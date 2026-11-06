@@ -75,6 +75,8 @@
   --blue: #8fb3ff;
   --red: #ff8f7a;
   --pink: #e3a1d1;
+  /* AO-92: quarta cor da paleta das tarefas feitas no Timer (agenda); o laranja é só da tarefa em andamento. */
+  --aqua: #7fe0d8;
   /* Texto claro sobre fundos tingidos de cada cor (faixas, avisos, chips). */
   --amber-text: #ffd38a;
   --green-text: #cfeedd;

@@ -306,3 +306,27 @@ export function dayKeysBetween(from: string, to: string, max = 62): string[] {
   }
   return keys
 }
+
+/** Foco de cada hora do dia por tarefa (só as horas com foco), da mais cedo para a mais tarde. */
+export function focusByHourTask(segs: FocusSegment[]): { hour: number; totalMs: number; parts: { taskId: string; ms: number }[] }[] {
+  const grid = new Map<number, Map<string, number>>()
+  for (const s of segs) {
+    if (s.kind !== 'foco') continue
+    let from = s.start
+    while (from < s.end) {
+      const d = new Date(from)
+      const nextHour = new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours() + 1).getTime()
+      const to = Math.min(s.end, nextHour)
+      const row = grid.get(d.getHours()) ?? new Map<string, number>()
+      row.set(s.taskId, (row.get(s.taskId) ?? 0) + (to - from))
+      grid.set(d.getHours(), row)
+      from = to
+    }
+  }
+  return [...grid.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([hour, row]) => {
+      const parts = [...row.entries()].map(([taskId, ms]) => ({ taskId, ms }))
+      return { hour, totalMs: parts.reduce((a, p) => a + p.ms, 0), parts }
+    })
+}

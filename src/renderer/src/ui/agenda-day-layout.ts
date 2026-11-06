@@ -12,6 +12,8 @@ export type DayEventInput = {
   end?: string
   /** Duração usada sem fim. Padrão: 50 min (uma aula). */
   defaultMinutes?: number
+  /** Altura mínima deste evento, em minutos (AO-92: blocos de tarefa feita são mais curtos que um cartão). Padrão: MIN_EVENT_MINUTES. */
+  minMinutes?: number
 }
 
 export type DayEventLayout = {
@@ -64,7 +66,7 @@ export function layoutDayEvents(inputs: DayEventInput[]): DayLayout {
     } else {
       endMin = startMin + (input.defaultMinutes ?? DEFAULT_EVENT_MINUTES)
     }
-    endMin = Math.max(Math.min(endMin, DAY_MINUTES), startMin + MIN_EVENT_MINUTES)
+    endMin = Math.max(Math.min(endMin, DAY_MINUTES), startMin + (input.minMinutes ?? MIN_EVENT_MINUTES))
     return { index, startMin, endMin, column: 0, columns: 1 }
   })
 

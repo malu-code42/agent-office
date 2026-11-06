@@ -5,6 +5,7 @@ import {
   dayKeysBetween,
   dayKeyOf,
   focusByHour,
+  focusByHourTask,
   heartbeatSpan,
   markDone,
   parseFocusLog,
@@ -268,5 +269,19 @@ describe('dayKeysBetween', () => {
     expect(dayKeysBetween('x', '2026-11-02')).toEqual([])
     expect(dayKeysBetween('2026-11-03', '2026-11-02')).toEqual([])
     expect(dayKeysBetween('2026-01-01', '2026-12-31')).toHaveLength(62)
+  })
+})
+
+describe('focusByHourTask', () => {
+  it('reparte por hora e por tarefa, só com foco, em ordem de hora', () => {
+    const segs = [seg('tA', 'A', 50, 25), seg('tB', 'B', 75, 20), seg('tB', 'B', 95, 5, 'pausa')]
+    const rows = focusByHourTask(segs)
+    expect(rows.map((r) => r.hour)).toEqual([9, 10])
+    expect(rows[0]).toMatchObject({ totalMs: 10 * MIN, parts: [{ taskId: 'tA', ms: 10 * MIN }] })
+    expect(rows[1].totalMs).toBe(35 * MIN)
+    expect(rows[1].parts).toEqual([
+      { taskId: 'tA', ms: 15 * MIN },
+      { taskId: 'tB', ms: 20 * MIN },
+    ])
   })
 })
