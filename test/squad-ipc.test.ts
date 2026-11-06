@@ -169,6 +169,24 @@ describe('os canais de squad', () => {
     expect(await callHandler('office:squadQueue', '../../etc/passwd')).toBeUndefined()
   })
 
+  it('pausar e retomar mudam o estado guardado e avisam a tela (AO-108)', async () => {
+    const proposal = await propose('proposta-pausa')
+    await callHandler('office:approveSquadProposal', { id: proposal.id, name: 'Equipe da busca' })
+    broadcast.length = 0
+    await callHandler('office:setSquadPaused', project.cwd, 'sala-1', true)
+    expect(squadStatus.get(project.cwd, 'sala-1')).toBe('paused')
+    await callHandler('office:setSquadPaused', project.cwd, 'sala-1', false)
+    expect(squadStatus.get(project.cwd, 'sala-1')).toBeUndefined()
+    expect(broadcast).toHaveLength(2)
+  })
+
+  it('pausar recusa pasta fora dos andares, código inválido e squad inexistente', async () => {
+    await expect(callHandler('office:setSquadPaused', 'C:/fora', 'sala-1', true)).rejects.toThrow()
+    await expect(callHandler('office:setSquadPaused', project.cwd, '../x', true)).rejects.toThrow()
+    await expect(callHandler('office:setSquadPaused', project.cwd, 'nao-existe', true)).rejects.toThrow()
+    await expect(callHandler('office:setSquadPaused', project.cwd, 'sala-1', 'sim')).rejects.toThrow()
+  })
+
   it('a action de retry de startup chama inicialização do ticket, não publicação', async () => {
     creation.queue = (() => ({
       code: 'sala-1',

@@ -600,6 +600,8 @@ export const externalUrlSchema = z
 export const floorIdSchema = z.string().min(1).max(40).nullable()
 /** A squad code as squads.ts accepts it. */
 export const squadCodeSchema = z.string().regex(/^[\w-]{1,64}$/)
+/** AO-108: pausar ou retomar um squad da popup de acompanhamento. */
+export const setSquadPausedArgsSchema = z.tuple([pathSchema, squadCodeSchema, z.boolean()])
 export const squadNoteSchema = z.string().max(20_000).optional().catch(undefined)
 export const accountNameSchema = z.string().max(200).catch('')
 

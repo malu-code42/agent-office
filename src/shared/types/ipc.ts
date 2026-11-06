@@ -668,6 +668,8 @@ export interface OfficeAPI {
   /** The queue of a squad: the ticket it works on and the ones waiting. */
   squadQueue(code: string): Promise<SquadQueue | undefined>
   /** Retenta publicar o resultado já salvo do ticket ativo; nunca reexecuta o agente. */
+  /** AO-108: pausa (true) ou retoma (false) um squad do andar; pausado não inicia novos ciclos. */
+  setSquadPaused(cwd: string, code: string, paused: boolean): Promise<void>
   retrySquadPublication(code: string): Promise<void>
   retrySquadStart(code: string): Promise<void>
   /** The cost book, cut to the days and folder asked for (all of it when empty). */
