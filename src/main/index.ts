@@ -59,6 +59,7 @@ import { QuitFlow } from './quit'
 import { registerSessionsIpc } from './ipc/sessions'
 import { registerSettingsIpc } from './ipc/settings'
 import { registerSquadsIpc } from './ipc/squads'
+import { brainForTicket } from './ticket-brain'
 import { registerBarTimerIpc } from './ipc/bar-timer'
 import { registerProfileMemoryIpc } from './ipc/profile-memory'
 import { registerMediaIpc } from './ipc/media'
@@ -368,7 +369,7 @@ app
         const permissionMode = requestedMode === 'bypassPermissions' ? 'default' : requestedMode
         const defaults = prior
           ? { model: prior.model, effort: prior.effort, accounts: prior.accounts, permissionMode }
-          : { ...defaultBrain(), model: 'claude-haiku-5-5', permissionMode }
+          : { ...defaultBrain(), ...brainForTicket(ticket, defaultBrain()), permissionMode }
         let worktree = prior?.worktree ?? (queue.cycle?.ticketId === ticket.id ? queue.cycle.worktree : undefined)
         if (!worktree) {
           worktree = (await createWorktree(queue.cwd, `${squad.name}-${ticket.key}`, randomUUID())) ?? undefined

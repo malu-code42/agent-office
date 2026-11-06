@@ -21,7 +21,7 @@ const CARD_PROMPT = [
 
 /** One isolated, tool-free pass over only the note snapshots explicitly selected by the student and the text they wrote. */
 export function claudeStudyCardInterpreter(settings: Settings, account: Account = mainAccount()): StudyCardInterpreter {
-  const model = settings.defaultModel || 'claude-haiku-5-5'
+  const model = settings.defaultModel || undefined
   const effort = settings.defaultEffort || 'medium'
   return {
     async assist(notes: StudyNoteSnapshot[], authored: StudyCardAuthored, linkTargets: string[]) {

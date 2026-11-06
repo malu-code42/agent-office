@@ -59,7 +59,7 @@ function promptFor(input: Parameters<WorkflowGenerator['generate']>[0]): string 
 /** One isolated, tool-free Claude turn. Account and model are resolved once per invocation. */
 export function claudeProjectWorkflowGenerator(settings: { defaultModel?: string }): WorkflowGenerator {
   const account = mainAccount()
-  const model = settings.defaultModel || 'claude-haiku-5-5'
+  const model = settings.defaultModel || undefined
   return {
     async generate(input, signal) {
       const executable = findClaude()

@@ -16,6 +16,9 @@ export interface ModelPrice {
   estimate?: boolean
 }
 
+/** O único id de Haiku citado no código (prompts, descrições de ferramenta e tabela de preços). */
+export const HAIKU_MODEL = 'claude-haiku-5-5'
+
 const p = (input: number, output: number, cacheRead: number, extra: Partial<ModelPrice> = {}): ModelPrice => ({ input, output, cacheRead, ...extra })
 
 /** Longest prefix wins, so dated ids ("claude-haiku-4-5-20251001") find their family. */
@@ -33,7 +36,7 @@ const PRICES: Record<string, ModelPrice> = {
   'claude-sonnet-5': p(2, 10, 0.2),
   'claude-sonnet-4-6': p(3, 15, 0.3),
   // Cache reads for Haiku 5.5 are not in the table we have: 0.1x input, like most models.
-  'claude-haiku-5-5': p(0.1, 0.5, 0.01, { longPrompt: { over: 100_000, input: 0.5, output: 2.5 }, estimate: true }),
+  [HAIKU_MODEL]: p(0.1, 0.5, 0.01, { longPrompt: { over: 100_000, input: 0.5, output: 2.5 }, estimate: true }),
   'claude-haiku-4-5': p(1, 5, 0.1),
 }
 

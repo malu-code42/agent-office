@@ -34,6 +34,7 @@ const memberSchema = z
     role: z.enum(SQUAD_ROLES),
     engine: z.literal('claude'),
     model: z.enum(SQUAD_MODELS),
+    effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
     account: z.string().max(64),
     focus: z.string().max(240),
     competencyProfileId: z.enum(competencyProfileIds).optional(),

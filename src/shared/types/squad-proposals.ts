@@ -1,5 +1,6 @@
 // ---------- squad creation proposals (ticket 04) ----------
 import type { CompetencyProfileId, CompetencyProfileSnapshot } from './competency-profiles'
+import type { EffortLevel } from './agents'
 // A proposal is a composition the player asked for and has not approved yet. It lives in
 // the app's own data, never in the project folder: a proposal is not a squad, and nothing
 // it says exists on disk until "Aprovar e criar squad" is pressed.
@@ -59,6 +60,8 @@ export interface SquadProposalMember {
   engine: 'claude'
   /** Model of the member: '' = the default of Claude Code. */
   model: string
+  /** Esforço do integrante; ausente = herda o esforço do ticket. */
+  effort?: EffortLevel
   /** Account the member runs on: '' = the pool of the project. */
   account: string
   /** One line: what this member does. */

@@ -16,7 +16,7 @@ export type StudyTutorEvaluator = (input: {
 
 /** Build one isolated, tool-free Tutor evaluation with an immutable account/model choice. */
 export function claudeStudyTutor(settings: Settings, account: Account = mainAccount()): StudyTutorEvaluator {
-  const model = settings.defaultModel || 'claude-haiku-5-5'
+  const model = settings.defaultModel || undefined
   const effort = settings.defaultEffort || 'medium'
   return async ({ profile, question, studentAnswer, providedEvidence }) => {
     const executable = findClaude()

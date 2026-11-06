@@ -491,7 +491,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
       defaultId: 1,
       cancelId: 1,
       message: 'Enviar seu texto e as notas selecionadas ao Claude para sugerir conexões, fontes e melhorias?',
-      detail: `Serão enviados o texto que você escreveu e ${selected.length} snapshot(s): ${selected.map((note) => `${note.title} (${note.sourceRef})`).join('; ')}, além dos títulos dos seus cartões e notas para as conexões. Conta: ${account.name}. Modelo: ${settings.defaultModel || 'claude-haiku-5-5'}, esforço ${settings.defaultEffort || 'medium'}. Confirme que o ambiente dessa conta pode receber esse conteúdo. O Claude não reescreve seu texto e nenhum cartão será salvo sem sua revisão.`,
+      detail: `Serão enviados o texto que você escreveu e ${selected.length} snapshot(s): ${selected.map((note) => `${note.title} (${note.sourceRef})`).join('; ')}, além dos títulos dos seus cartões e notas para as conexões. Conta: ${account.name}. Modelo: ${settings.defaultModel || 'padrão do SDK'}, esforço ${settings.defaultEffort || 'medium'}. Confirme que o ambiente dessa conta pode receber esse conteúdo. O Claude não reescreve seu texto e nenhum cartão será salvo sem sua revisão.`,
     }
     const win = ctx.win()
     const { response } = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options)

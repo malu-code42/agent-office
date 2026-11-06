@@ -619,6 +619,7 @@ export const squadMemberSchema = z
     role: z.enum(SQUAD_ROLES),
     engine: z.literal('claude'),
     model: z.enum(SQUAD_MODELS),
+    effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
     account: z.string().max(120),
     focus: z.string().trim().min(1).max(1000),
     competencyProfileId: z.enum(competencyProfileIds).optional(),
