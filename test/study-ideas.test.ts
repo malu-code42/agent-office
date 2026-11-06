@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseIdeas, studiedTopics } from '../src/shared/study-ideas'
+import { topicName } from '../src/shared/study-trail'
 import type { StudyCycle, StudyCycleState } from '../src/shared/study-cycle'
 
 const cycle = (topic: string, stage: StudyCycle['stage'], updatedAt: number): StudyCycle => ({
@@ -24,6 +25,14 @@ describe('studiedTopics', () => {
       { topic: 'Banco de dados', completed: false },
       { topic: 'Redes', completed: true },
     ])
+  })
+})
+
+describe('nome exibido dos tópicos (AO-35)', () => {
+  it('tira o código da frente, mas mantém o tópico guardado com ele', () => {
+    const [stored] = studiedTopics({ activeId: null, cycles: [cycle('[P2-ED-01] Árvores', 'diagnosis', 1)] })
+    expect(stored.topic).toBe('[P2-ED-01] Árvores')
+    expect(topicName(stored.topic)).toBe('Árvores')
   })
 })
 
