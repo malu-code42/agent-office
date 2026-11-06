@@ -35,6 +35,7 @@ beforeEach(() => {
       result: () => currentResult,
       agent: () => currentAgent,
       ackResult: () => { acked = true },
+      noteAckBlocked: () => undefined,
     },
     creation: { queue: () => queue },
     updateBadge: () => undefined,

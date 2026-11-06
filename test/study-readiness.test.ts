@@ -1,9 +1,10 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { checkDisciplineReadiness, openableFolder, proveReadyTopics, SerialQueue, StudyReadinessStore, suggestTopicBooks } from '../src/main/study-readiness'
+import { StudyBankJobs } from '../src/main/study-bank-job'
+import { checkDisciplineReadiness, openableFolder, proveReadyTopics, SerialQueue, STUDY_READINESS_FILE, StudyReadinessStore, suggestTopicBooks } from '../src/main/study-readiness'
 import type { StudyBookSuggestion } from '../src/shared/study-bank'
 import { STUDY_AGENT_ATTRIBUTION, STUDY_AGENT_LICENSE } from '../src/shared/study-bank'
 import type { StudyLibraryHit, StudySourceInfo } from '../src/shared/study-library'
@@ -249,6 +250,67 @@ describe('StudyReadinessStore', () => {
     dir = mkdtempSync(join(tmpdir(), 'readiness-'))
     expect(new StudyReadinessStore(dir).read()).toEqual({})
   })
+
+  it('keeps the saved report byte for byte when the bank window is dismissed', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'readiness-'))
+    const report = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library(), subtopics: noSubtopics }, 1)
+    new StudyReadinessStore(dir).save(report)
+    const file = join(dir, STUDY_READINESS_FILE)
+    const before = readFileSync(file, 'utf8')
+
+    new StudyBankJobs(dir, () => {}).dismiss()
+
+    expect(readFileSync(file, 'utf8')).toBe(before)
+    expect(new StudyReadinessStore(dir).read()).toEqual({ 'P2-HW': report })
+  })
+
+  it('replaces the saved report when the preparation runs again', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'readiness-'))
+    const store = new StudyReadinessStore(dir)
+    const first = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library(), subtopics: noSubtopics }, 1)
+    store.save(first)
+
+    const again = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library({ Ondas: 3 }), subtopics: noSubtopics }, 2, first)
+    store.save(again)
+
+    const saved = new StudyReadinessStore(dir).read()['P2-HW']
+    expect(saved).toEqual(again)
+    expect(saved!.builtAt).toBe(2)
+    expect(saved!.topics.find((t) => t.topic === 'Ondas')).toMatchObject({ state: 'sem-subtemas' })
+  })
+
+  it('keeps the saved report byte for byte when the bank window is dismissed while a build runs', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'readiness-'))
+    const report = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library(), subtopics: noSubtopics }, 1)
+    new StudyReadinessStore(dir).save(report)
+    const file = join(dir, STUDY_READINESS_FILE)
+    const before = readFileSync(file, 'utf8')
+    const jobs = new StudyBankJobs(dir, () => {})
+    jobs.start(trail, { discipline: 'P2-HW' }, () => new Promise<never>(() => {}))
+
+    jobs.dismiss()
+
+    expect(jobs.status()?.status).toBe('running')
+    expect(readFileSync(file, 'utf8')).toBe(before)
+    expect(new StudyReadinessStore(dir).read()).toEqual({ 'P2-HW': report })
+  })
+
+  it('keeps the saved report intact when the check throws before it is saved', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'readiness-'))
+    const store = new StudyReadinessStore(dir)
+    const first = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library(), subtopics: noSubtopics }, 1)
+    store.save(first)
+    const file = join(dir, STUDY_READINESS_FILE)
+    const before = readFileSync(file, 'utf8')
+    const broken = { ...library(), search: vi.fn(async () => { throw new Error('Falha na busca') }) }
+
+    await expect(
+      checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: broken, subtopics: noSubtopics }, 2, first),
+    ).rejects.toThrow('Falha na busca')
+
+    expect(readFileSync(file, 'utf8')).toBe(before)
+    expect(new StudyReadinessStore(dir).read()).toEqual({ 'P2-HW': first })
+  })
 })
 
 describe('book search, folder and queue', () => {
@@ -277,7 +339,7 @@ describe('book search, folder and queue', () => {
     const base = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library(), subtopics: noSubtopics }, 1)
     store.save(base)
     let release!: (books: StudyBookSuggestion[]) => void
-    const pending = suggestTopicBooks(store, 'P2-HW', 'Diodos', () => new Promise((resolve) => (release = resolve)))
+    const pending = suggestTopicBooks(store, 'P2-HW', 'Diodos', () => new Promise((resolve) => (release = resolve)), new SerialQueue())
     // A check of the discipline saves a new report while the search is still waiting.
     store.save({ ...base, builtAt: 9, topics: base.topics.map((t) => (t.topic === 'Amplificadores' ? { ...t, reason: 'nova' } : t)) })
     release([book])
@@ -288,11 +350,34 @@ describe('book search, folder and queue', () => {
     expect(result.topics.find((t) => t.topic === 'Diodos')?.books).toEqual([book])
   })
 
+  it('lets a queued check finish while the book search is still pending', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'readiness-'))
+    const store = new StudyReadinessStore(dir)
+    const base = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library(), subtopics: noSubtopics }, 1)
+    store.save(base)
+    const queue = new SerialQueue()
+    let release!: (books: StudyBookSuggestion[]) => void
+    let searching = false
+    const search = () => {
+      searching = true
+      return new Promise<StudyBookSuggestion[]>((resolve) => (release = resolve))
+    }
+    const pending = suggestTopicBooks(store, 'P2-HW', 'Diodos', search, queue)
+    // Same wiring as checkDiscipline in src/main/ipc/tasks.ts: a check queued on the shared readiness queue.
+    const checked = await queue.run(() =>
+      checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library(), subtopics: noSubtopics }, 2),
+    )
+    expect(searching).toBe(true)
+    expect(checked.builtAt).toBe(2)
+    release([book])
+    expect((await pending).topics.find((t) => t.topic === 'Diodos')?.books).toEqual([book])
+  })
+
   it('does not search for a topic the saved report does not have, and does not write', async () => {
     dir = mkdtempSync(join(tmpdir(), 'readiness-'))
     const store = new StudyReadinessStore(dir)
     const search = vi.fn(async () => [book])
-    await expect(suggestTopicBooks(store, 'P2-HW', 'Diodos', search)).rejects.toThrow(/prontidão/)
+    await expect(suggestTopicBooks(store, 'P2-HW', 'Diodos', search, new SerialQueue())).rejects.toThrow(/prontidão/)
     expect(search).not.toHaveBeenCalled()
     expect(store.read()).toEqual({})
   })

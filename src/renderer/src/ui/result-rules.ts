@@ -1,3 +1,5 @@
+import type { AgentResult, AgentSummary } from '@shared/types'
+
 /**
  * Enable rules of the changed-files card of a result ("Abrir no editor", "Descartar",
  * "Commitar", "Abrir PR"). Pure so they are testable without the DOM; the result card
@@ -35,6 +37,16 @@ export function changeButtons(c: ResultChangesLike | null | undefined): ChangeRu
     // After the commit the branch is ready to push, so "Abrir PR" stays available.
     pr: !!c.git && !!c.branch && !c.discarded,
   }
+}
+
+/**
+ * Results that opening an agent's conversation receives on its own. Squad deliveries wait
+ * for their verified PR, errors stay for the reader, and results with changes keep the
+ * commit and PR actions of their card.
+ */
+export function autoAckResults<T extends AgentResult>(agent: Pick<AgentSummary, 'squad' | 'role'> | undefined, results: T[]): T[] {
+  if (!agent || agent.squad || agent.role === 'orchestrator') return []
+  return results.filter((r) => !r.isError && !r.changes)
 }
 
 /**

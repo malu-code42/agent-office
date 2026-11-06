@@ -181,8 +181,6 @@ export abstract class BoardColumns extends BoardBase {
     const who = cardAgent(t, this.state.agents)
     const blockerIds = unresolvedBlockerIds(t, [...this.state.tickets.values()])
     const blockers = blockerIds.map((id) => this.state.tickets.get(id)?.key ?? id)
-    // Only the children on this board are known here; a closed child counts as feito only while it is on the board.
-    const children = t.type === 'epic' ? [...this.state.tickets.values()].filter((c) => c.parent === t.key) : []
     const el = h(
       'div',
       {
@@ -206,15 +204,6 @@ export abstract class BoardColumns extends BoardBase {
       ),
       h('div', { class: 'tcard-title' }, t.title),
       blockers.length ? h('div', { class: 'tcard-blocked', title: `Bloqueado por ${blockers.join(', ')}` }, `Bloqueado por ${blockers.join(', ')}`) : null,
-      t.parent ? h('div', { class: 'tcard-parent' }, `Mãe: ${t.parent}`) : null,
-      children.length
-        ? h(
-            'div',
-            { class: 'tcard-children' },
-            h('div', { class: 'tcard-children-count' }, `${children.filter((c) => c.status === 'done').length}/${children.length} filhos feitos`),
-            h('div', { class: 'tcard-children-list' }, ...children.map((c) => h('span', { class: `tchild tchild-${c.status}`, title: c.title }, c.key))),
-          )
-        : null,
       who ? this.agentLine(who) : null,
       agent && t.status === 'doing' ? h('div', { class: 'tcard-live' }, h('span', { class: `dot dot-${agent.status}` }), agent.activity) : null,
       t.tags.length ? h('div', { class: 'tcard-tags' }, ...t.tags.slice(0, 4).map((tag) => h('span', { class: 'ttag' }, tag))) : null,

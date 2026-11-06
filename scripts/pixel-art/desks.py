@@ -80,10 +80,11 @@ def ws_front_x(sc, x, y, vi, state, d_=34, head=None, col=F.CHAIR):
 
     def d():
         graphite(L, x, y, 14, d_)
-        F.crt(L, x + 8, a + 2, 12, '-x', state, 1)
+        # the monitor's back faces the camera: items on the screen side are farther, so they're drawn first
         G.laptop(L, x + 2, a - 10, 12, '-x', '82aaff')
         F.keyboard(L, x, a + 5, 12, 'y')
         F.mug(L, x + 2, a + 2, 12, MUG)
+        F.crt(L, x + 8, a + 2, 12, '-x', state, 1)
     sc.add((x, y, x + 14, y + d_), d, True)
     cx, cy = x - 12, y + d_ - 13
 
