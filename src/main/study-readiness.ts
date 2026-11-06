@@ -229,13 +229,15 @@ export function openableFolder(store: StudyReadinessStore, folder: string): stri
 
 /**
  * Puts the books on a topic that is not ready, in the report as it is saved now (not as it was before
- * the search, so a check that ran meanwhile is kept). Run it in the same queue as the checks.
+ * the search, so a check that ran meanwhile is kept). The search runs outside `queue`; only the read and
+ * the write of the report run in it, so checks are not held up by the web and model search.
  */
 export async function suggestTopicBooks(
   store: StudyReadinessStore,
   discipline: string,
   topic: string,
   search: (topic: StudyReadinessTopic) => Promise<StudyBookSuggestion[]>,
+  queue: SerialQueue = new SerialQueue(),
 ): Promise<StudyReadiness> {
   const before = store.read()[discipline]
   const byId = before?.topics.filter((t) => t.id === topic) ?? []
@@ -244,12 +246,14 @@ export async function suggestTopicBooks(
   if (matches.length !== 1 || !selected)
     throw new Error('Confira a prontidão da disciplina antes de sugerir livros. O tópico não existe ou está repetido.')
   const books = await search(selected)
-  const current = store.read()[discipline]
-  if (!current) throw new Error('Confira a prontidão da disciplina antes de sugerir livros.')
-  const scope = current.topics.map((t) => ({ id: t.id, title: t.topic }))
-  const entry = readinessTopicOf(current, { id: selected.id, title: selected.topic }, scope)
-  if (!entry) throw new Error('O tópico mudou no relatório de prontidão. Prepare a disciplina de novo antes de sugerir livros.')
-  const next = { ...current, topics: current.topics.map((t) => (t === entry && t.state !== 'pronto' ? { ...t, books } : t)) }
-  store.save(next)
-  return next
+  return queue.run(async () => {
+    const current = store.read()[discipline]
+    if (!current) throw new Error('Confira a prontidão da disciplina antes de sugerir livros.')
+    const scope = current.topics.map((t) => ({ id: t.id, title: t.topic }))
+    const entry = readinessTopicOf(current, { id: selected.id, title: selected.topic }, scope)
+    if (!entry) throw new Error('O tópico mudou no relatório de prontidão. Prepare a disciplina de novo antes de sugerir livros.')
+    const next = { ...current, topics: current.topics.map((t) => (t === entry && t.state !== 'pronto' ? { ...t, books } : t)) }
+    store.save(next)
+    return next
+  })
 }

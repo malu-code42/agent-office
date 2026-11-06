@@ -288,6 +288,19 @@ describe('book search, folder and queue', () => {
     expect(result.topics.find((t) => t.topic === 'Diodos')?.books).toEqual([book])
   })
 
+  it('lets a queued check run while the book search is still waiting', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'readiness-'))
+    const store = new StudyReadinessStore(dir)
+    const base = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library(), subtopics: noSubtopics }, 1)
+    store.save(base)
+    const queue = new SerialQueue()
+    let release!: (books: StudyBookSuggestion[]) => void
+    const pending = suggestTopicBooks(store, 'P2-HW', 'Diodos', () => new Promise((resolve) => (release = resolve)), queue)
+    await expect(queue.run(async () => 'checked')).resolves.toBe('checked')
+    release([book])
+    expect((await pending).topics.find((t) => t.topic === 'Diodos')?.books).toEqual([book])
+  })
+
   it('does not search for a topic the saved report does not have, and does not write', async () => {
     dir = mkdtempSync(join(tmpdir(), 'readiness-'))
     const store = new StudyReadinessStore(dir)

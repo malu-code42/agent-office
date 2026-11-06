@@ -324,18 +324,16 @@ export function registerTasksIpc(ctx: IpcContext): void {
   // On request only (a web and model search): the books are kept in the report of the topic.
   ipcMain.handle('office:suggestStudyBooks', (_e, ...args: unknown[]) => {
     const [discipline, name] = parse(suggestStudyBooksArgsSchema, args, 'Tópico inválido.')
-    return readinessQueue.run(() =>
-      suggestTopicBooks(readinessStore, discipline, name, async (selected) => {
-        const trail = parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE))
-        const matches = studyBankTopics(trail, { discipline }).filter((t) =>
-          selected.id ? t.id === selected.id : t.title === selected.topic,
-        )
-        const [trailTopic] = matches
-        if (matches.length !== 1 || !trailTopic)
-          throw new Error('O tópico mudou ou está repetido na trilha. Confira a prontidão da disciplina de novo.')
-        return suggestBooks(trailTopic.title, trailTopic.discipline)
-      }),
-    )
+    return suggestTopicBooks(readinessStore, discipline, name, async (selected) => {
+      const trail = parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE))
+      const matches = studyBankTopics(trail, { discipline }).filter((t) =>
+        selected.id ? t.id === selected.id : t.title === selected.topic,
+      )
+      const [trailTopic] = matches
+      if (matches.length !== 1 || !trailTopic)
+        throw new Error('O tópico mudou ou está repetido na trilha. Confira a prontidão da disciplina de novo.')
+      return suggestBooks(trailTopic.title, trailTopic.discipline)
+    }, readinessQueue)
   })
   ipcMain.handle('office:saveStudyQuestions', async (_e, ...args: unknown[]) => {
     const [token, selection, reviewConfirmed] = parse(studyQuestionSaveArgsSchema, args, 'Seleção de questões inválida.')
