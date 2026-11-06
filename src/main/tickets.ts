@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { createSdkMcpServer, tool, type McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import { projectFor } from '@shared/projects'
+import { HAIKU_MODEL } from '@shared/pricing'
 import { blockerIdsFor, hasBlockerPRSnapshot, INVALID_BLOCKER_ID, isTicketBlocked, validateTicketBlockers } from '@shared/ticket-blockers'
 import { isPullRequestUrl } from '@shared/pull-request-url'
 import { labelOf, PRIORITIES, STATUSES, ticketBrief, TYPES } from '@shared/tickets'
@@ -600,7 +601,7 @@ export class TicketBoard extends EventEmitter {
             status: z.enum(['backlog', 'todo']).default('backlog'),
             cwd: z.string().optional().describe('Pasta do projeto; padrão: a sua pasta atual'),
             estimate: z.number().optional().describe('Pontos de esforço'),
-            model: z.string().optional().describe('Modelo mais barato que dá conta, ex.: claude-haiku-4-5-20251001, claude-sonnet-5-5, claude-opus-5-5'),
+            model: z.string().optional().describe(`Modelo mais barato que dá conta, ex.: ${HAIKU_MODEL}, claude-sonnet-5-5, claude-opus-5-5`),
             effort: z.enum(EFFORT_LEVELS as [EffortLevel, ...EffortLevel[]]).optional().describe('Esforço de raciocínio: low para trabalho mecânico, high/xhigh só para o difícil'),
           },
           (args) =>

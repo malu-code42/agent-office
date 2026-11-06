@@ -16,6 +16,7 @@ const RUNNER = '_opensquad/core/runner.pipeline.md'
  * leading dot, so none of them can climb out when it becomes part of a path.
  */
 const SAFE_NAME = /^[\w-]{1,64}$/
+const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max'])
 /** Tools that start a subagent (Agent; Task in older Claude Code builds). */
 const SPAWN_TOOLS = new Set(['Agent', 'Task'])
 
@@ -191,6 +192,8 @@ function loadSquad(cwd: string, dir: string): SquadDefinition {
         (str(a.role) || str(meta.role)) === 'implementer' || (str(a.role) || str(meta.role)) === 'reviewer'
           ? ((str(a.role) || str(meta.role)) as 'implementer' | 'reviewer')
           : undefined,
+      ...(str(a.model) || str(meta.model) ? { model: str(a.model) || str(meta.model) } : {}),
+      ...(EFFORTS.has(str(a.effort) || str(meta.effort)) ? { effort: (str(a.effort) || str(meta.effort)) as SquadMember['effort'] } : {}),
       sector: str(a.setor) || DEFAULT_SECTOR,
     })
     prompts[id] = body.trim() || `Você é ${str(a.name) || id}, membro do squad ${str(y.name) || code}.`
@@ -231,6 +234,9 @@ export function memberAgents(s: SquadDefinition): Record<string, AgentDefinition
     out[m.id] = {
       description: `${m.icon} ${m.name}${m.title ? `, ${m.title}` : ''}${m.role ? ` (${m.role})` : ''}. Membro do squad ${s.name}.`,
       prompt: `${s.prompts[m.id]}${m.role === 'implementer' ? '\n\nVocê é o implementador independente do squad; implemente a tarefa atribuída e registre decisões técnicas.' : m.role === 'reviewer' ? '\n\nVocê é o revisor independente do squad; revise criticamente o trabalho entregue e reporte problemas sem assumir a implementação.' : ''}\n\n${ECONOMY_RULE}`,
+      // AO-86: o que Emi julgou para o membro vale; sem escolha ele herda o par do orquestrador.
+      ...(m.model ? { model: m.model } : {}),
+      ...(m.effort ? { effort: m.effort } : {}),
       // Members do their own step; only the orchestrator hands out work.
       disallowedTools: [...SPAWN_TOOLS],
     }

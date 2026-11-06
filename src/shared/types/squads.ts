@@ -10,6 +10,10 @@ export interface SquadMember {
   execution: 'subagent' | 'inline'
   /** The independent delivery responsibility assigned in squad.yaml or member frontmatter. */
   role?: 'implementer' | 'reviewer'
+  /** Modelo do membro (alias ou id); ausente = herda o do orquestrador, isto é, o do ticket. */
+  model?: string
+  /** Esforço do membro; ausente = herda o do orquestrador. */
+  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   /** Sector on the project floor: `setor:` in squad.yaml, or "Equipe". */
   sector: string
 }

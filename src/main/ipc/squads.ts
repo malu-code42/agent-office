@@ -9,6 +9,7 @@ import { ticketBrief } from '@shared/tickets'
 import { SQUAD_ROOM_COUNT, type ProjectFloor } from '@shared/types'
 import { emiTools } from '../emi-tools'
 import { copySquadRuntime, findSquad, inspectSquads, isDir, squadDir, squadInfo, validateSquad } from '../squads'
+import { brainForTicket } from '../ticket-brain'
 import { isBeingCreated, removeSquad } from '../squad-writer'
 import { createWorktree, excludeSquadRuntime } from '../git'
 import {
@@ -114,7 +115,8 @@ export function registerSquadsIpc(ctx: IpcContext): void {
           `Rodar um ciclo de ${squad.icon} ${squad.name}${extra ? `\n\n${extra}` : ''}`,
           {
             ...defaultBrain(),
-            model: 'claude-haiku-5-5',
+            // AO-86: o par julgado para o ticket ativo; sem ticket, o padrão das configurações.
+            ...(active ? brainForTicket(active, defaultBrain()) : {}),
             // Same rule as tickets: a cycle reaches real systems, so it never runs with "bypass".
             permissionMode,
           },
