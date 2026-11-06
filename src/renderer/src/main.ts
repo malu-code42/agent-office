@@ -21,6 +21,7 @@ import { openPersonalRoutinesPanel } from './ui/personal-routines'
 import { openWritingLibrary } from './ui/writing'
 import { openStudyCycle, startStudyTopic } from './ui/study-cycle'
 import { openStudyTrailBoard } from './ui/study-trail-board'
+import { autoAckResults } from './ui/result-rules'
 import { BONNIE_AGENT_ID } from '@shared/bonnie'
 import { openStudyCards } from './ui/study-cards'
 import { openStudyIdeas } from './ui/study-ideas'
@@ -320,6 +321,9 @@ async function boot(): Promise<void> {
   const showAgent = async (id: string, helper?: string | null): Promise<void> => {
     game.clearFailureMarks(id)
     await panel.open(id, helper ?? null)
+    if (helper) return
+    for (const r of autoAckResults(state.agents.get(id), state.itemsFor(id).results))
+      window.office.ackResult(r.id).catch((err) => toast(cleanError(err), 'err'))
   }
 
   /**
