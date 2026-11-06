@@ -123,7 +123,8 @@ export function splitStudyRationale(rationale: string | undefined): { rationale:
   }
 }
 
-const BOOKS = 'study sources/textbooks/'
+/** Only books: `ocr/` and course materials stay out of every search (no OCR, per the design). */
+export const BOOKS = 'study sources/textbooks/'
 
 /** Where each discipline of the trail (by its id) reads from: vault folders under the study sources. */
 export const DISCIPLINE_SOURCES: Record<string, readonly string[]> = {

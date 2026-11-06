@@ -757,7 +757,7 @@ export async function openStudyBankBuilder(
       'span',
       { class: 'bk-why' },
       h('span', { class: `bk-reason ${chip}` }, info.chip),
-      reason === 'no-book' && r.folder ? `${info.text} Coloque o livro em “${r.folder}” e monte de novo.` : info.text,
+      reason === 'no-book' && r.folder ? `${info.text} Coloque o livro em “${r.folder}” e monte de novo.` : reason === 'no-passage' && r.folder ? `${info.text} Pasta: “${r.folder}”.` : info.text,
       h('span', { class: 'grow' }),
       ...actions,
       bookList(r.books),
