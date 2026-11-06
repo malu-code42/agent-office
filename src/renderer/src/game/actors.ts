@@ -111,11 +111,10 @@ export abstract class GameActors extends GameBoards {
 
   protected desired(actor: Actor, a: AgentSummary): Goal {
     const items = this.state.itemsFor(a.id)
-    // Luna comes to the player with a question, a permission or a result, and goes back to her chair after.
-    if (a.builtIn === 'luna') return items.permissions.length || items.results.length ? 'boss' : 'seat'
+    // Nobody walks to the player: questions, permissions and results wait where the agent is, and the player comes.
+    if (a.builtIn === 'luna') return 'seat'
     if (a.homeResident) return 'home'
-    if (items.permissions.length || a.status === 'waiting') return 'boss'
-    if (items.results.length) return resultDestination(a, !!this.upperOf(this.homeFloor(a))) === 'meeting' ? 'meeting' : 'boss'
+    if (items.results.length && resultDestination(a, !!this.upperOf(this.homeFloor(a))) === 'meeting') return 'meeting'
     if (a.role === 'orchestrator') {
       // The squad room is home: no lounge between cycles.
       return 'desk'
