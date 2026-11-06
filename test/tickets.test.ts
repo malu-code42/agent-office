@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -241,90 +241,18 @@ describe('fechar e reabrir', () => {
   })
 })
 
-describe('tickets-mãe (parent)', () => {
-  it('liga filho à mãe, persiste e devolve os filhos', () => {
-    const mae = board.create({ title: 'Grupo', type: 'epic' }, me)
-    const filho = board.create({ title: 'Filho', parent: mae.key }, me)
-    expect(filho.parent).toBe(mae.key)
-    const again = reload()
-    expect(again.byKey(filho.key)!.parent).toBe(mae.key)
-    expect(again.byKey(filho.key)!.activity.length).toBeGreaterThan(0)
-  })
-
-  it('recusa mãe inexistente, que não é épico, de si mesmo e mãe com mãe', () => {
-    const comum = board.create({ title: 'Comum' }, me)
-    expect(() => board.create({ title: 'x', parent: 'AO-99' }, me)).toThrow('não existe')
-    expect(() => board.create({ title: 'x', parent: comum.key }, me)).toThrow('não é um ticket-mãe')
-    const mae = board.create({ title: 'Mãe', type: 'epic' }, me)
-    const sub = board.create({ title: 'Sub', parent: mae.key }, me)
-    expect(sub.parent).toBe(mae.key)
-    expect(() => board.create({ title: 'neto', parent: sub.key }, me)).toThrow('não é um ticket-mãe')
-    expect(() => board.update(mae.id, { parent: mae.key }, me)).toThrow('não pode ser mãe de si')
-    expect(() => board.update(mae.id, { parent: comum.key }, me)).toThrow('não é um ticket-mãe')
-  })
-
-  it('mãe com filhos não pode virar outro tipo nem ter mãe', () => {
-    const mae = board.create({ title: 'Mãe', type: 'epic' }, me)
-    board.create({ title: 'Filho', parent: mae.key }, me)
-    expect(() => board.update(mae.id, { type: 'task' }, me)).toThrow('tem filhos')
-    const outra = board.create({ title: 'Outra', type: 'epic' }, me)
-    expect(() => board.update(outra.id, { parent: mae.key }, me)).toThrow('não pode ter mãe')
-    const filhaDeFilha = board.create({ title: 'F', type: 'epic' }, me)
-    board.create({ title: 'Neto', parent: filhaDeFilha.key }, me)
-    expect(() => board.update(filhaDeFilha.id, { parent: mae.key }, me)).toThrow('não pode ter mãe')
-  })
-
-  it('mãe só vai a Feito quando todos os filhos estão feitos; mover não move filhos', () => {
-    const mae = board.create({ title: 'Mãe', type: 'epic', status: 'todo' }, me)
-    const a = board.create({ title: 'A', parent: mae.key, status: 'todo' }, me)
-    board.create({ title: 'B', parent: mae.key, status: 'todo' }, me)
-    board.move(mae.id, 'doing', undefined, me)
-    expect(board.byKey(a.key)!.status).toBe('todo')
-    expect(() => board.move(mae.id, 'done', undefined, me)).toThrow('Faltam: AO-')
-    expect(() => board.update(mae.id, { status: 'done' }, me)).toThrow('todos os filhos')
-    board.move(a.id, 'done', undefined, me)
-    expect(() => board.move(mae.id, 'done', undefined, me)).toThrow('Faltam')
-  })
-
-  it('filho fechado conta como feito; remover a mãe solta os filhos', () => {
-    const mae = board.create({ title: 'Mãe', type: 'epic' }, me)
-    const f = board.create({ title: 'F', parent: mae.key, status: 'done' }, me)
-    board.close([f.id], me)
-    board.move(mae.id, 'done', undefined, me)
-    expect(board.byKey(mae.key)!.status).toBe('done')
-    const g = board.create({ title: 'G', parent: mae.key }, me)
-    board.remove(mae.id)
-    expect(board.byKey(g.key)!.parent).toBeUndefined()
-  })
-
-  it('desliga com null e recusa chave malformada', () => {
-    const mae = board.create({ title: 'Mãe', type: 'epic' }, me)
-    const f = board.create({ title: 'F', parent: `ao-${mae.key.slice(3)}` }, me)
-    expect(f.parent).toBe(mae.key)
-    board.update(f.id, { parent: null }, me)
-    expect(board.byKey(f.key)!.parent).toBeUndefined()
-    expect(() => board.update(f.id, { parent: 'lixo' }, me)).toThrow('Mãe inválida')
-  })
-
-  it('ferramentas: ticket_create/update aceitam parent; ticket_get e tickets_list mostram a relação', async () => {
-    type Tool = { name: string; handler: (args: Record<string, unknown>) => Promise<{ content: { text: string }[]; isError?: boolean }> }
-    const server = board.toolsFor({ id: 'ag-1', name: 'Ada', cwd: dir, project: 'p1' } as AgentSummary, () => [{ id: 'p1', name: 'Loja', cwd: dir }]) as unknown as { tools: Tool[] }
-    const call = async (name: string, args: Record<string, unknown>) => {
-      const r = await server.tools.find((t) => t.name === name)!.handler(args)
-      return { text: r.content[0].text, isError: !!r.isError }
-    }
-    await call('ticket_create', { title: 'Mãe', type: 'epic', description: '', acceptance: [], tags: [], status: 'todo' })
-    const f = await call('ticket_create', { title: 'Filho', description: '', acceptance: [], tags: [], status: 'todo', parent: 'AO-1' })
-    expect(f.text).toBe('Criei AO-2: Filho (A fazer).')
-    expect((await call('ticket_get', { key: 'AO-1' })).text).toContain('## Filhos')
-    expect((await call('ticket_get', { key: 'AO-1' })).text).toContain('- AO-2 [todo] Filho')
-    expect((await call('ticket_get', { key: 'AO-2' })).text).toContain('**Mãe:** AO-1')
-    const list = await call('tickets_list', {})
-    expect(list.text).toContain('AO-1 [todo] Mãe (epic, medium · 0/1 filhos feitos)')
-    expect(list.text).toContain('AO-2 [todo] Filho (task, medium · mãe AO-1)')
-    expect((await call('ticket_update', { key: 'AO-2', parent: null })).text).toContain('atualizado')
-    expect(board.byKey('AO-2')!.parent).toBeUndefined()
-    expect((await call('ticket_update', { key: 'AO-2', parent: 'AO-404' })).isError).toBe(true)
+describe('ticket removido do tipo Mãe', () => {
+  it('ticket salvo com parent ou tipo epic carrega sem erro: campo descartado, tipo vira task', () => {
+    board.create({ title: 'Antigo' }, me)
+    board.flush()
+    const file = join(dir, 'tickets.json')
+    const data = JSON.parse(readFileSync(file, 'utf8'))
+    data.tickets.push({ ...data.tickets[0], id: 'old-epic', key: 'AO-8', type: 'epic' }, { ...data.tickets[0], id: 'old-child', key: 'AO-9', parent: 'AO-8' })
+    writeFileSync(file, JSON.stringify(data))
+    // Not reload(): its flush() would rewrite the file from memory before loading.
+    const again = new TicketBoard(dir)
+    expect(again.byKey('AO-8')).toMatchObject({ type: 'task' })
+    expect(again.byKey('AO-9')).not.toHaveProperty('parent')
   })
 })
 
