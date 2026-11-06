@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import { generateIdeas } from '../src/main/study-ideas'
 import type { ReadinessSource } from '../src/main/study-readiness'
 import { parseIdeas, studiedTopics } from '../src/shared/study-ideas'
+import { topicName } from '../src/shared/study-trail'
 import type { StudyCycle, StudyCycleState } from '../src/shared/study-cycle'
 import type { StudyReadiness } from '../src/shared/study-readiness'
 import { parseStudyTrail } from '../src/shared/study-trail'
@@ -28,6 +30,20 @@ describe('studiedTopics', () => {
       { topic: 'Banco de dados', completed: false },
       { topic: 'Redes', completed: true },
     ])
+  })
+})
+
+describe('nome exibido dos tópicos (AO-35)', () => {
+  it('tira o código da frente, mas mantém o tópico guardado com ele', () => {
+    const [stored] = studiedTopics({ activeId: null, cycles: [cycle('[P2-ED-01] Árvores', 'diagnosis', 1)] })
+    expect(stored.topic).toBe('[P2-ED-01] Árvores')
+    expect(topicName(stored.topic)).toBe('Árvores')
+  })
+
+  it('o renderer mostra e anuncia o nome exibido, não o tópico cru', () => {
+    const source = readFileSync('src/renderer/src/ui/study-ideas.ts', 'utf8')
+    expect(source).toContain("h('b', {}, topicName(topic))")
+    expect(source).toContain('announce(`Ideias de ${topicName(topic)} geradas.`)')
   })
 })
 

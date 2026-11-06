@@ -1,4 +1,5 @@
 import { studiedTopics, type StudyIdeaSet } from '@shared/study-ideas'
+import { topicName } from '@shared/study-trail'
 import { announce } from './a11y'
 import { h } from './dom'
 import { cleanError, modal } from './modals/common'
@@ -28,7 +29,7 @@ export async function openStudyIdeas(root: HTMLElement, toast: Toast): Promise<v
     paint()
     try {
       sets = { ...sets, [topic]: await window.office.generateStudyIdeas(topic) }
-      announce(`Ideias de ${topic} geradas.`)
+      announce(`Ideias de ${topicName(topic)} geradas.`)
     } catch (error) {
       toast(cleanError(error), 'err')
     }
@@ -47,7 +48,7 @@ export async function openStudyIdeas(root: HTMLElement, toast: Toast): Promise<v
               h(
                 'div',
                 { class: 'tk-top' },
-                h('b', {}, topic),
+                h('b', {}, topicName(topic)),
                 h('span', { class: 'tk-sub' }, completed ? 'concluído' : 'em estudo'),
                 h('span', { class: 'grow' }),
                 h(
