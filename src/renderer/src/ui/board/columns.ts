@@ -5,7 +5,18 @@ import { h, icon } from '../dom'
 import { cleanError } from '../modals'
 import { portrait } from '../portrait'
 import { beforeCard, clearDropMarks, DONE_SHOWN, EMPTY, initials, overdue, shortDate, type Who } from './helpers'
-import { ALL_FLOORS, cardAgent, floorTabs, ticketFloor, ticketsOnFloor, type CardAgent } from './model'
+import {
+  ALL_FLOORS,
+  cardAgent,
+  floorTabs,
+  matchesFilters,
+  resolveTag,
+  tagOptions,
+  ticketFloor,
+  ticketsOnFloor,
+  type BoardFilters,
+  type CardAgent,
+} from './model'
 import { BoardBase } from './base'
 
 /** The kanban columns and cards: filters, drag and drop, moving by keyboard. */
@@ -63,22 +74,34 @@ export abstract class BoardColumns extends BoardBase {
   // ---------- columns ----------
 
   protected visible(): Ticket[] {
-    const q = this.search.value.trim().toLowerCase()
-    const type = this.typeFilter.value
-    const prio = this.prioFilter.value
-    const who = this.whoFilter.value as Who | ''
-    return this.onFloor().filter((t) => {
-      if (type && t.type !== type) return false
-      if (prio && t.priority !== prio) return false
-      if (who === 'me' && t.assignee?.kind !== 'player') return false
-      if (who === 'agents' && t.assignee?.kind !== 'agent') return false
-      if (who === 'none' && t.assignee) return false
-      return !q || [t.key, t.title, t.description, ...t.tags].some((v) => v.toLowerCase().includes(q))
-    })
+    const filters: BoardFilters = {
+      query: this.search.value.trim().toLowerCase(),
+      type: this.typeFilter.value,
+      priority: this.prioFilter.value,
+      who: this.whoFilter.value as Who | '',
+      tag: this.tagFilter.value,
+    }
+    return this.onFloor().filter((t) => matchesFilters(t, filters))
+  }
+
+  /** Refaz as opções do filtro de etiqueta com as do andar mostrado; se a escolhida sumiu, volta para "Todas". */
+  protected renderTagFilter(): void {
+    const options = tagOptions(this.onFloor())
+    const keep = resolveTag(this.tagFilter.value, options)
+    const key = options.join('\u0000')
+    if (key !== this.tagKey) {
+      this.tagKey = key
+      this.tagFilter.replaceChildren(
+        h('option', { value: '' }, 'Todas as etiquetas'),
+        ...options.map((tag) => h('option', { value: tag }, tag)),
+      )
+    }
+    this.tagFilter.value = keep
   }
 
   protected renderColumns(): void {
     this.renderTabs()
+    this.renderTagFilter()
     const shown = this.visible()
     const total = this.onFloor().length
     this.count.textContent = shown.length === total ? String(total) : `${shown.length} de ${total}`
