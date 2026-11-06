@@ -1,4 +1,8 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { PlanningStore } from '../src/main/planning'
 import { groupFocusItems, focusItems } from '../src/shared/planning'
 import { parseTasksFile } from '../src/shared/tasks'
 
@@ -26,15 +30,22 @@ describe('groupFocusItems', () => {
     expect(groupFocusItems(lists, after)).toEqual([{ name: 'Casa', items: [after[0]] }])
   })
 
-  it('concluir: a tarefa sai da lista e do foco, e o grupo dela some', () => {
-    const open = parseTasksFile('## Casa\n- [ ] Um ^taaaaaa\n- [ ] Dois ^tbbbbbb\n## Estudo\n- [ ] Ler ^tdddddd\n').lists
-    const items = focusItems(open, ['taaaaaa', 'tdddddd'])
-    expect(groupFocusItems(open, items).map((g) => g.name)).toEqual(['Casa', 'Estudo'])
-    // completed: the line leaves tarefas.md and the id leaves the focus
-    const done = parseTasksFile('## Casa\n- [ ] Um ^taaaaaa\n- [ ] Dois ^tbbbbbb\n').lists
-    const left = focusItems(done, ['taaaaaa'])
-    expect(groupFocusItems(done, left)).toEqual([{ name: 'Casa', items: [left[0]] }])
-    expect(groupFocusItems(done, focusItems(done, []))).toEqual([])
+  it('concluir: a tarefa sai do foco pela ação real (archive) e o grupo dela some', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ao-focus-groups-'))
+    try {
+      const store = new PlanningStore(dir)
+      const open = parseTasksFile('## Casa\n- [ ] Um ^taaaaaa\n- [ ] Dois ^tbbbbbb\n## Estudo\n- [ ] Ler ^tdddddd\n').lists
+      store.add('taaaaaa')
+      store.add('tdddddd')
+      expect(groupFocusItems(open, focusItems(open, store.focus())).map((g) => g.name)).toEqual(['Casa', 'Estudo'])
+      // Concluir: the line leaves tarefas.md, and planning archives it, which drops the id from the focus
+      const done = parseTasksFile('## Casa\n- [ ] Um ^taaaaaa\n- [ ] Dois ^tbbbbbb\n').lists
+      store.archive('tdddddd', { origin: 'Estudo', completedAt: '2026-11-06', originalLine: '- [ ] Ler ^tdddddd' })
+      expect(store.focus()).toEqual(['taaaaaa'])
+      expect(groupFocusItems(done, focusItems(done, store.focus())).map((g) => g.name)).toEqual(['Casa'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('keeps missing or stale items accessible without inventing a list', () => {
