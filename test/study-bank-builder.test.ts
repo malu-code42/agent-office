@@ -253,4 +253,23 @@ describe('buildStudyBank passages', () => {
     expect(results[0]).toMatchObject({ added: 2, reason: 'little' })
     expect(search.mock.calls.every(([, scope]) => scope !== undefined)).toBe(true)
   })
+
+  it('reads the other textbooks when the topic folder has no passage, and still makes the questions', async () => {
+    const { deps, search, bank } = setup()
+    search.mockImplementation(async (_query: string, scope?: readonly string[]) => ({ hits: scope?.[0] === 'study sources/textbooks/' ? [1, 2, 3, 4].map((n) => variant(n, 'Lógica e Matemática Discreta')) : [] }))
+    const { results } = await buildStudyBank(trail, deps, { perTopic: 2, discipline: 'P1-ICC' })
+    expect(results[0]).toMatchObject({ added: 2 })
+    expect(results[0]!.reason).toBeUndefined()
+    expect(search).toHaveBeenCalledWith('Sistemas de numeração', ['study sources/textbooks/'])
+    expect(bank).toHaveLength(2)
+  })
+
+  it('reports no-passage with the topic folder when no textbook has a passage', async () => {
+    const { deps, search } = setup()
+    search.mockImplementation(async () => ({ hits: [] }))
+    const { results } = await buildStudyBank(trail, deps, { perTopic: 2, discipline: 'P1-ICC' })
+    expect(results[0]).toMatchObject({ added: 0, reason: 'no-passage' })
+    expect(search).toHaveBeenCalledWith('Sistemas de numeração', ['study sources/textbooks/Introdução à Ciência da Computação/'])
+    expect(search).toHaveBeenCalledWith('Sistemas de numeração', ['study sources/textbooks/'])
+  })
 })
