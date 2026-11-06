@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { parseIdeas, studiedTopics } from '../src/shared/study-ideas'
 import { topicName } from '../src/shared/study-trail'
@@ -33,6 +34,12 @@ describe('nome exibido dos tópicos (AO-35)', () => {
     const [stored] = studiedTopics({ activeId: null, cycles: [cycle('[P2-ED-01] Árvores', 'diagnosis', 1)] })
     expect(stored.topic).toBe('[P2-ED-01] Árvores')
     expect(topicName(stored.topic)).toBe('Árvores')
+  })
+
+  it('o renderer mostra e anuncia o nome exibido, não o tópico cru', () => {
+    const source = readFileSync('src/renderer/src/ui/study-ideas.ts', 'utf8')
+    expect(source).toContain("h('b', {}, topicName(topic))")
+    expect(source).toContain('announce(`Ideias de ${topicName(topic)} geradas.`)')
   })
 })
 
