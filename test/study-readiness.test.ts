@@ -278,6 +278,39 @@ describe('StudyReadinessStore', () => {
     expect(saved!.builtAt).toBe(2)
     expect(saved!.topics.find((t) => t.topic === 'Ondas')).toMatchObject({ state: 'sem-subtemas' })
   })
+
+  it('keeps the saved report byte for byte when the bank window is dismissed while a build runs', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'readiness-'))
+    const report = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library(), subtopics: noSubtopics }, 1)
+    new StudyReadinessStore(dir).save(report)
+    const file = join(dir, STUDY_READINESS_FILE)
+    const before = readFileSync(file, 'utf8')
+    const jobs = new StudyBankJobs(dir, () => {})
+    jobs.start(trail, { discipline: 'P2-HW' }, () => new Promise<never>(() => {}))
+
+    jobs.dismiss()
+
+    expect(jobs.status()?.status).toBe('running')
+    expect(readFileSync(file, 'utf8')).toBe(before)
+    expect(new StudyReadinessStore(dir).read()).toEqual({ 'P2-HW': report })
+  })
+
+  it('keeps the saved report intact when the check throws before it is saved', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'readiness-'))
+    const store = new StudyReadinessStore(dir)
+    const first = await checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: library(), subtopics: noSubtopics }, 1)
+    store.save(first)
+    const file = join(dir, STUDY_READINESS_FILE)
+    const before = readFileSync(file, 'utf8')
+    const broken = { ...library(), search: vi.fn(async () => { throw new Error('Falha na busca') }) }
+
+    await expect(
+      checkDisciplineReadiness(trail, 'P2-HW', { vault: VAULT, library: broken, subtopics: noSubtopics }, 2, first),
+    ).rejects.toThrow('Falha na busca')
+
+    expect(readFileSync(file, 'utf8')).toBe(before)
+    expect(new StudyReadinessStore(dir).read()).toEqual({ 'P2-HW': first })
+  })
 })
 
 describe('book search, folder and queue', () => {
