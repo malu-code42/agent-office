@@ -107,6 +107,7 @@ const api: OfficeAPI = {
   resumeBarTimer: () => ipcRenderer.invoke('office:barTimerResume'),
   resetBarTimer: () => ipcRenderer.invoke('office:barTimerReset'),
   setBarTimerTask: (task) => ipcRenderer.invoke('office:barTimerTask', task ?? null),
+  readFocusLog: (from, to) => ipcRenderer.invoke('office:focusLogRange', from, to),
   profileMemoryState: () => ipcRenderer.invoke('office:profileMemoryState'),
   readProfileMemory: (profileId) => ipcRenderer.invoke('office:profileMemoryRead', profileId),
   editProfileMemory: (profileId, text) => ipcRenderer.invoke('office:profileMemoryEdit', profileId, text),

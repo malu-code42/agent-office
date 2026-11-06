@@ -17,6 +17,7 @@ import type { Store } from '../store'
 import type { SystemMonitor } from '../system'
 import type { TicketBoard } from '../tickets'
 import type { BarTimerStore } from '../bar-timer-store'
+import type { FocusLogStore } from '../focus-log-store'
 import type { ProfileMemoryStore } from '../profile-memory'
 import type { ProjectWorkflowStore } from '../project-workflows'
 import type { UsageMonitor } from '../usage'
@@ -38,6 +39,8 @@ export interface IpcContext {
   planning: PlanningStore
   /** The Timer of the bar (AO-64), its own session in timer.json. */
   barTimer: BarTimerStore
+  /** O tempo de foco por tarefa (AO-92), em focus-log.json. */
+  focusLog: FocusLogStore
   /** The memory of the profiles (AO-43), one short summary per profile in profile-memory.json. */
   profileMemory: ProfileMemoryStore
   projectWorkflows: ProjectWorkflowStore

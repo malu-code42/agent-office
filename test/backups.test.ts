@@ -230,6 +230,7 @@ describe('restore', () => {
       'personal-routines.json',
       'study-cycle.json',
       'audio-dictionary.json',
+      'focus-log.json',
     ])
     restoreBackup(dir, '2026-10-01')
     expect(read('office.json')).toEqual({ v: 'old' })

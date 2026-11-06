@@ -1,11 +1,15 @@
 import { ipcMain } from 'electron'
 import { z } from 'zod'
 import { BAR_MODES } from '@shared/barTimer'
+import { dayKeysBetween } from '@shared/focusLog'
 import { parse, taskIdSchema } from '../validate'
 
 /** Longer task title (passes by hint/step labels today) — the same scope as parseStepText's input. */
 const taskTitleSchema = z.string().min(1).max(300)
 import type { IpcContext } from './context'
+
+/** Um dia AAAA-MM-DD do registro de foco. */
+const focusDaySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 
 /**
  * The bar Timer (AO-64), outside planning.json: one session in timer.json, owned by the user
@@ -24,6 +28,13 @@ export function registerBarTimerIpc(ctx: IpcContext): void {
     if (!BAR_MODE_LIST.includes(mode)) throw new Error('Escolha Foco · 25, Pausa curta · 5 ou Pausa longa · 15.')
     const link = task === null || task === undefined ? undefined : pageTask(task)
     return ctx.barTimer.start(mode as number, link)
+  })
+
+  // AO-92: o tempo de foco por tarefa, só leitura. A interface nunca escreve no registro.
+  ipcMain.handle('office:focusLogRange', (_e, from: unknown, to: unknown) => {
+    const a = parse(focusDaySchema, from, 'Dia inválido.')
+    const b = parse(focusDaySchema, to, 'Dia inválido.')
+    return ctx.focusLog.range(dayKeysBetween(a, b))
   })
 
   ipcMain.handle('office:barTimerPause', () => ctx.barTimer.pause())

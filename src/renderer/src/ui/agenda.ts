@@ -1,7 +1,10 @@
 import type { AgendaDay, AgendaEntry, AgendaView } from '@shared/agenda'
 import type { PersonalRoutineOverview, PersonalRoutineWeekRow } from '@shared/routine-personal'
+import { summarizeRange, type FocusRangeView, type FocusSegment } from '@shared/focusLog'
 import { h, icon } from './dom'
 import { layoutDayEvents, type DayEventLayout } from './agenda-day-layout'
+import { addDaysIso, collectDays, dayInputs, taskBlocks, weekDates } from './agenda-time'
+import { sevenDays, taskCard, timePanel, weekFocus, type WeekColumn } from './agenda-time-view'
 import { cleanError, modal } from './modals/common'
 import './agenda.css'
 
@@ -13,13 +16,10 @@ const weekdayOf = (iso: string) => WEEKDAYS[(new Date(`${iso}T12:00:00`).getDay(
 const weekdayShortOf = (iso: string) => WEEKDAY_SHORT[(new Date(`${iso}T12:00:00`).getDay() + 6) % 7]!
 const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-const T_FROM = 7
-const T_TO = 23
 const mins = (hm: string) => {
   const [hh, mm] = hm.split(':').map(Number)
   return hh * 60 + mm
 }
-const pos = (hm: string) => ((mins(hm) - T_FROM * 60) / ((T_TO - T_FROM) * 60)) * 100
 
 type ViewKind = 'resumo' | 'dia' | 'semana'
 type DayEv = { at: string; t: string; kind: string; note?: string; conflict?: boolean }
@@ -65,10 +65,24 @@ function dayCard(ev: DayEv, spot: DayEventLayout, from: number): HTMLElement {
   )
 }
 
-function dayLine(day: AgendaDay, now: string): HTMLElement {
-  const evs = day.entries.map(entryToEv).filter((e): e is DayEv => e !== null)
+/** Entradas da agenda prontas para a grade; a linha de tarefa concluída que o Timer já mostra como bloco não se repete. */
+function gridEvents(day: AgendaDay, workedIds: Set<string>): DayEv[] {
+  return day.entries
+    .filter((entry) => !(entry.kind === 'done' && workedIds.has(entry.id.toLowerCase())))
+    .map(entryToEv)
+    .filter((e): e is DayEv => e !== null)
+}
+
+function dayLine(day: AgendaDay, now: string, segs: FocusSegment[]): HTMLElement {
+  const blocks = taskBlocks(segs)
+  const evs = gridEvents(day, new Set(blocks.map((b) => b.taskId.toLowerCase())))
   const untimed = day.entries.filter((entry) => entry.kind === 'unknown').map((entry) => entry.text)
-  const { events: spots, range } = layoutDayEvents(evs.map((ev) => ({ at: ev.at })))
+  const { events: spots, range } = layoutDayEvents(
+    dayInputs(
+      evs.map((ev) => ({ at: ev.at })),
+      blocks,
+    ),
+  )
   const hours = Array.from({ length: Math.floor((range.to - range.from) / 60) + 1 }, (_, i) => range.from / 60 + i)
   const dayHasNow = day.date === isoDay(new Date()) && mins(now) >= range.from && mins(now) <= range.to
   return h(
@@ -88,6 +102,7 @@ function dayLine(day: AgendaDay, now: string): HTMLElement {
         ? h('div', { class: 'tl-day-now', style: `top:${(mins(now) - range.from) * PX_PER_MINUTE}px`, title: `Agora, ${now}` }, h('b', {}, now))
         : null,
       ...evs.map((ev, i) => dayCard(ev, spots[i]!, range.from)),
+      ...blocks.map((b, i) => taskCard(b, spots[evs.length + i]!, range.from, PX_PER_MINUTE)),
     ),
     untimed.length
       ? h(
@@ -97,46 +112,6 @@ function dayLine(day: AgendaDay, now: string): HTMLElement {
           ...untimed.map((u) => h('span', { class: 'tl-tl-chip' }, u)),
         )
       : null,
-  )
-}
-
-function weekBand(day: AgendaDay, now: string): HTMLElement {
-  const evs = day.entries.map(entryToEv).filter((e): e is DayEv => e !== null)
-  const today = day.date === isoDay(new Date())
-  return h(
-    'div',
-    { class: `tl-tl-row${today ? ' today' : ''}`, role: 'row' },
-    h(
-      'span',
-      { class: 'tl-tl-day', role: 'rowheader' },
-      `${weekdayShortOf(day.date)} ${day.date.slice(8, 10)}/${day.date.slice(5, 7)}`,
-      today ? h('small', {}, 'hoje') : null,
-    ),
-    h(
-      'div',
-      { class: 'tl-tl-track', role: 'cell' },
-      ...Array.from({ length: T_TO - T_FROM + 1 }, (_, i) => T_FROM + i).map((hh) =>
-        h('i', { class: 'tl-tl-grid', style: `left:${pos(`${hh}:00`)}%` }),
-      ),
-      today ? h('span', { class: 'tl-tl-now', style: `left:${pos(now)}%`, title: `Agora, ${now}` }) : null,
-      ...evs.map((ev, i) => {
-        const end = `${Math.floor((mins(ev.at) + 50) / 60)}:${String((mins(ev.at) + 50) % 60).padStart(2, '0')}`
-        // A block that starts inside the one before it goes half a lane down, like a conflict, so both stay readable.
-        const low = ev.conflict || evs.slice(0, i).some((prev) => mins(ev.at) < mins(prev.at) + 50)
-        return h(
-          'div',
-          {
-            class: `tl-tl-ev tl-ev-${ev.kind}${ev.conflict ? ' conflict' : ''}`,
-            style: `left:${pos(ev.at)}%;width:max(${pos(end) - pos(ev.at)}%, 96px);top:${low ? 24 : 6}px;bottom:${low ? 2 : 6}px`,
-            title: `${ev.at}${ev.conflict ? ' – conflito' : ''} · ${ev.t}`,
-            role: 'gridcell',
-            'aria-label': `${weekdayShortOf(day.date)} ${ev.at} ${KIND_LABEL[ev.kind]}: ${ev.t}${ev.conflict ? '. Conflito de horário.' : ''}`,
-          },
-          h('b', {}, ev.at),
-          h('span', {}, ev.t),
-        )
-      }),
-    ),
   )
 }
 
@@ -158,7 +133,7 @@ function routineFrequency(row: PersonalRoutineWeekRow, planned: number): string 
 }
 
 /** The week dashboard (round 5, capture 09): numbers, items per day, routines of the week and what comes next. */
-function resumo(view: AgendaView, routines: PersonalRoutineOverview | null): HTMLElement[] {
+function resumo(view: AgendaView, routines: PersonalRoutineOverview | null, focus: FocusRangeView, selected: string): HTMLElement[] {
   const now = new Date()
   const nowHm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
   const weekEntries = view.week.flatMap((day) => day.entries)
@@ -195,7 +170,12 @@ function resumo(view: AgendaView, routines: PersonalRoutineOverview | null): HTM
     }
   })
 
+  const dates = weekDates(selected)
+  const todayKey = isoDay(new Date())
+  const labels = dates.map((date) => ({ date, label: `${weekdayShortOf(date)} ${date.slice(8, 10)}${date === todayKey ? ' · hoje' : ''}`, today: date === todayKey }))
+  const todayCommitments = view.today.entries.filter((e) => e.kind === 'commitment' || e.kind === 'class').length
   const sections: HTMLElement[] = [
+    weekFocus(summarizeRange(focus.days, dates), labels, todayCommitments, todayKey),
     h(
       'div',
       { class: 'tl-stats' },
@@ -311,33 +291,23 @@ function resumo(view: AgendaView, routines: PersonalRoutineOverview | null): HTM
   return sections
 }
 
-/** Legenda da aba Dia: os mesmos quatro tipos, com as cores dos cartões do dia. */
+/** Legenda das abas Dia e 7 dias: os tipos da agenda e as tarefas feitas no Timer. */
 function dayLegendItems(): HTMLElement[] {
   return [
     h('span', {}, h('i', { class: 'tl-dv-evento' }), 'Compromisso'),
     h('span', {}, h('i', { class: 'tl-dv-aula' }), 'Aula'),
     h('span', {}, h('i', { class: 'tl-dv-tarefa' }), 'Tarefa'),
     h('span', {}, h('i', { class: 'tl-dv-feita' }), 'Rotina feita'),
-  ]
-}
-
-function legendItems(): HTMLElement[] {
-  return [
-    h('span', {}, h('i', { class: 'tl-ev-evento' }), 'Compromisso'),
-    h('span', {}, h('i', { class: 'tl-ev-aula' }), 'Aula'),
-    h('span', {}, h('i', { class: 'tl-ev-tarefa' }), 'Tarefa'),
-    h('span', {}, h('i', { class: 'tl-ev-feita' }), 'Rotina feita'),
-    h('span', {}, h('i', { class: 'tl-ev-rotina' }), 'Rotina prevista'),
-    h('span', { class: 'tl-state late' }, 'Conflito'),
+    h('span', {}, h('i', { class: 'tl-tk-0 tl-key' }), 'Tarefa feita no pomodoro'),
+    h('span', {}, h('i', { class: 'tl-tk-run tl-key running' }), 'Em andamento'),
   ]
 }
 
 /** Cabeçalho com a troca de visualização e a navegação de datas. */
-/** "26/10 a 01/11": the Monday-to-Sunday week that holds `iso`. */
+/** "06/11 a 12/11": os 7 dias que começam em `iso` (hoje e os 6 seguintes). */
 function weekLabel(iso: string): string {
-  const start = addDays(iso, -((new Date(`${iso}T12:00:00`).getDay() + 6) % 7))
   const dm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
-  return `${dm(start)} a ${dm(addDays(start, 6))}`
+  return `${dm(iso)} a ${dm(addDays(iso, 6))}`
 }
 
 function agendaHead(
@@ -397,16 +367,19 @@ function agendaHead(
 }
 
 /** Adiciona `n` dias a uma data ISO (AAAA-MM-DD), sem envolver fuso horário. */
-const addDays = (iso: string, n: number): string => {
-  const [y, m, d] = iso.split('-').map(Number)
-  const parsed = new Date(y, m - 1, d + n)
-  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`
-}
+const addDays = addDaysIso
 
 /** Dialogo somente leitura da Agenda, aberto pelo atalho Agenda da Casa e do quadro Tarefas. */
 export function openAgenda(root: HTMLElement): void {
   const content = h('div', { class: 'agenda' }, h('p', { class: 'hint' }, 'Lendo a agenda…'))
-  const close = () => backdrop.remove()
+  // O foco chega ao vivo (AO-92): o evento do registro e um relógio de 30 s enquanto há tarefa em andamento.
+  let stopEvents = (): void => {}
+  const timers: { clock?: ReturnType<typeof setInterval> } = {}
+  const close = () => {
+    stopEvents()
+    if (timers.clock !== undefined) clearInterval(timers.clock)
+    backdrop.remove()
+  }
   const closeButton = h('button', { class: 'btn', type: 'button', onclick: close }, 'Fechar')
   const closeX = h(
     'button',
@@ -422,13 +395,25 @@ export function openAgenda(root: HTMLElement): void {
   let selected = isoDay(new Date())
   let routines: PersonalRoutineOverview | null = null
   let view: AgendaView = { found: false, classesFound: false, warnings: [], today: { date: selected, entries: [] }, week: [], undated: [] }
+  // As semanas lidas (a aba 7 dias pode atravessar duas) e o registro de foco dos dias mostrados (AO-92).
+  let views: AgendaView[] = []
+  let focus: FocusRangeView = { days: {}, now: Date.now() }
 
   /** Carrega a semana que contém `selected` e renderiza. */
-  const render = async (date?: string): Promise<void> => {
+  const render = async (date?: string, silent = false): Promise<void> => {
     if (date) selected = date
-    content.replaceChildren(h('p', { class: 'hint' }, 'Lendo a agenda…'))
+    // Atualização do foco ao vivo: redesenha sem o aviso de leitura e mantém a rolagem.
+    const scroll = silent ? content.scrollTop : 0
+    if (!silent) content.replaceChildren(h('p', { class: 'hint' }, 'Lendo a agenda…'))
     try {
       view = await window.office.readAgendaForDate(selected)
+      views = [view]
+      // A aba 7 dias vai de hoje a hoje+6: se isso passa para a semana seguinte, lê também a dela.
+      const last = addDays(selected, 6)
+      if (kind === 'semana' && !view.week.some((day) => day.date === last)) views.push(await window.office.readAgendaForDate(last))
+      const span = kind === 'resumo' ? weekDates(selected) : kind === 'dia' ? [selected] : [selected, last]
+      // Sem o registro (erro ou versão antiga), a agenda continua: só o tempo fica de fora.
+      focus = await window.office.readFocusLog(span[0]!, span[span.length - 1]!).catch(() => ({ days: {}, now: Date.now() }))
       // The routines of the week only feed the dashboard; a failure there leaves them out, not the agenda.
       if (kind === 'resumo') routines = await window.office.personalRoutineOverview().catch(() => null)
     } catch (err) {
@@ -479,11 +464,12 @@ export function openAgenda(root: HTMLElement): void {
 
     const body: HTMLElement[] = []
     if (kind === 'resumo') {
-      body.push(...resumo(view, routines))
+      body.push(...resumo(view, routines, focus, selected))
     } else if (kind === 'dia') {
       const weekDay = view.week.find((day) => day.date === selected) ?? view.today
+      const segs = focus.days[selected] ?? []
       const untimed = weekDay.entries.filter((entry) => entry.kind === 'unknown').map((entry) => entry.text)
-      if (weekDay.entries.length === 0 && !untimed.length) {
+      if (weekDay.entries.length === 0 && !untimed.length && !segs.length) {
         body.push(
           h(
             'div',
@@ -494,63 +480,79 @@ export function openAgenda(root: HTMLElement): void {
           ),
         )
       } else {
+        const title = selected === isoDay(new Date()) ? 'Tempo por tarefa hoje' : `Tempo por tarefa · ${weekdayShortOf(selected)} ${selected.slice(8, 10)}/${selected.slice(5, 7)}`
+        const agendaCount = weekDay.entries.filter((entry) => entry.kind === 'commitment' || entry.kind === 'class').length
         body.push(
           h(
             'div',
-            { class: 'tl-tl-head' },
-            h('span', { class: 'grow' }),
-            h('div', { class: 'tl-tl-legend' }, ...dayLegendItems()),
+            { class: 'tl-day-wrap' },
+            h(
+              'div',
+              { class: 'tl-day-main' },
+              h('div', { class: 'tl-tl-head' }, h('span', { class: 'grow' }), h('div', { class: 'tl-tl-legend' }, ...dayLegendItems())),
+              dayLine(weekDay, now, segs),
+            ),
+            timePanel(title, segs, agendaCount),
           ),
-          dayLine(weekDay, now),
         )
       }
     } else {
-      const anyEntries = view.week.some((day) => day.entries.length > 0)
-      if (!anyEntries) {
+      const dates = Array.from({ length: 7 }, (_, i) => addDays(selected, i))
+      const days = collectDays(views, dates)
+      const today = isoDay(new Date())
+      if (!days.some((day) => day.entries.length > 0) && !dates.some((date) => (focus.days[date] ?? []).length > 0)) {
         body.push(
           h(
             'div',
             { class: 'tl-empty' },
             icon('calendar', 28),
-            h('b', {}, 'Sem itens nesta semana.'),
+            h('b', {}, 'Sem itens nestes 7 dias.'),
             h('span', {}, 'Não há compromissos, aulas ou tarefas agendadas neste período.'),
           ),
         )
       } else {
+        const columns: WeekColumn[] = days.map((day) => {
+          const segs = focus.days[day.date] ?? []
+          const events = gridEvents(day, new Set(segs.map((s) => s.taskId.toLowerCase())))
+          return {
+            date: day.date,
+            head: `${weekdayShortOf(day.date)}${day.date === today ? ' · hoje' : ''}`,
+            num: day.date.slice(8, 10),
+            today: day.date === today,
+            events,
+            segs,
+            count: events.filter((ev) => ev.kind === 'evento' || ev.kind === 'aula').length,
+          }
+        })
         body.push(
-          h(
-            'div',
-            { class: 'tl-tl-head' },
-            h('span', { class: 'grow' }),
-            h('div', { class: 'tl-tl-legend' }, ...legendItems().slice(0, 4)),
-          ),
-          h(
-            'div',
-            { class: 'tl-tl', role: 'table', 'aria-label': 'Linha do tempo da semana' },
-            h(
-              'div',
-              { class: 'tl-tl-row tl-tl-axis', role: 'row', 'aria-hidden': 'true' },
-              h('span', { class: 'tl-tl-day' }),
-              h(
-                'div',
-                { class: 'tl-tl-track' },
-                ...Array.from({ length: T_TO - T_FROM + 1 }, (_, i) => T_FROM + i).map((hh) =>
-                  h('span', { class: 'tl-tl-hour', style: `left:${pos(`${hh}:00`)}%` }, `${String(hh).padStart(2, '0')}h`),
-                ),
-              ),
-            ),
-            ...view.week.map((day) => weekBand(day, now)),
-          ),
+          h('div', { class: 'tl-tl-head' }, h('span', { class: 'grow' }), h('div', { class: 'tl-tl-legend' }, ...dayLegendItems())),
+          sevenDays(columns, mins(now), KIND_LABEL),
         )
       }
     }
     content.replaceChildren(...body)
+    content.scrollTop = scroll
   }
 
   const moveDate = (delta: number): void => {
     const step = kind === 'dia' ? 1 : 7
     void render(addDays(selected, step * delta))
   }
+
+  let refreshing = false
+  const refresh = (): void => {
+    if (refreshing || !backdrop.isConnected) return
+    refreshing = true
+    void render(undefined, true).finally(() => {
+      refreshing = false
+    })
+  }
+  stopEvents = window.office.onEvent((e) => {
+    if (e.type === 'focusLog') refresh()
+  })
+  timers.clock = setInterval(() => {
+    if (Object.values(focus.days).some((list) => list.some((seg) => seg.running))) refresh()
+  }, 30_000)
 
   void render()
 }

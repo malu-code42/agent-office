@@ -33,6 +33,7 @@ export const DATA_FILES = [
   'personal-routines.json', // AO-47
   'study-cycle.json', // AO-49
   'audio-dictionary.json', // AO-54
+  'focus-log.json', // AO-92
 ] as const
 export type DataFile = (typeof DATA_FILES)[number]
 
@@ -127,6 +128,8 @@ export const DATA_SHAPES: Record<DataFile, (v: unknown) => boolean> = {
     (v.proposals === undefined || Array.isArray(v.proposals)),
   // The Timer of the bar (AO-64): its own session, outside planning.json's old timer (AO-08, no longer used).
   'timer.json': (v) => isObj(v) && isMap(v.timer),
+  // AO-92: o tempo de foco por tarefa, por dia (AAAA-MM-DD), mais o trecho que corre agora.
+  'focus-log.json': (v) => isObj(v) && isMap(v.days) && isMap(v.open),
   // The squads the player proposed and has not approved yet: they are not squads yet.
   'squad-proposals.json': (v) => isObj(v) && (v.proposals === undefined || Array.isArray(v.proposals)),
   // The queue of each squad: the ticket it works on and the ones waiting.
