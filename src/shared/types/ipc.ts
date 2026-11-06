@@ -23,6 +23,7 @@ import type { RoutineCandidate } from '../routine-personal'
 import type { FocusItem } from '../planning'
 import type { MediaCreateInput, MediaItemOf, MediaKind, MediaPosterResult, MediaUpdateInput } from '../media'
 import type { BarTimerView } from '../barTimer'
+import type { FocusRangeView } from '../focusLog'
 import type { IrisResult } from '../iris'
 import type { ProfileId } from '../profiles'
 import type { Proposal } from '../proposals'
@@ -261,6 +262,8 @@ export type OfficeEvent =
   | { type: 'barTimer'; timer: BarTimerView | null }
   /** Som do Timer (AO-91): o processo principal decide quando; o renderer só toca. */
   | { type: 'barTimerSound'; cue: 'start' | 'end' }
+  /** AO-92: o registro de foco por tarefa mudou; quem mostra o tempo lê de novo. */
+  | { type: 'focusLog' }
   | { type: 'luna:profile-task'; profile: ProfileId; task: string }
   | { type: 'luna:media-draft'; draft: Extract<IrisResult, { kind: 'media-draft' }>['draft'] }
   | { type: 'luna:transcript'; text: string }
@@ -494,6 +497,8 @@ export interface OfficeAPI {
   resetBarTimer(): Promise<BarTimerView | null>
   /** Troca (ou tira) o rótulo da tarefa ligada; nada guarda quando o Timer está Parado. */
   setBarTimerTask(task: { id?: string; text?: string } | null): Promise<BarTimerView | null>
+  /** AO-92: só leitura. Os segmentos de foco por tarefa dos dias pedidos (AAAA-MM-DD, até 62 dias), com o trecho em andamento. */
+  readFocusLog(from: string, to: string): Promise<FocusRangeView>
   // AO-43: memória dos perfis — um resumo curto por perfil, escrito pela pessoa.
 
   /** A memória de todo perfil que tem uma, no formato { id da profile: entrada }. */

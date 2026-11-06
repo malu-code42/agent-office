@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PlanningStore } from '../src/main/planning'
+import { FocusLogStore } from '../src/main/focus-log-store'
 import { routineId } from '../src/shared/routine-personal'
 import { dayKey } from '../src/main/backups'
 import { PersonalRoutineStore } from '../src/main/personal-routines-store'
@@ -96,6 +97,7 @@ beforeEach(() => {
       },
     } as never,
     planning,
+    focusLog: new FocusLogStore(data),
     broadcast,
   } as never)
 })
@@ -605,6 +607,7 @@ describe('tasks IPC', () => {
         },
       } as never,
       planning,
+      focusLog: new FocusLogStore(data),
       broadcast,
     } as never)
     await invoke('office:readTasks')

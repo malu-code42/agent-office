@@ -583,6 +583,8 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const linkedRoutineMatches = !!linkedRoutineId && routineTaskMatches(linkedRoutineId, before!.task, before!.list)
     const done = writer.complete(path, targetId)
     const wasFocused = ctx.planning.focus().includes(focusKey(done.id))
+    // AO-92: o registro de foco marca o último segmento da tarefa como concluído.
+    ctx.focusLog.markDone(done.id)
     ctx.planning.archive(done.id, {
       origin: done.origin,
       completedAt: done.completedAt,

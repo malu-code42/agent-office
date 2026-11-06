@@ -29,6 +29,7 @@ const WHAT: Record<DataFile, string> = {
   'routines.json': 'rotinas',
   'planning.json': 'tarefas em foco',
   'timer.json': 'o Timer da barra',
+  'focus-log.json': 'o tempo de foco por tarefa',
   'squad-proposals.json': 'propostas de squad',
   'squad-queues.json': 'filas dos squads',
   'project-workflows.json': 'os projetos e aprovações',

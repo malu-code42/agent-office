@@ -25,6 +25,7 @@ import { SquadStatusStore } from './squad-status'
 import { MacJobs } from './mac-jobs'
 import { RoutineScheduler, RoutineStore } from './routines'
 import { BarTimerStore } from './bar-timer-store'
+import { FocusLogStore } from './focus-log-store'
 import { BarTimerSound } from './bar-timer-sound'
 import { ProfileMemoryStore } from './profile-memory'
 import { ProjectWorkflowStore } from './project-workflows'
@@ -264,9 +265,11 @@ app
     // The Timer of the bar (AO-64): its own store, outside planning.json; every change goes to the renderer as an event.
     // O som (AO-91) é decidido aqui, no processo principal, para tocar com a janela minimizada.
     const barSound: { current?: BarTimerSound } = {}
+    const focusLogRef: { current?: FocusLogStore } = {}
     const barTimer = new BarTimerStore(app.getPath('userData'), Date.now, () => {
       broadcast({ type: 'barTimer', timer: barTimer.view() ?? null })
       barSound.current?.onChange()
+      focusLogRef.current?.sync(barTimer.view())
     })
     barSound.current = new BarTimerSound(
       () => barTimer.view() ?? null,
@@ -274,6 +277,13 @@ app
       (cue) => broadcast({ type: 'barTimerSound', cue }),
     )
     barSound.current.arm()
+    // AO-92: o tempo de foco por tarefa acompanha o Timer. O trecho que ficou aberto com o app fechado é
+    // fechado na carga; se o Timer ainda corre, um trecho novo abre agora.
+    const focusLog = new FocusLogStore(app.getPath('userData'), Date.now, () => broadcast({ type: 'focusLog' }))
+    focusLogRef.current = focusLog
+    focusLog.sync(barTimer.view())
+    const focusBeat = setInterval(() => focusLog.heartbeat(), 15_000)
+    focusBeat.unref()
     const routineStore = new RoutineStore(app.getPath('userData'))
     // The memory of the profiles (AO-43): one short summary written by the person, per profile.
     const profileMemory = new ProfileMemoryStore(app.getPath('userData'))
@@ -686,6 +696,7 @@ app
       board,
       planning,
       barTimer,
+      focusLog,
       profileMemory,
       projectWorkflows,
       projectWorkflowGenerator: claudeProjectWorkflowGenerator(store.settings, (cwd) => accounts.pick({ cwd: cwd ?? '', accounts: undefined, account: undefined })),
