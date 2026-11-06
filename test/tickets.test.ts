@@ -373,17 +373,21 @@ describe('ferramentas dos agentes', () => {
 
   it('reordena uma coluna por ferramenta: chaves primeiro, sem mudar status; chave inválida não altera nada', async () => {
     const call = tools([{ id: 'p1', name: 'Loja', cwd: dir }])
+    const outroDir = mkdtempSync(join(tmpdir(), 'ao-outro-'))
+    const outro = board.create({ title: 'Outro andar', status: 'todo', cwd: outroDir }, me)
     for (const title of ['A', 'B', 'C']) await call('ticket_create', { title, description: '', acceptance: [], tags: [], status: 'todo' })
-    const outro = board.create({ title: 'Outro andar', status: 'todo' }, me)
-    const ordem = async () => (await call('tickets_list', { status: ['todo'], all_floors: true })).text.split('\n').map((l) => l.split(' ')[0])
-    expect(await ordem()).toEqual(['AO-1', 'AO-2', 'AO-3', outro.key])
-    expect((await call('ticket_reorder', { status: 'todo', keys: ['AO-3', 'AO-1'] })).text).toBe('Reordenei A fazer: AO-3, AO-1 primeiro.')
-    expect(await ordem()).toEqual(['AO-3', 'AO-1', 'AO-2', outro.key])
-    expect(board.byKey('AO-3')!.status).toBe('todo')
-    for (const bad of [{ keys: ['AO-404'] }, { keys: ['AO-1', 'AO-1'] }, { keys: ['AO-1'], status: 'review' }, { keys: [outro.key] }]) {
+    const ordem = async () => (await call('tickets_list', { status: ['todo'] })).text.split('\n').map((l) => l.split(' ')[0])
+    const outroOrder = board.byKey(outro.key)!.order
+    expect(await ordem()).toEqual(['AO-2', 'AO-3', 'AO-4'])
+    expect((await call('ticket_reorder', { status: 'todo', keys: ['AO-4', 'AO-2'] })).text).toBe('Reordenei A fazer: AO-4, AO-2 primeiro.')
+    expect(await ordem()).toEqual(['AO-4', 'AO-2', 'AO-3'])
+    expect(board.byKey(outro.key)!.order).toBe(outroOrder)
+    expect(board.byKey('AO-4')!.status).toBe('todo')
+    for (const bad of [{ keys: ['AO-404'] }, { keys: ['AO-2', 'AO-2'] }, { keys: ['AO-2'], status: 'review' }, { keys: [outro.key] }]) {
       const r = await call('ticket_reorder', { status: 'todo', ...bad })
       expect(r.isError).toBe(true)
     }
-    expect(await ordem()).toEqual(['AO-3', 'AO-1', 'AO-2', outro.key])
+    expect(await ordem()).toEqual(['AO-4', 'AO-2', 'AO-3'])
+    expect(board.byKey(outro.key)!.order).toBe(outroOrder)
   })
 })

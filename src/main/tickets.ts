@@ -330,18 +330,21 @@ export class TicketBoard extends EventEmitter {
   }
 
   /** Puts the given tickets of one column first, in the order given; the rest follow in their current order. */
-  reorder(status: TicketStatus, ids: string[]): void {
+  reorder(status: TicketStatus, ids: string[], inScope: (t: Ticket) => boolean = () => true): void {
     if (new Set(ids).size !== ids.length) throw new Error('Um ticket aparece mais de uma vez na lista.')
-    const column = this.column(status)
+    // Só o andar de quem pede: tickets de outros andares mantêm posição e order.
+    const column = this.column(status).filter(inScope)
     const picked = ids.map((id) => {
       const t = column.find((x) => x.id === id)
-      if (!t) throw new Error(`Esse ticket não está na coluna ${labelOf(STATUSES, status)}.`)
+      if (!t) throw new Error(`Esse ticket não está na coluna ${labelOf(STATUSES, status)} deste andar.`)
       return t
     })
     const ordered = [...picked, ...column.filter((x) => !ids.includes(x.id))]
+    // Reaproveita as posições já usadas pelo andar (sem renumerar a partir de 0, que colidiria com outros andares).
+    const slots = column.map((x) => x.order)
     ordered.forEach((x, i) => {
-      if (x.order === i) return
-      x.order = i
+      if (x.order === slots[i]) return
+      x.order = slots[i]
       this.changed(x, false)
     })
   }
@@ -686,7 +689,7 @@ export class TicketBoard extends EventEmitter {
               const picked = args.keys.map((key) => find(key))
               const outro = picked.find((t) => !onMyFloor(t))
               if (outro) throw new Error(`${outro.key} é de outro andar; reordene só os tickets do seu andar.`)
-              this.reorder(args.status, picked.map((t) => t.id))
+              this.reorder(args.status, picked.map((t) => t.id), onMyFloor)
               return `Reordenei ${labelOf(STATUSES, args.status)}: ${picked.map((t) => t.key).join(', ')} primeiro.`
             })(),
         ),
