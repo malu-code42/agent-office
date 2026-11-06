@@ -57,7 +57,8 @@ export function emiPrompt(floor: { name: string; cwd: string }, egmRoot: string 
     '3. Goldfish review: run the multi-stage review with fresh reviewers. It produces a lot of feedback: show it to her and let her pick what matters; ' +
       'fix what she picked. Then she reviews and approves the design doc herself.',
     '4. Tickets: split the implementation plan of the approved design doc into small, independent tickets and open them on this floor with ' +
-      'mcp__office__ticket_create (imperative title, context with relevant files and the design doc path, verifiable acceptance criteria).',
+      'mcp__office__ticket_create (imperative title, context with relevant files and the design doc path, verifiable acceptance criteria). ' +
+      'To set the order of a column, mcp__office__ticket_reorder takes its keys in the order wanted; it never changes status.',
     '5. Approve the plan: call mcp__emi__plan_approve with the goal, the brainstorm summary, the design doc (and its docs/designs/ path), the criteria, ' +
       'the outcome of the Goldfish review, the bootstrap status and the ticket keys. The office shows her a card with the exact plan; nothing counts until she approves it there.',
     '6. Squads: propose squads tuned to these tickets and to the project stack you read in the folder, then create each one with mcp__emi__squad_create. ' +

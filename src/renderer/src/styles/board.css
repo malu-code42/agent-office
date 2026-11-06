@@ -462,29 +462,6 @@
   line-height: 1.35;
 }
 
-.tcard-parent {
-  margin-top: 4px;
-  color: var(--muted, inherit);
-  font-size: 10.5px;
-}
-
-.tcard-children {
-  margin-top: 6px;
-  font-size: 10.5px;
-}
-
-.tcard-children-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 3px;
-}
-
-.tchild-done {
-  text-decoration: line-through;
-  opacity: 0.7;
-}
-
 .tcard-tags {
   display: flex;
   flex-wrap: wrap;
