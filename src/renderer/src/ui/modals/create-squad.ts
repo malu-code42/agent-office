@@ -217,8 +217,7 @@ function openCreateSquadReady(root: HTMLElement, state: State, opts: CreateSquad
     if (!proposal || !name.trim()) return
     try {
       // A aprovação cria o squad; ela não roda ciclo nenhum. O squad aparece na sala
-      // e no catálogo do popup de squads que já existia (o da sala com squad): é
-      // lá que o ciclo começa, quando a pessoa quiser.
+      // e o ciclo começa quando a pessoa pedir à Emi (squad_run, com cartão).
       const squad = await window.office.approveSquadProposal(proposal.id, name.trim())
       if (closed) return
       close(false)

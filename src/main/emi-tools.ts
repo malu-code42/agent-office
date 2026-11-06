@@ -68,7 +68,7 @@ export interface EmiToolDeps {
   saveDrift(summary: string): string
   /** Proposes and approves the squad through the "Criar squad" path; returns the created squad. */
   createSquad(squad: EmiSquad): Promise<SquadInfo>
-  /** Starts a cycle of the squad through the "Rodar squad" path, in the floor's permission mode. */
+  /** Starts a cycle of the squad through the app's squad-cycle path, in the floor's permission mode. */
   runSquad(code: string, note: string): Promise<string>
   /** Sends a note to the squad's running orchestrator, who relays it to the members. */
   messageSquad(code: string, text: string): string
@@ -154,7 +154,7 @@ export function emiToolDefs(deps: EmiToolDeps) {
     ),
     tool(
       'squad_run',
-      'Inicia um ciclo de um squad deste andar (como a janela "Rodar squad"), no modo de permissões do andar. A usuária confirma no cartão antes de rodar.',
+      'Inicia um ciclo de um squad deste andar (mesmo caminho do ciclo de squad do app), no modo de permissões do andar. A usuária confirma no cartão antes de rodar.',
       {
         code: z.string().trim().min(1).max(64).describe('Squad code, e.g. sala-1 (see squads_list)'),
         note: z.string().trim().max(2000).optional().describe('Optional note to the squad, in pt-BR'),

@@ -125,20 +125,6 @@
   word-break: break-word;
 }
 
-/* The queue of a squad, in the window that runs its cycle. */
-.squad-queue-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-}
-
-.squad-queue-ticket {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
 .member {
   flex: 1;
   min-width: 0;

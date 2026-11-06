@@ -920,9 +920,8 @@ describe('a aprovação', () => {
     expect(creation.list().filter((p) => p.status === 'pending')).toHaveLength(0)
   })
 
-  it('o squad criado aparece na sala, disponível para o popup de squads', async () => {
-    // A aprovação não abre o popup de squads: o squad nasce na sala e o popup
-    // existente (o da sala com squad) passa a mostrá-lo.
+  it('o squad criado aparece na sala, disponível para a Emi iniciar', async () => {
+    // A aprovação não inicia ciclo: o squad nasce na sala e a Emi o inicia quando pedirem.
     const proposal = await propose()
     await creation.approve(proposal.id, 'Equipe da busca')
     const shown = inspectSquads(project.cwd)
