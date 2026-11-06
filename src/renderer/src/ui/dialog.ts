@@ -1,6 +1,7 @@
 import type { AccountLimit, AgentResult, AgentSummary, LogEntry, PermissionDecision, PermissionRequest } from '@shared/types'
 import type { State } from '../state'
-import { asDialog, FocusReturn, isTyping, labelDialog } from './a11y'
+import { asDialog, FocusReturn, idOf, isTyping, labelDialog } from './a11y'
+import { questionCard } from './question-card'
 import { formatCost, formatDuration, h, icon } from './dom'
 import { renderMarkdown } from './markdown'
 import { cleanError } from './modals/common'
@@ -295,103 +296,18 @@ export class Dialog {
     this.frame(agent, 'veio pedir sua permissão', body, buttons, 'wait')
   }
 
+  /** AO-101: one question as numbered steps; several as a sequence with review (question-card.ts). */
   private showQuestion(agent: AgentSummary, p: PermissionRequest): void {
-    const answers = new Map<string, Set<string>>()
-    const others = new Map<string, HTMLInputElement>()
-    const body: HTMLElement[] = []
-    for (const q of p.questions ?? []) {
-      const chosen = new Set<string>()
-      answers.set(q.question, chosen)
-      const opts = h('div', { class: 'q-options' })
-      const buttons: HTMLButtonElement[] = []
-      for (const o of q.options) {
-        const b = h(
-          'button',
-          {
-            class: 'q-option',
-            onclick: () => {
-              if (q.multiSelect) {
-                if (chosen.has(o.label)) chosen.delete(o.label)
-                else chosen.add(o.label)
-              } else {
-                chosen.clear()
-                chosen.add(o.label)
-                other.value = ''
-              }
-              buttons.forEach((x) => x.classList.toggle('on', chosen.has(x.dataset.label ?? '')))
-            },
-          },
-          h('div', { class: 'q-label' }, o.label),
-          o.description ? h('div', { class: 'q-desc' }, o.description) : null,
-        )
-        b.dataset.label = o.label
-        // Enter on an option answers with it (adding it first, unless a multiple choice already has marks).
-        b.addEventListener('keydown', (e) => {
-          if (e.key !== 'Enter' || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || e.isComposing) return
-          e.preventDefault()
-          e.stopPropagation()
-          if (!q.multiSelect) {
-            chosen.clear()
-            other.value = ''
-          }
-          if (!q.multiSelect || !chosen.size) chosen.add(o.label)
-          buttons.forEach((x) => x.classList.toggle('on', chosen.has(x.dataset.label ?? '')))
-          submit()
-        })
-        buttons.push(b)
-        opts.append(b)
-      }
-      const other = h('input', { class: 'input', placeholder: 'Outra resposta…' })
-      other.addEventListener('keydown', (e) => {
-        e.stopPropagation()
-        if (e.key === 'Enter' && !e.isComposing && !e.shiftKey) {
-          e.preventDefault()
-          submit()
-        }
-      })
-      other.addEventListener('input', () => {
-        if (other.value && !q.multiSelect) {
-          chosen.clear()
-          buttons.forEach((x) => x.classList.remove('on'))
-        }
-      })
-      others.set(q.question, other)
-      body.push(
-        h('div', { class: 'q' }, h('span', { class: 'chip' }, q.header), h('div', { class: 'dialog-title' }, q.question), opts, other),
-      )
-    }
-    const submit = () => {
-      const result: Record<string, string> = {}
-      for (const [question, chosen] of answers) {
-        const extra = others.get(question)?.value.trim()
-        const all = [...chosen, ...(extra ? [extra] : [])]
-        if (!all.length) {
-          this.actions.toast('Responda todas as perguntas.', 'err')
-          return
-        }
-        result[question] = all.join(', ')
-      }
-      this.decide({ requestId: p.id, behavior: 'allow', answers: result })
-    }
-    this.keys = { allow: submit }
-    this.frame(
-      agent,
-      'veio te fazer uma pergunta',
-      body,
-      [
-        h(
-          'button',
-          {
-            class: 'btn btn-danger-soft',
-            onclick: () => this.decide({ requestId: p.id, behavior: 'deny', message: 'O usuário preferiu não responder.' }),
-          },
-          'Não responder',
-        ),
-        h('div', { class: 'grow' }),
-        h('button', { class: 'btn btn-primary', onclick: submit }, icon('send', 15), 'Responder'),
-      ],
-      'wait',
-    )
+    const card = questionCard(p.questions ?? [], {
+      submit: (answers) => this.decide({ requestId: p.id, behavior: 'allow', answers }),
+      dismiss: () => this.decide({ requestId: p.id, behavior: 'deny', message: 'O usuário preferiu não responder.' }),
+      toast: (text, kind) => this.actions.toast(text, kind),
+      described: (el) => this.el.setAttribute('aria-describedby', idOf(el)),
+    })
+    this.keys = { allow: card.onEnter }
+    this.frame(agent, card.subtitle, [card.body], card.buttons, 'wait')
+    this.el.classList.toggle('dialog-wide', card.wide)
+    this.el.setAttribute('aria-describedby', idOf(card.body.querySelector<HTMLElement>('.q-ask') ?? card.body))
   }
 
   private showPlan(agent: AgentSummary, p: PermissionRequest): void {
