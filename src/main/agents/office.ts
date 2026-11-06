@@ -17,6 +17,7 @@ import type {
 } from '@shared/types'
 import { lookFromSeed } from '@shared/describe'
 import { projectFor } from '@shared/projects'
+import { pickCoordinatorName } from '@shared/coordinator-names'
 import { isAudioFile } from '@shared/audio'
 import { buildMessage } from '../attachments'
 import { findSquad, readProgress, squadDir, type SquadDefinition } from '../squads'
@@ -211,7 +212,8 @@ export abstract class AgentOffice extends AgentBase {
       return s.role === 'orchestrator' && s.squad === squad.code && s.cwd === squad.cwd && !s.departed && s.engine !== 'opencode'
     })
     if (same) {
-      if (this.busy(same)) throw new Error(`${same.summary.name} já está rodando um ciclo. Espere terminar ou interrompa pelo painel.`)
+      if (this.busy(same))
+        throw new Error(`${same.summary.name} (squad ${squad.name}) já está rodando um ciclo. Espere terminar ou interrompa pelo painel.`)
       if (same.summary.quotaPaused)
         throw new Error('Este ciclo está pausado pela cota. Aguarde na conta fixa ou encerre a tarefa antes de iniciar outro.')
       if (worktree && same.summary.ticketId === ticketId && same.summary.worktree && same.summary.worktree.branch !== worktree.branch)
@@ -235,7 +237,8 @@ export abstract class AgentOffice extends AgentBase {
     const id = randomUUID()
     const summary: AgentSummary = {
       id,
-      name: squad.name,
+      // AO-107: o nome é de uma figura da lista e fica no resumo salvo; o grupo aparece na sala e no crachá.
+      name: this.coordinatorName(squad),
       source: 'office',
       engine: 'claude',
       cwd: squad.cwd,
@@ -244,7 +247,7 @@ export abstract class AgentOffice extends AgentBase {
       accounts: defaults.accounts?.length ? defaults.accounts : undefined,
       permissionMode: defaults.permissionMode,
       status: 'starting',
-      activity: 'Subindo para a sala do squad',
+      activity: `Subindo para a sala do squad ${squad.name}`,
       ...this.seat(squad.cwd, true),
       look: lookFromSeed(`orquestrador:${squad.code}`),
       costUsd: 0,
@@ -264,12 +267,20 @@ export abstract class AgentOffice extends AgentBase {
     return summary
   }
 
+  /** AO-107: nome do coordenador novo, sem repetir o de nenhum coordenador ativo (a escolha em si é pura). */
+  private coordinatorName(squad: Pick<SquadDefinition, 'code' | 'cwd'>): string {
+    const active = [...this.agents.values()]
+      .filter((a) => a.summary.role === 'orchestrator' && !a.summary.departed)
+      .map((a) => a.summary.name)
+    return pickCoordinatorName(`${squad.cwd}:${squad.code}`, active)
+  }
+
   /** Demo mode: an orchestrator with no session behind it; demo.ts plays its cycle. */
   demoOrchestrator(squad: SquadDefinition): AgentSummary {
     const id = randomUUID()
     const summary: AgentSummary = {
       id,
-      name: squad.name,
+      name: this.coordinatorName(squad),
       source: 'office',
       cwd: squad.cwd,
       permissionMode: 'default',
