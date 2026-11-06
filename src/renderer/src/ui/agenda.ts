@@ -1,6 +1,7 @@
 import type { AgendaDay, AgendaEntry, AgendaView } from '@shared/agenda'
 import type { PersonalRoutineOverview, PersonalRoutineWeekRow } from '@shared/routine-personal'
 import { h, icon } from './dom'
+import { layoutDayEvents, type DayEventLayout } from './agenda-day-layout'
 import { cleanError, modal } from './modals/common'
 import './agenda.css'
 
@@ -43,62 +44,50 @@ function entryToEv(entry: AgendaEntry): DayEv | null {
   }
 }
 
-/** Alterna os lados da linha e afasta um balão um nível quando cobriria o anterior desse lado. */
-function placeBalloons(evs: DayEv[]): { side: 'up' | 'down'; level: number }[] {
-  const right: Record<'up' | 'down', number[]> = { up: [], down: [] }
-  return evs.map((e, i) => {
-    const x = pos(e.at) - 1.4
-    const sides: ('up' | 'down')[] = i % 2 ? ['down', 'up'] : ['up', 'down']
-    for (let level = 0; level < 3; level++)
-      for (const side of sides)
-        if ((right[side][level] ?? -100) <= x) {
-          right[side][level] = x + 16.3
-          return { side, level }
-        }
-    return { side: sides[0], level: 2 }
-  })
-}
+/** Escala vertical da aba Dia; o mesmo valor está em agenda.css (comentário de `.tl-day`). */
+const PX_PER_MINUTE = 1.6
 
-function balloon(ev: DayEv, place: { side: 'up' | 'down'; level: number }): HTMLElement {
-  const stem = 44 + place.level * 86
+/** Cartão de um evento: a posição vem de `layoutDayEvents`, a largura é 1/colunas do grupo de sobreposição. */
+function dayCard(ev: DayEv, spot: DayEventLayout, from: number): HTMLElement {
+  const width = `calc(${100 / spot.columns}% - 4px)`
+  const left = `calc(${(spot.column * 100) / spot.columns}% + 2px)`
   return h(
     'div',
     {
-      class: `tl-bal tl-bal-${place.side} tl-ev-${ev.kind}${ev.conflict ? ' conflict' : ''}`,
-      style: `left:${pos(ev.at)}%;--stem:${stem}px`,
+      class: `tl-dv-ev tl-dv-${ev.kind}${ev.conflict ? ' conflict' : ''}`,
+      style: `left:${left};width:${width};top:${(spot.startMin - from) * PX_PER_MINUTE}px;height:${spot.height * PX_PER_MINUTE}px`,
       role: 'listitem',
       'aria-label': `${ev.at} ${KIND_LABEL[ev.kind]}: ${ev.t}${ev.note ? '. ' + ev.note : ''}${ev.conflict ? '. Conflito de horário.' : ''}`,
     },
-    h('i', { class: 'tl-bal-dot', 'aria-hidden': 'true' }),
-    h('i', { class: 'tl-bal-stem', 'aria-hidden': 'true' }),
-    h(
-      'div',
-      { class: 'tl-bal-box' },
-      h('div', { class: 'tl-bal-top' }, h('b', {}, ev.at), h('span', {}, KIND_LABEL[ev.kind])),
-      h('div', { class: 'tl-bal-title' }, ev.t),
-      ev.note ? h('div', { class: 'tl-bal-note' }, ev.note) : null,
-    ),
+    h('div', { class: 'tl-dv-top' }, h('b', {}, ev.at), h('span', { class: 'tl-dv-kind' }, KIND_LABEL[ev.kind])),
+    h('div', { class: 'tl-dv-title' }, ev.t),
+    ev.note ? h('div', { class: 'tl-dv-note' }, ev.note) : null,
   )
 }
 
 function dayLine(day: AgendaDay, now: string): HTMLElement {
   const evs = day.entries.map(entryToEv).filter((e): e is DayEv => e !== null)
   const untimed = day.entries.filter((entry) => entry.kind === 'unknown').map((entry) => entry.text)
-  const places = placeBalloons(evs)
-  const hours = Array.from({ length: T_TO - T_FROM + 1 }, (_, i) => T_FROM + i)
-  const dayHasNow = day.date === isoDay(new Date())
+  const { events: spots, range } = layoutDayEvents(evs.map((ev) => ({ at: ev.at })))
+  const hours = Array.from({ length: Math.floor((range.to - range.from) / 60) + 1 }, (_, i) => range.from / 60 + i)
+  const dayHasNow = day.date === isoDay(new Date()) && mins(now) >= range.from && mins(now) <= range.to
   return h(
     'div',
     { class: 'tl-day', role: 'list', 'aria-label': `Linha do tempo do dia ${weekdayOf(day.date)} ${brDate(day.date)}` },
     h(
       'div',
-      { class: 'tl-day-stage' },
-      h('div', { class: 'tl-day-axis' }),
+      { class: 'tl-day-stage', style: `height:${(range.to - range.from) * PX_PER_MINUTE}px` },
       ...hours.map((hh) =>
-        h('span', { class: 'tl-day-tick', style: `left:${pos(`${hh}:00`)}%`, 'aria-hidden': 'true' }, `${String(hh).padStart(2, '0')}h`),
+        h(
+          'div',
+          { class: 'tl-day-hour', style: `top:${(hh * 60 - range.from) * PX_PER_MINUTE}px`, 'aria-hidden': 'true' },
+          h('span', {}, `${String(hh % 24).padStart(2, '0')}:00`),
+        ),
       ),
-      dayHasNow ? h('span', { class: 'tl-day-now', style: `left:${pos(now)}%` }, h('b', {}, `agora · ${now}`)) : null,
-      ...evs.map((ev, i) => balloon(ev, places[i])),
+      dayHasNow
+        ? h('div', { class: 'tl-day-now', style: `top:${(mins(now) - range.from) * PX_PER_MINUTE}px`, title: `Agora, ${now}` }, h('b', {}, now))
+        : null,
+      ...evs.map((ev, i) => dayCard(ev, spots[i]!, range.from)),
     ),
     untimed.length
       ? h(
@@ -322,6 +311,16 @@ function resumo(view: AgendaView, routines: PersonalRoutineOverview | null): HTM
   return sections
 }
 
+/** Legenda da aba Dia: os mesmos quatro tipos, com as cores dos cartões do dia. */
+function dayLegendItems(): HTMLElement[] {
+  return [
+    h('span', {}, h('i', { class: 'tl-dv-evento' }), 'Compromisso'),
+    h('span', {}, h('i', { class: 'tl-dv-aula' }), 'Aula'),
+    h('span', {}, h('i', { class: 'tl-dv-tarefa' }), 'Tarefa'),
+    h('span', {}, h('i', { class: 'tl-dv-feita' }), 'Rotina feita'),
+  ]
+}
+
 function legendItems(): HTMLElement[] {
   return [
     h('span', {}, h('i', { class: 'tl-ev-evento' }), 'Compromisso'),
@@ -500,7 +499,7 @@ export function openAgenda(root: HTMLElement): void {
             'div',
             { class: 'tl-tl-head' },
             h('span', { class: 'grow' }),
-            h('div', { class: 'tl-tl-legend' }, ...legendItems().slice(0, 4)),
+            h('div', { class: 'tl-tl-legend' }, ...dayLegendItems()),
           ),
           dayLine(weekDay, now),
         )
