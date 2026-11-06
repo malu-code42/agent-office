@@ -9,7 +9,7 @@ import { Dialog } from './ui/dialog'
 import { Hud, type ToastAction } from './ui/hud'
 import { Radio } from './ui/radio'
 import { VoiceButton } from './ui/voice'
-import { holdsRoom, type DataNotice, type ProjectFloor } from '@shared/types'
+import { holdsRoom, type DataNotice } from '@shared/types'
 import { DEFAULT_VIDEO, effectiveVideo, frameInterval } from '@shared/video'
 import { openAccounts } from './ui/accounts'
 import { openSkull } from './ui/skull'
@@ -50,7 +50,7 @@ import { enhanceSelects } from './ui/dropdown'
 import { autoStart, tourDone } from './ui/tour-plan'
 import { openBackstage, remindForgottenCopies } from './ui/backstage'
 import { mountQuitBanner } from './ui/quit'
-import { cleanError, confirmDialog, openCreateSquad, openNewAgent, openNewFloor, openResume, openRunSquad, openSettings } from './ui/modals'
+import { cleanError, confirmDialog, openCreateSquad, openNewAgent, openNewFloor, openResume, openSettings } from './ui/modals'
 import { osText } from './ui/os-text'
 
 // Errors nobody caught go to the app log (userData/logs), so a broken screen leaves a trace.
@@ -151,14 +151,13 @@ async function boot(): Promise<void> {
   /**
    * "Novo agente". Conversar: pick a folder (and how free the agent is) and an agent shows
    * up there, waiting for your first message. Com tarefa hires right in the dialog.
-   * Squad hands over to the squad window. On a project floor the folder is the project's.
+   * On a project floor the folder is the project's.
    */
   const newAgent = async (tab?: 'summon') => {
     const project = game.currentProject
     const choice = await openNewAgent(ui, state, project, {
       toast,
       tab,
-      hireSquad: project ? () => hireSquad(project) : undefined,
     })
     if (choice?.kind !== 'summon') return
     try {
@@ -190,20 +189,6 @@ async function boot(): Promise<void> {
   const openItem = (agentId: string, itemId?: string) => {
     if (!dialog.open(agentId, itemId)) showAgent(agentId)
   }
-
-  /** An orchestrator with its squad, in the squad room of the project's floor. */
-  const hireSquad = (project: ProjectFloor, code?: string) =>
-    openRunSquad(
-      ui,
-      state,
-      project,
-      toast,
-      (a) => {
-        showAgent(a.id)
-        game.focusAgent(a.id)
-      },
-      code,
-    )
 
   /** A project folder becomes a floor; the player rides up to it. */
   const newFloor = async () => {
@@ -274,7 +259,17 @@ async function boot(): Promise<void> {
       toast(issues.map((i) => `${i.reason}${i.unplaced?.length ? ` Sem lugar na cena: ${i.unplaced.join(', ')}.` : ''}`).join(' '), 'err'),
     // A room of a squad: an empty one asks for a proposal, a room with a squad opens it.
     onRoomClick: (project, room) => {
-      if (room.squad) return hireSquad(project, room.squad)
+      if (room.squad) {
+        // O ciclo começa pela Emi (squad_run, com cartão); a sala só leva ao orquestrador em andamento ou à Emi.
+        const boss = [...state.agents.values()].find((a) => a.role === 'orchestrator' && a.squad === room.squad && a.cwd === project.cwd)
+        const target = boss?.id ?? (state.agents.has(emiAgentId(project.id)) ? emiAgentId(project.id) : undefined)
+        if (target) {
+          void showAgent(target)
+          game.focusAgent(target)
+        }
+        if (!boss) toast(`Peça à Emi para iniciar o squad ${room.squad}: ela pede a sua confirmação.`, 'info')
+        return
+      }
       // A proposal waiting in the room (or one whose composition is being redone) is
       // reopened where it was left, not started over.
       const waiting = state.squadProposals.find((p) => p.projectId === project.id && p.room === room.index && holdsRoom(p))

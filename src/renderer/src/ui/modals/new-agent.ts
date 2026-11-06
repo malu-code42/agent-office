@@ -135,7 +135,6 @@ export type NewAgentChoice =
  * - Com tarefa: adds a name and a task; hires right here and resolves `{ kind: 'hire' }`.
  * - Modelos: a saved template fills everything but the folder and account; hires right
  *   here (see ./templates.ts) and resolves `{ kind: 'hire' }`.
- * - Squad: only on a project floor with squads; closes and hands over to `hireSquad`.
  * The fields are built once, so switching tabs keeps whatever was typed. On a project
  * floor the folder is the project's. Resolves null if the player gave up.
  */
@@ -143,7 +142,7 @@ export function openNewAgent(
   root: HTMLElement,
   state: State,
   project: ProjectFloor | null | undefined,
-  opts: { toast: (t: string, k?: 'info' | 'ok' | 'err') => void; hireSquad?: () => void; tab?: NewAgentTab },
+  opts: { toast: (t: string, k?: 'info' | 'ok' | 'err') => void; tab?: NewAgentTab },
 ): Promise<NewAgentChoice | null> {
   return new Promise((resolve) => {
     const { toast } = opts
@@ -222,16 +221,7 @@ export function openNewAgent(
     const talkBtn = segBtn('Conversar', 'Sem tarefa: ele chega e o painel abre para você digitar', () => setTab('summon', true))
     const taskBtn = segBtn('Com tarefa', 'Nome, tarefa e modelo: ele já chega trabalhando', () => setTab('hire', true))
     const templatesBtn = segBtn('Modelos', 'Contrate com as escolhas salvas num modelo', () => setTab('templates', true))
-    // The orchestrator is optional: plain agents work on a project floor too.
-    const squads = project ? state.squads.filter((q) => q.cwd === project.cwd).length : 0
-    const squadBtn =
-      squads && opts.hireSquad
-        ? segBtn(squads === 1 ? 'Squad' : `Squad (${squads})`, 'Um orquestrador que sobe com o squad inteiro e roda o pipeline', () => {
-            finish(null)
-            opts.hireSquad!()
-          })
-        : null
-    const seg = h('div', { class: 'seg', role: 'tablist' }, talkBtn, taskBtn, templatesBtn, squadBtn)
+    const seg = h('div', { class: 'seg', role: 'tablist' }, talkBtn, taskBtn, templatesBtn)
     const modelField = field('Modelo', brain.model, brain.hint)
     const effortField = meterField('Esforço', brain.meter)
     const modeField = field('Permissões', mode, modeHint)
