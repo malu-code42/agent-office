@@ -32,6 +32,7 @@ let manager: {
 }
 let startRetry: ReturnType<typeof import('vitest').vi.fn>
 let squadStatus: SquadStatusStore
+let baseBrain: { model?: string; effort?: 'low' | 'medium' | 'high' } = {}
 
 const team = (): SquadProposalMember[] => [
   { id: 'maya', name: 'Maya', role: 'implementer', engine: 'claude', model: '', account: '', focus: 'Implementa' },
@@ -87,7 +88,7 @@ beforeEach(() => {
     store: { settings: settings() },
     manager,
     board,
-    defaultBrain: () => ({}),
+    defaultBrain: () => baseBrain,
     creation,
     squadStatus,
     broadcast: (e: unknown) => broadcast.push(e),
@@ -96,6 +97,7 @@ beforeEach(() => {
     startActiveSquadTicket: startRetry,
     retrySquadPublication: vi.fn(),
   } as unknown as IpcContext
+  baseBrain = {}
   ipcMain.handlers.clear()
   registerSquadsIpc(ctx)
 })
@@ -309,5 +311,41 @@ describe('os canais de squad', () => {
       create.mockRestore()
       exclude.mockRestore()
     }
+  })
+
+  // AO-86 criteria 2 and 3: o par do ticket ativo (ou o padrão das configurações) chega a manager.runSquad.
+  describe('modelo e esforço do ciclo avulso', () => {
+    const runCycle = async (ticketFields: { model?: string; effort?: 'low' | 'medium' | 'high' }) => {
+      const ticket = board.create({ title: 'Ticket sintético', cwd: project.cwd, ...ticketFields }, { kind: 'player', name: 'Malu' })
+      const proposal = await propose(`proposta-brain-${ticketFields.model ?? 'sem'}`, 0, [ticket.id])
+      await creation.approve(proposal.id, 'Equipe')
+      const worktree = { path: project.cwd, root: project.cwd, repo: project.cwd, branch: 'agent/sintetico', base: 'a'.repeat(40) }
+      const create = vi.spyOn(gitModule, 'createWorktree').mockResolvedValue(worktree)
+      const exclude = vi.spyOn(gitModule, 'excludeSquadRuntime').mockResolvedValue(undefined)
+      mkdirSync(join(project.cwd, '_opensquad', 'core'), { recursive: true })
+      writeFileSync(join(project.cwd, '_opensquad', 'core', 'runner.pipeline.md'), 'runner')
+      const run = vi.fn((..._args: unknown[]) => ({ id: 'agent-1' }))
+      manager.runSquad = run
+      try {
+        await callHandler('office:runSquad', project.cwd, 'sala-1', 'default', '', false)
+      } finally {
+        create.mockRestore()
+        exclude.mockRestore()
+      }
+      expect(run).toHaveBeenCalledOnce()
+      return run.mock.calls[0]![3] as { model?: string; effort?: string; permissionMode?: string }
+    }
+
+    it('ticket com opus e high roda o ciclo com esse par, não com o padrão', async () => {
+      baseBrain = { model: 'claude-sonnet-5-5', effort: 'low' }
+      const brain = await runCycle({ model: 'claude-opus-5-5', effort: 'high' })
+      expect(brain).toMatchObject({ model: 'claude-opus-5-5', effort: 'high', permissionMode: 'default' })
+    })
+
+    it('ticket sem modelo usa o padrão das configurações', async () => {
+      baseBrain = { model: 'claude-sonnet-5-5', effort: 'medium' }
+      const brain = await runCycle({})
+      expect(brain).toMatchObject({ model: 'claude-sonnet-5-5', effort: 'medium' })
+    })
   })
 })

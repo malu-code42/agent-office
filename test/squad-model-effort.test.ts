@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { brainForTicket } from '../src/main/ticket-brain'
+import { brainForTicket, cycleDefaults } from '../src/main/ticket-brain'
 import { loadSquads, memberAgents } from '../src/main/squads'
 import { squadFilePlan, writeSquad } from '../src/main/squad-writer'
 import type { SquadProposalComposition } from '@shared/types'
@@ -27,6 +27,28 @@ describe('brainForTicket', () => {
 
   it('sem ticket nem padrão deixa o modelo em aberto, nunca um Haiku fixo', () => {
     expect(brainForTicket({}, {})).toEqual({ model: undefined, effort: undefined })
+  })
+})
+
+// A ligação de src/main/index.ts (startActiveSquadTicket) passa por cycleDefaults.
+describe('cycleDefaults (ciclo de ticket de squad)', () => {
+  const base = { model: 'claude-sonnet-5-5', effort: 'medium' as const }
+
+  it('ticket com opus e high inicia o orquestrador com esse par', () => {
+    expect(cycleDefaults(undefined, { model: 'claude-opus-5-5', effort: 'high' }, base, 'default')).toEqual({
+      model: 'claude-opus-5-5',
+      effort: 'high',
+      permissionMode: 'default',
+    })
+  })
+
+  it('ticket sem modelo usa o padrão das configurações', () => {
+    expect(cycleDefaults(undefined, {}, base, 'default')).toEqual({ model: 'claude-sonnet-5-5', effort: 'medium', permissionMode: 'default' })
+  })
+
+  it('um orquestrador anterior do ticket é herdado como estava', () => {
+    const prior = { model: 'claude-opus-5-5', effort: 'high' as const, accounts: ['a1'] }
+    expect(cycleDefaults(prior, { model: 'claude-haiku-4-5', effort: 'low' }, base, 'plan')).toEqual({ ...prior, permissionMode: 'plan' })
   })
 })
 

@@ -65,7 +65,7 @@ import { QuitFlow } from './quit'
 import { registerSessionsIpc } from './ipc/sessions'
 import { registerSettingsIpc } from './ipc/settings'
 import { registerSquadsIpc } from './ipc/squads'
-import { brainForTicket } from './ticket-brain'
+import { cycleDefaults } from './ticket-brain'
 import { registerBarTimerIpc } from './ipc/bar-timer'
 import { registerProfileMemoryIpc } from './ipc/profile-memory'
 import { registerMediaIpc } from './ipc/media'
@@ -396,9 +396,7 @@ app
         const inheritedMode =
           store.settings.projects.find((project) => project.cwd === queue.cwd)?.permissionMode ?? store.settings.defaultPermissionMode
         const permissionMode = prior?.permissionMode ?? inheritedMode
-        const defaults = prior
-          ? { model: prior.model, effort: prior.effort, accounts: prior.accounts, permissionMode }
-          : { ...defaultBrain(), ...brainForTicket(ticket, defaultBrain()), permissionMode }
+        const defaults = cycleDefaults(prior, ticket, defaultBrain(), permissionMode)
         let worktree = prior?.worktree ?? (queue.cycle?.ticketId === ticket.id ? queue.cycle.worktree : undefined)
         if (!worktree) {
           worktree = (await createWorktree(queue.cwd, `${squad.name}-${ticket.key}`, randomUUID())) ?? undefined
