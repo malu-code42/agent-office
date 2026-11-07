@@ -12,6 +12,7 @@ import {
   type Ticket,
 } from '@shared/types'
 import { pendingTickets } from '@shared/squad-tickets'
+import { roomTitle } from '@shared/squad-rooms'
 import { competencyProfiles } from '@shared/competency-profiles'
 import type { State } from '../../state'
 import type { SquadRoom } from '../../world2d/plan'
@@ -60,7 +61,7 @@ function openCreateSquadReady(root: HTMLElement, state: State, opts: CreateSquad
   const id = reopened?.id ?? newId()
   let brief = reopened?.brief ?? ''
   const picked = new Set<string>(reopened?.ticketIds ?? workflow.ticketIds)
-  let name = reopened?.name ?? `Squad da Sala ${room.index + 1}`
+  let name = reopened?.name ?? `Squad da ${roomTitle(room.index)}`
   const manualMembers: SquadProposalMember[] = reopened?.composition?.members.map((member) => ({ ...member })) ?? [
     {
       id: 'implementer',
@@ -90,7 +91,7 @@ function openCreateSquadReady(root: HTMLElement, state: State, opts: CreateSquad
   const tickets = pendingTickets([...state.tickets.values()], state.settings.projects, project.id).filter((ticket) =>
     workflow.ticketIds.includes(ticket.id),
   )
-  const roomName = `Sala ${room.index + 1}`
+  const roomName = roomTitle(room.index)
 
   const el = modal('Criar squad', [], [], () => close(false))
   // The approved drawing (HANDOFF 3.4.2) gives this window more room than the small popups.

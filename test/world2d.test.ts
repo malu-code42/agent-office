@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SQUAD_MAX_MEMBERS } from '@shared/types'
+import { SQUAD_DESKS_PER_ROOM, SQUAD_MAX_MEMBERS, SQUAD_ROOM_COUNT } from '@shared/types'
 import { AGENT_DESK_COUNT, roomLabel } from '../src/renderer/src/world2d/plan'
 import layoutData from '../src/renderer/src/assets/pixel/project.json'
 import { behind, depthSort, type Footprint } from '../src/renderer/src/world2d/depth'
@@ -131,24 +131,37 @@ describe('hit', () => {
 })
 
 describe('layout 2D do andar de projeto', () => {
-  it('tem as três salas de squad 9x6, a diretoria e o elevador', () => {
+  it('tem as quatro salas de squad em L, o escritório da Emi no meio e o elevador (AO-106)', () => {
+    // the floor does not grow: 24 x 18 tiles
     expect(LAYOUT.size).toEqual([24, 18])
+    expect(LAYOUT.canvas).toEqual([736, 460])
+    expect(LAYOUT.rooms).toHaveLength(SQUAD_ROOM_COUNT)
+    // I and II at the top (x 0..9), III and IV at the bottom (x 15..24); each an L of a block and the coordinator strip
     expect(LAYOUT.rooms.map((r) => r.rect)).toEqual([
-      [0, 0, 9, 6],
-      [0, 6, 9, 12],
-      [0, 12, 9, 18],
+      [0, 11, 9, 18],
+      [0, 0, 9, 7],
+      [15, 11, 24, 18],
+      [15, 0, 24, 7],
     ])
-    expect(LAYOUT.rooms.every((r) => r.slots.length === SQUAD_MAX_MEMBERS)).toBe(true)
+    expect(LAYOUT.rooms.every((r) => r.rects.length === 2)).toBe(true)
+    // nine member desks per room, always built, and the coordinator desk of its own: ten per room, forty on the floor
+    expect(LAYOUT.rooms.every((r) => r.slots.length === SQUAD_DESKS_PER_ROOM && r.slots.length === SQUAD_MAX_MEMBERS)).toBe(true)
+    expect(LAYOUT.rooms.reduce((n, r) => n + r.slots.length + 1, 0)).toBe(40)
+    expect(LAYOUT.office.rect).toEqual([9, 7, 15, 11])
   })
 
-  it('a porta da diretoria continua na parede', () => {
-    const wall = LAYOUT.walls.find((w) => w.axis === 'x' && w.at === 18)
-    expect(wall?.doors.length).toBeGreaterThan(0)
+  it('a porta do escritório da Emi está na parede e o elevador no fim do corredor da direita', () => {
+    const wall = LAYOUT.walls.find((w) => w.axis === 'x' && w.at === LAYOUT.office.door.at && w.from <= LAYOUT.office.door.tiles[0] && w.to > LAYOUT.office.door.tiles[0])
+    expect(wall?.doors).toEqual(LAYOUT.office.door.tiles)
+    // the elevator is on the back wall y = 0, in the middle of the corridor that runs between the two strips
+    expect(LAYOUT.elevator.tile[1]).toBe(1)
+    expect(LAYOUT.elevator.tile[0]).toBeGreaterThanOrEqual(LAYOUT.office.rect[0])
+    expect(LAYOUT.elevator.tile[0]).toBeLessThan(LAYOUT.office.rect[2])
   })
 
   it('dá para chegar a toda cadeira, e à porta de cada sala saindo do elevador', () => {
     const grid = grid2d(LAYOUT)
-    const plan = projectPlan2d(LAYOUT, [squad('sala-1', 5), squad('sala-2', 4), squad('sala-3', 2)])
+    const plan = projectPlan2d(LAYOUT, [squad('sala-1', 5), squad('sala-2', 4), squad('sala-3', 2), squad('sala-4', 9)])
     const [ex, ez] = plan.elevator.tile
     expect(grid.walkable(ex, ez)).toBe(true)
     const goals: [number, number][] = [
@@ -158,6 +171,7 @@ describe('layout 2D do andar de projeto', () => {
         ...r.coordinator.deliver,
         ...r.desks.map((d) => d.approach),
       ]),
+      ...LAYOUT.rooms.flatMap((r) => [r.door.in, r.door.out, ...r.stand]),
       ...plan.agentDesks.map((d) => d.approach),
       [Math.floor(LAYOUT.emi.seat.at[0] / 16), Math.floor(LAYOUT.emi.seat.at[1] / 16)],
     ]
@@ -167,50 +181,65 @@ describe('layout 2D do andar de projeto', () => {
     }
   })
 
-  it('as cinco mesas de cada sala bloqueiam o próprio tile e deixam livre o corredor da porta até o coordenador', () => {
+  it('as nove mesas de cada sala bloqueiam o próprio tile e a extensão, livre, leva da porta a toda cadeira', () => {
     const grid = grid2d(LAYOUT)
-    const plan = projectPlan2d(LAYOUT, [squad('sala-1', 5), squad('sala-2', 5), squad('sala-3', 5)])
-    for (const room of plan.rooms) {
-      const z0 = room.rect[1]
-      expect(room.desks).toHaveLength(5)
-      // every desk is furniture now, member 5 included
-      for (const desk of room.desks)
-        expect(grid.walkable(Math.floor(desk.center!.x), Math.floor(desk.center!.z)), `mesa ${desk.index}`).toBe(false)
-      // the middle rows, from the door (x 8) to the delivery column (x 3), stay free
-      for (let x = 3; x <= 8; x++) for (const z of [z0 + 2, z0 + 3]) expect(grid.walkable(x, z), `${x},${z}`).toBe(true)
+    const plan = projectPlan2d(LAYOUT, [squad('sala-1', 9), squad('sala-2', 9), squad('sala-3', 9), squad('sala-4', 9)])
+    plan.rooms.forEach((room, r) => {
+      expect(room.desks).toHaveLength(9)
+      // every desk is furniture, whether or not somebody sits there
+      for (const slot of LAYOUT.rooms[r].slots) {
+        const fp = slot.desk.green.fp
+        expect(grid.walkable(Math.floor(fp[0] / 16), Math.floor(fp[1] / 16)), `mesa da sala ${r}`).toBe(false)
+      }
+      const { door } = LAYOUT.rooms[r]
+      for (const [x, z] of LAYOUT.rooms[r].stand) expect(grid.walkable(x, z), `${x},${z}`).toBe(true)
+      expect(grid.canStep(door.out[0], door.out[1], door.in[0], door.in[1])).toBe(true)
       // no two sitters share a tile: members, coordinator and the inline member beside it
-      const spots = [...room.desks.map((d) => d.approach), room.coordinator.approach, room.coordinator.sideApproach].map(
-        ([x, z]) => `${x},${z}`,
-      )
+      const spots = [...room.desks.map((d) => d.approach), room.coordinator.approach, room.coordinator.sideApproach].map(([x, z]) => `${x},${z}`)
       expect(new Set(spots).size).toBe(spots.length)
-      // nobody's chair stands in the aisle
-      for (const desk of room.desks) expect([z0 + 2, z0 + 3]).not.toContain(desk.approach[1])
-    }
+      // one delivery tile per member of a full room, no two alike
+      expect(new Set(room.coordinator.deliver.map(([x, z]) => `${x},${z}`)).size).toBeGreaterThanOrEqual(9)
+    })
   })
 
   it('não atravessa as paredes de vidro fora das portas', () => {
     const grid = grid2d(LAYOUT)
-    // squad room 1 east wall: closed at row 0, a door at rows 2 and 3
-    expect(grid.canStep(8, 0, 9, 0)).toBe(false)
-    expect(grid.canStep(8, 2, 9, 2)).toBe(true)
-    // between squad rooms 1 and 2
-    expect(grid.canStep(1, 5, 1, 6)).toBe(false)
+    // ways across the border of a set of tiles, counting every pair of neighbours that one can step between
+    const ways = (inside: (x: number, z: number) => boolean) => {
+      let n = 0
+      for (let x = -1; x < 25; x++)
+        for (let z = -1; z < 19; z++)
+          for (const [dx, dz] of [
+            [1, 0],
+            [0, 1],
+          ])
+            if (x >= 0 && z >= 0 && x + dx < 24 && z + dz < 18 && inside(x, z) !== inside(x + dx, z + dz) && grid.canStep(x, z, x + dx, z + dz)) n++
+      return n
+    }
+    for (const room of LAYOUT.rooms) {
+      const inL = (x: number, z: number) => room.rects.some((r) => x >= r[0] && x < r[2] && z >= r[1] && z < r[3])
+      // only the door crosses the glass around the L (the floor's borders are outside the grid)
+      expect(ways(inL), `sala ${room.rect}`).toBe(1)
+    }
+    // Emi's office opens only at its door, two tiles wide
+    const [ox0, oz0, ox1, oz1] = LAYOUT.office.rect
+    expect(ways((x, z) => x >= ox0 && x < ox1 && z >= oz0 && z < oz1)).toBe(LAYOUT.office.door.tiles.length)
   })
 })
 
 describe('projectPlan2d', () => {
   it('cada squad pega sua sala; as mesas dos membros seguem a ordem da sala', () => {
     const plan = projectPlan2d(LAYOUT, [squad('sala-2', 3, 'Dev Beta')])
-    expect(plan.rooms.map((r) => r.state)).toEqual(['empty', 'live', 'empty'])
+    expect(plan.rooms.map((r) => r.state)).toEqual(['empty', 'live', 'empty', 'empty'])
     const room = plan.rooms[1]
     expect(room.name).toBe('Dev Beta')
     // any three of the room's desks (AO-106: at random but stable), each one named by its place in the room
     const mine = room.desks.map((d) => d.index)
     expect(new Set(mine).size).toBe(3)
-    for (const i of mine) expect([0, 1, 2, 3, 4].map((k) => memberDeskIndex(1, k))).toContain(i)
-    // members face the coordinator (-x), the coordinator faces them (+x)
-    expect(room.desks.every((d) => d.face === -Math.PI / 2)).toBe(true)
-    expect(room.coordinator.rot).toBe(Math.PI / 2)
+    for (const i of mine) expect(Array.from({ length: SQUAD_DESKS_PER_ROOM }, (_, k) => memberDeskIndex(1, k))).toContain(i)
+    // members face the coordinator, the coordinator faces them: opposite ways along x
+    expect(room.desks.every((d) => d.face === -room.coordinator.rot)).toBe(true)
+    expect(Math.abs(room.coordinator.rot)).toBe(Math.PI / 2)
     expect(plan.issues).toEqual([])
   })
 
@@ -218,8 +247,13 @@ describe('projectPlan2d', () => {
     const none = projectPlan2d(LAYOUT, [])
     expect(none.agentDesks).toHaveLength(AGENT_DESK_COUNT)
     expect(none.agentDesks.map((d) => d.index)).toEqual([...Array(AGENT_DESK_COUNT).keys()])
-    const busy = projectPlan2d(LAYOUT, [squad('sala-1', 5), squad('sala-2', 5), squad('sala-3', 3)])
-    expect(busy.agentDesks).toHaveLength(2)
+    // 36 member desks: three squads of 9, 9 and 3 leave 15, and ten of them are the agents
+    const busy = projectPlan2d(LAYOUT, [squad('sala-1', 9), squad('sala-2', 9), squad('sala-3', 3)])
+    expect(busy.agentDesks).toHaveLength(AGENT_DESK_COUNT)
+    // with every desk taken the agents wait in the corridors
+    const full = projectPlan2d(LAYOUT, [squad('sala-1', 9), squad('sala-2', 9), squad('sala-3', 9), squad('sala-4', 9)])
+    expect(full.agentDesks).toHaveLength(0)
+    expect(full.agentStand.length).toBeGreaterThan(0)
     // nobody shares a chair with a squad member
     const seats = new Set(busy.rooms.flatMap((r) => r.desks.map((d) => `${d.seat.x},${d.seat.z}`)))
     for (const d of busy.agentDesks) expect(seats.has(`${d.seat.x},${d.seat.z}`)).toBe(false)
@@ -227,10 +261,10 @@ describe('projectPlan2d', () => {
   })
 
   it('squads demais ficam de fora como problema, sem sumir', () => {
-    const plan = projectPlan2d(LAYOUT, [squad('a', 2), squad('b', 2), squad('c', 2), squad('d', 2, 'Quarto')])
+    const plan = projectPlan2d(LAYOUT, [squad('a', 2), squad('b', 2), squad('c', 2), squad('d', 2), squad('e', 2, 'Quinto')])
     expect(plan.rooms.every((r) => r.state === 'live')).toBe(true)
-    expect(plan.issues.map((i) => i.code)).toEqual(['d'])
-    expect(plan.squadOf.get('d/m0')).toBe('d')
+    expect(plan.issues.map((i) => i.code)).toEqual(['e'])
+    expect(plan.squadOf.get('e/m0')).toBe('e')
   })
 
   it('a sala com proposta fica reservada e composição fora do limite vira aviso', () => {
@@ -286,8 +320,8 @@ describe('plano com outro número de salas e mesas que as constantes (AO-106 eta
     expect(plan.rooms[0].desks).toHaveLength(3)
     expect(plan.rooms[0].members).toHaveLength(3)
     expect(plan.issues[0].reason).toContain('de 2 a 3 membros')
-    // the other desks (3 per room, 9 in all, 3 taken) are still free for the individual agents
-    expect(plan.agentDesks).toHaveLength(6)
+    // the other desks (3 per room, 12 in all, 3 taken) are still free for the individual agents: nine of the ten
+    expect(plan.agentDesks).toHaveLength(9)
   })
 
   it('sala sem nenhuma mesa não derruba o plano', () => {
@@ -336,7 +370,8 @@ describe('mesas ao acaso e estáveis (AO-106 etapa 3)', () => {
 
   it('os agentes individuais ocupam mesas livres de qualquer sala, não só as primeiras', () => {
     const plan = projectPlan2d(LAYOUT, [])
-    const roomsUsed = new Set(plan.agentDesks.map((d) => Math.floor((d.z - 0) / 6)))
+    const where = slotOfDesk(plan, LAYOUT)
+    const roomsUsed = new Set(plan.agentDesks.map((d) => where.get(d.index)!.room))
     expect(roomsUsed.size).toBeGreaterThan(1)
   })
 

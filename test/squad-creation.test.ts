@@ -450,7 +450,7 @@ describe('a proposta', () => {
     const proposal = await propose()
     expect(proposal.status).toBe('pending')
     expect(proposal.composition?.members).toHaveLength(2)
-    expect(proposal.name).toBe('Squad da Sala 1')
+    expect(proposal.name).toBe('Squad da Sala I')
     expect(existsSync(join(project.cwd, 'squads'))).toBe(false)
     expect(creation.list()).toHaveLength(1)
   })
@@ -462,8 +462,8 @@ describe('a proposta', () => {
     )
   })
 
-  it('a sala não existe fora das três do andar', async () => {
-    await expect(creation.propose({ id: 'prop-3', projectId: 'p1', room: 3, brief: 'x', ticketIds: [] })).rejects.toThrow(/sala/)
+  it('a sala não existe fora das quatro do andar', async () => {
+    await expect(creation.propose({ id: 'prop-3', projectId: 'p1', room: 4, brief: 'x', ticketIds: [] })).rejects.toThrow(/sala/)
   })
 
   it('quando a geração falha, nada fica guardado', async () => {
@@ -488,7 +488,7 @@ describe('a proposta', () => {
     await creation.adjust(proposal.id, 'Inclua um testador')
     const after = creation.get(proposal.id)!
     expect(after.adjustments).toEqual(['Inclua um testador'])
-    expect(after.name).toBe('Squad da Sala 1')
+    expect(after.name).toBe('Squad da Sala I')
     expect(after.status).toBe('pending')
   })
 
@@ -617,7 +617,7 @@ describe('o nome que a pessoa editou', () => {
   it('um nome vazio não é aceito', async () => {
     const proposal = await propose()
     expect(() => creation.rename(proposal.id, '   ')).toThrow(/nome/)
-    expect(creation.get(proposal.id)?.name).toBe('Squad da Sala 1')
+    expect(creation.get(proposal.id)?.name).toBe('Squad da Sala I')
   })
 
   it('um nome vazio não aprova o squad', async () => {

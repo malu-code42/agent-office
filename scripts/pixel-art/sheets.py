@@ -6,7 +6,7 @@ from furn import T
 from room import draw_floor
 from floorkit import (save2, OAK, WALNUT, parquet, checker, speckled, PROJECT_WALL, CASA_WALL, SCHOOL_WALL,
                       glass_x, wainscot_wall, GRAPHITE, GREENF, shade)
-from scene_projeto import SLATE, WARMG, SAGE
+from scene_projeto import SLATE, WARMG, SAGE, ROSE
 from scene_casa2 import WARM, HONEY
 from scene_estudos import HALL, AULA, PROF, blackboard_stand
 
@@ -25,7 +25,6 @@ def moveis():
         ('bookshelf', 20, lambda L: F.bookshelf(L, 0, 0, 28)),
         ('sofa', 20, lambda L: F.sofa(L, 0, 0, '+y', T('f0a060', 'd9844a', 'b86a38'))),
         ('round table', 30, lambda L: rt(L)),
-        ('meeting tbl', 24, lambda L: (F.small_table(L, -10, 0, 40, 18), [F.wood_chair(L, x, -12, '+y') for x in (-6, 8, 22)])),
         ('tv', 16, lambda L: F.tv(L, 0, 0)),
         ('elevator', -16, lambda L: (L.pbox(0, -4, 0, 34, 4, 56, T('8a8f96', 'f3ece0', 'dad2c4')), F.elevator_y(L, 0, 6, 26))),
         ('cooler+plant', 8, lambda L: (F.water_cooler(L, 0, 0), F.plant(L, 16, 4, seed=2))),
@@ -63,7 +62,7 @@ def rt(L):
 
 
 def tiles():
-    floors = [OAK, WALNUT, WARM, HONEY, parquet(), SLATE, WARMG, SAGE, HALL, AULA, PROF]
+    floors = [OAK, WALNUT, WARM, HONEY, parquet(), SLATE, WARMG, SAGE, ROSE, HALL, AULA, PROF]
     L = Layer(6 * 44 + 8, 2 * 26 + 100 + 8, 0, 0, BGS)
     for i, fn in enumerate(floors):
         L.ox, L.oy = 6 + 16 + (i % 6) * 44, 6 + (i // 6) * 24

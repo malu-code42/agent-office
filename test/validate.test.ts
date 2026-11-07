@@ -701,7 +701,7 @@ describe('a proposta de um squad', () => {
     expect(parsed.ticketIds).toEqual(['t1'])
   })
   it('recusa uma sala fora do andar e um brief vazio', () => {
-    expect(squadProposalRequestSchema.safeParse({ id: 'proposta-1', projectId: 'p1', room: 3, brief: 'x' }).success).toBe(false)
+    expect(squadProposalRequestSchema.safeParse({ id: 'proposta-1', projectId: 'p1', room: 4, brief: 'x' }).success).toBe(false)
     expect(squadProposalRequestSchema.safeParse({ id: 'proposta-1', projectId: 'p1', room: 0, brief: '  ' }).success).toBe(false)
   })
   it('recusa um id que não serve para um arquivo', () => {

@@ -1,4 +1,5 @@
 import { SQUAD_ROLE_LABELS, type Look, type SquadRole, type SubagentInfo } from './types'
+import { roomTitle } from './squad-rooms'
 
 const basename = (p: unknown): string => {
   if (typeof p !== 'string' || !p) return ''
@@ -128,7 +129,7 @@ export function describePermission(tool: string, input: Record<string, unknown> 
       return {
         title: `Posso criar o squad ${String(input.name ?? '')}?`,
         detail: [
-          `Squad: ${String(input.name ?? '')}${input.room ? ` · Sala ${String(input.room)}` : ''}`,
+          `Squad: ${String(input.name ?? '')}${typeof input.room === 'number' && input.room >= 1 ? ` · ${roomTitle(input.room - 1)}` : ''}`,
           `Para: ${String(input.brief ?? '')}`,
           `Tickets: ${list(input.tickets).join(', ')}`,
           'Membros:',

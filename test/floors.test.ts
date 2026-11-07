@@ -44,7 +44,7 @@ describe('the key of the project floors', () => {
   })
 
   it('changes when an overflow squad is replaced by another one with the same size', () => {
-    const rooms = [squad('a', 'A', ['m1', 'm2', 'm3']), squad('b', 'B', ['m1', 'm2', 'm3']), squad('c', 'C', ['m1', 'm2', 'm3'])]
+    const rooms = ['a', 'b', 'c', 'd'].map((code) => squad(code, code.toUpperCase(), ['m1', 'm2', 'm3']))
     const before = key([...rooms, squad('delta', 'Delta', ['m1', 'm2', 'm3'])])
     const after = key([...rooms, squad('epsilon', 'Epsilon', ['m1', 'm2', 'm3'])])
     // Same number of squads, same number of members: only the squad itself changed.
@@ -52,7 +52,7 @@ describe('the key of the project floors', () => {
   })
 
   it('says which squad has no room, and what it says', () => {
-    const rooms = [squad('a', 'A', ['m1', 'm2', 'm3']), squad('b', 'B', ['m1', 'm2', 'm3']), squad('c', 'C', ['m1', 'm2', 'm3'])]
+    const rooms = ['a', 'b', 'c', 'd'].map((code) => squad(code, code.toUpperCase(), ['m1', 'm2', 'm3']))
     const plan = projectPlan([...rooms, squad('delta', 'Delta', ['m1', 'm2', 'm3'])])
     expect(plan.issues.map((i) => i.code)).toEqual(['delta'])
     expect(plan.issues[0].reason).toContain('Delta')

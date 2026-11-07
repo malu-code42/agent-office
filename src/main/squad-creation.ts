@@ -16,7 +16,7 @@ import {
   type SquadQueue,
   type Ticket,
 } from '@shared/types'
-import { squadInRoom } from '@shared/squad-rooms'
+import { roomTitle, squadInRoom } from '@shared/squad-rooms'
 import { pendingTickets, orderedTickets } from '@shared/squad-tickets'
 import { isPullRequestUrl } from '@shared/pull-request-url'
 import { projectFor } from '@shared/projects'
@@ -767,9 +767,9 @@ export class SquadCreation extends EventEmitter {
     }
   }
 
-  /** The name the room suggests: "Squad da Sala N". */
+  /** The name the room suggests: "Squad da Sala I" (the numeral is the screen's; the code keeps the number). */
   private suggestedName(room: number): string {
-    return `Squad da Sala ${room + 1}`
+    return `Squad da ${roomTitle(room)}`
   }
 
   /** The tickets the player chose, in the order of the board (and only the pending ones). */

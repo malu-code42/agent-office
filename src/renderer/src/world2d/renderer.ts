@@ -7,10 +7,11 @@ import type { EstudosFlat, StudyAct } from './estudos'
 import { sharedAtlas } from './atlas'
 import { depthSort, type Footprint } from './depth'
 import { crtOf, type FlatFloor } from './floor'
-import { artToScreen, clampCenter, onWestWall, deviceScale, dirOf, fitZoom, floorBounds, TILE, toFloor, toScreen, type Px } from './iso'
+import { artToScreen, clampCenter, deviceScale, dirOf, fitZoom, floorBounds, TILE, toFloor, toScreen, type Px } from './iso'
 import type { Placement, SeatArt } from './layout'
 import type { Bubble2d } from './sprites'
 import { actAt, topmost } from './hit'
+import { inRects, roomUnder } from './room-hit'
 
 /** Someone on the floor, as the game sees it this frame. */
 export interface Person2d {
@@ -164,7 +165,6 @@ const GLYPHS: Record<string, string> = {
   '-': '000000111000000',
 }
 /** Height of the back walls, in art units. */
-const WALL_H = 56
 
 const BG = '#1f1b24'
 /** How the hovered clickable thing of the Casa stands out. */
@@ -305,11 +305,9 @@ export class Renderer2d {
     const at = this.floorAt(clientX, clientY)
     if (!view || !at || view.floor.kind !== 'project') return null
     const { layout } = view.floor
-    const inRect = (r: readonly number[]) => at.x >= r[0] && at.z >= r[1] && at.x < r[2] && at.z < r[3]
-    const room = layout.rooms.findIndex((r) => inRect(r.rect))
+    const room = layout.rooms.findIndex((r) => inRects(r.rects, at))
     if (room >= 0) return view.rooms[room] ?? null
-    if (layout.director && inRect(layout.director.rect)) return view.emi === null ? 'Diretoria' : 'Diretoria · Emi'
-    if (layout.lounge && inRect(layout.lounge.rect)) return 'Descanso e lazer'
+    if (inRects([layout.office.rect], at)) return 'Escritório da Emi'
     return null
   }
 
@@ -331,9 +329,9 @@ export class Renderer2d {
       const act = actAt(this.items as { sprites: Sprite[]; act?: StudyAct }[], view.floor.layout.hot, p, solid)
       if (act) return { kind: 'study', act }
     } else {
-      const { origin, rooms } = view.floor.layout
-      // a squad room answers on its back wall (the whiteboard side)
-      const room = rooms.findIndex((room) => onWestWall(origin, p, room.rect[1] * TILE, room.rect[3] * TILE, WALL_H))
+      // a squad room answers on the back wall it touches (the whiteboard side); the one at the front corner has
+      // no back wall and answers on its coordinator's desk and its floor
+      const room = roomUnder(view.floor.layout, p, solid)
       if (room >= 0) return { kind: 'room', room }
     }
     const { origin, elevator } = view.floor.layout
@@ -537,13 +535,16 @@ export class Renderer2d {
   }
 
   /** Lights off: the room's volume darkened, as the generator's Scene.darken does. */
-  private shade(c: CanvasRenderingContext2D, pts: [number, number][]): void {
+  private shade(c: CanvasRenderingContext2D, shapes: [number, number][][]): void {
     c.save()
     c.globalCompositeOperation = 'multiply'
     c.fillStyle = 'rgb(128,133,158)'
+    // one path for the whole L, so where its parts overlap on screen the shade is painted once
     c.beginPath()
-    pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y)))
-    c.closePath()
+    for (const pts of shapes) {
+      pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y)))
+      c.closePath()
+    }
     c.fill()
     c.restore()
   }
@@ -551,9 +552,8 @@ export class Renderer2d {
   /** A team waiting for approval: an amber outline on the room's floor. */
   private outline(c: CanvasRenderingContext2D, view: FlatView, r: number): void {
     if (view.floor.kind !== 'project') return
-    const [x0, z0, x1, z1] = view.floor.layout.rooms[r].rect
     const o = view.floor.layout.origin
-    const pts = [toScreen(o, x0, z0), toScreen(o, x1, z0), toScreen(o, x1, z1), toScreen(o, x0, z1)]
+    const pts = view.floor.layout.rooms[r].outline.map(([x, z]) => toScreen(o, x, z))
     c.save()
     c.beginPath()
     pts.forEach((p, i) => (i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)))

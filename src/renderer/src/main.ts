@@ -1,6 +1,7 @@
 import { unlockBarTimerSound } from './ui/timer-sound'
 import './styles/index.css'
 import { Game } from './game'
+import { roomTitle } from '@shared/squad-rooms'
 import { bindPerfKeys, perf } from './perf'
 import { State } from './state'
 import { Board } from './ui/board'
@@ -301,7 +302,7 @@ async function boot(): Promise<void> {
       const emi = emiAgentId(project.id)
       if (!waiting && state.agents.has(emi)) {
         void showAgent(emi)
-        toast(`Converse com a Emi: ela monta o squad da Sala ${room.index + 1} com você.`, 'info')
+        toast(`Converse com a Emi: ela monta o squad da ${roomTitle(room.index)} com você.`, 'info')
         return
       }
       openCreateSquad(ui, state, { project, room, proposal: waiting, toast })

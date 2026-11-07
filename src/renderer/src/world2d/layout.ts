@@ -4,7 +4,7 @@
 // in tiles (world2d/plan.ts).
 
 import { SQUAD_DESKS_PER_ROOM, SQUAD_MAX_MEMBERS, SQUAD_MIN_MEMBERS, SQUAD_ROOM_COUNT } from '@shared/types'
-import { floorRooms } from '@shared/squad-rooms'
+import { floorRooms, roomTitle } from '@shared/squad-rooms'
 import { AGENT_DESK_COUNT, memberKey, type DeskSlot, type Partition, type ProjectIssue, type ProjectPlan, type SquadRoom } from './plan'
 import { Grid } from './pathfinding'
 import { memberDeskOrder, stableOrder } from './desk-order'
@@ -54,16 +54,53 @@ export interface SeatArt {
   pose: 'sitF' | 'sitB'
 }
 
+/**
+ * A squad room: an L (AO-106). Every place the game walks to comes from the art, so the plan has no numbers of
+ * its own about the room's shape.
+ */
 export interface RoomArt {
-  /** Tiles. */
+  /** The bounding box of the L, in tiles: only for a first look; the room is `rects`. */
   rect: Rect
+  /** The rectangles of the L, in tiles: the block with its extension, and the coordinator's strip. */
+  rects: Rect[]
+  /** The outline of the L (tile corners), for the amber outline of a proposal. */
+  outline: [number, number][]
+  /**
+   * The back wall the room touches in the isometric scene: the west one (x = 0), the north one (y = 0), or none
+   * (the corner nearest the viewer, whose click lands on the coordinator's desk and the floor).
+   */
+  back: 'west' | 'north' | null
+  /** The door at the end of the extension, on the wall x = at: its tile along z and the tiles inside and outside. */
+  door: { axis: 'x'; at: number; tile: number; in: [number, number]; out: [number, number] }
   /** Centre x and top y of the room's plate. */
   plate: [number, number]
-  /** Outline of the room's volume, for the lights-off shade. */
-  dark: [number, number][]
-  coordinator: { desk: DeskArt; center: [number, number]; seat: SeatArt; plate: [number, number] }
-  /** The member desks in creation order; the first four are the approved art's. */
+  /** Outlines of the room's volume (one per rectangle), for the lights-off shade. */
+  dark: [number, number][][]
+  coordinator: {
+    desk: DeskArt
+    center: [number, number]
+    seat: SeatArt
+    plate: [number, number]
+    /** Where an inline member stands, beside the coordinator, and the tile it walks to first. */
+    side: [number, number]
+    sideApproach: [number, number]
+    /** The tiles in front of the desk where members hand their delivery over, the middle first: one per member of a full room. */
+    deliver: [number, number][]
+  }
+  /** Tiles along the extension, door end first, where a member stands when the room has no desk for it. */
+  stand: [number, number][]
+  /** The member desks (nine: a 3 x 3 grid), always built; the plan hands them out at random. */
   slots: { desk: DeskArt; seat: SeatArt; plate: [number, number] }[]
+}
+
+/** A window at the end of a corridor: on the plane x = at ('x') or y = at ('y'), spanning `span` (art units). */
+export interface WindowArt {
+  end: 'cima' | 'baixo' | 'esquerda'
+  plane: 'x' | 'y'
+  at: number
+  span: [number, number]
+  /** False on the front walls, which the isometric scene does not draw. */
+  drawn: boolean
 }
 
 export interface ProjectLayout {
@@ -80,9 +117,9 @@ export interface ProjectLayout {
   blocked: [number, number][]
   rooms: RoomArt[]
   emi: { desk: DeskArt; seat: SeatArt; plate: [number, number] }
-  /** The old directors' room and lounge: only the tooltip still reads them; the four-room floor has neither (AO-106). */
-  director?: { rect: Rect; plate: [number, number] }
-  lounge?: { rect: Rect; plate: [number, number] }
+  /** Emi's office in the middle of the floor, with the door on the wall x = at (tiles along z). */
+  office: { rect: Rect; door: { axis: 'x'; at: number; tiles: number[] } }
+  windows: WindowArt[]
   /** Door tile, drop point (tiles) and the door on the back wall (x0, x1, height in art units). */
   elevator: {
     tile: [number, number]
@@ -131,35 +168,27 @@ export const memberDeskIndex = (room: number, k: number) => AGENT_DESK_COUNT + r
 
 /** An empty squad room of the 2D floor: the coordinator's desk is there, no member desks. */
 function emptyRoom(art: RoomArt, index: number): SquadRoom {
-  const [, z0] = art.rect
   const seat = art.coordinator.seat
   const sx = seat.at[0] / TILE
   const sz = seat.at[1] / TILE
+  const [side, sideApproach, stand] = [art.coordinator.side, art.coordinator.sideApproach, art.stand]
   return {
     index,
     rect: art.rect,
+    rects: art.rects,
     squad: null,
-    name: `Sala ${index + 1}`,
+    name: roomTitle(index),
     coordinator: {
       at: { x: art.coordinator.center[0] / TILE, z: art.coordinator.center[1] / TILE },
       rot: headingOf(seat.dir),
       seat: { x: sx, z: sz },
       approach: [Math.floor(sx), Math.floor(sz)],
-      // beside the coordinator, in front of the bookshelf (row 4 is the desk of member 5, against the far wall)
-      side: { x: Math.floor(sx) + 0.5, z: z0 + 2.5 },
-      sideApproach: [Math.floor(sx), z0 + 2],
-      // the aisle in front of the coordinator's desk, middle first
-      deliver: [2, 3, 1, 4, 0, 5].map((dz): [number, number] => [3, z0 + dz]),
+      side: { x: side[0], z: side[1] },
+      sideApproach,
+      deliver: art.coordinator.deliver,
     },
     desks: [],
-    // along the east wall, clear of the doors' middle
-    stand: [
-      [8, z0 + 1],
-      [8, z0 + 4],
-      [8, z0 + 5],
-      [8, z0],
-      [7, z0 + 5],
-    ],
+    stand,
     members: [],
     state: 'empty',
     off: false,
@@ -170,8 +199,8 @@ function emptyRoom(art: RoomArt, index: number): SquadRoom {
  * The walkable tiles outside the squad rooms, nearest first from a start tile: the aisles where the ones
  * without a desk wait (AO-106: no lounge). Walking from the elevator, so every tile can be reached.
  */
-function aisleTiles(grid: Grid, from: [number, number], rooms: readonly RoomArt[], limit: number): [number, number][] {
-  const inRoom = (x: number, z: number) => rooms.some((r) => x >= r.rect[0] && x < r.rect[2] && z >= r.rect[1] && z < r.rect[3])
+function aisleTiles(grid: Grid, from: [number, number], inside: readonly Rect[], limit: number): [number, number][] {
+  const inRoom = (x: number, z: number) => inside.some((r) => x >= r[0] && x < r[2] && z >= r[1] && z < r[3])
   const key = (x: number, z: number) => z * grid.w + x
   const seen = new Set<number>([key(from[0], from[1])])
   const queue: [number, number][] = [from]
@@ -199,8 +228,8 @@ function aisleTiles(grid: Grid, from: [number, number], rooms: readonly RoomArt[
 /**
  * The plan of a 2D project floor: the same rules as projectPlan (world/layout.ts) for
  * which squad takes which room and what does not fit, on the approved layout. The
- * individual agents sit at the member desks no squad uses (the approved art shows one
- * in a squad room), up to AGENT_DESK_COUNT; the rest stand in the aisles.
+ * individual agents sit at the member desks no squad uses (any room's, at random but
+ * stable), up to AGENT_DESK_COUNT; the rest stand in the corridors.
  */
 export function projectPlan2d(
   layout: ProjectLayout,
@@ -271,7 +300,7 @@ export function projectPlan2d(
     .slice(0, AGENT_DESK_COUNT)
     .map((f, i) => deskSlot(i, layout.rooms[f.room].slots[f.slot].desk, layout.rooms[f.room].slots[f.slot].seat))
   // the aisles by the elevator: the first eight for the orchestrators without a room, the next eight for the agents without a desk
-  const aisle = aisleTiles(grid, layout.elevator.tile, layout.rooms, 16)
+  const aisle = aisleTiles(grid, layout.elevator.tile, [...layout.rooms.flatMap((r) => r.rects), layout.office.rect], 16)
   return {
     size: layout.size,
     elevator: { tile: layout.elevator.tile, point: { x: layout.elevator.point[0], z: layout.elevator.point[1] } },

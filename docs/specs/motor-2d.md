@@ -39,7 +39,7 @@ andar, Look, uniforme, tamanho e "caído". Nada de three.js.
 
 `game/input.ts` pergunta ao renderer: arrastar move a câmera (presa ao andar), roda/zoom do HUD troca 1×/2×/3×,
 clique acerta pessoa (pixel pintado do sprite, a da frente primeiro, escala dos ajudantes considerada), parede do
-fundo de uma sala de squad, Emi, móveis clicáveis da Casa e do andar de estudos, porta do elevador ou o chão.
+fundo de uma sala de squad (a do canto da frente, sem parede do fundo, na mesa do coordenador e no piso), Emi, móveis clicáveis da Casa e do andar de estudos, porta do elevador ou o chão.
 
 ## A Casa (fase 2)
 
@@ -63,6 +63,50 @@ fundo de uma sala de squad, Emi, móveis clicáveis da Casa e do andar de estudo
   sapato mantendo a razão de cada tom; o contorno acompanha, inclusive os cantos meio transparentes (o canvas
   devolve o RGB arredondado pelo alfa pré-multiplicado: vale a cor do mapa mais próxima dentro desse erro).
 
+## O andar de projeto em quatro salas (AO-106)
+
+Quatro salas de squad em L nos cantos, o escritório da Emi no centro e corredores em cruz ligados por um anel,
+no mesmo andar de 24 × 18 tiles (quadro nativo 736 × 460: o andar não cresceu). `scene_projeto.py` é a fonte da
+geometria; `export_app.py` grava `project.json` (e o atlas, `project-base.png`) e nada disso se edita à mão.
+
+- **Planta e cena**: a planta aprovada (`planta.dc.html`) é vista de cima; a cena é isométrica e só desenha as duas
+  paredes do fundo (x = 0, à esquerda, e y = 0, à direita). A planta foi girada para que o topo dela seja a parede
+  x = 0 e a direita seja a parede y = 0: as salas I (esquerda na planta, em cima) e II (em cima, à direita) ficam,
+  na tela, no canto da esquerda e no canto de trás; III (embaixo, à esquerda) no canto da frente; IV no canto da direita.
+- **Em tiles** (`x` desce para a direita, `y` desce para a esquerda): x 0 a 7 salas de cima, 7 a 9 as faixas dos
+  coordenadores, 9 a 15 o escritório e os corredores, 15 a 17 as faixas de baixo, 17 a 24 as salas de baixo; y 0 a 6
+  salas da direita, 6 a 7 a extensão, 7 a 11 escritório e corredores de cima e de baixo, 11 a 12 a extensão da
+  esquerda, 12 a 18 salas da esquerda. O escritório da Emi é o retângulo `[9, 7, 15, 11]`.
+- **Sala em L** (`rooms[].rects`): o bloco de 7 × 6 tiles com a coluna da extensão (7 × 7) e a faixa do
+  coordenador (2 tiles de fundo). `rect` é só a caixa que cobre o L; para saber se um tile é da sala use `rects`.
+  O vidro em volta é calculado das células do L (`runs_around`), com uma porta de um tile no fim da extensão, voltada
+  para o corredor em volta do escritório (`rooms[].door`: parede, tile, tile de dentro e de fora).
+- **10 mesas por sala, 40 no andar**: grade de 3 × 3 mesas de agentes (cada uma um par de tiles: mesa e cadeira) e,
+  separada, a mesa do coordenador na faixa. Todas sempre montadas, ocupem ou não: bloqueiam o tile delas. A coluna
+  da extensão e a fileira ao lado da faixa ficam livres e levam da porta a toda cadeira. As salas de cima têm os
+  agentes de frente para o coordenador (mesa `ws_front_x`, 28 de comprimento, o conjunto de 12 pede o espaço); as de
+  baixo, de costas (`ws_back`). A coluna do lado da extensão não leva mesa.
+- **Quem senta onde**: o plano entrega as mesas em ordem sorteada, estável (`world2d/desk-order.ts`): a mesma squad
+  cai sempre nas mesmas mesas, e quem já sentou não troca quando entra gente. Teto de 9 membros por squad
+  (`SQUAD_MAX_MEMBERS` = `SQUAD_DESKS_PER_ROOM`), 4 salas (`SQUAD_ROOM_COUNT`). A composição da Emi segue limitada
+  a 6 (`SQUAD_MAX_COMPOSED`): cada papel aparece uma vez e há 6 papéis; o ticket decide se isso muda.
+- **Lugares vêm da arte**: `side`, `sideApproach` e `deliver` (9 tiles, o do meio primeiro) do coordenador e `stand`
+  (a extensão, do lado da porta para dentro) saem do `project.json`; o `layout.ts` não tem número de sala.
+  Quem não tem mesa nem sala espera nos corredores (`aisleTiles`, a partir do elevador, fora de salas e escritório).
+- **Janelas e porta do elevador**: o elevador fica na parede y = 0, no fim do corredor da direita
+  (tile `[12, 1]`). Janelas nas pontas de cima, de baixo e da esquerda (`windows` no JSON). Só a de cima está numa
+  parede que a cena desenha; as outras duas ficam nas paredes da frente, que o motor isométrico não desenha:
+  estão no layout (`drawn: false`) e não na imagem.
+- **Clique na sala** (`world2d/room-hit.ts`): I e II respondem na parede x = 0, IV na parede y = 0 (a do quadro
+  branco), e III, sem parede do fundo, na mesa do coordenador e no piso. O contorno âmbar da proposta segue o L
+  (`rooms[].outline`) e a sombra de luz apagada é uma lista de polígonos (`rooms[].dark`), pintados num só caminho.
+- **Rótulos**: o código guarda o número (`sala-1`); só a tela diz "Sala I" a "Sala IV" (`roomTitle` em
+  `shared/squad-rooms.ts`).
+- **Como se confere sem abrir o app**: `test/projeto2d.test.ts` e `test/world2d.test.ts` leem o `project.json`:
+  nenhuma pegada se sobrepõe, as mesas ficam dentro do L e nos tiles bloqueados, as cadeiras em tiles livres, toda
+  cadeira, porta e tile de espera é alcançável a partir do elevador, só a porta atravessa o vidro. A aparência se
+  confere na prévia de `python scene_projeto.py` (`out/pixel-art/scene-projeto_2x.png`).
+
 ## O andar de estudos (fase 3)
 
 - O andar de cima, depois dos de projeto (`GameBase.studyFloor` = número de andares de projeto + 1). Porta de entrada
@@ -82,16 +126,15 @@ fundo de uma sala de squad, Emi, móveis clicáveis da Casa e do andar de estudo
   aberta, fechada); quadros `elevator.open` em cada layout, desenhados por cima da base.
 - **Descanso no sofá**: quem descansa (`relax`) num canto `sit` da Casa aparece sentado de costas no sofá. Atingido
   pela Caveira ali, vai antes para o piso livre mais perto (`game/strike-spot.ts`) e cai no chão, não no sofá.
-- **Sem placas no chão**: o nome da sala, da diretoria e do lounge aparece como dica ao passar o mouse;
-  a sala de squad abre pela parede do fundo.
+- **Sem placas no chão**: o nome da sala e do escritório da Emi aparece como dica ao passar o mouse; a sala de squad
+  abre pela parede do fundo que ela toca (`world2d/room-hit.ts`, ver "O andar de projeto em quatro salas").
 - **Sem sala de reuniões (AO-105)**: o código não tem mais o conceito. Agente de projeto com resultado pendente fica sentado
   na própria mesa (`resultDestination` devolve `'desk'`), com a bolha de notificação; clicar nele abre o resultado
-  pendente (`onAgentClick`). Os sprites antigos da sala ainda estão no `project.json`/atlas até a arte ser regerada
-  pelos scripts de `scripts/pixel-art` (pendente), mas o motor não os trata como lugar clicável nem de espera.
+  pendente (`onAgentClick`). A arte da sala, do lounge e da diretoria saiu do gerador e do atlas (AO-106).
 - **Emi**: mesa virada para a parede do fundo (ela de costas, ao sul da mesa; visitas ao norte), tag de nome e
   status como a de qualquer agente (clique abre o chat) e visual fixo `EMI_LOOK`.
-- **Mesa 5** de cada sala de squad fica na parede do fundo, atrás do coordenador (a estante fica ao lado dela; a sala
-  comporta cinco membros): as cinco mesas bloqueiam o tile delas e as fileiras do meio ficam livres da porta até o coordenador.
+- **Emi no escritório central** (AO-106): a mesa dela fica no meio do andar, com uma porta de duas tiles na parede
+  que olha para o corredor de cima; `emi.seat` do `project.json` é onde ela senta. O ponto `director` não existe mais.
 - **Caveira**: como era no 3D: a caveira cai sobre o agente, ri parada no ar, mergulha; fumaça roxa, o agente cai
   (`char/<v>/down`), "x_x", e um fantasma sobe e some. Tudo dirigido pelo `update(dt)` (`game/skull.ts`, `fx`),
   com os sons de `game/sfx.ts`.
@@ -148,4 +191,4 @@ máximo 96 (o cache é limpo ao chegar nisso), então agentes, caveira e roupa s
 - Na Casa: agentes sem projeto e sem casa esperam no hall (sem mesa).
 - Só os quatro balões em pixel art (`... ! ? ok`); o diamante da conta e a aura de esforço do 3D não existem no 2D
   (a conta segue no chip da tag quando há mais de uma).
-- Agentes individuais sentam nas mesas livres das salas de squad, até 10; os demais ficam de pé no lounge.
+- Agentes individuais sentam nas mesas livres das salas de squad, até 10; os demais ficam de pé nos corredores.

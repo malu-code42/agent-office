@@ -5,7 +5,7 @@
 type Rect = [number, number, number, number]
 
 export const DEFAULT_SECTOR = 'Equipe'
-/** Desks of the glass room with the individual agents: two columns of five. */
+/** Desks the individual agents take: any member desk no squad uses, in any room, up to this many (AO-106). */
 export const AGENT_DESK_COUNT = 10
 
 /** Squad members share one floor: `squad/member` ids keep two squads with the same member id apart. */
@@ -71,7 +71,10 @@ export type SquadRoomState = 'empty' | 'proposed' | 'live'
 export interface SquadRoom {
   /** Position of the room among the rooms of the floor, from 0. */
   index: number
+  /** Bounding box of the room's L, in tiles. */
   rect: Rect
+  /** The L itself: its rectangles, in tiles. */
+  rects: Rect[]
   /** Squad code of the room; null while the room is empty. */
   squad: string | null
   /** Name on the room's plate. */
