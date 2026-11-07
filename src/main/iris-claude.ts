@@ -65,7 +65,7 @@ export const IRIS_INSTRUCTIONS = [
  */
 export function claudeIrisInterpreter(): IrisInterpreter {
   return {
-    async interpret(context, signal, preferences) {
+    async interpret(context, signal, preferences, channelRules) {
       const claude = findClaude()
       if (!claude) throw new IrisUnavailable(claudeNotFoundMessage(process.platform))
       const abort = new AbortController()
@@ -78,7 +78,9 @@ export function claudeIrisInterpreter(): IrisInterpreter {
           model: preferences?.model,
           effort: preferences?.effort,
           pathToClaudeCodeExecutable: claude,
-          systemPrompt: IRIS_INSTRUCTIONS,
+          systemPrompt: channelRules ? `${IRIS_INSTRUCTIONS}
+
+${channelRules}` : IRIS_INSTRUCTIONS,
           tools: [],
           maxTurns: 1,
           permissionMode: 'default',

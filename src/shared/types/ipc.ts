@@ -23,6 +23,7 @@ import type { RoutineCandidate } from '../routine-personal'
 import type { FocusItem } from '../planning'
 import type { MediaCreateInput, MediaItemOf, MediaKind, MediaPosterResult, MediaUpdateInput } from '../media'
 import type { BarTimerView } from '../barTimer'
+import type { TelegramSaveInput, TelegramView } from '../telegram'
 import type { FocusRangeView } from '../focusLog'
 import type { IrisResult } from '../iris'
 import type { ProfileId } from '../profiles'
@@ -217,6 +218,8 @@ export type OfficeEvent =
   | { type: 'result:changes'; resultId: string; agentId: string; changes: ResultChanges }
   | { type: 'bridge:status'; status: BridgeStatus }
   | { type: 'settings'; settings: Settings }
+  /** AO-84: o estado da ponte Telegram mudou. Nunca carrega o token. */
+  | { type: 'telegram'; view: TelegramView }
   | { type: 'usage'; usage: PlanUsage[] }
   | { type: 'accounts'; accounts: AccountStatus[] }
   | { type: 'system'; system: SystemStats }
@@ -486,6 +489,10 @@ export interface OfficeAPI {
   /** Tira o passo de hoje da tarefa; o de outros dias fica no histórico. Devolve o foco. */
   clearStep(id: string): Promise<FocusItem[]>
   /** Lê o Timer da barra como ele está agora; null quando está Parado. */
+  /** AO-84: estado do Telegram (sem o token: só "configurado"). */
+  telegramState(): Promise<TelegramView>
+  /** AO-84: valida, guarda o token criptografado e liga ou desliga a ponte. Token vazio mantém o já guardado. */
+  saveTelegram(input: TelegramSaveInput): Promise<TelegramView>
   readBarTimer(): Promise<BarTimerView | null>
   /** Começa o intervalo que a popup escolhe (Foco · 25, Pausa curta · 5, Pausa longa · 15), com ou sem tarefa ligada. */
   startBarTimer(mode: number, task?: { id?: string; text?: string } | null): Promise<BarTimerView | null>

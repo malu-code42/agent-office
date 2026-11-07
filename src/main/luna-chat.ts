@@ -5,7 +5,7 @@ import { isAudioFile } from '@shared/audio'
 import type { AudioDisposition } from './audio-capture'
 
 export interface LunaDesk {
-  prepare(vault: string, request: string, captureId?: string): IrisPreview
+  prepare(vault: string, request: string, captureId?: string, channelRules?: string): IrisPreview
   send(token: string): Promise<IrisResult>
   cancel(token: string): void
 }
@@ -40,6 +40,27 @@ export class LunaChat {
     return done.then((disposition) => {
       if (disposition !== 'complete') throw new Error('A Luna não conseguiu concluir esse pedido. Tente novamente.')
     })
+  }
+
+  /**
+   * AO-84: a request that came through Telegram. Same desk as the window chat (the same context, the same Claude call, the same
+   * pending proposal that only the app confirms), plus the channel rules in the prompt. Nothing is started or opened here:
+   * a suggested profile task or a media draft only becomes a pointer to the app. Returns the text for the user and whether a
+   * card/proposal is now waiting in the app.
+   */
+  async askRemote(request: string, channelRules: string): Promise<{ text: string; needsAppCard: boolean }> {
+    let preview: IrisPreview | undefined
+    try {
+      this.host.log('user', `Telegram: ${request}`)
+      preview = this.desk.prepare(this.vault(), request, undefined, channelRules)
+      const result = await this.desk.send(preview.token)
+      const turn = describeRemote(result)
+      this.host.log('assistant', turn.text)
+      return turn
+    } catch (error) {
+      if (preview) this.desk.cancel(preview.token)
+      throw error
+    }
   }
 
   /** Direct subflow used by an approved audio group; bypasses the current chat queue item that invoked it. */
@@ -119,5 +140,27 @@ export class LunaChat {
         this.host.log('assistant', `Preparei um rascunho de ${result.draft.kind} para você revisar. Nada foi salvo ainda.`)
         this.host.openMediaDraft(result.draft)
     }
+  }
+}
+
+/** What a Telegram user reads for each kind of answer. Only a proposal leaves something waiting in the app. */
+function describeRemote(result: IrisResult): { text: string; needsAppCard: boolean } {
+  switch (result.kind) {
+    case 'question':
+      return { text: result.text, needsAppCard: false }
+    case 'proposal': {
+      const n = result.proposal.operations.length
+      return {
+        text: `Preparei uma proposta com ${n} ${n === 1 ? 'operação' : 'operações'}. Nada foi alterado ainda.`,
+        needsAppCard: true,
+      }
+    }
+    case 'task':
+      return {
+        text: `A Luna sugere o perfil ${profileById(result.profile)?.name ?? result.profile} para uma tarefa separada. Abra o Agent Office para começar.`,
+        needsAppCard: false,
+      }
+    case 'media-draft':
+      return { text: `Preparei um rascunho de ${result.draft.kind}. Abra o Agent Office para revisar e salvar.`, needsAppCard: false }
   }
 }

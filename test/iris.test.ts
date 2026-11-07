@@ -482,3 +482,20 @@ describe('operações novas da proposta', () => {
     )
   })
 })
+
+describe('regras do canal (AO-84)', () => {
+  it('chegam ao intérprete como quarto argumento, só nesse pedido', async () => {
+    const seen: (string | undefined)[] = []
+    const interpreter: IrisInterpreter = {
+      interpret: (_c, _s, _p, channelRules) => {
+        seen.push(channelRules)
+        return Promise.resolve(json({ operations: [], question: 'Qual?' }))
+      },
+    }
+    const base = setup()
+    const desk = new IrisDesk({ planning: base.planning, tasks: base.tasks, agenda: base.agenda, interpreter, log: { warn: () => undefined } })
+    await desk.send(desk.prepare(vault, REQUEST, undefined, 'REGRAS-DO-CANAL').token)
+    await desk.send(desk.prepare(vault, REQUEST).token)
+    expect(seen).toEqual(['REGRAS-DO-CANAL', undefined])
+  })
+})
