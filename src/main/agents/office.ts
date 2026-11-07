@@ -234,6 +234,7 @@ export abstract class AgentOffice extends AgentBase {
         same.summary.account = undefined
       same.summary.worktree = worktree
       same.summary.ticketId = ticketId
+      same.summary.resumed = undefined
       this.watchSquad(same)
       this.sendMessage(same.summary.id, task, display)
       return same.summary
@@ -269,6 +270,15 @@ export abstract class AgentOffice extends AgentBase {
     this.addLog(agent, 'user', display)
     this.run(agent, task)
     return summary
+  }
+
+  /** AO-100: marca que o ciclo voltou sozinho ao reabrir o app e de qual fase; o escritório mostra. */
+  noteResumed(id: string, phase: string, at = Date.now()): void {
+    const agent = this.agents.get(id)
+    if (!agent || agent.summary.role !== 'orchestrator') return
+    agent.summary.resumed = { phase, at }
+    this.addLog(agent, 'system', `Retomado ao reabrir o Agent Office, na fase: ${phase}.`)
+    this.upsert(agent)
   }
 
   /** AO-107: nome do coordenador novo, sem repetir o de nenhum coordenador ativo (a escolha em si é pura). */

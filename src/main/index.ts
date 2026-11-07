@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { permissionNotice, realPathOf } from '@shared/permission-notice'
-import type { Actor, AgentBrain, OfficeEvent, PermissionRequest } from '@shared/types'
+import type { Actor, AgentBrain, AgentSummary, SquadPhaseRecord, OfficeEvent, PermissionRequest } from '@shared/types'
 import { Accounts } from './accounts'
 import { AgentManager } from './agents'
 import { badgeDescription, badgeLabel, badgePixels, encodePng } from './badge'
@@ -21,6 +21,7 @@ import { copySquadRuntime, inspectSquads, isDir, loadSquads } from './squads'
 import { SquadCreation } from './squad-creation'
 import { SquadProposalStore } from './squad-proposals'
 import { SquadQueueStore } from './squad-queues'
+import { PHASE_LABEL, SquadPhaseStore, resumeSquads, squadPhaseOf } from './squad-phase'
 import { SquadStatusStore } from './squad-status'
 import { MacJobs } from './mac-jobs'
 import { RoutineScheduler, RoutineStore } from './routines'
@@ -383,7 +384,8 @@ app
     setInterval(() => void dropMergedPRs(), 10 * 60_000).unref()
 
     const publishing = new SquadPublicationGate()
-    const startActiveSquadTicket = async (code: string): Promise<void> => {
+    const phases = new SquadPhaseStore(app.getPath('userData'))
+    const startActiveSquadTicket = async (code: string, resume?: { record: SquadPhaseRecord; note: string }): Promise<void> => {
       const cwd = creation.queue(code)?.cwd
       if (!cwd) return
       const release = manager.reserveSquadStart(cwd, code)
@@ -416,8 +418,12 @@ app
         await excludeSquadRuntime(worktree, code)
         copySquadRuntime(queue.cwd, code, worktree.path)
         if (squadStatus.get(queue.cwd, code) || creation.queue(code)?.active !== ticket.id) return
-        const instruction = `Rode um ciclo do squad ${squad.name} (squads/${code}) exclusivamente para o ticket ${ticket.key} (${ticket.title}).\n\n${ticketBrief(ticket)}\n\nNão trabalhe em nenhum outro ticket.`
-        manager.runSquad(squad, instruction, `Ciclo ${ticket.key} · ${ticket.title}`, defaults, worktree, ticket.id)
+        const instruction = `Rode um ciclo do squad ${squad.name} (squads/${code}) exclusivamente para o ticket ${ticket.key} (${ticket.title}).\n\n${ticketBrief(ticket)}\n\nNão trabalhe em nenhum outro ticket.${resume ? `
+
+${resume.note}` : ''}`
+        const display = `${resume ? `Retomado na fase ${PHASE_LABEL[resume.record.phase]} · ` : ''}Ciclo ${ticket.key} · ${ticket.title}`
+        const started = manager.runSquad(squad, instruction, display, defaults, worktree, ticket.id)
+        if (resume) manager.noteResumed(started.id, PHASE_LABEL[resume.record.phase])
         creation.clearStartupError(code, ticket.id)
       } catch (err) {
         const queue = creation.queue(code)
@@ -463,7 +469,10 @@ app
                 },
                 changes: (changes) => manager.setChanges(result.id, changes),
                 committed: (changes, sha) => manager.setChanges(result.id, { ...changes, committed: sha }),
-                record: (pr) => creation.releaseTicketForReview(squadCode, pr),
+                record: (pr) => {
+                  creation.releaseTicketForReview(squadCode, pr)
+                  phases.clear(squadCode)
+                },
               },
             ),
           finishTicket: () => {
@@ -523,8 +532,31 @@ app
       if (latest?.active === queue.active) throw new Error(latest.cycle?.publicationError ?? 'A publicação continua pendente.')
     }
 
+    // AO-100: a cada mudança de fase do ciclo, grava o estado mínimo para retomar (só relê o squad quando o passo ou o estado mudou).
+    const phaseSeen = new Map<string, string>()
+    const recordPhase = (a: AgentSummary): void => {
+      if (a.role !== 'orchestrator' || !a.squad || !a.ticketId) return
+      const key = `${a.ticketId}|${a.status}|${JSON.stringify(a.squadStep ?? null)}`
+      if (phaseSeen.get(a.id) === key) return
+      phaseSeen.set(a.id, key)
+      const members = loadSquads(a.cwd).find((s) => s.code === a.squad)?.members ?? []
+      const phase = squadPhaseOf(a.squadStep, a.status, members)
+      if (!phase) return
+      const queue = creation.queue(a.squad)
+      if (queue?.active !== a.ticketId) return
+      phases.record({
+        code: a.squad,
+        ticketId: a.ticketId,
+        ticketKey: board.get(a.ticketId)?.key,
+        phase,
+        member: a.squadStep?.agent,
+        step: a.squadStep?.label || undefined,
+      })
+    }
+
     manager.on('event', (e: OfficeEvent) => {
       broadcast(e)
+      if (e.type === 'agent:upsert') recordPhase(e.agent)
       if (e.type === 'result:changes') {
         void publishSquadResult(e.resultId, e.agentId)
       } else if (e.type === 'permission:new') {
@@ -554,8 +586,27 @@ app
     })
 
     for (const result of manager.pendingResults()) void publishSquadResult(result.id, result.agentId)
+    // AO-100: o squad com fase guardada volta sozinho nela (ou espera, ou o registro cai); sem registro, vale o início de sempre.
+    void resumeSquads({
+      records: () => phases.all(),
+      facts: (code) => {
+        const queue = creation.queue(code)
+        const ticket = queue?.active ? board.get(queue.active) : undefined
+        return {
+          active: queue?.active ?? null,
+          ticket: ticket ? { id: ticket.id, key: ticket.key, status: ticket.status, closedAt: ticket.closedAt, assignee: ticket.assignee?.id } : undefined,
+          state: queue ? squadStatus.get(queue.cwd, code) : undefined,
+        }
+      },
+      discard: (code) => phases.clear(code),
+      members: (code) => {
+        const cwd = creation.queue(code)?.cwd
+        return cwd ? (loadSquads(cwd).find((s) => s.code === code)?.members ?? []) : []
+      },
+      start: (code, resume) => startActiveSquadTicket(code, resume),
+    })
     for (const queue of creation.queues()) {
-      if (queue.active)
+      if (queue.active && !phases.get(queue.code))
         void startActiveSquadTicket(queue.code).catch((err) =>
           log.warn(`Não consegui retomar o ticket do squad ${queue.code}: ${err instanceof Error ? err.message : String(err)}`),
         )

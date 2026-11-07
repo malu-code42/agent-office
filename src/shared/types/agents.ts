@@ -118,6 +118,8 @@ export interface AgentSummary {
   ticketId?: string
   /** Where the cycle is, read from squads/<code>/state.json. */
   squadStep?: SquadProgress
+  /** AO-100: o ciclo voltou sozinho ao reabrir o app; a fase em que continuou e quando. */
+  resumed?: { phase: string; at: number }
   /**
    * Works in its own git worktree instead of `cwd`. `cwd` stays the project folder, so
    * the floor, the cost book and the tickets keep counting it there.

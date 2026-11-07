@@ -286,12 +286,17 @@ export abstract class GameSquads extends GameSubagents {
     this.uppers.forEach((u, i) => {
       const byRoom = this.orchestratorsOn(i + 1)
       u.stepTags.forEach((tag, room) => {
-        const st = byRoom.get(room)?.squadStep
+        const orch = byRoom.get(room)
+        const st = orch?.squadStep
+        // AO-100: o ciclo voltou sozinho ao reabrir o app; a etiqueta diz de qual fase.
+        const resumed = orch?.resumed && st?.status !== 'completed' ? `↻ Retomado (${orch.resumed.phase}) · ` : ''
         const text =
-          st?.status === 'completed'
+          resumed && !st?.current
+            ? `${resumed}Aguardando o primeiro passo`
+            : st?.status === 'completed'
             ? '✓ Ciclo concluído'
             : st?.current
-              ? `${st.type === 'checkpoint' ? '⏸' : '▸'} Passo ${st.current}/${st.total} · ${clip(st.label, 32)}`
+              ? `${resumed}${st.type === 'checkpoint' ? '⏸' : '▸'} Passo ${st.current}/${st.total} · ${clip(st.label, 32)}`
               : 'Aguardando o próximo ciclo'
         tag.setName(text)
         tag.setDot(
