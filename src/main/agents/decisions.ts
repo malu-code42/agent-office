@@ -14,6 +14,7 @@ import { permissionFromTool } from './permissions'
 import { LUNA_CONFIRM_TOOLS, LUNA_SERVER } from '../luna-tools'
 import { EMI_CONFIRM_TOOLS, EMI_SERVER } from '../emi-tools'
 import { BONNIE_SERVER } from '../bonnie-tools'
+import { MERGE_TOOL } from '../merge-tools'
 
 /** Read-only tools Luna (her roots) and Emi (the EGM plugin folders) use without a card. */
 const LUNA_READ_TOOLS = new Set(['Read', 'Grep', 'Glob'])
@@ -61,6 +62,8 @@ export abstract class AgentDecisions extends AgentSubagents {
     const floorScope: FloorScope = { homeDir: homedir(), dataDir: this.store.dataDirectory }
     const denied = floorCheck(tool, input, floorScope)
     if (denied) return Promise.resolve({ behavior: 'deny', message: `Negado pelo escritório: ${denied.why}.` })
+    // AO-109: merge_pr tem cartão próprio e reforçado, sempre, em qualquer modo.
+    if (tool === MERGE_TOOL) return this.askMerge(agent, input, opts)
     // The board is the office's own tool: no need to walk over and ask.
     if (tool.startsWith('mcp__office__')) return Promise.resolve({ behavior: 'allow', updatedInput: input })
     const luna = agent.summary.builtIn === 'luna'
@@ -142,6 +145,59 @@ export abstract class AgentDecisions extends AgentSubagents {
           if (d.behavior === 'allow_always' && req.canAlwaysAllow && project) this.saveAlwaysAllow(project.id, tool, input)
           resolve({ behavior: 'allow', updatedInput: input })
         }
+      })
+      opts.signal.addEventListener('abort', () => this.cancelRequest(id, 'Cancelado.'), { once: true })
+    })
+  }
+
+  /**
+   * O cartão REFORÇADO do merge (AO-109, parte 3). Só o próprio agente de nível 5 (nunca um subagente) chega a ele; o resto é negado.
+   * Todos os dados do cartão (repositório, PR, branch, commit) vêm do gh, não do que o agente escreveu. Vale uma vez: "Sempre
+   * permitir" não existe aqui, e a aprovação grava o commit que a usuária viu, que o gh confere de novo (--match-head-commit).
+   */
+  protected async askMerge(
+    agent: Agent,
+    input: Record<string, unknown>,
+    opts: { signal: AbortSignal; agentID?: string },
+  ): Promise<PermissionResult> {
+    const refuse = (why: string): PermissionResult => ({ behavior: 'deny', message: `Negado pelo escritório: ${why}.` })
+    const ops = this.mergeOps
+    if (!ops) return refuse('o merge pelo escritório não está disponível')
+    if (opts.agentID) return refuse('só o próprio agente de nível 5 pede merge, nunca um subagente')
+    if (this.levelOf(agent).level !== 5) return refuse('o merge pelo escritório é só do nível 5')
+    const pr = input.pr
+    if (typeof pr !== 'number' || !Number.isSafeInteger(pr) || pr <= 0) return refuse('informe só o número do PR')
+    const root = this.mergeRoot(agent)
+    let info: Awaited<ReturnType<NonNullable<typeof ops>['inspect']>>
+    try {
+      info = await ops.inspect(root, pr)
+      if (info.state !== 'OPEN') return refuse(`o PR #${pr} não está aberto (${info.state})`)
+      await ops.gate(root, info.host)
+    } catch (err) {
+      return refuse(err instanceof Error ? err.message : 'não consegui conferir o PR')
+    }
+    const req = {
+      kind: 'tool' as const,
+      toolName: MERGE_TOOL,
+      title: `Mesclar o PR #${info.number} em ${info.base}?`,
+      detail: [
+        `Repositório: ${info.host}/${info.repository}`,
+        `PR #${info.number}: ${info.title}`,
+        `Branch: ${info.head} → ${info.base}`,
+        `Commit: ${info.sha.slice(0, 10)}`,
+        '',
+        'Você pediu este merge? Se não foi você, negue.',
+      ].join('\n'),
+      input: { pr: info.number },
+      reason: 'Merge é irreversível e exige a sua confirmação a cada uso.',
+      canAlwaysAllow: false,
+    }
+    return new Promise((resolve) => {
+      const id = this.requestDecision(agent.summary.id, req, (d) => {
+        if (d.behavior === 'deny') return resolve({ behavior: 'deny', message: d.message?.trim() || 'O usuário negou este merge.' })
+        // allow e allow_always valem igual: uma vez só, nunca vira regra.
+        this.mergeApprovals.grant(agent.summary.id, info.number, info.sha)
+        resolve({ behavior: 'allow', updatedInput: { pr: info.number } })
       })
       opts.signal.addEventListener('abort', () => this.cancelRequest(id, 'Cancelado.'), { once: true })
     })

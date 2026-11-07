@@ -38,3 +38,6 @@ export {
   pullRequestState,
   type PullRequestState,
 } from './publish'
+
+export { assertOwnerAccount, allowedGithubAccounts, normalizeGithubAccounts, setGithubAccountsProvider, DEFAULT_GITHUB_ACCOUNTS } from './owner-gate'
+export { gateOwner, inspectPullRequest, mergePullRequest, type PullRequestInfo } from './merge'

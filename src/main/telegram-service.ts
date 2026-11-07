@@ -1,8 +1,9 @@
 // AO-84: liga a ponte Telegram (telegram-bridge.ts) ao app: configuração guardada, start/stop, estado para a tela e a Luna real.
 //
-// Não confirma nada por código: o gancho `confirmation` da ponte fica como está (parte 3 do AO-109).
+// AO-109, parte 3: liga o gancho `confirmation` da ponte (telegram-confirm.ts): pedido destrutivo só segue com "SIM <código>" no mesmo chat.
 
 import { log, secret } from './log'
+import { createTelegramConfirmation } from './telegram-confirm'
 import { TelegramBridge, type LunaPort, type TelegramState } from './telegram-bridge'
 import type { TelegramSettingsStore } from './telegram-settings'
 import type { TelegramSaveInput, TelegramView } from '@shared/telegram'
@@ -26,6 +27,7 @@ export class TelegramService {
     this.bridge = new TelegramBridge({
       config: () => deps.store.config(),
       luna: { ask: (request) => (this.luna ? this.luna.ask(request) : Promise.reject(new Error(MSG_LUNA_OFF))) },
+      confirmation: createTelegramConfirmation().hook,
       fetch: deps.fetch,
       // A ponte só entrega textos fixos; mesmo assim passam pelo redator do log.
       log: (level, text) => log[level](`Telegram: ${text}`),

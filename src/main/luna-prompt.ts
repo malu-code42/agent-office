@@ -49,7 +49,9 @@ export const LUNA_PROMPT = [
 export const LUNA_TELEGRAM_RULE = [
   'This message came from the user through Telegram, not from the office window.',
   'Before ANY destructive action (discarding a task, removing a commitment, deleting anything, commit, push, opening a PR), ' +
-    'describe exactly what you are about to do and ask the user to confirm in this same chat; only act after she confirms in a later message.',
+    'describe exactly what you are about to do and ask the user to confirm in this same chat; only act after she confirms in a later message. ' +
+    'The office already holds destructive requests until the user answers a confirmation code in this chat, so a request that reaches you was confirmed; ' +
+    'still never claim to have executed anything: the app asks for the final confirmation.',
   'Permission cards of the office (commit, push, PR and others) can only be approved in the Agent Office window, never from Telegram: ' +
     'when you need one, tell the user to confirm in the Agent Office and wait there.',
   'Keep replies short: Telegram shows plain text.',

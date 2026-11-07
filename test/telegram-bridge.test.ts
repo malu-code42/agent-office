@@ -22,7 +22,7 @@ const STRANGER = 999
 type Step = { updates: unknown[] } | { status: number; body?: unknown } | { throws: string }
 
 function message(updateId: number, chatId: number, text: string, type = 'private') {
-  return { update_id: updateId, message: { text, chat: { id: chatId, type } } }
+  return { update_id: updateId, message: { text, date: Math.floor(Date.now() / 1000), chat: { id: chatId, type } } }
 }
 
 /** Telegram simulado: getUpdates responde pelo roteiro e depois fica pendente até abortar; sendMessage é gravado. */

@@ -28,6 +28,8 @@ import { lunaAgentSummary } from '@shared/luna'
 import { BONNIE_AGENT_ID, BONNIE_LOOK, bonnieAgentSummary } from '@shared/bonnie'
 import { projectFor } from '@shared/projects'
 import { type Accounts } from '../accounts'
+import { MergeApprovals } from '../merge-tools'
+import type { PullRequestInfo } from '../git/merge'
 import { EGM_READ_FOLDERS, egmPluginRoot } from '../agent-plugins'
 import type { CostBook } from '../ledger'
 import type { Store } from '../store'
@@ -65,6 +67,15 @@ export abstract class AgentBase extends EventEmitter {
   emiTools?: (projectId: string) => McpSdkServerConfigWithInstance
   /** Bonnie's study floor tools (trail, cycle, schedule, Cora's sources); set where the study services live. */
   bonnieTools?: () => McpSdkServerConfigWithInstance
+  /** AO-109: aprovações de uso único dos cartões de merge (a ferramenta `merge_pr` só executa com uma delas). */
+  protected readonly mergeApprovals = new MergeApprovals()
+  /** AO-109: o que o merge usa do GitHub; os testes trocam por uma versão simulada, o app usa `git/merge.ts` (index.ts). */
+  mergeOps?: {
+    inspect(root: string, pr: number): Promise<PullRequestInfo>
+    /** Portão do dono: lança erro se a conta ativa do gh não for autorizada. */
+    gate(root: string, host: string): Promise<unknown>
+    merge(root: string, pr: number, sha: string): Promise<string>
+  }
   /** Picks the Claude account of each run; missing = the app's own login. */
   accounts?: Accounts
   /** The cost book: every SDK result is booked there. */

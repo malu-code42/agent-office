@@ -7,6 +7,7 @@ import { cleanSettings, modeIsMorePermissive } from '../validate'
 import { confirmPermissionOverride, id, type IpcContext } from './context'
 import { previewClaudePermissions } from '../permissions/import'
 import { installedPlugins } from '../agent-plugins'
+import { normalizeGithubAccounts } from '../git/owner-gate'
 
 /** Configurações: terminal bridge, templates and settings. */
 export function registerSettingsIpc(ctx: IpcContext): void {
@@ -93,6 +94,10 @@ export function registerSettingsIpc(ctx: IpcContext): void {
         return modeIsMorePermissive(next, previous) ? [floor.name] : []
       }),
     ]
+    // AO-109: aceitar uma conta nova do GitHub para publicar e mesclar também abre diálogo do processo principal.
+    const knownAccounts = new Set(normalizeGithubAccounts(store.settings.githubAccounts))
+    const addedAccounts = normalizeGithubAccounts(cleaned.githubAccounts).filter((a) => !knownAccounts.has(a))
+    if (addedAccounts.length) overrides.push(`contas do GitHub autorizadas (${addedAccounts.join(', ')})`)
     if (overrides.length && !(await confirmPermissionOverride(win(), `Permissões que ficarão mais permissivas: ${overrides.join(', ')}.`)))
       throw new Error('Configurações não salvas.')
     // Templates change only through saveTemplate/deleteTemplate; a removed floor turns its templates global.

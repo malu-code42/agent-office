@@ -45,7 +45,7 @@ afterEach(() => {
 
 const message = (updateId: number, chatId: number, text: string, type = 'private') => ({
   update_id: updateId,
-  message: { text, chat: { id: chatId, type } },
+  message: { text, date: Math.floor(Date.now() / 1000), chat: { id: chatId, type } },
 })
 
 /** Telegram simulado: entrega os lotes em ordem e depois fica pendente até abortar; grava o que a ponte envia. */
