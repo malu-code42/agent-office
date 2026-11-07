@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { assertTopicReady, type ReadinessSource } from '../src/main/study-readiness'
-import { generateIdeas } from '../src/main/study-ideas'
+import { generateProjects } from '../src/main/study-ideas'
 import type { StudyReadiness, StudyReadinessState } from '../src/shared/study-readiness'
 import { parseStudyTrail } from '../src/shared/study-trail'
 
@@ -45,17 +45,19 @@ describe('assertTopicReady', () => {
   })
 })
 
-describe('generateIdeas', () => {
+describe('generateProjects', () => {
+  const reply = { projects: [{ title: 'Simulador', description: 'Monte um circuito.', topics: [TOPIC] }], best: { index: 0, reason: 'Cobre o tópico.' } }
+
   it('does not ask the model for a locked topic', async () => {
-    const ask = vi.fn(async () => ({ ideas: [{ title: 'Simulador', description: 'Monte um circuito.' }] }))
-    await expect(generateIdeas(TOPIC, ask, source(report('sem-fonte')))).rejects.toThrow(/ainda não está pronto/)
+    const ask = vi.fn(async () => reply)
+    await expect(generateProjects([TOPIC], new Set(), ask, source(report('sem-fonte')))).rejects.toThrow(/ainda não está pronto/)
     expect(ask).not.toHaveBeenCalled()
   })
 
-  it('generates ideas for a ready topic as before', async () => {
-    const ask = vi.fn(async () => ({ ideas: [{ title: 'Simulador', description: 'Monte um circuito.' }] }))
-    const set = await generateIdeas(TOPIC, ask, source(report('pronto')), 5)
+  it('generates projects for a ready topic', async () => {
+    const ask = vi.fn(async () => reply)
+    const out = await generateProjects([TOPIC], new Set(), ask, source(report('pronto')))
     expect(ask).toHaveBeenCalledOnce()
-    expect(set).toEqual({ topic: TOPIC, generatedAt: 5, ideas: [{ title: 'Simulador', description: 'Monte um circuito.' }] })
+    expect(out).toEqual({ drafts: [{ title: 'Simulador', description: 'Monte um circuito.', topics: [TOPIC] }], bestIndex: 0, reason: 'Cobre o tópico.', skipped: [] })
   })
 })

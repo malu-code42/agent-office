@@ -1077,3 +1077,7 @@ button.sk-item:hover {
   max-height: 40vh;
   overflow: auto;
 }
+
+.study-ideas .sk-chip {
+  white-space: normal;
+}

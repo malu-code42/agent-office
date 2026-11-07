@@ -27,8 +27,8 @@ import { personalRoutineTaskFingerprintFromLine, personalRoutineTaskFingerprintF
 import { buildStudyBank, studyBankTopics } from '../study-bank-builder'
 import { askClaude } from '../study-questions-grounded'
 import { buildTopicSubtopics, StudySubtopicStore } from '../study-subtopics'
-import { generateIdeas, generateSpec, StudyIdeaStore } from '../study-ideas'
-import { specFileName, studiedTopics } from '@shared/study-ideas'
+import { generateProjects, generateSpec, StudyIdeaStore } from '../study-ideas'
+import { coveredTopics, specFileName, studiedTopics } from '@shared/study-ideas'
 import { suggestBooks } from '../study-book-suggestions'
 import { StudyBankJobs } from '../study-bank-job'
 import { isStudyReadinessReady } from '@shared/study-readiness'
@@ -80,7 +80,9 @@ import {
   resetStudyCycleArgsSchema,
   resumeStudyCycleArgsSchema,
   studySubtopicsArgsSchema,
-  studySpecArgsSchema,
+  generateStudyProjectsArgsSchema,
+  setStudyProjectStatusArgsSchema,
+  studyProjectArgsSchema,
   deleteStudyQuestionsArgsSchema,
   searchStudyLibraryArgsSchema,
   studySourceInventoryArgsSchema,
@@ -277,30 +279,33 @@ export function registerTasksIpc(ctx: IpcContext): void {
     subtopicStore.save(entry)
     return entry
   })
-  // Software ideas for the topics the student has studied (a topic of the study cycles), one stored set per topic.
+  // Projetos de software gerados a partir dos tópicos estudados: vários por pedido, cada um com estado marcado pela usuária.
   const ideaStore = new StudyIdeaStore(ctx.store.dataDirectory)
-  ipcMain.handle('office:readStudyIdeas', () => ideaStore.read())
-  ipcMain.handle('office:generateStudyIdeas', async (_e, ...args: unknown[]) => {
-    const [topic] = parse(studySubtopicsArgsSchema, args, 'Tópico inválido.')
-    if (!studiedTopics(studyCycleStore.read()).some((item) => item.topic === topic))
-      throw new Error('Esse tópico não está no ciclo de estudos.')
-    const set = await generateIdeas(topic, askClaude, readiness)
-    ideaStore.save(set)
-    return set
+  ipcMain.handle('office:readStudyProjects', () => ideaStore.read())
+  ipcMain.handle('office:generateStudyProjects', async (_e, ...args: unknown[]) => {
+    const [topics] = parse(generateStudyProjectsArgsSchema, args, 'Pedido inválido: envie os tópicos estudados.')
+    const studied = new Set(studiedTopics(studyCycleStore.read()).map((item) => item.topic))
+    const unknown = topics.find((topic) => !studied.has(topic))
+    if (unknown) throw new Error('Um dos tópicos não está no ciclo de estudos.')
+    const generated = await generateProjects(topics, coveredTopics(ideaStore.read()), askClaude, readiness)
+    return { projects: ideaStore.add(generated.drafts, generated.bestIndex, generated.reason), skipped: generated.skipped }
   })
-  const findIdea = (args: unknown[]) => {
-    const [topic, title] = parse(studySpecArgsSchema, args, 'Projeto inválido.')
-    const idea = ideaStore.read()[topic]?.ideas.find((item) => item.title === title)
-    if (!idea) throw new Error('Esse projeto não está mais guardado.')
-    return { topic, idea }
-  }
+  ipcMain.handle('office:setStudyProjectStatus', (_e, ...args: unknown[]) => {
+    const [id, status] = parse(setStudyProjectStatusArgsSchema, args, 'Projeto inválido.')
+    return ideaStore.setStatus(id, status)
+  })
+  ipcMain.handle('office:deleteStudyProject', (_e, ...args: unknown[]) => {
+    const [id] = parse(studyProjectArgsSchema, args, 'Projeto inválido.')
+    return ideaStore.remove(id)
+  })
+  const findProject = (args: unknown[]) => ideaStore.find(parse(studyProjectArgsSchema, args, 'Projeto inválido.')[0])
   ipcMain.handle('office:generateStudySpec', async (_e, ...args: unknown[]) => {
-    const { topic, idea } = findIdea(args)
-    return ideaStore.saveSpec(topic, idea.title, await generateSpec(topic, idea.title, idea.description, askClaude))
+    const project = findProject(args)
+    return ideaStore.saveSpec(project.id, await generateSpec(project.topics, project.title, project.description, askClaude))
   })
   // Exporta a spec guardada como .md na pasta que a usuária escolher, sem sobrescrever arquivo existente.
   ipcMain.handle('office:exportStudySpec', async (_e, ...args: unknown[]) => {
-    const { idea } = findIdea(args)
+    const idea = findProject(args)
     if (!idea.spec) throw new Error('Gere a especificação antes de exportar.')
     const r = await dialog.showOpenDialog(ctx.win()!, {
       properties: ['openDirectory', 'createDirectory'],

@@ -10,7 +10,7 @@ import {
   StudyReadinessStore,
   suggestTopicBooks,
 } from '../src/main/study-readiness'
-import { generateIdeas } from '../src/main/study-ideas'
+import { generateProjects } from '../src/main/study-ideas'
 import { isStudyReadinessReady, type StudyReadiness, type StudyReadinessState } from '../src/shared/study-readiness'
 import { parseStudyTrail } from '../src/shared/study-trail'
 
@@ -206,8 +206,8 @@ describe('AO-64: identidade da prontidão', () => {
     expect(() => assertTopicReady(source, trail.topics[1]!.label)).toThrow(/ainda não está pronto/)
     expect(() => assertTopicReady(source, 'Ondas')).toThrow(/mais de|repetido/)
     expect(() => assertTopicReady(source, '[P2-HW-99] Ondas')).toThrow(/não está na trilha/)
-    const ask = vi.fn(async () => ({ ideas: [] }))
-    await expect(generateIdeas(trail.topics[1]!.label, ask, source)).rejects.toThrow(/ainda não está pronto/)
+    const ask = vi.fn(async () => ({ projects: [] }))
+    await expect(generateProjects([trail.topics[1]!.label], new Set(), ask, source)).rejects.toThrow(/ainda não está pronto/)
     expect(ask).not.toHaveBeenCalled()
   })
 

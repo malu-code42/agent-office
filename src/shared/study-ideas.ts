@@ -1,8 +1,28 @@
 import type { StudyCycleState } from './study-cycle'
 
-export interface StudyIdea {
+/** Estado do projeto, marcado pela usuária: só "feito" faz os tópicos dele contarem como cobertos. */
+export const PROJECT_STATUSES = ['ideia', 'escolhido', 'feito'] as const
+export type StudyProjectStatus = (typeof PROJECT_STATUSES)[number]
+export const PROJECT_STATUS_LABEL: Record<StudyProjectStatus, string> = { ideia: 'Ideia', escolhido: 'Escolhido', feito: 'Feito' }
+
+/** Máximos por pedido ao modelo e por texto; o main rejeita o que passar. */
+export const MAX_TOPICS_PER_REQUEST = 30
+export const MAX_PROJECTS_PER_REQUEST = 8
+export const PROJECT_TITLE_MAX = 120
+export const PROJECT_DESCRIPTION_MAX = 600
+export const PROJECT_REASON_MAX = 400
+export const PROJECT_ID_RE = /^sp-[a-z0-9-]{1,60}$/
+
+export interface StudyProject {
+  id: string
   title: string
   description: string
+  /** Os tópicos estudados que o projeto usa (um subconjunto que combina), com o nome guardado no ciclo. */
+  topics: string[]
+  status: StudyProjectStatus
+  createdAt: number
+  /** Presente no projeto que o modelo indicou como o melhor do pedido, com o motivo. */
+  best?: { reason: string }
   /** Especificação passo a passo do projeto, guardada junto dele (AO-36); ausente até ser gerada. */
   spec?: StudySpec
 }
@@ -62,30 +82,74 @@ export function specFileName(title: string): string {
   return `${slug || 'projeto'}-especificacao.md`
 }
 
-/** Lê o que veio do disco: guarda só o que é bem formado, mantendo dados antigos (sem spec) intactos. */
-export function normalizeIdeaSets(raw: unknown): Record<string, StudyIdeaSet> {
-  const out: Record<string, StudyIdeaSet> = {}
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out
-  for (const [topic, value] of Object.entries(raw)) {
-    const set = value as Partial<StudyIdeaSet> | null
+function cleanSpec(value: unknown): StudySpec | undefined {
+  const s = (value ?? {}) as Partial<StudySpec>
+  return typeof s.markdown === 'string' && s.markdown && typeof s.generatedAt === 'number' ? { generatedAt: s.generatedAt, markdown: s.markdown } : undefined
+}
+
+/** Formato antigo de study-ideas.json (AO-17): um conjunto de ideias por tópico, sem campo `version`. */
+export function isLegacyIdeaFile(raw: unknown): boolean {
+  return !!raw && typeof raw === 'object' && !Array.isArray(raw) && !('version' in raw)
+}
+
+/** Converte o formato antigo em projetos: cada ideia vira um projeto "ideia" de um tópico só, mantendo a spec. */
+export function migrateLegacyIdeas(raw: unknown): StudyProject[] {
+  const out: StudyProject[] = []
+  if (!isLegacyIdeaFile(raw)) return out
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const set = value as { topic?: unknown; generatedAt?: unknown; ideas?: unknown } | null
     if (!set || typeof set !== 'object' || !Array.isArray(set.ideas)) continue
-    const ideas: StudyIdea[] = []
+    const topic = typeof set.topic === 'string' && set.topic ? set.topic : key
+    const createdAt = typeof set.generatedAt === 'number' ? set.generatedAt : 0
     for (const item of set.ideas) {
-      const { title, description, spec } = (item ?? {}) as unknown as Record<string, unknown>
+      const { title, description, spec } = (item ?? {}) as Record<string, unknown>
       if (typeof title !== 'string' || typeof description !== 'string') continue
-      const s = spec as Partial<StudySpec> | undefined
-      const keep = s && typeof s.markdown === 'string' && s.markdown && typeof s.generatedAt === 'number'
-      ideas.push(keep ? { title, description, spec: { generatedAt: s.generatedAt as number, markdown: s.markdown as string } } : { title, description })
+      const kept = cleanSpec(spec)
+      out.push({ id: `sp-legacy-${out.length + 1}`, title, description, topics: [topic], status: 'ideia', createdAt, ...(kept ? { spec: kept } : {}) })
     }
-    out[topic] = { topic: typeof set.topic === 'string' ? set.topic : topic, generatedAt: typeof set.generatedAt === 'number' ? set.generatedAt : 0, ideas }
   }
   return out
 }
 
-export interface StudyIdeaSet {
-  topic: string
-  generatedAt: number
-  ideas: StudyIdea[]
+/** Lê o que veio do disco: aceita o formato novo e o antigo, guardando só o que é bem formado. */
+export function normalizeProjects(raw: unknown): StudyProject[] {
+  if (isLegacyIdeaFile(raw)) return migrateLegacyIdeas(raw)
+  const list = raw && typeof raw === 'object' ? (raw as { projects?: unknown }).projects : undefined
+  if (!Array.isArray(list)) return []
+  const out: StudyProject[] = []
+  const ids = new Set<string>()
+  for (const item of list) {
+    const p = (item ?? {}) as Record<string, unknown>
+    if (typeof p.id !== 'string' || !PROJECT_ID_RE.test(p.id) || ids.has(p.id)) continue
+    if (typeof p.title !== 'string' || typeof p.description !== 'string' || !Array.isArray(p.topics)) continue
+    const topics = [...new Set(p.topics.filter((t): t is string => typeof t === 'string' && !!t))]
+    if (!topics.length) continue
+    const status = PROJECT_STATUSES.find((x) => x === p.status) ?? 'ideia'
+    const reason = (p.best as { reason?: unknown } | undefined)?.reason
+    const spec = cleanSpec(p.spec)
+    ids.add(p.id)
+    out.push({
+      id: p.id,
+      title: p.title,
+      description: p.description,
+      topics,
+      status,
+      createdAt: typeof p.createdAt === 'number' ? p.createdAt : 0,
+      ...(typeof reason === 'string' && reason ? { best: { reason } } : {}),
+      ...(spec ? { spec } : {}),
+    })
+  }
+  return out
+}
+
+/** Tópicos cobertos: os usados em algum projeto marcado como feito. */
+export function coveredTopics(projects: readonly StudyProject[]): Set<string> {
+  return new Set(projects.filter((p) => p.status === 'feito').flatMap((p) => p.topics))
+}
+
+/** Os tópicos do projeto que ainda não têm nenhum projeto feito. */
+export function uncoveredTopicsOf(project: Pick<StudyProject, 'topics'>, covered: ReadonlySet<string>): string[] {
+  return project.topics.filter((t) => !covered.has(t))
 }
 
 export interface StudiedTopic {
@@ -104,17 +168,49 @@ export function studiedTopics(state: StudyCycleState): StudiedTopic[] {
   return [...topics.values()]
 }
 
-/** Keeps only well-formed ideas from a model reply (3 to 6, bounded text); null when none survive. */
-export function parseIdeas(reply: unknown): StudyIdea[] | null {
-  const list = reply && typeof reply === 'object' ? (reply as { ideas?: unknown }).ideas : undefined
-  if (!Array.isArray(list)) return null
-  const ideas: StudyIdea[] = []
-  for (const item of list) {
-    const { title, description } = (item ?? {}) as Record<string, unknown>
-    if (typeof title !== 'string' || typeof description !== 'string') continue
+export interface ProjectDraft {
+  title: string
+  description: string
+  topics: string[]
+}
+
+export type ProjectsParse = { ok: true; drafts: ProjectDraft[]; bestIndex: number; reason: string } | { ok: false; error: string }
+
+/**
+ * Valida a resposta do modelo: de 1 a 8 projetos com título, descrição e tópicos que existem no pedido
+ * (nomes desconhecidos são descartados; projeto sem nenhum tópico válido some). O melhor é o que cobre
+ * mais tópicos ainda sem projeto feito: se o modelo apontou outro, vale o que cobre mais, e o motivo é
+ * montado aqui, já que o do modelo falaria de outro projeto.
+ */
+export function parseProjects(reply: unknown, allowed: readonly string[], covered: ReadonlySet<string> = new Set()): ProjectsParse {
+  const raw = reply && typeof reply === 'object' ? (reply as { projects?: unknown; best?: unknown }) : undefined
+  if (!raw || !Array.isArray(raw.projects)) return { ok: false, error: 'O modelo não devolveu os projetos no formato esperado. Tente novamente.' }
+  const known = new Set(allowed)
+  const drafts: ProjectDraft[] = []
+  const modelIndex: number[] = []
+  raw.projects.forEach((item, index) => {
+    const { title, description, topics } = (item ?? {}) as Record<string, unknown>
+    if (typeof title !== 'string' || typeof description !== 'string' || !Array.isArray(topics)) return
     const t = title.trim()
     const d = description.trim()
-    if (t && d && t.length <= 120 && d.length <= 600) ideas.push({ title: t, description: d })
+    if (!t || !d || t.length > PROJECT_TITLE_MAX || d.length > PROJECT_DESCRIPTION_MAX) return
+    const used = [...new Set(topics.filter((x): x is string => typeof x === 'string').map((x) => x.trim()))].filter((x) => known.has(x))
+    if (!used.length || drafts.length >= MAX_PROJECTS_PER_REQUEST) return
+    drafts.push({ title: t, description: d, topics: used })
+    modelIndex.push(index)
+  })
+  if (!drafts.length) return { ok: false, error: 'O modelo não devolveu nenhum projeto válido (com título, descrição e tópicos estudados). Tente novamente.' }
+  const count = (d: ProjectDraft) => d.topics.filter((x) => !covered.has(x)).length
+  const top = Math.max(...drafts.map(count))
+  const best = (raw.best ?? {}) as { index?: unknown; reason?: unknown }
+  const chosen = typeof best.index === 'number' ? modelIndex.indexOf(best.index) : -1
+  const modelReason = typeof best.reason === 'string' ? best.reason.trim() : ''
+  if (chosen >= 0 && count(drafts[chosen]!) === top && modelReason && modelReason.length <= PROJECT_REASON_MAX) {
+    return { ok: true, drafts, bestIndex: chosen, reason: modelReason }
   }
-  return ideas.length ? ideas.slice(0, 6) : null
+  const bestIndex = drafts.findIndex((d) => count(d) === top)
+  const reason = top
+    ? `Cobre ${top} ${top === 1 ? 'tópico' : 'tópicos'} ainda sem projeto feito, mais do que os outros.`
+    : 'Todos os tópicos dele já têm projeto feito; é o que cobre mais tópicos no geral.'
+  return { ok: true, drafts, bestIndex, reason }
 }
