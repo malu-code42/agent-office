@@ -18,6 +18,14 @@ export function telegramStatusText(view: Pick<TelegramView, 'status' | 'reason'>
   return view.status === 'error' && view.reason ? `${STATUS_TEXT.error}: ${view.reason}` : STATUS_TEXT[view.status]
 }
 
+/** AO-112: o texto do passo de verificação. Puro, para os testes. */
+export function telegramVerifyText(view: Pick<TelegramView, 'verified' | 'codePending' | 'tokenConfigured' | 'chatId'>): string {
+  if (view.verified) return 'Chat verificado: sim.'
+  if (!view.tokenConfigured || !view.chatId) return 'Chat verificado: não. Salve o token e o chat_id para poder pedir o código.'
+  if (view.codePending) return 'Chat verificado: não. Enviei um código ao chat; digite os 6 números aqui (vale 5 minutos, 3 tentativas).'
+  return 'Chat verificado: não. Peça um código: o bot o envia ao chat e a ponte só liga depois que você o digitar aqui.'
+}
+
 export function telegramSection(toast: Toast): { el: HTMLElement; dispose(): void } {
   const token = h('input', {
     class: 'input',
@@ -39,7 +47,23 @@ export function telegramSection(toast: Toast): { el: HTMLElement; dispose(): voi
   const state = h('span', { class: 'field-hint', role: 'status', 'aria-live': 'polite' }, 'Lendo o estado…')
   const tokenHint = h('span', {}, 'Criado no @BotFather. Fica guardado criptografado e nunca é mostrado de novo.')
   const apply = h('button', { class: 'btn', type: 'button', onclick: () => void save() }, 'Salvar e aplicar Telegram') as HTMLButtonElement
+  // AO-112: verificação de posse do chat_id (mesmos componentes: .field, .input, .btn).
+  const code = h('input', {
+    class: 'input',
+    type: 'text',
+    inputmode: 'numeric',
+    autocomplete: 'off',
+    spellcheck: 'false',
+    maxlength: '6',
+    placeholder: '6 números',
+    'aria-label': 'Código de verificação',
+  }) as HTMLInputElement
+  const verifyHint = h('span', {}, '')
+  const askCode = h('button', { class: 'btn', type: 'button', onclick: () => void ask() }, 'Enviar código ao chat') as HTMLButtonElement
+  const sendCode = h('button', { class: 'btn', type: 'button', onclick: () => void submit() }, 'Verificar código') as HTMLButtonElement
+  const verifyRow = field('Verificação do chat', h('div', {}, code, askCode, sendCode), verifyHint)
   let saving = false
+  let busy = false
 
   const show = (view: TelegramView) => {
     const bad = view.status === 'error'
@@ -48,6 +72,10 @@ export function telegramSection(toast: Toast): { el: HTMLElement; dispose(): voi
       h('span', { class: bad ? 'warn' : '' }, telegramStatusText(view)),
       view.storageAvailable ? '' : ' · este computador não oferece armazenamento criptografado',
     )
+    verifyHint.textContent = telegramVerifyText(view)
+    verifyRow.hidden = view.verified
+    askCode.disabled = !view.tokenConfigured || !view.chatId
+    sendCode.disabled = !view.codePending
     tokenHint.textContent = view.tokenConfigured
       ? 'Token configurado: sim. Deixe em branco para manter; cole outro para trocar.'
       : 'Token configurado: não. Criado no @BotFather; fica guardado criptografado e nunca é mostrado de novo.'
@@ -67,7 +95,8 @@ export function telegramSection(toast: Toast): { el: HTMLElement; dispose(): voi
       const view = await window.office.saveTelegram({ token: token.value, chatId: chatId.value, enabled: enabled.checked })
       token.value = ''
       show(view)
-      toast(view.enabled ? 'Telegram aplicado.' : 'Telegram desligado.', 'ok')
+      if (view.enabled && !view.verified) toast('Salvo. Falta verificar o chat_id para a ponte ligar.', 'ok')
+      else toast(view.enabled ? 'Telegram aplicado.' : 'Telegram desligado.', 'ok')
     } catch (err) {
       toast(cleanError(err), 'err')
     } finally {
@@ -75,6 +104,24 @@ export function telegramSection(toast: Toast): { el: HTMLElement; dispose(): voi
       apply.disabled = false
     }
   }
+
+  const verify = async (job: () => Promise<TelegramView>, done: string) => {
+    if (busy) return
+    busy = true
+    askCode.disabled = sendCode.disabled = true
+    try {
+      show(await job())
+      code.value = ''
+      toast(done, 'ok')
+    } catch (err) {
+      toast(cleanError(err), 'err')
+      void window.office.telegramState().then(show, () => undefined)
+    } finally {
+      busy = false
+    }
+  }
+  const ask = () => verify(() => window.office.requestTelegramCode(), 'Código enviado ao chat do Telegram.')
+  const submit = () => verify(() => window.office.submitTelegramCode(code.value), 'Chat verificado.')
 
   window.office.telegramState().then(fill, (err) => state.replaceChildren(cleanError(err)))
   const stop = window.office.onEvent((e) => {
@@ -95,6 +142,7 @@ export function telegramSection(toast: Toast): { el: HTMLElement; dispose(): voi
     h('label', { class: 'check' }, enabled, 'Ligar o Telegram'),
     state,
     apply,
+    verifyRow,
   )
   return { el, dispose: stop }
 }

@@ -40,8 +40,16 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }))
 
 function build() {
   const net = fakeFetch()
-  const service = new TelegramService({ store: new TelegramSettingsStore(dir, crypto), fetch: net.fetch })
-  return { service, net }
+  const store = new TelegramSettingsStore(dir, crypto)
+  const service = new TelegramService({ store, fetch: net.fetch, confirmChange: async () => true })
+  return { service, net, store }
+}
+
+/** Salva a configuração e a marca como verificada (AO-112), depois liga: o caminho de quem já passou pela verificação. */
+async function turnOn(b: { service: TelegramService; store: TelegramSettingsStore }, input: { token?: string; chatId: string }) {
+  await b.service.save({ ...input, enabled: false })
+  b.store.markVerified()
+  return b.service.save({ chatId: input.chatId, enabled: true })
 }
 
 describe('IPC do Telegram', () => {
@@ -72,8 +80,9 @@ describe('IPC do Telegram', () => {
 
 describe('TelegramService', () => {
   it('ligar inicia a ponte sem reiniciar o app e desligar a para', async () => {
-    const { service, net } = build()
-    const view = await service.save({ token: TOKEN, chatId: '42', enabled: true })
+    const b = build()
+    const { service, net } = b
+    const view = await turnOn(b, { token: TOKEN, chatId: '42' })
     await vi.waitFor(() => expect(net.calls).toHaveLength(1))
     expect(net.calls[0]).toContain('/getUpdates')
     expect(['connecting', 'connected']).toContain(view.status)
@@ -92,7 +101,7 @@ describe('TelegramService', () => {
 
   it('a configuração persiste: ao reabrir, startFromSettings religa só se estava ligado', async () => {
     const first = build()
-    await first.service.save({ token: TOKEN, chatId: '42', enabled: true })
+    await turnOn(first, { token: TOKEN, chatId: '42' })
     await first.service.stop()
 
     const second = build()
@@ -108,8 +117,9 @@ describe('TelegramService', () => {
   })
 
   it('fechar o app (stop) aborta o polling pendente', async () => {
-    const { service, net } = build()
-    await service.save({ token: TOKEN, chatId: '42', enabled: true })
+    const b = build()
+    const { service, net } = b
+    await turnOn(b, { token: TOKEN, chatId: '42' })
     await vi.waitFor(() => expect(net.signals).toHaveLength(1))
     await service.stop()
     expect(net.signals[0]!.aborted).toBe(true)
@@ -131,10 +141,11 @@ describe('TelegramService', () => {
       const signal = init?.signal as AbortSignal
       return new Promise<Response>((_r, reject) => signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))))
     })
-    const service = new TelegramService({ store: new TelegramSettingsStore(dir, crypto), fetch: fn as unknown as typeof fetch })
+    const store = new TelegramSettingsStore(dir, crypto)
+    const service = new TelegramService({ store, fetch: fn as unknown as typeof fetch, confirmChange: async () => true })
     const ask = vi.fn(async (request: { text: string; channelRules: string }) => ({ text: `ok: ${request.text}`, needsAppCard: false }))
     service.attachLuna({ ask: (r) => ask(r) })
-    await service.save({ token: TOKEN, chatId: '42', enabled: true })
+    await turnOn({ service, store }, { token: TOKEN, chatId: '42' })
     await vi.waitFor(() => expect(sent).toHaveLength(1))
     expect(sent[0]).toEqual({ chat_id: 42, text: 'ok: oi' })
     expect(ask.mock.calls[0]![0].channelRules).toBe(LUNA_TELEGRAM_RULE)

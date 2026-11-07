@@ -31,6 +31,7 @@ import { BarTimerSound } from './bar-timer-sound'
 import { ProfileMemoryStore } from './profile-memory'
 import { TelegramSettingsStore } from './telegram-settings'
 import { TelegramService } from './telegram-service'
+import { confirmTelegramChange } from './telegram-change-dialog'
 import { registerTelegramIpc } from './ipc/telegram'
 import { ProjectWorkflowStore } from './project-workflows'
 import { claudeProjectWorkflowGenerator } from './project-workflow-claude'
@@ -746,6 +747,8 @@ ${resume.note}` : ''}`
         encrypt: (plain) => safeStorage.encryptString(plain),
         decrypt: (data) => safeStorage.decryptString(Buffer.from(data)),
       }),
+      // AO-111: mudar chat_id/token pergunta num diálogo do processo principal.
+      confirmChange: (change) => confirmTelegramChange(win, change),
       onChange: (view) => broadcast({ type: 'telegram', view }),
     })
 

@@ -34,6 +34,14 @@ interface Stored {
   chatId: string
   /** Token criptografado (base64), nunca em texto puro. */
   token: string
+  /** AO-112: a usuária provou que o chat_id é dela (código enviado pelo bot). Qualquer mudança de chat_id ou token zera. */
+  verified: boolean
+}
+
+/** AO-111: o que mudaria ao salvar. Nunca carrega o token. */
+export interface TelegramChange {
+  chat?: { from: string; to: string }
+  token: boolean
 }
 
 export class TelegramSettingsStore {
@@ -49,13 +57,14 @@ export class TelegramSettingsStore {
 
   private read(): Stored {
     if (this.cache) return this.cache
-    let stored: Stored = { enabled: false, chatId: '', token: '' }
+    let stored: Stored = { enabled: false, chatId: '', token: '', verified: false }
     try {
       const raw = JSON.parse(readFileSync(this.file, 'utf8')) as Partial<Stored>
       stored = {
         enabled: raw.enabled === true,
         chatId: typeof raw.chatId === 'string' && isValidTelegramChatId(raw.chatId) ? raw.chatId : '',
         token: typeof raw.token === 'string' ? raw.token : '',
+        verified: raw.verified === true,
       }
     } catch {
       // Sem arquivo (ou ilegível): começa desligado e vazio.
@@ -76,6 +85,31 @@ export class TelegramSettingsStore {
   summary(): { enabled: boolean; tokenConfigured: boolean; chatId: string } {
     const s = this.read()
     return { enabled: s.enabled, tokenConfigured: s.token !== '', chatId: s.chatId }
+  }
+
+  /** AO-112: a posse do chat_id atual foi provada. Sem isso a ponte não liga. */
+  isVerified(): boolean {
+    const s = this.read()
+    return s.verified && s.chatId !== '' && s.token !== ''
+  }
+
+  /** AO-112: chamado só depois que o código certo foi digitado. */
+  markVerified(): void {
+    const current = this.read()
+    const next: Stored = { ...current, verified: true }
+    writeFileAtomic(this.file, JSON.stringify(next), 0o600)
+    this.cache = next
+  }
+
+  /** AO-111: compara a entrada com o que está guardado, sem gravar nada. Token igual ao guardado não conta como mudança. */
+  changes(input: TelegramSaveInput): TelegramChange {
+    const current = this.read()
+    const chatId = (input.chatId ?? '').trim()
+    const newToken = (input.token ?? '').trim()
+    return {
+      ...(chatId !== current.chatId ? { chat: { from: current.chatId, to: chatId } } : {}),
+      token: newToken !== '' && newToken !== this.token(),
+    }
   }
 
   /** O token decifrado, só para a ponte no processo principal. Vazio se não há ou se não decifra. */
@@ -106,6 +140,24 @@ export class TelegramSettingsStore {
    * Ligado exige token (novo ou já guardado) e chat_id válidos; desligado aceita campos vazios, mas o que vier preenchido tem de ser válido.
    */
   save(input: TelegramSaveInput): void {
+    this.validate(input)
+    const current = this.read()
+    const chatId = (input.chatId ?? '').trim()
+    const newToken = (input.token ?? '').trim()
+    const change = this.changes(input)
+    const next: Stored = {
+      enabled: input.enabled,
+      chatId,
+      token: newToken ? Buffer.from(this.crypto.encrypt(newToken)).toString('base64') : current.token,
+      // AO-112: trocar chat_id ou token exige verificar de novo.
+      verified: current.verified && !change.chat && !change.token,
+    }
+    writeFileAtomic(this.file, JSON.stringify(next), 0o600)
+    this.cache = next
+  }
+
+  /** Só as validações de save, sem gravar: o serviço valida antes de abrir o diálogo de confirmação (AO-111). */
+  validate(input: TelegramSaveInput): void {
     const current = this.read()
     const chatId = (input.chatId ?? '').trim()
     const newToken = (input.token ?? '').trim()
@@ -118,12 +170,5 @@ export class TelegramSettingsStore {
       if (!chatId) throw new Error(MSG_CHAT_REQUIRED)
       if (!newToken && !this.token()) throw new Error(MSG_STORAGE_UNAVAILABLE)
     }
-    const next: Stored = {
-      enabled: input.enabled,
-      chatId,
-      token: newToken ? Buffer.from(this.crypto.encrypt(newToken)).toString('base64') : current.token,
-    }
-    writeFileAtomic(this.file, JSON.stringify(next), 0o600)
-    this.cache = next
   }
 }

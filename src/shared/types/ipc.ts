@@ -498,6 +498,10 @@ export interface OfficeAPI {
   telegramState(): Promise<TelegramView>
   /** AO-84: valida, guarda o token criptografado e liga ou desliga a ponte. Token vazio mantém o já guardado. */
   saveTelegram(input: TelegramSaveInput): Promise<TelegramView>
+  /** AO-112: o bot envia um código de uso único ao chat_id salvo. O código não volta. */
+  requestTelegramCode(): Promise<TelegramView>
+  /** AO-112: confere o código digitado; certo verifica o chat_id e liga a ponte (se estiver ligada). */
+  submitTelegramCode(code: string): Promise<TelegramView>
   readBarTimer(): Promise<BarTimerView | null>
   /** Começa o intervalo que a popup escolhe (Foco · 25, Pausa curta · 5, Pausa longa · 15), com ou sem tarefa ligada. */
   startBarTimer(mode: number, task?: { id?: string; text?: string } | null): Promise<BarTimerView | null>
