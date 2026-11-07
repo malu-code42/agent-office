@@ -246,6 +246,39 @@ export class SquadCreation extends EventEmitter {
     if (repaired) this.deps.board.flush()
   }
 
+  /**
+   * AO-58: a PR waiting for human review leaves the Caixa de entrada when it is merged. `stateOf` asks GitHub for the
+   * state of the PR; only MERGED counts. OPEN, CLOSED (closed without merge), an unknown answer or an error change
+   * nothing. Exception to "só pessoas movem para done": a ticket whose own PR was merged goes to done by itself,
+   * because the human review it waited for is the merge. Returns how many PRs were taken out.
+   */
+  async reconcileMergedPRs(stateOf: (cwd: string, url: string) => Promise<'OPEN' | 'MERGED' | 'CLOSED' | null>): Promise<number> {
+    let removed = 0
+    for (const queue of this.deps.queues.all()) {
+      const merged: string[] = []
+      for (const pr of queue.pendingPRs ?? []) {
+        const state = await stateOf(queue.cwd, pr.url).catch(() => null)
+        if (state !== 'MERGED') continue
+        const actor = { kind: 'agent' as const, name: `Squad ${queue.code}`, id: `squad:${queue.code}` }
+        const ticket = this.deps.board.get(pr.ticketId)
+        if (ticket && ticket.status !== 'done') {
+          this.deps.board.comment(ticket.id, `PR mesclado: ${pr.url}. O ticket vai para Concluído sozinho (merge detectado).`, actor)
+          this.deps.board.move(ticket.id, 'done', undefined, actor)
+        }
+        merged.push(pr.ticketId)
+      }
+      if (!merged.length) continue
+      // The queue is saved after the ticket moved: a crash in between only repeats the (idempotent) move on the next run.
+      this.deps.queues.set({ ...queue, pendingPRs: (queue.pendingPRs ?? []).filter((pr) => !merged.includes(pr.ticketId)), updatedAt: Date.now() })
+      removed += merged.length
+    }
+    if (removed) {
+      this.deps.board.flush()
+      this.changed()
+    }
+    return removed
+  }
+
   setCycle(code: string, cycle: SquadQueue['cycle']): void {
     this.deps.queues.setCycle(code, cycle)
     this.changed()

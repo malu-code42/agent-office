@@ -35,4 +35,6 @@ export {
   pullRequestRemoteHostForRepo,
   pullRequestRemoteIdentity,
   pullRequestRemoteIdentityForRepo,
+  pullRequestState,
+  type PullRequestState,
 } from './publish'

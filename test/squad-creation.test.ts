@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SquadCreation } from '../src/main/squad-creation'
 import { SquadProposalStore } from '../src/main/squad-proposals'
 import { SquadQueueStore } from '../src/main/squad-queues'
@@ -330,6 +330,44 @@ describe('a proposta', () => {
     })
     await lifecycle.verifyPendingPRs(async () => ({ host: 'github.com', repository: 'org/repo' }))
     expect(board.get(published.id)?.pullRequestUrl).toBe('https://github.com/org/repo/pull/1')
+  })
+
+  it('PR mesclado tira o ticket da Caixa de entrada e o leva a Concluído; aberto ou fechado sem merge ficam (AO-58)', async () => {
+    const player = { kind: 'player' as const, name: 'Malu' }
+    const mk = (n: number, title: string) => {
+      const t = board.create({ title, status: 'review', cwd: project.cwd }, player)
+      return { ticketId: t.id, ticketKey: t.key, title, url: `https://github.com/org/repo/pull/${n}`, branch: `agent/ao-${n}`, createdAt: n }
+    }
+    const merged = mk(1, 'Mesclado')
+    const open = mk(2, 'Aberto')
+    const closed = mk(3, 'Fechado sem merge')
+    queues.set({ code: 'squad-1', cwd: project.cwd, active: null, queue: [], pendingPRs: [merged, open, closed], updatedAt: 1 })
+    const states: Record<string, 'OPEN' | 'MERGED' | 'CLOSED' | null> = { [merged.url]: 'MERGED', [open.url]: 'OPEN', [closed.url]: 'CLOSED' }
+    const changed = vi.fn()
+    creation.on('queues', changed)
+
+    const removed = await creation.reconcileMergedPRs(async (_cwd, url) => states[url] ?? null)
+
+    expect(removed).toBe(1)
+    expect(queues.get('squad-1')?.pendingPRs?.map((pr) => pr.ticketKey)).toEqual([open.ticketKey, closed.ticketKey])
+    expect(board.get(merged.ticketId)?.status).toBe('done')
+    expect(board.get(merged.ticketId)?.comments.some((c) => c.text.includes('PR mesclado'))).toBe(true)
+    expect(board.get(open.ticketId)?.status).toBe('review')
+    expect(board.get(closed.ticketId)?.status).toBe('review')
+    expect(changed).toHaveBeenCalled()
+    // de novo: nada muda
+    expect(await creation.reconcileMergedPRs(async (_cwd, url) => states[url] ?? null)).toBe(0)
+  })
+
+  it('erro ou resposta desconhecida ao consultar o PR não tira nada da fila (AO-58)', async () => {
+    const player = { kind: 'player' as const, name: 'Malu' }
+    const t = board.create({ title: 'Sem resposta', status: 'review', cwd: project.cwd }, player)
+    const pr = { ticketId: t.id, ticketKey: t.key, title: t.title, url: 'https://github.com/org/repo/pull/9', branch: 'agent/ao-9', createdAt: 9 }
+    queues.set({ code: 'squad-1', cwd: project.cwd, active: null, queue: [], pendingPRs: [pr], updatedAt: 1 })
+    expect(await creation.reconcileMergedPRs(async () => { throw new Error('sem rede') })).toBe(0)
+    expect(await creation.reconcileMergedPRs(async () => null)).toBe(0)
+    expect(queues.get('squad-1')?.pendingPRs).toHaveLength(1)
+    expect(board.get(t.id)?.status).toBe('review')
   })
 
   it('não associa PR de uma fila a ticket de outro projeto', async () => {
