@@ -253,11 +253,43 @@ export function openSquadWatch(root: HTMLElement, state: State, project: Project
       {
         type: 'button',
         class: `btn${s.state === 'paused' && accent ? ' btn-primary' : ''}`,
-        disabled: s.state === 'stopped',
-        title: s.state === 'stopped' ? 'Squad desativado: peça à Emi para reativá-lo' : undefined,
+        disabled: s.state === 'disabled',
+        title: s.state === 'disabled' ? 'Sala desativada: reative a sala para pausar ou retomar' : undefined,
         onclick: () => void togglePause(s),
       },
       s.state === 'paused' ? 'Retomar' : 'Pausar',
+    )
+
+  // AO-49: desativar a sala apaga a luz e recusa squad_run; só o estado muda, squads/ fica como está.
+  const toggleDisabled = async (s: SquadSummary) => {
+    const off = s.state === 'disabled'
+    try {
+      if (
+        !off &&
+        !(await confirmDialog(root, {
+          title: `Desativar a sala de ${s.name}?`,
+          text: 'A luz da sala apaga e o squad não aceita squad_run até você reativar. Os arquivos em squads/ ficam como estão.',
+          confirm: 'Desativar sala',
+          cancel: 'Cancelar',
+        }))
+      )
+        return
+      await window.office.setSquadDisabled(project.cwd, s.code, !off)
+      actions.toast(off ? `Sala de ${s.name} reativada.` : `Sala de ${s.name} desativada: luz apagada.`, 'ok')
+    } catch (err) {
+      actions.toast(cleanError(err), 'err')
+    }
+  }
+
+  const disableButton = (s: SquadSummary) =>
+    h(
+      'button',
+      {
+        type: 'button',
+        class: `btn${s.state === 'disabled' ? ' btn-primary' : ''}`,
+        onclick: () => void toggleDisabled(s),
+      },
+      s.state === 'disabled' ? 'Reativar sala' : 'Desativar sala',
     )
 
   const deleteAgent = async (m: MemberRow) => {
@@ -372,6 +404,7 @@ export function openSquadWatch(root: HTMLElement, state: State, project: Project
           'div',
           { class: 'sw-actions' },
           pauseButton(s, true),
+          disableButton(s),
           h('button', { type: 'button', class: 'btn', onclick: () => select(s.code) }, 'Abrir squad'),
         ),
       )
@@ -580,6 +613,7 @@ export function openSquadWatch(root: HTMLElement, state: State, project: Project
           'div',
           { class: 'sw-actions' },
           pauseButton(s, true),
+          disableButton(s),
           h(
             'button',
             { type: 'button', class: 'btn', onclick: () => void window.office.revealPath(folder) },

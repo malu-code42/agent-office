@@ -24,7 +24,7 @@ export function floorsKey(projects: ProjectFloor[], squads: SquadInfo[], plans: 
         p.id,
         p.name,
         squads.filter((q) => q.cwd === p.cwd).length,
-        plan.rooms.map((r) => [r.squad, r.name, r.desks.length, r.members.join(','), r.state]),
+        plan.rooms.map((r) => [r.squad, r.name, r.desks.length, r.members.join(','), r.state, r.off]),
         // The queue of each squad: the plate of the room says which ticket it works on.
         codes.map((code) => {
           const queue = queues.find((q) => q.code === code)

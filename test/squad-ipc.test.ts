@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import { existsSync, mkdtempSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -251,6 +251,28 @@ describe('os canais de squad', () => {
     expect(failure?.message).toMatch(/pausado/)
     expect(runSquad).not.toHaveBeenCalled()
     expect(creation.queue('sala-1')?.cycle).toBeUndefined()
+  })
+
+  it('AO-49: desativar a sala guarda o estado, recusa squad_run e reativar libera; squads/ fica', async () => {
+    const proposal = await propose('proposta-49', 0, [])
+    await creation.approve(proposal.id, 'Equipe da busca')
+    const folder = join(project.cwd, 'squads', 'sala-1')
+    expect(existsSync(folder)).toBe(true)
+    await callHandler('office:setSquadDisabled', project.cwd, 'sala-1', true)
+    expect(squadStatus.get(project.cwd, 'sala-1')).toBe('disabled')
+    expect(new SquadStatusStore(dataDir).get(project.cwd, 'sala-1')).toBe('disabled')
+    await expect(callHandler('office:runSquad', project.cwd, 'sala-1', 'default', '', false)).rejects.toThrow(/desativado/)
+    expect(existsSync(folder)).toBe(true)
+    await callHandler('office:setSquadDisabled', project.cwd, 'sala-1', false)
+    expect(squadStatus.get(project.cwd, 'sala-1')).toBeUndefined()
+  })
+
+  it('AO-49: com o squad rodando a sala não desativa', async () => {
+    const proposal = await propose('proposta-49b', 0, [])
+    await creation.approve(proposal.id, 'Equipe da busca')
+    manager.list = () => [{ squad: 'sala-1', cwd: project.cwd, status: 'working', name: 'Orquestrador' }] as never
+    await expect(callHandler('office:setSquadDisabled', project.cwd, 'sala-1', true)).rejects.toThrow(/rodando/)
+    expect(squadStatus.get(project.cwd, 'sala-1')).toBeUndefined()
   })
 
   it('AO-54: dois inícios concorrentes não disputam o diário nem criam duas worktrees', async () => {

@@ -86,6 +86,8 @@ export interface SquadRoom {
   members: string[]
   /** What the room shows now. */
   state: SquadRoomState
+  /** AO-49: sala desativada pela usuária: luz apagada e rótulo "desativada". */
+  off: boolean
 }
 
 /** Something of the project that does not fit on the floor; the user has to know. */
@@ -120,5 +122,5 @@ export interface ProjectPlan {
 /** The name of the plate of a room: the squad's, or what the room is waiting for. */
 export function roomLabel(room: SquadRoom): string {
   if (room.state === 'proposed') return 'Equipe proposta'
-  return room.name
+  return room.off ? `${room.name} · desativada` : room.name
 }

@@ -5,12 +5,13 @@ import type { AgentResult, AgentSummary, LogEntry, PermissionRequest, SquadInfo,
 // Nada é guardado: cada chamada deriva tudo do estado atual, então uma solicitação resolvida some sozinha.
 
 /** Estado de um squad como a popup o mostra. */
-export type SquadRunState = 'running' | 'paused' | 'stopped' | 'error' | 'idle'
+export type SquadRunState = 'running' | 'paused' | 'stopped' | 'disabled' | 'error' | 'idle'
 
 export const SQUAD_STATE_LABELS: Record<SquadRunState, string> = {
   running: 'Rodando',
   paused: 'Pausado',
   stopped: 'Parado',
+  disabled: 'Desativada',
   error: 'Com erro',
   idle: 'Ocioso',
 }
@@ -183,7 +184,8 @@ function requestsOf(src: WatchSource, s: SquadInfo): SquadRequest[] {
 function stateOf(s: SquadInfo, bosses: AgentSummary[], q: SquadQueue | undefined): SquadRunState {
   if (bosses.some((a) => a.status === 'error') || cycleError(q)) return 'error'
   if (s.state === 'paused') return 'paused'
-  if (s.state === 'disabled' || (bosses.length > 0 && bosses.every((a) => a.status === 'stopped'))) return 'stopped'
+  if (s.state === 'disabled') return 'disabled'
+  if ((bosses.length > 0 && bosses.every((a) => a.status === 'stopped'))) return 'stopped'
   if (bosses.some((a) => BUSY.includes(a.status))) return 'running'
   return 'idle'
 }
@@ -217,6 +219,7 @@ function summarize(src: WatchSource, s: SquadInfo, requests: SquadRequest[]): Sq
   else if (bosses.some((a) => a.status === 'error')) alerts.push('O orquestrador terminou com erro')
   if (state === 'paused') alerts.push('Pausado: não inicia novos ciclos')
   if (state === 'stopped') alerts.push('Parado')
+  if (state === 'disabled') alerts.push('Sala desativada: luz apagada, não aceita squad_run')
   if (requests.length) alerts.push(`${plural(requests.length, 'solicitação esperando', 'solicitações esperando')} você`)
   const prs = q?.pendingPRs?.length ?? 0
   if (prs) alerts.push(`${plural(prs, 'PR aguardando', 'PRs aguardando')} revisão`)

@@ -531,6 +531,7 @@ export class Renderer2d {
     const { plan, layout, slots } = view.floor
     plan.rooms.forEach((room, r) => {
       if (room.state === 'proposed') this.outline(c, view, r)
+      else if (room.off) this.shade(c, layout.rooms[r].dark)
       else if (room.state === 'empty' && ![...view.desks].some((d) => slots.get(d)?.room === r)) this.shade(c, layout.rooms[r].dark)
     })
   }

@@ -158,6 +158,7 @@ export abstract class GameFloors extends GameBase {
    */
   protected roomPlate(room: L.SquadRoom): string {
     if (room.state !== 'live') return L.roomLabel(room)
+    if (room.off) return L.roomLabel(room)
     const queue = this.state.squadQueues.find((q) => q.code === room.squad)
     const ticket = queue?.active ? this.state.tickets.get(queue.active) : undefined
     return `${room.name} · ${ticket ? ticket.key : 'Disponível'}`
