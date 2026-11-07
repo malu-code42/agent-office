@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { dialog, ipcMain, shell } from 'electron'
 import { z } from 'zod'
@@ -27,8 +27,8 @@ import { personalRoutineTaskFingerprintFromLine, personalRoutineTaskFingerprintF
 import { buildStudyBank, studyBankTopics } from '../study-bank-builder'
 import { askClaude } from '../study-questions-grounded'
 import { buildTopicSubtopics, StudySubtopicStore } from '../study-subtopics'
-import { generateIdeas, StudyIdeaStore } from '../study-ideas'
-import { studiedTopics } from '@shared/study-ideas'
+import { generateIdeas, generateSpec, StudyIdeaStore } from '../study-ideas'
+import { specFileName, studiedTopics } from '@shared/study-ideas'
 import { suggestBooks } from '../study-book-suggestions'
 import { StudyBankJobs } from '../study-bank-job'
 import { isStudyReadinessReady } from '@shared/study-readiness'
@@ -80,6 +80,7 @@ import {
   resetStudyCycleArgsSchema,
   resumeStudyCycleArgsSchema,
   studySubtopicsArgsSchema,
+  studySpecArgsSchema,
   deleteStudyQuestionsArgsSchema,
   searchStudyLibraryArgsSchema,
   studySourceInventoryArgsSchema,
@@ -286,6 +287,31 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const set = await generateIdeas(topic, askClaude, readiness)
     ideaStore.save(set)
     return set
+  })
+  const findIdea = (args: unknown[]) => {
+    const [topic, title] = parse(studySpecArgsSchema, args, 'Projeto inválido.')
+    const idea = ideaStore.read()[topic]?.ideas.find((item) => item.title === title)
+    if (!idea) throw new Error('Esse projeto não está mais guardado.')
+    return { topic, idea }
+  }
+  ipcMain.handle('office:generateStudySpec', async (_e, ...args: unknown[]) => {
+    const { topic, idea } = findIdea(args)
+    return ideaStore.saveSpec(topic, idea.title, await generateSpec(topic, idea.title, idea.description, askClaude))
+  })
+  // Exporta a spec guardada como .md na pasta que a usuária escolher, sem sobrescrever arquivo existente.
+  ipcMain.handle('office:exportStudySpec', async (_e, ...args: unknown[]) => {
+    const { idea } = findIdea(args)
+    if (!idea.spec) throw new Error('Gere a especificação antes de exportar.')
+    const r = await dialog.showOpenDialog(ctx.win()!, {
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Pasta do repositório do projeto',
+    })
+    if (r.canceled || !r.filePaths[0]) return null
+    const base = specFileName(idea.title).replace(/\.md$/, '')
+    let file = join(r.filePaths[0], `${base}.md`)
+    for (let n = 2; existsSync(file); n++) file = join(r.filePaths[0], `${base}-${n}.md`)
+    writeFileSync(file, idea.spec.markdown, { encoding: 'utf8', flag: 'wx' })
+    return file
   })
   ipcMain.handle('office:studyBankStatus', () => bankJobs.status())
   ipcMain.handle('office:cancelStudyBank', () => bankJobs.cancel())
