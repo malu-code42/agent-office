@@ -332,7 +332,7 @@ describe('a proposta', () => {
     expect(board.get(published.id)?.pullRequestUrl).toBe('https://github.com/org/repo/pull/1')
   })
 
-  it('PR mesclado tira o ticket da Caixa de entrada e o leva a Concluído; aberto ou fechado sem merge ficam (AO-58)', async () => {
+  it('PR mesclado tira o ticket da Caixa de entrada mas NÃO o move para Concluído; aberto ou fechado sem merge ficam (AO-58)', async () => {
     const player = { kind: 'player' as const, name: 'Malu' }
     const mk = (n: number, title: string) => {
       const t = board.create({ title, status: 'review', cwd: project.cwd }, player)
@@ -350,13 +350,15 @@ describe('a proposta', () => {
 
     expect(removed).toBe(1)
     expect(queues.get('squad-1')?.pendingPRs?.map((pr) => pr.ticketKey)).toEqual([open.ticketKey, closed.ticketKey])
-    expect(board.get(merged.ticketId)?.status).toBe('done')
-    expect(board.get(merged.ticketId)?.comments.some((c) => c.text.includes('PR mesclado'))).toBe(true)
+    expect(board.get(merged.ticketId)?.status).toBe('review')
+    expect(board.get(merged.ticketId)?.status).not.toBe('done')
+    expect(board.get(merged.ticketId)?.comments.filter((c) => c.text.includes('PR mesclado') && c.text.includes('conclua você'))).toHaveLength(1)
     expect(board.get(open.ticketId)?.status).toBe('review')
     expect(board.get(closed.ticketId)?.status).toBe('review')
     expect(changed).toHaveBeenCalled()
     // de novo: nada muda
     expect(await creation.reconcileMergedPRs(async (_cwd, url) => states[url] ?? null)).toBe(0)
+    expect(board.get(merged.ticketId)?.comments.filter((c) => c.text.includes('PR mesclado'))).toHaveLength(1)
   })
 
   it('erro ou resposta desconhecida ao consultar o PR não tira nada da fila (AO-58)', async () => {
