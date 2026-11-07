@@ -73,6 +73,11 @@ export interface AgentSummary {
   permissionMode: OfficePermissionMode
   /** AO-109: nível pedido; ausente = derivado do modo. O que vale em execução sai de `effectiveLevel`. */
   permissionLevel?: PermissionLevel
+  /**
+   * AO-115: nível escolhido pela usuária para um agente de nível da casa (Luna, Emi, Bonnie, orquestrador, agente de ticket).
+   * Ausente = vale o padrão da casa. Só a tela "Níveis de permissão" grava; arquivos antigos abrem sem ele.
+   */
+  chosenLevel?: PermissionLevel
   status: AgentStatus
   /** Short present-tense description of what the agent is doing ("Editando app.ts"). */
   activity: string

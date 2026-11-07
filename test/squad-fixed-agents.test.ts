@@ -107,7 +107,7 @@ describe('AO-113: coordenador fixo, contexto limpo por ticket, até a usuária d
     manager.setPermissionLevel(first.id, 2)
     manager.finish(first.id)
     const next = start('ticket-2')
-    expect(next.permissionLevel).toBe(2)
+    expect(next.chosenLevel).toBe(2) // AO-115: a escolha do agente da casa fica em chosenLevel
     expect(next.createdByAgent).toBeUndefined()
   })
 

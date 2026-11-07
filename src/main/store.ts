@@ -140,6 +140,8 @@ export class Store {
           permissionMode: legacyModeToCurrent(agent.summary.permissionMode) as typeof agent.summary.permissionMode,
           // AO-109: nível salvo inválido some (vale o modo); o teto de rotina nunca atravessa um reinício.
           permissionLevel: cleanLevel(agent.summary.permissionLevel),
+          // AO-115: nível escolhido de agente da casa; ausente ou inválido = padrão da casa.
+          chosenLevel: cleanLevel(agent.summary.chosenLevel),
           runCap: undefined,
         },
       })),

@@ -53,6 +53,8 @@ export function roleLevel(role: string | undefined): PermissionLevel | undefined
 export interface LevelInput {
   /** Nível salvo no agente/rotina/modelo; ausente = deriva do modo. */
   level?: PermissionLevel
+  /** AO-115: nível que a usuária escolheu para um agente da casa (Luna, Emi, Bonnie, squad, ticket); ausente = padrão da casa. */
+  chosen?: PermissionLevel
   mode?: string
   /** O agente trabalha numa cópia isolada (worktree)? */
   hasWorktree: boolean
@@ -89,11 +91,12 @@ export interface EffectiveLevel {
  */
 export function effectiveLevel(i: LevelInput): EffectiveLevel {
   let requested: PermissionLevel
-  if (i.builtIn === 'bonnie') requested = 1
-  else if (i.builtIn === 'luna') requested = 3
-  else if (i.builtIn === 'emi') requested = 5
+  const chosen = cleanLevel(i.chosen)
+  if (i.builtIn === 'bonnie') requested = chosen ?? 1
+  else if (i.builtIn === 'luna') requested = chosen ?? 3
+  else if (i.builtIn === 'emi') requested = chosen ?? 5
   else if (i.memberRole && roleLevel(i.memberRole)) requested = roleLevel(i.memberRole)!
-  else if (i.squad || i.ticket) requested = 4
+  else if (i.squad || i.ticket) requested = chosen ?? 4
   else requested = cleanLevel(i.level) ?? levelFromMode(i.mode)
   let level = requested
   let note: string | undefined

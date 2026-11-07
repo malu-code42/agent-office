@@ -40,6 +40,7 @@ export abstract class AgentSdk extends AgentOffice {
     const member = sub?.member ? agent.squad?.members.find((m) => m.id === sub.member) : undefined
     return effectiveLevel({
       level: s.permissionLevel,
+      chosen: s.chosenLevel,
       mode: s.permissionMode,
       hasWorktree: !!s.worktree,
       builtIn: s.builtIn as 'luna' | 'emi' | 'bonnie' | undefined,
