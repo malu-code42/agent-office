@@ -67,7 +67,6 @@ export function registerSettingsIpc(ctx: IpcContext): void {
       !(await confirmPermissionOverride(
         win(),
         `O modelo ${t.name} executará tarefas com este modo de permissões.`,
-        t.permissionMode === 'bypassPermissions',
       ))
     )
       throw new Error('Modelo não salvo.')
@@ -94,16 +93,7 @@ export function registerSettingsIpc(ctx: IpcContext): void {
         return modeIsMorePermissive(next, previous) ? [floor.name] : []
       }),
     ]
-    const enablesBypass =
-      (cleaned.defaultPermissionMode === 'bypassPermissions' && store.settings.defaultPermissionMode !== 'bypassPermissions') ||
-      cleaned.projects.some((floor) => {
-        const old = store.settings.projects.find((p) => p.id === floor.id && p.cwd === floor.cwd)
-        return floor.permissionMode === 'bypassPermissions' && old?.permissionMode !== 'bypassPermissions'
-      })
-    if (
-      overrides.length &&
-      !(await confirmPermissionOverride(win(), `Permissões que ficarão mais permissivas: ${overrides.join(', ')}.`, enablesBypass))
-    )
+    if (overrides.length && !(await confirmPermissionOverride(win(), `Permissões que ficarão mais permissivas: ${overrides.join(', ')}.`)))
       throw new Error('Configurações não salvas.')
     // Templates change only through saveTemplate/deleteTemplate; a removed floor turns its templates global.
     const emiBefore = `${store.settings.emiModel}|${store.settings.emiEffort}`

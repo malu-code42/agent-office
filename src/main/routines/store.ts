@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { ROUTINE_LIMITS, type Routine, type RoutineRun } from '@shared/types'
 import { backupCopies, shapeOf } from '../backups'
 import { loadJson, reportLoad, writeJsonAtomic } from '../fs-safe'
+import { legacyModeToCurrent } from '../validate'
 
 interface Data {
   routines: Routine[]
@@ -31,6 +32,8 @@ export function loadRoutine(raw: unknown): Routine | null {
     .map((x) => (x.status === 'running' || x.status === 'waiting' ? { ...x, status: 'failed' as const, endedAt: x.endedAt ?? x.startedAt, error: 'O app fechou antes de a execução terminar.' } : x))
   return {
     ...(r as unknown as Routine),
+    // AO-109: rotina gravada com "Sem pedir nada" passa a "Pedir permissão".
+    permissionMode: legacyModeToCurrent(r.permissionMode) as Routine['permissionMode'],
     enabled: r.enabled !== false,
     missed: r.missed === 'skip' ? 'skip' : 'run',
     nextAt: typeof r.nextAt === 'number' ? r.nextAt : null,

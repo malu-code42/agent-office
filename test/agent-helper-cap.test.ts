@@ -55,7 +55,10 @@ const hired = async (maxSubagents?: number) => {
   const a = await m.hire({ name: 'Ada', cwd: dir, task: 'organize', engine: 'claude', permissionMode: 'default', worktree: false })
   await flush()
   const matchers = queries[0]?.options.hooks?.PreToolUse ?? []
-  const hook = matchers.flatMap((m2) => m2.hooks).find((h) => h.length > 0)!
+  const hook = matchers
+    .filter((m2) => String((m2 as { matcher?: string }).matcher ?? '').includes('Agent'))
+    .flatMap((m2) => m2.hooks)
+    .find((h) => h.length > 0)!
   expect(hook).toBeTypeOf('function')
   return { m, a, dir, evs, hook }
 }

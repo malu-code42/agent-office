@@ -17,8 +17,9 @@ describe('permission policy with POSIX paths', () => {
   })
 
   it('does not release relative, foreign, sensitive or traversal paths', () => {
-    for (const file of ['src/a.ts', 'D:\\work\\project\\a.ts', '/work/project/.env', '/work/project/../outside/a.ts'])
+    for (const file of ['src/a.ts', 'D:\\work\\project\\a.ts', '/work/project/../outside/a.ts'])
       expect(decide('auto', 'Read', { file_path: file }, scope).verdict, file).toBe('ask')
+    expect(decide('auto', 'Read', { file_path: '/work/project/.env' }, scope).verdict).toBe('deny')
     expect(decide('auto', 'Write', { file_path: '/work/project/package.json' }, scope).verdict).toBe('ask')
   })
 
@@ -44,7 +45,8 @@ describe('permission policy with POSIX paths', () => {
   })
 
   it('keeps confirmation for git publishing and dependency installation', () => {
-    for (const command of ['git push origin main', 'npm install example'])
+    expect(decide('auto', 'Bash', { command: 'git push origin main' }, scope).verdict).toBe('deny')
+    for (const command of ['npm install example'])
       expect(decide('auto', 'Bash', { command }, scope).verdict, command).toBe('ask')
   })
 })

@@ -386,8 +386,7 @@ app
         if (prior && manager.pendingResults().some((result) => result.agentId === prior.id && !result.isError)) return
         const inheritedMode =
           store.settings.projects.find((project) => project.cwd === queue.cwd)?.permissionMode ?? store.settings.defaultPermissionMode
-        const requestedMode = prior?.permissionMode ?? inheritedMode
-        const permissionMode = requestedMode === 'bypassPermissions' ? 'default' : requestedMode
+        const permissionMode = prior?.permissionMode ?? inheritedMode
         const defaults = prior
           ? { model: prior.model, effort: prior.effort, accounts: prior.accounts, permissionMode }
           : { ...defaultBrain(), ...brainForTicket(ticket, defaultBrain()), permissionMode }

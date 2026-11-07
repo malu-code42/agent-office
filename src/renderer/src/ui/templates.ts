@@ -102,7 +102,6 @@ export function openTemplateEditor(
     const syncMode = () => {
       const m = MODES.find((x) => x.value === mode.value)!
       modeHint.textContent = m.hint
-      modeHint.className = m.value === 'bypassPermissions' ? 'warn' : ''
     }
     mode.addEventListener('change', syncMode)
     syncMode()
@@ -337,9 +336,6 @@ export function templatesTab(
                   'div',
                   { class: 'tpl-item-name' },
                   t.name,
-                  t.permissionMode === 'bypassPermissions'
-                    ? h('span', { class: 'tpl-danger', title: 'Roda qualquer comando sem perguntar' }, 'sem pedir nada')
-                    : null,
                 ),
                 h('div', { class: 'tpl-item-meta' }, templateMeta(t, state)),
                 h('div', { class: 'tpl-item-brief' }, t.instruction ? t.instruction.slice(0, 140) : 'Sem instrução base: pede a tarefa.'),
@@ -419,7 +415,7 @@ export function templatesTab(
         return false
       }
       const inherited = projectFor(state.settings.projects, cwd)?.permissionMode ?? state.settings.defaultPermissionMode
-      const order: OfficePermissionMode[] = ['plan', 'default', 'acceptEdits', 'auto', 'bypassPermissions']
+      const order: OfficePermissionMode[] = ['plan', 'default', 'acceptEdits', 'auto']
       const confirmPermissionOverride = order.indexOf(t.permissionMode) > order.indexOf(inherited)
       try {
         const a = await window.office.hire({

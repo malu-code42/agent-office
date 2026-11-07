@@ -22,7 +22,6 @@ export function registerRoutinesIpc(ctx: IpcContext): void {
       !(await confirmPermissionOverride(
         ctx.win(),
         `A rotina ${draft.name} executará tarefas em ${cwd ?? 'seu projeto'}.`,
-        draft.permissionMode === 'bypassPermissions',
       ))
     ) {
       throw new Error('Rotina não salva.')

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { query, type HookCallbackMatcher, type Query, type SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import { describeTool, toolDetail } from '@shared/describe'
@@ -18,6 +19,8 @@ import { claudeNotFoundMessage } from '../claude-messages'
 import { findClaude } from '../claude-path'
 import { findSquad, memberAgents, teamGuard, validateSquad, type SquadDefinition } from '../squads'
 import { takeSnapshot } from '../git'
+import { floorCheck } from '../permissions/floor'
+import { runtimeMode } from '../permissions/policy'
 import { InputQueue, kTokens, toMs, WRITE_TOOLS, type Agent, type Prompt } from './types'
 import { AgentOffice } from './office'
 import { officeAgentPrompt } from '../agent-prompt'
@@ -77,17 +80,6 @@ export abstract class AgentSdk extends AgentOffice {
         return
       }
       agent.squad = squad
-      // A corrupt/restored orchestrator record must never turn a squad into a bypass.
-      if (s.permissionMode === 'bypassPermissions') {
-        this.deliver(agent, {
-          text: 'Squads nunca podem rodar no modo "Sem pedir nada". Escolha outro modo e tente novamente.',
-          isError: true,
-          costUsd: s.costUsd,
-          durationMs: 0,
-          turns: 0,
-        })
-        return
-      }
     }
     if (this.overBudget(agent)) return
     const wt = s.worktree
@@ -193,7 +185,8 @@ export abstract class AgentSdk extends AgentOffice {
         model: s.model,
         effort: s.effort,
         pathToClaudeCodeExecutable: claude,
-        permissionMode: s.permissionMode,
+        // O modo antigo "Sem pedir nada" (AO-109) nunca chega ao Claude: registro velho vira "Pedir permissão".
+        permissionMode: runtimeMode(s.permissionMode),
         // Fontes de settings em arquivo ficam fechadas (modo isolado do SDK): regra
         // salva de fora não executa antes do canUseTool — quem decide aqui é o Office.
         settingSources: [],
@@ -210,7 +203,6 @@ export abstract class AgentSdk extends AgentOffice {
             ),
         // Subagent text comes too (not only tools), for the helper's own log (AO-46).
         forwardSubagentText: true,
-        allowDangerouslySkipPermissions: s.permissionMode === 'bypassPermissions',
         // Counts only what this query spends, so it gets what is left of the agent's cap.
         ...(budget !== undefined ? { maxBudgetUsd: budget } : {}),
         ...(agent.started ? { resume: s.sessionId } : { sessionId: s.sessionId }),
@@ -230,7 +222,7 @@ export abstract class AgentSdk extends AgentOffice {
                   : officeAgentPrompt(s.name, wt, squad)) + (bonnie ? '' : `\n\n${ECONOMY_RULE}`),
         },
         ...(squad ? { agents: memberAgents(squad) } : {}),
-        hooks: { PreToolUse: [...(squad ? teamGuard(squad) : []), this.helperCapHook(agent, helperMax)] },
+        hooks: { PreToolUse: [this.floorGuardHook(), ...(squad ? teamGuard(squad) : []), this.helperCapHook(agent, helperMax)] },
         mcpServers: {
           ...(this.officeTools && !bonnie ? { office: this.officeTools(s) } : {}),
           ...(bonnie && this.bonnieTools ? { [BONNIE_SERVER]: this.bonnieTools() } : {}),
@@ -264,6 +256,24 @@ export abstract class AgentSdk extends AgentOffice {
         .catch(() => undefined)
     }
     this.consume(agent, q)
+  }
+
+  /**
+   * O porteiro do piso (AO-109): nega merge, push e credenciais ANTES de qualquer modo ou
+   * classificador do Claude, e mesmo que o canUseTool nunca seja consultado.
+   */
+  protected floorGuardHook(): HookCallbackMatcher {
+    return {
+      hooks: [
+        async (input) => {
+          if (input.hook_event_name !== 'PreToolUse') return {}
+          const toolInput = input.tool_input && typeof input.tool_input === 'object' ? (input.tool_input as Record<string, unknown>) : {}
+          const denial = floorCheck(input.tool_name, toolInput, { homeDir: homedir(), dataDir: this.store.dataDirectory })
+          if (!denial) return {}
+          return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: denial.why } }
+        },
+      ],
+    }
   }
 
   /**

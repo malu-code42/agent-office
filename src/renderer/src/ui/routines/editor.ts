@@ -313,7 +313,6 @@ export function routineEditor(
         : 'Contratado na primeira execução e reaproveitado nas seguintes, cada vez com a conversa limpa. Se estiver ocupado na hora, a execução é pulada.'
     const m = MODES.find((x) => x.value === mode.value)!
     modeHint.textContent = m.hint
-    modeHint.classList.toggle('rt-danger', m.value === 'bypassPermissions')
   }
   for (const el of [kind, where, mode]) el.addEventListener('change', syncWho)
   syncWho()
@@ -370,7 +369,7 @@ export function routineEditor(
         (d.floor ? state.settings.projects.find((p) => p.id === d.floor)?.permissionMode : undefined) ??
         (d.cwd ? projectFor(state.settings.projects, d.cwd)?.permissionMode : undefined) ??
         state.settings.defaultPermissionMode
-      const order: OfficePermissionMode[] = ['plan', 'default', 'acceptEdits', 'auto', 'bypassPermissions']
+      const order: OfficePermissionMode[] = ['plan', 'default', 'acceptEdits', 'auto']
       d.confirmPermissionOverride = order.indexOf(d.permissionMode) > order.indexOf(inherited)
     }
     save.setAttribute('disabled', '')

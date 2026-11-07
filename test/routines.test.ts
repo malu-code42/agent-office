@@ -120,7 +120,7 @@ class FakeManager extends EventEmitter implements RoutineHost {
 }
 
 const templates: AgentTemplate[] = [
-  { id: 'tpl', name: 'Revisor', permissionMode: 'bypassPermissions', instruction: 'Você revisa {pasta}.', model: 'sonnet' },
+  { id: 'tpl', name: 'Revisor', permissionMode: 'auto', instruction: 'Você revisa {pasta}.', model: 'sonnet' },
 ]
 const settings = (): Pick<Settings, 'projects' | 'templates' | 'defaultPermissionMode'> => ({
   projects: [{ id: 'p1', name: 'Loja', cwd: project }],

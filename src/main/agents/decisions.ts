@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { homedir } from 'node:os'
 import { lstatSync, realpathSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import { type PermissionResult, type PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
@@ -7,6 +8,7 @@ import { projectFor } from '@shared/projects'
 import { outsideTeam, readProgress, type SquadDefinition } from '../squads'
 import { changesSince, displayPath } from '../git'
 import { decide } from '../permissions/policy'
+import { floorCheck, type FloorScope } from '../permissions/floor'
 import { permissionFromTool } from './permissions'
 import { LUNA_CONFIRM_TOOLS, LUNA_SERVER } from '../luna-tools'
 import { EMI_CONFIRM_TOOLS, EMI_SERVER } from '../emi-tools'
@@ -53,6 +55,10 @@ export abstract class AgentDecisions extends AgentSubagents {
     input: Record<string, unknown>,
     opts: { signal: AbortSignal; suggestions?: PermissionUpdate[]; decisionReason?: string; agentID?: string; toolUseID?: string },
   ): Promise<PermissionResult> {
+    // O piso (AO-109) vem antes de qualquer atalho: merge, push, credenciais e zonas protegidas são negados, sem cartão.
+    const floorScope: FloorScope = { homeDir: homedir(), dataDir: this.store.dataDirectory }
+    const denied = floorCheck(tool, input, floorScope)
+    if (denied) return Promise.resolve({ behavior: 'deny', message: `Negado pelo escritório: ${denied.why}.` })
     // The board is the office's own tool: no need to walk over and ask.
     if (tool.startsWith('mcp__office__')) return Promise.resolve({ behavior: 'allow', updatedInput: input })
     const luna = agent.summary.builtIn === 'luna'
@@ -88,8 +94,10 @@ export abstract class AgentDecisions extends AgentSubagents {
       cwd: luna ? this.lunaHome() : (s.worktree?.path ?? s.cwd),
       realpath: lenientRealpath,
       rules: project?.alwaysAllow,
+      ...floorScope,
     }
     const check = decide(s.permissionMode, tool, input, scope)
+    if (check.verdict === 'deny') return Promise.resolve({ behavior: 'deny', message: `Negado pelo escritório: ${check.why ?? 'ação proibida'}.` })
     if (check.verdict === 'allow' && !confirm) return Promise.resolve({ behavior: 'allow', updatedInput: input })
     // #101: Luna reads every project floor without asking, as the policy would in each folder. In
     // Automatic mode the same goes for what the policy allows there (edits, proven-safe commands).

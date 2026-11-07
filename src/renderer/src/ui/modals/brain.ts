@@ -8,11 +8,6 @@ export const MODES: { value: OfficePermissionMode; label: string; hint: string }
   { value: 'acceptEdits', label: 'Editar livremente', hint: 'Edita arquivos sozinho; pede antes de rodar comandos.' },
   { value: 'auto', label: 'Automático', hint: 'Um classificador aprova o que é seguro e só traz o resto para você.' },
   { value: 'plan', label: 'Planejar primeiro', hint: 'Só lê o projeto e traz um plano para você aprovar.' },
-  {
-    value: 'bypassPermissions',
-    label: 'Sem pedir nada',
-    hint: 'PERIGOSO: roda qualquer comando sem perguntar. Use só em pastas descartáveis.',
-  },
 ]
 
 /**
