@@ -9,6 +9,11 @@ describe('priceOf', () => {
     expect(priceOf('claude-opus-5')).toMatchObject({ input: 5, output: 25 })
     expect(priceOf('claude-haiku-4-5-20251001')).toMatchObject({ input: 1, output: 5 })
     expect(priceOf('claude-fable-5-1')).toMatchObject({ cacheRead: 0.25 })
+    expect(priceOf('claude-sonnet-5-5')).toMatchObject({ input: 2, output: 10, cacheRead: 0.1 })
+    expect(priceOf('claude-opus-4-5-20251101')).toMatchObject({ input: 5, output: 25, cacheRead: 0.5 })
+    expect(priceOf('claude-sonnet-4-5-20250929')).toMatchObject({ input: 3, output: 15, cacheRead: 0.3 })
+    expect(priceOf('claude-haiku-5-5')).toMatchObject({ input: 0.1, output: 0.5, cacheRead: 0.01 })
+    expect(priceOf('claude-haiku-5-5')?.estimate).toBeUndefined()
   })
   it('ignora [1m] e maiúsculas', () => {
     expect(priceOf('Claude-Opus-5-5[1M]')).toEqual(priceOf('claude-opus-5-5'))

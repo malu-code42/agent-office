@@ -2,7 +2,7 @@ import type { ModelTokens } from './types'
 
 /**
  * Claude API list prices in USD per million tokens, kept by hand.
- * Source: Anthropic pricing as of 2026-10 (claude-api skill, cached 2026-10-06).
+ * Source: https://platform.claude.com/docs/en/about-claude/pricing, read on 2026-11-07 (ids: models/overview and model-deprecations).
  * Cache writes follow the published multipliers: 1.25x input for 5 minutes, 2x for 1 hour.
  * Subscription users are not billed these: the app shows them as "API equivalent".
  */
@@ -32,11 +32,13 @@ const PRICES: Record<string, ModelPrice> = {
   'claude-opus-4-8': p(5, 25, 0.5),
   'claude-opus-4-7': p(5, 25, 0.5),
   'claude-opus-4-6': p(5, 25, 0.5),
-  'claude-sonnet-5-5': p(2, 10, 0.2),
+  'claude-opus-4-5': p(5, 25, 0.5),
+  'claude-sonnet-5-5': p(2, 10, 0.1),
   'claude-sonnet-5': p(2, 10, 0.2),
   'claude-sonnet-4-6': p(3, 15, 0.3),
-  // Cache reads for Haiku 5.5 are not in the table we have: 0.1x input, like most models.
-  [HAIKU_MODEL]: p(0.1, 0.5, 0.01, { longPrompt: { over: 100_000, input: 0.5, output: 2.5 }, estimate: true }),
+  'claude-sonnet-4-5': p(3, 15, 0.3),
+  // Haiku 5.5: cache read $0.01 (<=100k) and $0.05 (>100k) per MTok, both published; the long tier applies to the whole prompt.
+  [HAIKU_MODEL]: p(0.1, 0.5, 0.01, { longPrompt: { over: 100_000, input: 0.5, output: 2.5 } }),
   'claude-haiku-4-5': p(1, 5, 0.1),
 }
 
