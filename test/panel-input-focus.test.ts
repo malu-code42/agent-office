@@ -42,6 +42,35 @@ describe('AgentPanel.open focuses the chat box', () => {
     expect(focus).toHaveBeenCalledTimes(1)
   })
 
+  // AO-98 critério 2: trocar de conversa também foca; abrir a mesma de novo não mexe no foco.
+  it('focuses the box again each time the panel switches to another conversation', async () => {
+    const focus = vi.fn()
+    const panel = panelWith({ focus }, el('BODY'))
+    await AgentPanel.prototype.open.call(panel, 'luna')
+    expect(focus).toHaveBeenCalledTimes(1)
+    await AgentPanel.prototype.open.call(panel, 'emi')
+    expect(focus).toHaveBeenCalledTimes(2)
+    await AgentPanel.prototype.open.call(panel, 'luna')
+    expect(focus).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not refocus when the same conversation is opened again', async () => {
+    const focus = vi.fn()
+    const panel = panelWith({ focus }, el('BODY'))
+    await AgentPanel.prototype.open.call(panel, 'luna')
+    await AgentPanel.prototype.open.call(panel, 'luna')
+    expect(focus).toHaveBeenCalledTimes(1)
+  })
+
+  it('switching conversations still leaves a field being edited alone', async () => {
+    const focus = vi.fn()
+    const panel = panelWith({ focus }, el('BODY'))
+    await AgentPanel.prototype.open.call(panel, 'luna')
+    vi.stubGlobal('document', { createElement: fakeNode, activeElement: el('INPUT') })
+    await AgentPanel.prototype.open.call(panel, 'emi')
+    expect(focus).toHaveBeenCalledTimes(1)
+  })
+
   it('does not take the focus from a field being edited', async () => {
     const focus = vi.fn()
     await AgentPanel.prototype.open.call(panelWith({ focus }, el('INPUT')), 'luna')

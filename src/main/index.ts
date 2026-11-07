@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { permissionNotice, realPathOf } from '@shared/permission-notice'
-import type { Actor, AgentBrain, AgentSummary, SquadPhaseRecord, OfficeEvent, PermissionRequest } from '@shared/types'
+import type { Actor, AgentBrain, SquadPhaseRecord, OfficeEvent, PermissionRequest } from '@shared/types'
 import { Accounts } from './accounts'
 import { AgentManager } from './agents'
 import { badgeDescription, badgeLabel, badgePixels, encodePng } from './badge'
@@ -21,7 +21,7 @@ import { copySquadRuntime, inspectSquads, isDir, loadSquads } from './squads'
 import { SquadCreation } from './squad-creation'
 import { SquadProposalStore } from './squad-proposals'
 import { SquadQueueStore } from './squad-queues'
-import { PHASE_LABEL, SquadPhaseStore, resumeSquads, squadPhaseOf } from './squad-phase'
+import { PHASE_LABEL, SquadPhaseStore, createPhaseRecorder, resumeSquads } from './squad-phase'
 import { SquadStatusStore } from './squad-status'
 import { MacJobs } from './mac-jobs'
 import { RoutineScheduler, RoutineStore } from './routines'
@@ -533,26 +533,12 @@ ${resume.note}` : ''}`
     }
 
     // AO-100: a cada mudança de fase do ciclo, grava o estado mínimo para retomar (só relê o squad quando o passo ou o estado mudou).
-    const phaseSeen = new Map<string, string>()
-    const recordPhase = (a: AgentSummary): void => {
-      if (a.role !== 'orchestrator' || !a.squad || !a.ticketId) return
-      const key = `${a.ticketId}|${a.status}|${JSON.stringify(a.squadStep ?? null)}`
-      if (phaseSeen.get(a.id) === key) return
-      phaseSeen.set(a.id, key)
-      const members = loadSquads(a.cwd).find((s) => s.code === a.squad)?.members ?? []
-      const phase = squadPhaseOf(a.squadStep, a.status, members)
-      if (!phase) return
-      const queue = creation.queue(a.squad)
-      if (queue?.active !== a.ticketId) return
-      phases.record({
-        code: a.squad,
-        ticketId: a.ticketId,
-        ticketKey: board.get(a.ticketId)?.key,
-        phase,
-        member: a.squadStep?.agent,
-        step: a.squadStep?.label || undefined,
-      })
-    }
+    const recordPhase = createPhaseRecorder({
+      members: (cwd, code) => loadSquads(cwd).find((q) => q.code === code)?.members ?? [],
+      activeTicket: (code) => creation.queue(code)?.active ?? undefined,
+      ticketKey: (id) => board.get(id)?.key,
+      record: (input) => void phases.record(input),
+    })
 
     manager.on('event', (e: OfficeEvent) => {
       broadcast(e)
