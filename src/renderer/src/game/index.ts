@@ -234,7 +234,6 @@ export class Game extends GameInput {
       coordinators: [],
       emi: null,
       rooms: [],
-      meeting: 0,
       highlight: this.casaHot,
       totem: this.totem.view,
     }
@@ -250,7 +249,6 @@ export class Game extends GameInput {
       coordinators: [],
       emi: null,
       rooms: [],
-      meeting: 0,
       highlight: this.studyHot,
     }
   }
@@ -307,9 +305,6 @@ export class Game extends GameInput {
         bubble: agentBubble(emi.status, this.state.itemsFor(emi.id).permissions.length > 0, null),
       })
     }
-    let meeting = 0
-    for (const actor of this.actors.values())
-      if (actor.goal === 'meeting' && actor.arrived && actor.avatar.floor === view && actor.avatar.pose === 'sit') meeting++
     return {
       ...this.common(),
       floor,
@@ -318,7 +313,6 @@ export class Game extends GameInput {
       coordinators,
       emi: emi ? screenMode(emi) : null,
       rooms: plan.rooms.map((r) => this.roomPlate(r)),
-      meeting,
     }
   }
 

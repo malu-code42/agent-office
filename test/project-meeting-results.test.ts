@@ -31,7 +31,7 @@ const result: AgentResult = {
   createdAt: 2,
 }
 
-describe('resultados da sala de reunião de projeto (AO-57)', () => {
+describe('resultados pendentes de agente de projeto (AO-57)', () => {
   it('mantém a apresentação após reinício e torna o recebimento duplicado inofensivo', async () => {
     app.setPath('userData', mkdtempSync(join(tmpdir(), 'ao-project-meeting-')))
     const { Store } = await import('../src/main/store')

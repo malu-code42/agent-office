@@ -114,7 +114,8 @@ export abstract class GameActors extends GameBoards {
     // Nobody walks to the player: questions, permissions and results wait where the agent is, and the player comes.
     if (a.builtIn === 'luna') return 'seat'
     if (a.homeResident) return 'home'
-    if (items.results.length && resultDestination(a, !!this.upperOf(this.homeFloor(a))) === 'meeting') return 'meeting'
+    // AO-105: a project result waits at the agent's own desk, never in another room.
+    if (items.results.length && resultDestination(a, !!this.upperOf(this.homeFloor(a))) === 'desk') return 'desk'
     if (a.role === 'orchestrator') {
       // The squad room is home: no lounge between cycles.
       return 'desk'
@@ -160,7 +161,6 @@ export abstract class GameActors extends GameBoards {
       if (goal !== 'home') actor.homeSeat = null
       if (goal === 'desk') this.goDesk(actor, a, instant)
       else if (goal === 'boss') this.goBoss(actor, instant)
-      else if (goal === 'meeting') this.goMeeting(actor, instant)
       else if (goal === 'home') this.goHomeResident(actor, instant)
       else if (goal === 'seat') this.goLunaSeat(actor, instant)
       else this.goHang(actor, instant)
@@ -305,20 +305,11 @@ export abstract class GameActors extends GameBoards {
       }
       av.face(desk.face ?? Math.PI)
       av.pose = a.status === 'working' ? 'type' : 'sit'
-    } else if (actor.goal === 'boss' || actor.goal === 'meeting') {
+    } else if (actor.goal === 'boss') {
       const items = this.state.itemsFor(a.id)
       const result = items.results[0]
       av.setProp(items.permissions.length ? 'none' : result ? (result.isError ? 'redPaper' : 'paper') : 'none')
-      const meeting = actor.goal === 'meeting' ? this.upperOf(av.floor)?.scene.plan.meeting : undefined
-      const chair = meeting?.seats.find((s) => actor.spot && s.approach[0] === actor.spot[0] && s.approach[1] === actor.spot[1])
-      if (chair) {
-        // a meeting chair: sit at the table, looking at it
-        av.face(chair.face)
-        av.pose = 'sit'
-        return
-      }
-      if (meeting) av.faceTowards(meeting.table.x, meeting.table.z)
-      else if (av.floor === this.player.floor && this.playerInBossRoom()) av.faceTowards(this.player.position.x, this.player.position.z)
+      if (av.floor === this.player.floor && this.playerInBossRoom()) av.faceTowards(this.player.position.x, this.player.position.z)
       else av.faceTowards(this.home.boss.x, this.home.boss.z)
       av.pose = this.time < actor.waveUntil ? 'wave' : actor.id === this.nearId ? 'talk' : 'stand'
     } else if (actor.goal === 'seat') {

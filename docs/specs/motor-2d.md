@@ -39,7 +39,7 @@ andar, Look, uniforme, tamanho e "caído". Nada de three.js.
 
 `game/input.ts` pergunta ao renderer: arrastar move a câmera (presa ao andar), roda/zoom do HUD troca 1×/2×/3×,
 clique acerta pessoa (pixel pintado do sprite, a da frente primeiro, escala dos ajudantes considerada), parede do
-fundo de uma sala de squad, mesa da reunião, Emi, móveis clicáveis da Casa e do andar de estudos, porta do elevador ou o chão.
+fundo de uma sala de squad, Emi, móveis clicáveis da Casa e do andar de estudos, porta do elevador ou o chão.
 
 ## A Casa (fase 2)
 
@@ -73,8 +73,12 @@ fundo de uma sala de squad, mesa da reunião, Emi, móveis clicáveis da Casa e 
   aberta, fechada); quadros `elevator.open` em cada layout, desenhados por cima da base.
 - **Descanso no sofá**: quem descansa (`relax`) num canto `sit` da Casa aparece sentado de costas no sofá. Atingido
   pela Caveira ali, vai antes para o piso livre mais perto (`game/strike-spot.ts`) e cai no chão, não no sofá.
-- **Sem placas no chão**: o nome da sala, da reunião, da diretoria e do lounge aparece como dica ao passar o mouse;
-  a sala de squad abre pela parede do fundo e a reunião pela mesa.
+- **Sem placas no chão**: o nome da sala, da diretoria e do lounge aparece como dica ao passar o mouse;
+  a sala de squad abre pela parede do fundo.
+- **Sem sala de reuniões (AO-105)**: o código não tem mais o conceito. Agente de projeto com resultado pendente fica sentado
+  na própria mesa (`resultDestination` devolve `'desk'`), com a bolha de notificação; clicar nele abre o resultado
+  pendente (`onAgentClick`). Os sprites antigos da sala ainda estão no `project.json`/atlas até a arte ser regerada
+  pelos scripts de `scripts/pixel-art` (pendente), mas o motor não os trata como lugar clicável nem de espera.
 - **Emi**: mesa virada para a parede do fundo (ela de costas, ao sul da mesa; visitas ao norte), tag de nome e
   status como a de qualquer agente (clique abre o chat) e visual fixo `EMI_LOOK`.
 - **Mesa 5** de cada sala de squad fica na parede do fundo, atrás do coordenador (a estante fica ao lado dela; a sala

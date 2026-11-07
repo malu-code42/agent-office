@@ -117,7 +117,6 @@ export abstract class GameInput extends GameMovement {
         if (room) this.hooks.onRoomClick?.(project, room)
         return
       }
-      if (hit?.kind === 'meeting') return this.hooks.onMeetingRoomClick?.(project)
       if (hit?.kind === 'elevator') return this.toElevator()
       if (hit?.kind === 'person' && hit.key.startsWith('member:')) return this.memberClick(hit.key.slice('member:'.length))
     }

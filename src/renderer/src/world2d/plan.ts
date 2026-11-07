@@ -97,22 +97,11 @@ export interface ProjectIssue {
   reason: string
 }
 
-/** A chair where an agent waiting in the meeting room sits (2D floors). */
-export interface MeetingSeat {
-  x: number
-  z: number
-  approach: [number, number]
-  /** Which way the sitter looks (radians, 0 = towards +z). */
-  face: number
-}
-
 export interface ProjectPlan {
   /** Floor size in tiles. */
   size: [number, number]
   /** The elevator: the tile its door opens on and where it drops people. */
   elevator: { tile: [number, number]; point: { x: number; z: number } }
-  /** Where the results of the project wait: the room, its table and its chairs (none: they stand). */
-  meeting: { rect: Rect; table: { x: number; z: number }; seats: MeetingSeat[] }
   /** Tiles where an orchestrator whose squad has no room waits. */
   overflow: [number, number][]
   /** The three squad rooms, west side. */

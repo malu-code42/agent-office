@@ -20,7 +20,7 @@ export interface ReaderSource {
 
 /**
  * Resultado de ticket: entregue para um ticket do quadro (delegado ou de squad), ou de um
- * agente de projeto, que leva o resultado para a sala de reunião do andar (#57).
+ * agente de projeto, que espera o resultado na própria mesa (AO-105).
  */
 export function isTicketResult(agent: AgentSummary | undefined, r: AgentResult, projects: readonly ProjectFloor[]): boolean {
   if (!agent || agent.id !== r.agentId) return false

@@ -131,7 +131,7 @@ describe('hit', () => {
 })
 
 describe('layout 2D do andar de projeto', () => {
-  it('tem as três salas de squad 9x6, a reunião, a diretoria e o elevador', () => {
+  it('tem as três salas de squad 9x6, a diretoria e o elevador', () => {
     expect(LAYOUT.size).toEqual([24, 18])
     expect(LAYOUT.rooms.map((r) => r.rect)).toEqual([
       [0, 0, 9, 6],
@@ -139,17 +139,15 @@ describe('layout 2D do andar de projeto', () => {
       [0, 12, 9, 18],
     ])
     expect(LAYOUT.rooms.every((r) => r.slots.length === SQUAD_MAX_MEMBERS)).toBe(true)
-    expect(LAYOUT.meeting.rect).toEqual([11, 7, 18, 18])
     expect(LAYOUT.director.rect).toEqual([18, 7, 24, 18])
-    expect(LAYOUT.meeting.seats).toHaveLength(6)
   })
 
-  it('a porta da diretoria abre para a sala de reunião', () => {
+  it('a porta da diretoria continua na parede', () => {
     const wall = LAYOUT.walls.find((w) => w.axis === 'x' && w.at === 18)
     expect(wall?.doors.length).toBeGreaterThan(0)
   })
 
-  it('dá para chegar a toda cadeira, à mesa de reunião e à porta de cada sala saindo do elevador', () => {
+  it('dá para chegar a toda cadeira, e à porta de cada sala saindo do elevador', () => {
     const grid = grid2d(LAYOUT)
     const plan = projectPlan2d(LAYOUT, [squad('sala-1', 5), squad('sala-2', 4), squad('sala-3', 2)])
     const [ex, ez] = plan.elevator.tile
@@ -162,7 +160,6 @@ describe('layout 2D do andar de projeto', () => {
         ...r.desks.map((d) => d.approach),
       ]),
       ...plan.agentDesks.map((d) => d.approach),
-      ...plan.meeting.seats.map((s) => s.approach),
       plan.director.approach,
     ]
     for (const [x, z] of goals) {
@@ -249,11 +246,11 @@ describe('projectPlan2d', () => {
     expect(slots.size).toBe(plan.agentDesks.length + 2)
   })
 
-  it('o elevador e a sala de reunião vêm do layout', () => {
+  it('o elevador vem do layout, sem sala de reunião (AO-105)', () => {
     const plan = projectPlan2d(LAYOUT, [])
     expect(plan.elevator.tile).toEqual(LAYOUT.elevator.tile)
     expect(plan.size).toEqual([24, 18])
-    expect(plan.meeting.seats).toHaveLength(6)
+    expect('meeting' in plan).toBe(false)
     expect(plan.overflow.length).toBeGreaterThan(0)
   })
 })

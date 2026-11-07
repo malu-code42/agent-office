@@ -2,7 +2,6 @@ import type { AgentSummary } from '@shared/types'
 import type { BubbleKind } from '../world2d/overlays'
 import { GameLounge } from './lounge'
 import { tileOf, type Actor } from './types'
-import { meetingWaitSpot } from './result-destination'
 
 /** Deliveries: agents with a permission request or a result visit the player and talk when close. */
 export abstract class GameDeliveries extends GameLounge {
@@ -24,35 +23,6 @@ export abstract class GameDeliveries extends GameLounge {
         actor.avatar.placeAt(spot[0] + 0.5, spot[1] + 0.5)
         done()
       } else this.route(actor.avatar, spot, null, done)
-    })
-  }
-
-  /** Project results wait at the meeting table and never auto-open by proximity. */
-  protected goMeeting(actor: Actor, instant: boolean): void {
-    const agent = this.state.agents.get(actor.id)
-    if (!agent) return
-    const floor = this.homeFloor(agent)
-    this.travel(actor, floor, instant, () => {
-      const meeting = this.upperOf(floor)?.scene.plan.meeting
-      if (!meeting) return
-      const taken = [...this.actors.values()]
-        .filter((other) => other !== actor && other.avatar.floor === floor)
-        .flatMap((other) => (other.spot ? [other.spot] : []))
-      // A floor with meeting chairs seats its visitors; the others stand by the table.
-      const seat = meeting.seats.find((s) => !taken.some(([x, z]) => x === s.approach[0] && z === s.approach[1]))
-      const spot = seat?.approach ?? meetingWaitSpot((x, z) => this.floorOf(floor).grid.walkable(x, z), taken, meeting.rect, meeting.table)
-      if (!spot) return
-      actor.spot = spot
-      const done = () => {
-        actor.arrived = true
-        const now = this.state.agents.get(actor.id)
-        if (now) this.pose(actor, now)
-      }
-      const at = seat ?? { x: spot[0] + 0.5, z: spot[1] + 0.5 }
-      if (instant) {
-        actor.avatar.placeAt(at.x, at.z)
-        done()
-      } else this.route(actor.avatar, spot, seat ? { x: seat.x, z: seat.z } : null, done)
     })
   }
 
