@@ -4,7 +4,7 @@
 
 import { createSdkMcpServer, tool, type McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
-import { SQUAD_NAME_MAX, SQUAD_ROOM_COUNT, type SquadInfo } from '@shared/types'
+import { SQUAD_MAX_MEMBERS, SQUAD_MIN_MEMBERS, SQUAD_NAME_MAX, SQUAD_ROOM_COUNT, type SquadInfo } from '@shared/types'
 import { squadMemberSchema } from './validate'
 
 export const EMI_SERVER = 'emi'
@@ -52,7 +52,7 @@ export const emiSquadShape = {
   name: z.string().trim().min(1).max(SQUAD_NAME_MAX),
   brief: z.string().trim().min(1).max(4000).describe('What this squad is for, in pt-BR'),
   tickets: ticketKeys.describe('Keys of tickets of the approved plan this squad takes, in order'),
-  members: z.array(squadMemberSchema).min(2).max(6),
+  members: z.array(squadMemberSchema).min(SQUAD_MIN_MEMBERS).max(SQUAD_MAX_MEMBERS),
   room: z.number().int().min(1).max(SQUAD_ROOM_COUNT).optional().describe('Squad room of the floor (1-based); default: the first free one'),
 }
 export type EmiSquad = { [K in keyof typeof emiSquadShape]: z.infer<(typeof emiSquadShape)[K]> }

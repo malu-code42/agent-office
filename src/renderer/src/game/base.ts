@@ -243,7 +243,7 @@ export abstract class GameBase {
   protected overflowTile(a: AgentSummary, floor: number): [number, number] {
     const plan = this.upperOf(floor)?.scene.plan
     if (!plan) return this.home.overflow[a.desk % this.home.overflow.length]
-    if (a.role === 'orchestrator') return plan.overflow[a.desk % plan.overflow.length]
+    if (a.role === 'orchestrator') return plan.overflow[a.desk % plan.overflow.length] ?? plan.elevator.tile
     return plan.agentStand[(a.desk - plan.agentDesks.length) % plan.agentStand.length] ?? plan.elevator.tile
   }
 
@@ -304,7 +304,6 @@ export abstract class GameBase {
   protected abstract resting(a: AgentSummary): boolean
   protected abstract uniformFor(a: AgentSummary): Uniform | null
   protected abstract dress(avatar: Avatar, a: AgentSummary): void
-  protected abstract goBoss(actor: Actor, instant: boolean): void
   protected abstract goHang(actor: Actor, instant: boolean): void
   protected abstract bubble(actor: Actor, a: AgentSummary): void
   protected abstract memberGone(m: Member): void

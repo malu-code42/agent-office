@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { SQUAD_MAX_MEMBERS, SQUAD_MIN_MEMBERS, SQUAD_ROLES, type SquadProposalMember, type SquadRole } from '@shared/types'
+import { SQUAD_MAX_COMPOSED, SQUAD_MAX_MEMBERS, SQUAD_MIN_MEMBERS, SQUAD_ROLES, type SquadProposalMember, type SquadRole } from '@shared/types'
 
 // The composition of a squad: what the model proposes and what the office accepts.
 // The answer of the model is untrusted: it is parsed, checked here and refused when it
@@ -73,7 +73,7 @@ export function compositionPrompt(req: CompositionRequest): string {
     'Answer with ONE JSON object and nothing else. No prose, no markdown fence:',
     '{"members": [{"name": "...", "role": "...", "model": "...", "account": "...", "focus": "..."}]}',
     'Rules:',
-    '- "members": 2 to 6 members, in the order their desks are made. The room also has a fixed coordinator desk; do not include a coordinator.',
+    `- "members": ${SQUAD_MIN_MEMBERS} to ${SQUAD_MAX_COMPOSED} members, in the order their desks are made, and only the ones this brief needs: never add a member or repeat a role just to fill a desk. The room also has a fixed coordinator desk; do not include a coordinator.`,
     '- "role": exactly one "implementer" and exactly one "reviewer", and the "reviewer" comes after the "implementer". The other members use "analyst", "tester", "writer" or "researcher".',
     modelRule(req.ctx.models),
     accountRule(req.ctx.accounts),

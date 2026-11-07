@@ -8,7 +8,7 @@ import type { HelperReturn } from './helper-return'
 import type { HomeAction } from '../world2d/home-layout'
 import type { StudyAct, Teacher } from '../world2d/estudos'
 
-export type Goal = 'desk' | 'boss' | 'hang' | 'home' | 'leave' | 'chat' | 'seat'
+export type Goal = 'desk' | 'hang' | 'home' | 'leave' | 'chat' | 'seat'
 
 export interface Actor {
   id: string
@@ -20,7 +20,6 @@ export interface Actor {
   spot: [number, number] | null
   /** Reserved lounge spot index. */
   hang: number | null
-  waveUntil: number
   /** Struck by the skull: lies still until its session closes (gets back up if closing fails). */
   down: boolean
   /** A short reaction bubble ("Ai!") that overrides the status bubble until this time. */

@@ -139,7 +139,6 @@ describe('layout 2D do andar de projeto', () => {
       [0, 12, 9, 18],
     ])
     expect(LAYOUT.rooms.every((r) => r.slots.length === SQUAD_MAX_MEMBERS)).toBe(true)
-    expect(LAYOUT.director.rect).toEqual([18, 7, 24, 18])
   })
 
   it('a porta da diretoria continua na parede', () => {
@@ -160,7 +159,7 @@ describe('layout 2D do andar de projeto', () => {
         ...r.desks.map((d) => d.approach),
       ]),
       ...plan.agentDesks.map((d) => d.approach),
-      plan.director.approach,
+      [Math.floor(LAYOUT.emi.seat.at[0] / 16), Math.floor(LAYOUT.emi.seat.at[1] / 16)],
     ]
     for (const [x, z] of goals) {
       expect(grid.walkable(x, z), `${x},${z}`).toBe(true)
@@ -205,7 +204,10 @@ describe('projectPlan2d', () => {
     expect(plan.rooms.map((r) => r.state)).toEqual(['empty', 'live', 'empty'])
     const room = plan.rooms[1]
     expect(room.name).toBe('Dev Beta')
-    expect(room.desks.map((d) => d.index)).toEqual([memberDeskIndex(1, 0), memberDeskIndex(1, 1), memberDeskIndex(1, 2)])
+    // any three of the room's desks (AO-106: at random but stable), each one named by its place in the room
+    const mine = room.desks.map((d) => d.index)
+    expect(new Set(mine).size).toBe(3)
+    for (const i of mine) expect([0, 1, 2, 3, 4].map((k) => memberDeskIndex(1, k))).toContain(i)
     // members face the coordinator (-x), the coordinator faces them (+x)
     expect(room.desks.every((d) => d.face === -Math.PI / 2)).toBe(true)
     expect(room.coordinator.rot).toBe(Math.PI / 2)
@@ -241,8 +243,12 @@ describe('projectPlan2d', () => {
   it('cada mesa do plano sabe em que sala e lugar é desenhada', () => {
     const plan = projectPlan2d(LAYOUT, [squad('sala-3', 2)])
     const slots = slotOfDesk(plan, LAYOUT)
-    expect(slots.get(memberDeskIndex(2, 1))).toEqual({ room: 2, slot: 1 })
-    expect(slots.get(0)).toEqual({ room: 0, slot: 0 })
+    for (const d of plan.rooms[2].desks) expect(slots.get(d.index)).toEqual({ room: 2, slot: d.index - memberDeskIndex(2, 0) })
+    // an agent's desk is a desk of some room (any of them, AO-106); its seat is the one drawn there
+    for (const d of plan.agentDesks) {
+      const at = slots.get(d.index)!
+      expect(LAYOUT.rooms[at.room].slots[at.slot].seat.at[0] / 16).toBe(d.seat.x)
+    }
     expect(slots.size).toBe(plan.agentDesks.length + 2)
   })
 
@@ -252,6 +258,95 @@ describe('projectPlan2d', () => {
     expect(plan.size).toEqual([24, 18])
     expect('meeting' in plan).toBe(false)
     expect(plan.overflow.length).toBeGreaterThan(0)
+  })
+})
+
+describe('plano com outro número de salas e mesas que as constantes (AO-106 etapa 1)', () => {
+  it('uma squad da sala 3 de um andar com 2 salas pega a sala livre ou vira aviso, sem exceção', () => {
+    const two: ProjectLayout = { ...LAYOUT, rooms: LAYOUT.rooms.slice(0, 2) }
+    const plan = projectPlan2d(two, [squad('sala-3', 3), squad('sala-1', 2), squad('z', 2)])
+    expect(plan.rooms).toHaveLength(2)
+    expect(plan.rooms[0].squad).toBe('sala-1')
+    expect(plan.rooms[1].squad).toBe('sala-3')
+    expect(plan.issues.map((i) => i.code)).toEqual(['z'])
+    expect(plan.issues[0].reason).toContain('2 salas')
+    expect(plan.squadOf.get('z/m0')).toBe('z')
+  })
+
+  it('proposta numa sala que o andar não tem é ignorada', () => {
+    const one: ProjectLayout = { ...LAYOUT, rooms: LAYOUT.rooms.slice(0, 1) }
+    const plan = projectPlan2d(one, [squad('x', 2)], [0, 2])
+    expect(plan.rooms.map((r) => r.state)).toEqual(['proposed'])
+    expect(plan.issues.map((i) => i.code)).toEqual(['x'])
+  })
+
+  it('sala com menos mesas que o limite senta só as que tem e avisa', () => {
+    const fewer: ProjectLayout = { ...LAYOUT, rooms: LAYOUT.rooms.map((r) => ({ ...r, slots: r.slots.slice(0, 3) })) }
+    const plan = projectPlan2d(fewer, [squad('sala-1', 5)])
+    expect(plan.rooms[0].desks).toHaveLength(3)
+    expect(plan.rooms[0].members).toHaveLength(3)
+    expect(plan.issues[0].reason).toContain('de 2 a 3 membros')
+    // the other desks (3 per room, 9 in all, 3 taken) are still free for the individual agents
+    expect(plan.agentDesks).toHaveLength(6)
+  })
+
+  it('sala sem nenhuma mesa não derruba o plano', () => {
+    const none: ProjectLayout = { ...LAYOUT, rooms: LAYOUT.rooms.map((r) => ({ ...r, slots: [] })) }
+    const plan = projectPlan2d(none, [squad('sala-2', 3)])
+    expect(plan.rooms[1].desks).toEqual([])
+    expect(plan.agentDesks).toEqual([])
+    expect(plan.issues).toHaveLength(1)
+  })
+
+  it('o índice de tela das mesas de duas salas nunca se repete', () => {
+    const plan = projectPlan2d(LAYOUT, [squad('sala-1', 5), squad('sala-2', 5), squad('sala-3', 5)])
+    const all = [...plan.agentDesks, ...plan.rooms.flatMap((r) => r.desks)].map((d) => d.index)
+    expect(new Set(all).size).toBe(all.length)
+  })
+})
+
+describe('mesas ao acaso e estáveis (AO-106 etapa 3)', () => {
+  const deskOf = (plan: ReturnType<typeof projectPlan2d>, r: number) => plan.rooms[r].desks.map((d) => d.index)
+
+  it('a mesma squad senta sempre nas mesmas mesas, plano após plano', () => {
+    const a = projectPlan2d(LAYOUT, [squad('sala-1', 3)])
+    const b = projectPlan2d(LAYOUT, [squad('sala-1', 3)])
+    expect(deskOf(a, 0)).toEqual(deskOf(b, 0))
+  })
+
+  it('quem já sentou não troca de mesa quando entra mais gente na squad ou em outra sala', () => {
+    const before = projectPlan2d(LAYOUT, [squad('sala-1', 2)])
+    const grown = projectPlan2d(LAYOUT, [squad('sala-1', 4), squad('sala-2', 3)])
+    expect(deskOf(grown, 0).slice(0, 2)).toEqual(deskOf(before, 0))
+    expect(new Set(deskOf(grown, 0)).size).toBe(4)
+  })
+
+  it('a ordem não é a das mesas na arte: squads diferentes sentam em mesas diferentes', () => {
+    const orders = new Set(['a', 'b', 'c', 'd', 'e', 'f'].map((code) => deskOf(projectPlan2d(LAYOUT, [squad(code, 3)]), 0).join(',')))
+    expect(orders.size).toBeGreaterThan(1)
+    const inOrder = [0, 1, 2].map((k) => memberDeskIndex(0, k)).join(',')
+    expect([...orders].some((o) => o !== inOrder)).toBe(true)
+  })
+
+  it('as mesas de um membro e as dos agentes individuais nunca se repetem', () => {
+    const plan = projectPlan2d(LAYOUT, [squad('sala-1', 4), squad('sala-3', 2)])
+    const seats = [...plan.agentDesks, ...plan.rooms.flatMap((r) => r.desks)].map((d) => `${d.seat.x},${d.seat.z}`)
+    expect(new Set(seats).size).toBe(seats.length)
+  })
+
+  it('os agentes individuais ocupam mesas livres de qualquer sala, não só as primeiras', () => {
+    const plan = projectPlan2d(LAYOUT, [])
+    const roomsUsed = new Set(plan.agentDesks.map((d) => Math.floor((d.z - 0) / 6)))
+    expect(roomsUsed.size).toBeGreaterThan(1)
+  })
+
+  it('uma mesa tomada por squad não embaralha as dos agentes: só some a que foi tomada', () => {
+    const free = projectPlan2d(LAYOUT, [])
+    const seat = (d: { seat: { x: number; z: number } }) => `${d.seat.x},${d.seat.z}`
+    const withSquad = projectPlan2d(LAYOUT, [squad('sala-1', 2)])
+    const kept = free.agentDesks.map(seat).filter((s) => withSquad.agentDesks.map(seat).includes(s))
+    const afterOrder = withSquad.agentDesks.map(seat).filter((s) => kept.includes(s))
+    expect(afterOrder).toEqual(kept)
   })
 })
 

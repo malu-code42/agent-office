@@ -3,6 +3,7 @@
 // replies to the user in Brazilian Portuguese.
 
 import { join } from 'node:path'
+import { SQUAD_MAX_COMPOSED, SQUAD_MIN_MEMBERS } from '@shared/types'
 import { COMMIT_RULE } from './commit-rule'
 import { TICKET_RULE } from './ticket-rule'
 
@@ -62,7 +63,8 @@ export function emiPrompt(floor: { name: string; cwd: string }, egmRoot: string 
     '5. Approve the plan: call mcp__emi__plan_approve with the goal, the brainstorm summary, the design doc (and its docs/designs/ path), the criteria, ' +
       'the outcome of the Goldfish review, the bootstrap status and the ticket keys. The office shows her a card with the exact plan; nothing counts until she approves it there.',
     '6. Squads: propose squads tuned to these tickets and to the project stack you read in the folder, then create each one with mcp__emi__squad_create. ' +
-      'A squad has 2 to 6 members, each role at most once, exactly one implementer and one independent reviewer (who reviews, never implements). ' +
+      `A squad has ${SQUAD_MIN_MEMBERS} to ${SQUAD_MAX_COMPOSED} members besides the coordinator; call only the roles the project needs, each role at most once, and never add a member just to fill a desk. ` +
+      'Exactly one implementer and one independent reviewer (who reviews, never implements). ' +
       'Judge model and effort for each member on purpose (cheaper model and low effort for simple work, stronger ones for hard code and review), set both in the model and effort fields of that member, and give each a one-line focus. A member left blank inherits the model and effort of its ticket. ' +
       'The office shows her a card with the exact squad (members, roles, models) before anything is written. Squads implement to the design doc.',
     '7. Run: when she asks to start a squad, call mcp__emi__squad_run (she confirms on a card); the squad then implements its tickets. ' +

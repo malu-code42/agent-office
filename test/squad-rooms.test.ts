@@ -83,6 +83,15 @@ describe('as salas de um andar', () => {
     expect(without.map((s) => s.code)).toEqual(['alfa'])
   })
 
+  it('um andar com menos salas que o limite não manda squad para sala que não existe', () => {
+    const { rooms, without } = floorRooms([squad('sala-1'), squad('sala-3'), squad('alfa')], [], 2)
+    expect(rooms.get('sala-1')).toBe(0)
+    expect(rooms.get('sala-3')).toBe(1)
+    expect(rooms.has('alfa')).toBe(false)
+    expect(without.map((s) => s.code)).toEqual(['alfa'])
+    expect(roomOfCode('sala-3', 2)).toBeUndefined()
+  })
+
   it('a squad de uma sala é a que o office criou', () => {
     const squads = [squad('sala-2')]
     expect(squadInRoom(squads, 1)?.code).toBe('sala-2')

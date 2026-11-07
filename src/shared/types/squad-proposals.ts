@@ -19,12 +19,28 @@ export const SQUAD_ROLE_LABELS: Record<SquadRole, string> = {
   researcher: 'Pesquisador',
 }
 
-/** Members besides the coordinator: the room holds from two to five (HANDOFF §3.4). */
+/**
+ * The limits of a squad room, in one place (AO-106). Nothing else writes these numbers by hand:
+ * prompts, schemas, messages and the 2D plan all read them from here.
+ */
+/** Members besides the coordinator: at least two (HANDOFF §3.4). */
 export const SQUAD_MIN_MEMBERS = 2
-export const SQUAD_MAX_MEMBERS = 5
+/**
+ * Member desks the art draws in every squad room (the coordinator has a desk of its own). The plan numbers
+ * the desks of a room with this stride, so it is the one number that follows the art: 5 today, 9 with the
+ * four-room floor (AO-106).
+ */
+export const SQUAD_DESKS_PER_ROOM = 5
+/** Ceiling of members of a squad: one per member desk. */
+export const SQUAD_MAX_MEMBERS = SQUAD_DESKS_PER_ROOM
+/**
+ * Members a composition can really have: a role appears once (the pipeline and the Emi prompt say so), so the
+ * roles are a ceiling too. A squad calls only who the project needs and never repeats a role to fill a desk.
+ */
+export const SQUAD_MAX_COMPOSED = Math.min(SQUAD_MAX_MEMBERS, SQUAD_ROLES.length)
 /** The name of a squad: it may not be empty and it is short (HANDOFF §3.4.2). */
 export const SQUAD_NAME_MAX = 60
-/** Squad rooms per project floor: three, and never more (ticket 04). */
+/** Squad rooms per project floor, and never more (ticket 04). The floor's art may draw fewer: the plan reads its own layout too. */
 export const SQUAD_ROOM_COUNT = 3
 /** Models a member may run on; '' = the default of Claude Code. */
 export const SQUAD_MODELS = ['', 'fable', 'opus', 'sonnet', 'haiku'] as const
@@ -87,7 +103,7 @@ export interface SquadProposal {
   projectId: string
   /** Project folder (the one that holds squads/). */
   cwd: string
-  /** Room of the floor: 0, 1 or 2. */
+  /** Room of the floor, from 0 (below SQUAD_ROOM_COUNT). */
   room: number
   createdAt: number
   updatedAt: number

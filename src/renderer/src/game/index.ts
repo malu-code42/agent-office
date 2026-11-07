@@ -71,10 +71,6 @@ export class Game extends GameInput {
     this.player.update(dt)
     for (const actor of this.actors.values()) {
       actor.avatar.update(dt)
-      if (actor.arrived && actor.goal === 'boss' && actor.avatar.pose === 'wave' && this.time > actor.waveUntil) {
-        const a = this.state.agents.get(actor.id)
-        if (a) this.pose(actor, a)
-      }
     }
     this.shrink()
     this.updateHelpers(dt)
@@ -89,7 +85,6 @@ export class Game extends GameInput {
     this.recheck -= dt
     if (this.recheck <= 0) {
       this.recheck = 0.4
-      this.checkVisitors()
       for (const actor of this.actors.values()) {
         if (actor.chatUntil && this.time >= actor.chatUntil) {
           actor.chatUntil = 0
