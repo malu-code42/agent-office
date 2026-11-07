@@ -38,6 +38,7 @@ import type {
   AttachmentInput,
   DelegateTarget,
   EffortLevel,
+  PermissionLevel,
   HireRequest,
   AlwaysAllowRule,
   LedgerQuery,
@@ -54,6 +55,7 @@ import type {
 } from '@shared/types'
 import { isDir } from './squads'
 import { routineLevel } from './permissions/levels'
+import { levelChoiceError } from './permissions/screen'
 import { SKILL_NAME_RE } from './agent-plugins'
 
 // Everything the renderer sends goes through here. The page runs sandboxed, but the
@@ -189,6 +191,13 @@ export const mediaPosterReadArgsSchema = z.tuple([z.string().regex(/^m[a-z0-9]{8
 export const pickMediaPosterArgsSchema = z.tuple([])
 /** getSubagentLog(agentId, subId) */
 export const subagentLogArgsSchema = z.tuple([idSchema, idSchema])
+/** AO-109, parte 4: [{ id, level }], level de 1 a 5 ou null (tira o nível salvo). Qualquer item inválido recusa o lote todo. */
+export const setPermissionLevelsArgsSchema = z.tuple([
+  z
+    .array(z.object({ id: idSchema, level: z.number().int().min(1).max(5).nullable() }).strict())
+    .min(1)
+    .max(200),
+])
 export const setHomeResidentArgsSchema = z.tuple([idSchema, z.boolean()])
 export const homeResidentSchema = z.boolean().optional()
 export const pathSchema = z.string().min(1).max(MAX_PATH)
@@ -876,7 +885,7 @@ export function cleanLedgerQuery(raw: unknown): LedgerQuery {
  */
 export function cleanHire(
   raw: unknown,
-  settings: Pick<Settings, 'accounts' | 'defaultEngine' | 'defaultPermissionMode' | 'projects'>,
+  settings: Pick<Settings, 'accounts' | 'defaultEngine' | 'defaultPermissionMode' | 'projects'> & Pick<Partial<Settings>, 'githubAccounts'>,
 ): HireRequest {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   const cwd = pathSchema.safeParse(r.cwd)
@@ -887,6 +896,11 @@ export function cleanHire(
   const mode = permissionModeSchema.safeParse(r.permissionMode)
   const requested = mode.success ? mode.data : inherited
   const brain = cleanBrain(r, settings.accounts)
+  // AO-109: nível pedido na contratação; inválido recusa (não vira silenciosamente outro), 5 exige a conta do dono.
+  if (r.permissionLevel !== undefined) {
+    const bad = levelChoiceError(r.permissionLevel, settings.githubAccounts)
+    if (bad) throw new Error(bad)
+  }
   const profile = profileIdSchema.safeParse(r.profile)
   if (r.profile !== undefined && !profile.success) throw new Error('Esse perfil não existe. Escolha um dos perfis de fábrica.')
   if (modeIsMorePermissive(requested, inherited) && r.confirmPermissionOverride !== true) {
@@ -899,6 +913,7 @@ export function cleanHire(
     engine: 'claude',
     ...brain,
     permissionMode: requested,
+    ...(r.permissionLevel !== undefined ? { permissionLevel: r.permissionLevel as PermissionLevel } : {}),
     ...(r.confirmPermissionOverride === true ? { confirmPermissionOverride: true } : {}),
     worktree: worktreeFlagSchema.parse(r.worktree),
     ...(profile.success && profile.data ? { profile: profile.data } : {}),

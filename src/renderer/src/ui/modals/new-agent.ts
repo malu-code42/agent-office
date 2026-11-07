@@ -1,13 +1,15 @@
 import { pickAgentName } from '@shared/describe'
 import { projectFor } from '@shared/projects'
 import { PROFILES, profileById } from '@shared/profiles'
-import type { AgentBrain, OfficePermissionMode, ProjectFloor } from '@shared/types'
+import type { AgentBrain, OfficePermissionMode, PermissionLevel, ProjectFloor } from '@shared/types'
+import { OWNER_ACCOUNT } from '@shared/permission-levels'
 import type { State } from '../../state'
 import { accountField } from '../accounts'
 import { h, icon } from '../dom'
 import { templatesTab } from '../templates'
 import { stayHomeByDefault } from '../../game/home-seats'
 import { cleanError, field, LAST_CWD, modal } from './common'
+import { levelPicker } from './levels'
 import { brainFields, meterField, modeOptions, MODES } from './brain'
 
 // "Novo agente": call an agent into a folder (Conversar), hire one with a task, or a template.
@@ -183,6 +185,10 @@ export function openNewAgent(
     }
     mode.addEventListener('change', syncHint)
     syncHint()
+    // AO-109: o seletor dos cinco níveis (só na contratação com tarefa); começa no nível que o modo escolhido já daria.
+    const modeLevel = (m: string): PermissionLevel => (m === 'plan' ? 2 : m === 'acceptEdits' || m === 'auto' ? 4 : 3)
+    const level = levelPicker(modeLevel(mode.value), () => (state.settings.githubAccounts ?? ['malu-code42']).includes(OWNER_ACCOUNT))
+    mode.addEventListener('change', () => level.follow(modeLevel(mode.value)))
     const homeResident = h('input', { type: 'checkbox', 'aria-label': 'Permanecer na Casa' }) as HTMLInputElement
     homeResident.checked = stayHomeByDefault(project)
     const homeResidentField = field(
@@ -245,6 +251,7 @@ export function openNewAgent(
       homeResidentField.classList.toggle('hidden', next !== 'summon')
       // a template brings its own brain and freedom
       modeField.classList.toggle('hidden', byTemplate)
+      level.el.classList.toggle('hidden', !hire)
       templates.el.classList.toggle('hidden', !byTemplate)
       syncEngineFields()
       go.replaceChildren(...(hire || byTemplate ? [icon('plus', 16), 'Contratar'] : [icon('terminal', 15), 'Chamar']))
@@ -299,6 +306,7 @@ export function openNewAgent(
           ...brain.value(),
           accounts: account.value(),
           permissionMode: mode.value as OfficePermissionMode,
+          ...(level.touched() ? { permissionLevel: level.value() } : {}),
           confirmPermissionOverride,
           worktree: isolated.value(),
         })
@@ -334,6 +342,7 @@ export function openNewAgent(
         effortField,
         ...(account.el ? [account.el] : []),
         modeField,
+        level.el,
         homeResidentField,
         tabHint,
       ],

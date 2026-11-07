@@ -361,6 +361,18 @@ export abstract class AgentOffice extends AgentBase {
     this.upsert(agent)
   }
 
+  /**
+   * AO-109, parte 4: grava (ou tira, com `undefined`) o nível pedido de um agente. Só o IPC da tela "Níveis de permissão"
+   * chama isto, a pedido da usuária; nenhuma ferramenta de agente chega aqui. Vale na próxima ação (o nível é lido a cada decisão).
+   */
+  setPermissionLevel(id: string, level: PermissionLevel | undefined): void {
+    const agent = this.agents.get(id)
+    if (!agent || agent.summary.source !== 'office' || agent.summary.departed) throw new Error('Esse agente não está mais no escritório.')
+    if (level === undefined) delete agent.summary.permissionLevel
+    else agent.summary.permissionLevel = level
+    this.upsert(agent)
+  }
+
   /** AO-109: teto temporário do nível durante uma rotina num agente existente; `undefined` solta o teto. */
   setRunCap(id: string, level: PermissionLevel | undefined): void {
     const agent = this.agents.get(id)

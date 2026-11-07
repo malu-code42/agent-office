@@ -121,6 +121,8 @@ const api: OfficeAPI = {
   hire: (req) => ipcRenderer.invoke('office:hire', req),
   summon: (cwd, mode, brain, worktree, confirmOverride, engine, homeResident) =>
     ipcRenderer.invoke('office:summon', cwd, mode, brain, worktree, confirmOverride, engine, homeResident),
+  permissionLevels: () => ipcRenderer.invoke('office:permissionLevels'),
+  setPermissionLevels: (changes) => ipcRenderer.invoke('office:setPermissionLevels', changes),
   setHomeResident: (id, resident) => ipcRenderer.invoke('office:setHomeResident', id, resident),
   isGitRepo: (cwd) => ipcRenderer.invoke('office:isGitRepo', cwd),
   quitApp: () => ipcRenderer.invoke('office:quitApp'),
