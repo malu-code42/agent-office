@@ -180,7 +180,6 @@ export function openNewAgent(
     const syncHint = () => {
       const m = MODES.find((x) => x.value === mode.value)!
       modeHint.textContent = m.hint
-      modeHint.className = m.value === 'bypassPermissions' ? 'warn' : ''
     }
     mode.addEventListener('change', syncHint)
     syncHint()
@@ -266,7 +265,7 @@ export function openNewAgent(
         go.removeAttribute('disabled')
         return
       }
-      const modeOrder: OfficePermissionMode[] = ['plan', 'default', 'acceptEdits', 'auto', 'bypassPermissions']
+      const modeOrder: OfficePermissionMode[] = ['plan', 'default', 'acceptEdits', 'auto']
       const confirmPermissionOverride = modeOrder.indexOf(mode.value as OfficePermissionMode) > modeOrder.indexOf(inheritedMode)
       if (!project) localStorage.setItem(LAST_CWD, folder.cwd())
       localStorage.setItem(LAST_SUMMON_MODE, mode.value)
@@ -285,7 +284,7 @@ export function openNewAgent(
       const cwd = folder.cwd()
       if (!cwd) return toast('Escolha a pasta do projeto.', 'err')
       if (!task.value.trim()) return toast('Descreva a tarefa.', 'err')
-      const modeOrder: OfficePermissionMode[] = ['plan', 'default', 'acceptEdits', 'auto', 'bypassPermissions']
+      const modeOrder: OfficePermissionMode[] = ['plan', 'default', 'acceptEdits', 'auto']
       const confirmPermissionOverride = modeOrder.indexOf(mode.value as OfficePermissionMode) > modeOrder.indexOf(inheritedMode)
       go.setAttribute('disabled', '')
       try {

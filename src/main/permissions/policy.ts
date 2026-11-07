@@ -1,11 +1,10 @@
 // A matriz de permissões do escritório (ticket 03). Tudo aqui é puro (sem Electron e sem
 // SDK) para testar com `npm test`: o main consulta `decide` antes de mostrar um cartão ou
 // devolver `allow` ao CLI. O escritório é a autoridade; o CLI nunca relaxa o que aqui
-// responde ask — "Sem pedir" (bypassPermissions) só existe porque o consentimento do modo
-// aconteceu antes, na escolha do agente.
+// responde ask. O modo "Sem pedir nada" foi removido (AO-109): nada passa por cima do piso.
 //
 // A ordem importa (a primeira resposta ganha):
-//   1. bypassPermissions → allow (o jogador escolheu, sabendo, e pode trocar depois);
+//   1. o PISO (floor.ts): merge, push, credenciais e zonas protegidas → deny, em todo modo;
 //   2. categoria de risco (Bash): apagar arquivo, RODAR CASCA OU INTERPRETADOR (bash -c,
 //      cmd, powershell, eval, node…), instalar dependência, rede externa, git e publicação
 //      SEMPRE pedem, no Automático e mesmo com "Sempre permitir";
@@ -26,6 +25,7 @@
 import { isAbsolute, resolve, sep } from 'node:path'
 import { commandRisk as readOnlyBashRisk, sensitivePath, writeRisk } from '@shared/permission-notice'
 import type { OfficePermissionMode } from '@shared/types'
+import { floorCheck } from './floor'
 
 /** Regra "Sempre permitir" — a forma vive em @shared/types (tipos compartilhados com a UI). */
 export type { AlwaysAllowRule } from '@shared/types'
@@ -38,6 +38,9 @@ export interface PolicyScope {
   realpath?: (p: string) => string
   /** Regras "Sempre permitir" do projeto do agente. */
   rules?: AlwaysAllowRule[]
+  /** Pasta pessoal e pasta de dados do escritório (zonas que o piso protege contra escrita). */
+  homeDir?: string
+  dataDir?: string
 }
 
 export type PolicyVerdict = 'allow' | 'ask' | 'deny'
@@ -418,7 +421,12 @@ function ruleAllows(tool: string, rules?: AlwaysAllowRule[]): boolean {
 
 // ---------- decidir ----------
 
-const MODES: readonly OfficePermissionMode[] = ['default', 'acceptEdits', 'auto', 'plan', 'bypassPermissions']
+const MODES: readonly OfficePermissionMode[] = ['default', 'acceptEdits', 'auto', 'plan']
+
+/** O modo que vale em execução: valor desconhecido ou legado ("Sem pedir nada") vira o mais restrito. */
+export function runtimeMode(mode: string): OfficePermissionMode {
+  return (MODES as readonly string[]).includes(mode) ? (mode as OfficePermissionMode) : 'default'
+}
 
 /**
  * A decisão do escritório para um pedido do agente. `mode` vem do modo do agente (com a
@@ -431,7 +439,10 @@ export function decide(
   scope: PolicyScope = {},
 ): PolicyDecision {
   const m = MODES.includes(mode) ? mode : 'default'
-  if (m === 'bypassPermissions') return { verdict: 'allow' }
+  // O piso vem antes de tudo (AO-109): merge, push, credenciais e zonas protegidas são
+  // negados, sem cartão e sem "Sempre permitir". O modo "Sem pedir nada" não existe mais.
+  const floor = floorCheck(tool, input, scope)
+  if (floor) return { verdict: 'deny', why: floor.why }
 
   if (tool === 'Bash') return bashDecision(m, typeof input.command === 'string' ? input.command : '', scope)
 

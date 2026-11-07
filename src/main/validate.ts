@@ -59,7 +59,7 @@ import { SKILL_NAME_RE } from './agent-plugins'
 // main process treats it as untrusted anyway: an XSS in an agent's output must not
 // reach the SDK, the disk or office.json with values the UI could never send.
 
-export const PERMISSION_MODES: readonly OfficePermissionMode[] = ['default', 'acceptEdits', 'auto', 'plan', 'bypassPermissions']
+export const PERMISSION_MODES: readonly OfficePermissionMode[] = ['default', 'acceptEdits', 'auto', 'plan']
 /** Work someone else wrote (tickets, squad cycles) never runs with "bypass". */
 const STATUS_VALUES = STATUSES.map((s) => s.value) as [TicketStatus, ...TicketStatus[]]
 
@@ -581,7 +581,14 @@ export function parseProfileMemoryText(raw: unknown): string {
   return r.data
 }
 
-export const permissionModeSchema = z.enum(PERMISSION_MODES as [OfficePermissionMode, ...OfficePermissionMode[]])
+/**
+ * "Sem pedir nada" (bypassPermissions) foi removido no AO-109. Dados e telas antigas ainda podem
+ * trazer o valor: ele é lido como "Pedir permissão" (o mais restrito), nunca como outro modo.
+ */
+export function legacyModeToCurrent(v: unknown): unknown {
+  return v === 'bypassPermissions' ? 'default' : v
+}
+export const permissionModeSchema = z.preprocess(legacyModeToCurrent, z.enum(PERMISSION_MODES as [OfficePermissionMode, ...OfficePermissionMode[]])) as z.ZodType<OfficePermissionMode>
 export const ticketStatusSchema = z.enum(STATUS_VALUES)
 /** A message to an agent: long pastes are fine, megabytes of text are not. */
 export const messageSchema = z.string().max(2_000_000)
@@ -924,7 +931,7 @@ export function cleanDelegateTarget(raw: unknown, accounts: Account[]): Delegate
       ...cleanBrain(hire, accounts),
       engine: 'claude',
       permissionMode: permissionModeSchema.safeParse(hire.permissionMode).success
-        ? (hire.permissionMode as OfficePermissionMode)
+        ? permissionModeSchema.parse(hire.permissionMode)
         : undefined,
       confirmPermissionOverride: hire.confirmPermissionOverride === true,
       worktree: worktreeFlagSchema.parse(hire.worktree),
@@ -933,10 +940,10 @@ export function cleanDelegateTarget(raw: unknown, accounts: Account[]): Delegate
 }
 
 /** A conservative total order: moving right increases the set of actions that can run unattended. */
-const MODE_ACCESS: readonly OfficePermissionMode[] = ['plan', 'default', 'acceptEdits', 'auto', 'bypassPermissions']
+const MODE_ACCESS: readonly OfficePermissionMode[] = ['plan', 'default', 'acceptEdits', 'auto']
 
 export function modeIsMorePermissive(candidate: OfficePermissionMode, inherited: OfficePermissionMode): boolean {
-  if (candidate === inherited || candidate === 'plan' || inherited === 'bypassPermissions') return false
+  if (candidate === inherited || candidate === 'plan') return false
   // Auto and acceptEdits authorize different action sets; either explicit switch needs consent.
   if ((candidate === 'auto' && inherited === 'acceptEdits') || (candidate === 'acceptEdits' && inherited === 'auto')) return true
   return MODE_ACCESS.indexOf(candidate) > MODE_ACCESS.indexOf(inherited)
@@ -946,7 +953,6 @@ export function modeIsMorePermissive(candidate: OfficePermissionMode, inherited:
 export function checkedSquadMode(raw: unknown, inherited: OfficePermissionMode, confirmedOverride = false): OfficePermissionMode {
   const parsed = permissionModeSchema.safeParse(raw)
   const mode = parsed.success ? parsed.data : inherited
-  if (mode === 'bypassPermissions') throw new Error('Squads nunca podem rodar no modo "Sem pedir nada".')
   if (modeIsMorePermissive(mode, inherited) && !confirmedOverride) {
     throw new Error('Confirme explicitamente o modo de permissões mais permissivo que o padrão do projeto.')
   }
@@ -1052,16 +1058,6 @@ export function cleanSettings(raw: unknown, current: Settings): Settings {
   if (Object.hasOwn(patch, 'accounts')) next.accounts = cleanAccounts(patch.accounts, current.accounts)
   if (Object.hasOwn(patch, 'defaultAccounts')) next.defaultAccounts = cleanAccountIds(patch.defaultAccounts, next.accounts)
   if (Object.hasOwn(patch, 'projects')) next.projects = cleanProjects(patch.projects, current.projects)
-  if (patch.confirmPermissionChanges !== true) {
-    if (next.defaultPermissionMode === 'bypassPermissions' && current.defaultPermissionMode !== 'bypassPermissions')
-      next.defaultPermissionMode = current.defaultPermissionMode
-    next.projects = next.projects.map((floor) => {
-      const old = current.projects.find((p) => p.id === floor.id)
-      return floor.permissionMode === 'bypassPermissions' && old?.permissionMode !== 'bypassPermissions'
-        ? { ...floor, permissionMode: old?.permissionMode }
-        : floor
-    })
-  }
   if (Object.hasOwn(patch, 'video')) next.video = cleanVideo(patch.video, current.video)
   return next
 }

@@ -232,7 +232,7 @@ export abstract class BoardDetail extends BoardColumns {
 
   protected delegateControls(t: Ticket, current: AgentSummary | undefined): HTMLElement {
     const free = [...this.state.agents.values()].filter(
-      (a) => !a.builtIn && a.source === 'office' && a.permissionMode !== 'bypassPermissions' && !isBusy(a) && (!t.cwd || a.cwd === t.cwd),
+      (a) => !a.builtIn && a.source === 'office' && !isBusy(a) && (!t.cwd || a.cwd === t.cwd),
     )
     const who = h(
       'select',
@@ -262,8 +262,7 @@ export abstract class BoardDetail extends BoardColumns {
     const go = h('button', { class: 'btn btn-primary btn-small' }, icon('walk', 14), 'Delegar')
     go.addEventListener('click', async () => {
       if (!t.cwd && !who.value) return this.actions.toast('Escolha a pasta do projeto antes de contratar um agente para o ticket.', 'err')
-      if (mode.value === 'bypassPermissions') return this.actions.toast('Tickets nunca podem rodar no modo "Sem pedir nada".', 'err')
-      const modeOrder: OfficePermissionMode[] = ['plan', 'default', 'acceptEdits', 'auto', 'bypassPermissions']
+      const modeOrder: OfficePermissionMode[] = ['plan', 'default', 'acceptEdits', 'auto']
       const confirmPermissionOverride = modeOrder.indexOf(mode.value as OfficePermissionMode) > modeOrder.indexOf(inheritedMode)
       go.setAttribute('disabled', '')
       try {

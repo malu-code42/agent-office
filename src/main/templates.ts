@@ -6,7 +6,7 @@ import type { AgentTemplate, Look, OfficePermissionMode, ProjectFloor } from '@s
 
 // TODO(integração): migrar para o schema zod de src/main/validate.ts quando ele existir neste branch.
 
-export const PERMISSION_MODES: readonly OfficePermissionMode[] = ['default', 'acceptEdits', 'auto', 'plan', 'bypassPermissions']
+export const PERMISSION_MODES: readonly OfficePermissionMode[] = ['default', 'acceptEdits', 'auto', 'plan']
 
 const KEYS = new Set(['id', 'name', 'look', 'model', 'effort', 'permissionMode', 'instruction', 'floor'])
 const LOOK_COLORS = ['skin', 'hair', 'shirt', 'pants', 'shoes'] as const
@@ -38,6 +38,8 @@ export function cleanTemplate(raw: unknown, projects: ProjectFloor[]): AgentTemp
   if (typeof instruction !== 'string' || instruction.length > TEMPLATE_LIMITS.instruction) {
     throw new Error(`A instrução base passa de ${TEMPLATE_LIMITS.instruction} caracteres.`)
   }
+  // Modelo salvo antes do AO-109 pode trazer "Sem pedir nada": vira "Pedir permissão".
+  if (r.permissionMode === 'bypassPermissions') r.permissionMode = 'default'
   if (!PERMISSION_MODES.includes(r.permissionMode as never)) throw new Error('Escolha um modo de permissão da lista.')
   const t: AgentTemplate = {
     id: typeof r.id === 'string' && /^[\w-]{1,64}$/.test(r.id) ? r.id : randomUUID(),

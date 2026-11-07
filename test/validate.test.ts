@@ -451,9 +451,9 @@ describe('cleanDelegateTarget', () => {
     })
     expect(() => cleanDelegateTarget({ agentId: {} }, accounts)).toThrow('Agente inválido')
   })
-  it('preserva modo delegado, sem downgrade silencioso; tickets validam o bypass no servidor', () => {
+  it('preserva modo delegado, sem downgrade silencioso; o modo antigo "Sem pedir nada" vira "Pedir permissão" (AO-109)', () => {
     expect(cleanDelegateTarget({ hire: { permissionMode: 'bypassPermissions', model: 'opus' } }, accounts)).toEqual({
-      hire: { model: 'opus', engine: 'claude', permissionMode: 'bypassPermissions', confirmPermissionOverride: false, worktree: undefined },
+      hire: { model: 'opus', engine: 'claude', permissionMode: 'default', confirmPermissionOverride: false, worktree: undefined },
     })
     expect(cleanDelegateTarget({ hire: { permissionMode: 'auto' } }, accounts)).toEqual({
       hire: { engine: 'claude', permissionMode: 'auto', confirmPermissionOverride: false, worktree: undefined },
@@ -462,11 +462,11 @@ describe('cleanDelegateTarget', () => {
       hire: { engine: 'claude', permissionMode: undefined, confirmPermissionOverride: false, worktree: undefined },
     })
   })
-  it('compara override conservador e nunca permite bypass em squad', () => {
+  it('compara override conservador; o modo antigo bypass nunca vira modo de squad', () => {
     expect(modeIsMorePermissive('plan', 'default')).toBe(false)
     expect(modeIsMorePermissive('auto', 'default')).toBe(true)
     expect(checkedSquadMode('plan', 'default')).toBe('plan')
-    expect(() => checkedSquadMode('bypassPermissions', 'default', true)).toThrow(/Squads nunca/)
+    expect(checkedSquadMode('bypassPermissions', 'default', true)).toBe('default')
     expect(() => checkedSquadMode('auto', 'default')).toThrow(/Confirme explicitamente/)
     expect(checkedSquadMode('auto', 'default', true)).toBe('auto')
   })

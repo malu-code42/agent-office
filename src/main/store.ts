@@ -12,7 +12,7 @@ import { cleanLook, loadTemplates } from './templates'
 import type { SessionMark } from './ledger'
 import { backupCopies, shapeOf } from './backups'
 import { loadJson, reportLoad, writeJsonAtomic } from './fs-safe'
-import { cleanAlwaysAllowRules, permissionModeSchema, cleanVideo } from './validate'
+import { cleanAlwaysAllowRules, legacyModeToCurrent, permissionModeSchema, cleanVideo } from './validate'
 
 export interface PersistedAgent {
   summary: AgentSummary
@@ -74,6 +74,8 @@ function migrateSettings(raw: Record<string, unknown> | undefined): Settings {
   const migrated = settings as Settings & { openCodeDataConsentAt?: number }
   delete migrated.openCodeDataConsentAt
   settings.defaultEngine = 'claude'
+  // AO-109: "Sem pedir nada" foi removido; o padrão gravado com ele passa a "Pedir permissão".
+  settings.defaultPermissionMode = legacyModeToCurrent(settings.defaultPermissionMode) as Settings['defaultPermissionMode']
   if (!Array.isArray(settings.projects)) settings.projects = []
   else
     settings.projects = settings.projects.map((raw) => {
@@ -130,7 +132,12 @@ export class Store {
       settings: migrateSettings(raw.settings as Record<string, unknown> | undefined),
       agents: (raw.agents ?? []).map((agent) => ({
         ...agent,
-        summary: { ...agent.summary, engine: agent.summary.engine === 'opencode' ? 'opencode' : 'claude' },
+        summary: {
+          ...agent.summary,
+          engine: agent.summary.engine === 'opencode' ? 'opencode' : 'claude',
+          // AO-109: agente salvo em "Sem pedir nada" volta em "Pedir permissão".
+          permissionMode: legacyModeToCurrent(agent.summary.permissionMode) as typeof agent.summary.permissionMode,
+        },
       })),
       results: raw.results ?? [],
       ledger: { ...emptyLedger(), ...raw.ledger },

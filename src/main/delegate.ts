@@ -48,9 +48,6 @@ export class TicketDesk {
       if (a.engine === 'opencode')
         throw new Error('Registros históricos OpenCode são somente para consulta. Contrate um novo agente Claude para este ticket.')
       if (a.role === 'orchestrator') throw new Error(`${a.name} só roda o ciclo do squad. Delegue a um agente do térreo.`)
-      // Same rule as hiring: ticket text may come from others, so it never runs without approvals.
-      if (a.permissionMode === 'bypassPermissions')
-        throw new Error(`${a.name} está no modo "Sem pedir nada". Delegue a outro agente ou contrate um novo.`)
       const settings = this.settings()
       const inherited = projectFor(settings.projects, t.cwd ?? a.cwd)?.permissionMode ?? settings.defaultPermissionMode
       if (modeIsMorePermissive(a.permissionMode, inherited) && target.confirmPermissionOverride !== true)
@@ -73,7 +70,6 @@ export class TicketDesk {
       const s = this.settings()
       const inherited = projectFor(s.projects, t.cwd)?.permissionMode ?? s.defaultPermissionMode
       const mode = target.hire.permissionMode ?? inherited
-      if (mode === 'bypassPermissions') throw new Error('Tickets nunca podem rodar no modo "Sem pedir nada".')
       if (modeIsMorePermissive(mode, inherited) && target.hire.confirmPermissionOverride !== true)
         throw new Error('Confirme explicitamente o modo de permissões mais permissivo que o padrão do projeto.')
       // Making the worktree takes a moment: a second click meanwhile must not hire twice.

@@ -17,7 +17,7 @@ export type AgentSource = 'office' | 'terminal'
 /** `opencode` is accepted only as a legacy label for historical records (GH-39). */
 export type AgentEngine = 'claude' | 'opencode'
 
-export type OfficePermissionMode = 'default' | 'acceptEdits' | 'auto' | 'plan' | 'bypassPermissions'
+export type OfficePermissionMode = 'default' | 'acceptEdits' | 'auto' | 'plan'
 
 /** How hard the model thinks, as in /effort. Unset = the model's default. */
 export type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max'

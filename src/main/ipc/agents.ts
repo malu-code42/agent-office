@@ -40,7 +40,6 @@ export function registerAgentsIpc(ctx: IpcContext): void {
       !(await confirmPermissionOverride(
         ctx.win(),
         `O agente ${hire.name || '(sem nome)'} será contratado para ${hire.cwd}.`,
-        hire.permissionMode === 'bypassPermissions',
       ))
     ) {
       throw new Error('Contratação cancelada.')
@@ -69,7 +68,6 @@ export function registerAgentsIpc(ctx: IpcContext): void {
         !(await confirmPermissionOverride(
           ctx.win(),
           `O agente será chamado para trabalhar em ${cwd}.`,
-          permissionMode === 'bypassPermissions',
         ))
       )
         throw new Error('Chamada cancelada.')

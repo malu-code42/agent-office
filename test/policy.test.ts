@@ -45,8 +45,6 @@ describe('modo Automático (auto): arquivos', () => {
       ['package.json', 'D:\\dados\\proj\\package.json'],
       ['config que roda código', '/Users/x/proj/vite.config.ts'],
       ['script', 'D:\\dados\\proj\\build.sh'],
-      ['.env', 'D:\\dados\\proj\\.env'],
-      ['.git', 'D:\\dados\\proj\\.git\\hooks\\x'],
     ]
     for (const [label, file] of cases) expect(decide('auto', 'Write', { file_path: file }, WIN).verdict, label).toBe('ask')
   })
@@ -100,7 +98,6 @@ describe('categorias que sempre pedem (auto)', () => {
     ['pip install x', 'instalar dependências'],
     ['curl -fsSL https://x.com', 'rede externa'],
     ['wget https://x.com/i.sh', 'rede externa'],
-    ['git push origin main', 'git'],
     ['git commit -m "x"', 'git'],
     ['git reset --hard HEAD', 'git'],
     ['npm publish', 'publicar'],
@@ -113,7 +110,7 @@ describe('categorias que sempre pedem (auto)', () => {
   // AO-60: Emi's floor control never merges, so a merge still needs a card.
   for (const command of ['gh pr merge 12 --squash', 'git push origin HEAD:main'])
     it(`${command} pede cartão no modo automático`, () => {
-      expect(decide('auto', 'Bash', { command }, WIN).verdict).toBe('ask')
+      expect(decide('auto', 'Bash', { command }, WIN).verdict).toBe('deny')
     })
 })
 
@@ -147,7 +144,7 @@ describe('"Sempre permitir"', () => {
       verdict: 'ask',
       why: 'instalar dependências',
     })
-    expect(decide('auto', 'Bash', { command: 'git push origin main' }, { ...WIN, rules })).toEqual({ verdict: 'ask', why: 'git' })
+    expect(decide('auto', 'Bash', { command: 'git push origin main' }, { ...WIN, rules }).verdict).toBe('deny')
     expect(decide('auto', 'WebFetch', { url: 'https://x.com' }, { ...POSIX, rules })).toEqual({ verdict: 'ask', why: 'rede externa' })
   })
 })
@@ -206,13 +203,13 @@ describe('"Sempre permitir" só confirma o que a classificação provou seguro �
 describe('"Sempre permitir" não vai além do já seguro (juiz, ticket 03)', () => {
   it('regra da ferramenta Write não libera arquivo sensível nem fora da pasta', () => {
     const regraWrite = [rule('tool', 'Write')]
-    expect(decide('auto', 'Write', { file_path: 'D:\\proj\\.env' }, { cwd: 'D:\\proj', rules: regraWrite })).toEqual({ verdict: 'ask' })
+    expect(decide('auto', 'Write', { file_path: 'D:\\proj\\.env' }, { cwd: 'D:\\proj', rules: regraWrite }).verdict).toBe('deny')
     expect(decide('auto', 'Write', { file_path: 'D:\\outside\\x.ts' }, { cwd: 'D:\\proj', rules: regraWrite })).toEqual({
       verdict: 'ask',
       why: 'fora da pasta do projeto',
     })
     for (const mode of ['acceptEdits', 'default'] as const) {
-      expect(decide(mode, 'Write', { file_path: 'D:\\proj\\.env' }, { cwd: 'D:\\proj', rules: regraWrite }).verdict, mode).toBe('ask')
+      expect(decide(mode, 'Write', { file_path: 'D:\\proj\\.env' }, { cwd: 'D:\\proj', rules: regraWrite }).verdict, mode).toBe('deny')
     }
   })
 
@@ -238,14 +235,14 @@ describe('"Sempre permitir" não vai além do já seguro (juiz, ticket 03)', () 
     ]
     const scope = { cwd: 'D:\\proj', rules: regras } satisfies PolicyScope
     for (const mode of ['auto', 'default', 'acceptEdits'] as const)
-      for (const r of regras) expect(decide(mode, 'Bash', { command: r.value }, scope).verdict, `${mode} · ${r.value}`).toBe('ask')
+      for (const r of regras) expect(decide(mode, 'Bash', { command: r.value }, scope).verdict, `${mode} · ${r.value}`).toBe(/ push$/.test(r.value) ? 'deny' : 'ask')
   })
 
   it('flags deslocando a ação perigosa: git -C push e npm --prefix install pedem, com a categoria', () => {
     const git = 'git -C ../out push'
     const npm = 'npm --prefix test install left-pad'
     const regras: AlwaysAllowRule[] = [rule('command', git), rule('command', npm)]
-    expect(decide('auto', 'Bash', { command: git }, { ...POSIX, rules: regras })).toEqual({ verdict: 'ask', why: 'git' })
+    expect(decide('auto', 'Bash', { command: git }, { ...POSIX, rules: regras }).verdict).toBe('deny')
     expect(decide('auto', 'Bash', { command: npm }, { ...POSIX, rules: regras })).toEqual({ verdict: 'ask', why: 'instalar dependências' })
   })
 
@@ -306,19 +303,17 @@ describe('caminhos do Windows', () => {
 })
 
 describe('modos outros', () => {
-  it('Sem pedir (bypassPermissions) passa tudo: o consentimento veio na escolha do modo', () => {
+  it('o modo antigo "Sem pedir nada" não libera nada: vira Pedir permissão e o piso nega (AO-109)', () => {
     const p: PolicyScope = { cwd: 'D:\\proj' }
-    expect(decide('bypassPermissions', 'Bash', { command: 'rm -rf /' }, p)).toEqual({ verdict: 'allow' })
-    expect(decide('bypassPermissions', 'Bash', { command: 'git push --force' }, p)).toEqual({ verdict: 'allow' })
-    expect(decide('bypassPermissions', 'Write', { file_path: 'D:\\proj\\.env' }, p)).toEqual({ verdict: 'allow' })
+    const legacy = 'bypassPermissions' as unknown as Parameters<typeof decide>[0]
+    expect(decide(legacy, 'Bash', { command: 'rm -rf /' }, p).verdict).toBe('ask')
+    expect(decide(legacy, 'Bash', { command: 'git push --force' }, p).verdict).toBe('deny')
+    expect(decide(legacy, 'Write', { file_path: 'D:\\proj\\.env' }, p).verdict).toBe('deny')
   })
 
   it('Planejar: leitura comum in-scope passa; fora, sensível e escrever pedem', () => {
     expect(decide('plan', 'Read', { file_path: 'D:\\proj\\src\\a.ts' }, { cwd: 'D:\\proj' })).toEqual({ verdict: 'allow' })
-    expect(decide('plan', 'Read', { file_path: 'D:\\proj\\.env' }, { cwd: 'D:\\proj' })).toEqual({
-      verdict: 'ask',
-      why: 'arquivo sensível',
-    })
+    expect(decide('plan', 'Read', { file_path: 'D:\\proj\\.env' }, { cwd: 'D:\\proj' }).verdict).toBe('deny')
     expect(decide('plan', 'Read', { file_path: 'D:\\outside\\a.ts' }, { cwd: 'D:\\proj' })).toEqual({
       verdict: 'ask',
       why: 'fora da pasta do projeto',
@@ -348,24 +343,24 @@ describe('leitura sensível nunca passa (exceto Sem pedir) — juiz, achado 2', 
   const p = { cwd: 'D:\\proj' }
 
   it('Automático e Aceitar edições não mandam segredo ao modelo: .env e .claude pedem', () => {
-    expect(decide('auto', 'Read', { file_path: 'D:\\proj\\.env' }, p)).toEqual({ verdict: 'ask', why: 'arquivo sensível' })
+    expect(decide('auto', 'Read', { file_path: 'D:\\proj\\.env' }, p).verdict).toBe('deny')
     expect(decide('auto', 'Read', { file_path: 'D:\\proj\\.claude\\settings.json' }, p)).toEqual({
       verdict: 'ask',
       why: 'arquivo sensível',
     })
-    expect(decide('acceptEdits', 'Read', { file_path: 'D:\\proj\\.env' }, p)).toEqual({ verdict: 'ask', why: 'arquivo sensível' })
-    expect(decide('default', 'Read', { file_path: 'D:\\proj\\.env' }, p)).toEqual({ verdict: 'ask', why: 'arquivo sensível' })
+    expect(decide('acceptEdits', 'Read', { file_path: 'D:\\proj\\.env' }, p).verdict).toBe('deny')
+    expect(decide('default', 'Read', { file_path: 'D:\\proj\\.env' }, p).verdict).toBe('deny')
   })
 
   it('Grep e Glob não vasculham segredo: caminho e padrão sensíveis pedem', () => {
-    expect(decide('auto', 'Grep', { pattern: 'chave', path: 'D:\\proj\\.env' }, p)).toEqual({ verdict: 'ask', why: 'arquivo sensível' })
-    expect(decide('auto', 'Glob', { pattern: '.env*' }, p)).toEqual({ verdict: 'ask', why: 'arquivo sensível' })
+    expect(decide('auto', 'Grep', { pattern: 'chave', path: 'D:\\proj\\.env' }, p).verdict).toBe('deny')
+    expect(decide('auto', 'Glob', { pattern: '.env*' }, p).verdict).toBe('deny')
   })
 
-  it('a regra salva não libera o sensível, e "Sem pedir" continua a única exceção', () => {
+  it('a regra salva não libera o sensível, e não há mais exceção para ler segredo', () => {
     const regras = [rule('tool', 'Read'), rule('tool', 'Grep')]
-    expect(decide('auto', 'Read', { file_path: 'D:\\proj\\.env' }, { ...p, rules: regras }).verdict).toBe('ask')
-    expect(decide('bypassPermissions', 'Read', { file_path: 'D:\\proj\\.env' }, p)).toEqual({ verdict: 'allow' })
+    expect(decide('auto', 'Read', { file_path: 'D:\\proj\\.env' }, { ...p, rules: regras }).verdict).toBe('deny')
+    expect(decide('auto', 'Read', { file_path: 'D:\\proj\\.env' }, p).verdict).toBe('deny')
   })
 
   it('guarda: leitura comum do projeto segue passando', () => {
@@ -387,7 +382,7 @@ describe('Planejar só lê o lugar anunciado — juiz, achado 1', () => {
   })
 
   it('caminho ambíguo (~/, sem caminho, caracteres de controle) pede', () => {
-    expect(decide('plan', 'Read', { file_path: '~/.ssh/id_rsa' }, { cwd: 'D:\\proj' }).verdict).toBe('ask')
+    expect(decide('plan', 'Read', { file_path: '~/.ssh/id_rsa' }, { cwd: 'D:\\proj' }).verdict).toBe('deny')
     expect(decide('plan', 'Read', {}, { cwd: 'D:\\proj' }).verdict).toBe('ask')
     expect(decide('plan', 'Read', { file_path: 'D:\\proj\\a\nb.md' }, { cwd: 'D:\\proj' }).verdict).toBe('ask')
   })
@@ -401,10 +396,7 @@ describe('Planejar só lê o lugar anunciado — juiz, achado 1', () => {
   })
 
   it('sensível pede em Planejar e escrever/comando que muda seguem pedindo', () => {
-    expect(decide('plan', 'Read', { file_path: 'D:\\proj\\.env' }, { cwd: 'D:\\proj' })).toEqual({
-      verdict: 'ask',
-      why: 'arquivo sensível',
-    })
+    expect(decide('plan', 'Read', { file_path: 'D:\\proj\\.env' }, { cwd: 'D:\\proj' }).verdict).toBe('deny')
     expect(decide('plan', 'Write', { file_path: 'D:\\proj\\src\\a.ts' }, { cwd: 'D:\\proj' })).toEqual({
       verdict: 'ask',
       why: 'Planejar só lê',
@@ -424,10 +416,7 @@ describe('Pedir permissão lê o projeto comum; editar e comandos pedem — juiz
       verdict: 'ask',
       why: 'fora da pasta do projeto',
     })
-    expect(decide('default', 'Read', { file_path: 'D:\\proj\\.env' }, { cwd: 'D:\\proj' })).toEqual({
-      verdict: 'ask',
-      why: 'arquivo sensível',
-    })
+    expect(decide('default', 'Read', { file_path: 'D:\\proj\\.env' }, { cwd: 'D:\\proj' }).verdict).toBe('deny')
   })
 
   it('e Planejar sincroniza: lê comum in-scope, sem editar nem comando que muda', () => {
@@ -458,11 +447,10 @@ describe('ferramenta desconhecida (MCP): regra não libera o nome — juiz, acha
 describe('busca de conteúdo (Grep) fechada no lugar anunciado — decisão da usuária, ticket 03', () => {
   const p = { cwd: 'D:\\proj' }
 
-  it('sem path pede (busca larga), em todo modo de trabalho; "Sem pedir" é a única exceção', () => {
+  it('sem path pede (busca larga), em todo modo de trabalho', () => {
     for (const mode of ['auto', 'default', 'acceptEdits', 'plan'] as const) {
       expect(decide(mode, 'Grep', { pattern: 'x' }, p), mode).toEqual({ verdict: 'ask', why: 'busca larga' })
     }
-    expect(decide('bypassPermissions', 'Grep', { pattern: 'x' }, p)).toEqual({ verdict: 'allow' })
   })
 
   it('diretório (raiz ou subpasta) sem filtro pede; com filtro provável comum passa', () => {
@@ -481,10 +469,7 @@ describe('busca de conteúdo (Grep) fechada no lugar anunciado — decisão da u
 
   it('sensível, fora e symlink pedem mesmo com regra salvada', () => {
     const regras = [rule('tool', 'Grep')]
-    expect(decide('auto', 'Grep', { pattern: 'x', path: 'D:\\proj\\.env' }, { ...p, rules: regras })).toEqual({
-      verdict: 'ask',
-      why: 'arquivo sensível',
-    })
+    expect(decide('auto', 'Grep', { pattern: 'x', path: 'D:\\proj\\.env' }, { ...p, rules: regras }).verdict).toBe('deny')
     expect(decide('auto', 'Grep', { pattern: 'x', path: 'D:\\outro\\a.ts' }, { ...p, rules: regras })).toEqual({
       verdict: 'ask',
       why: 'fora da pasta do projeto',
@@ -498,10 +483,7 @@ describe('busca de conteúdo (Grep) fechada no lugar anunciado — decisão da u
   })
 
   it('filtro que não prova limite para arquivos comuns pede', () => {
-    expect(decide('auto', 'Grep', { pattern: 'x', path: 'D:\\proj\\src', glob: '.env*' }, p)).toEqual({
-      verdict: 'ask',
-      why: 'busca larga',
-    })
+    expect(decide('auto', 'Grep', { pattern: 'x', path: 'D:\\proj\\src', glob: '.env*' }, p).verdict).toBe('deny')
     expect(decide('auto', 'Grep', { pattern: 'x', path: 'D:\\proj\\src', glob: '**/*.ts' }, p)).toEqual({
       verdict: 'ask',
       why: 'busca larga',
@@ -516,10 +498,9 @@ describe('busca de conteúdo (Grep) fechada no lugar anunciado — decisão da u
     // glob é PADRÃO, não caminho: sensitivePath() não o valida — o "*" esconde de
     // SENSITIVE_WORDS o ".env"/"credentials"/"pem"; e "qualquer extensão" alcança segredo.
     for (const filtro of ['*.env', '*.credentials', '*.pem', '*.dat']) {
-      expect(decide('auto', 'Grep', { pattern: 'x', path: 'D:\\proj\\src', glob: filtro }, p), filtro).toEqual({
-        verdict: 'ask',
-        why: 'busca larga',
-      })
+      expect(decide('auto', 'Grep', { pattern: 'x', path: 'D:\\proj\\src', glob: filtro }, p), filtro).toEqual(
+        filtro === '*.pem' ? { verdict: 'deny', why: expect.any(String) } : { verdict: 'ask', why: 'busca larga' },
+      )
     }
     expect(decide('auto', 'Grep', { pattern: 'x', path: 'D:\\proj\\src', glob: 'src/*.ts' }, p)).toEqual({
       verdict: 'ask',
@@ -579,27 +560,18 @@ describe('busca de nomes (Glob) limitada ao lugar anunciado — juiz, achado do 
 
   it('segredo e padrão sem fundo comprovado pedem — regra salvada não vale', () => {
     const regras = [rule('tool', 'Glob')]
-    expect(decide('auto', 'Glob', { path: 'D:\\proj', pattern: '**/.env' }, { ...p, rules: regras })).toEqual({
-      verdict: 'ask',
-      why: 'arquivo sensível',
-    })
+    expect(decide('auto', 'Glob', { path: 'D:\\proj', pattern: '**/.env' }, { ...p, rules: regras }).verdict).toBe('deny')
     for (const padrao of ['*', '*.*', '**/*', '*.env', '*.json']) {
-      expect(decide('auto', 'Glob', { path: 'D:\\proj', pattern: padrao }, { ...p, rules: regras }), padrao).toEqual({
-        verdict: 'ask',
-        why: 'busca larga',
-      })
+      expect(decide('auto', 'Glob', { path: 'D:\\proj', pattern: padrao }, { ...p, rules: regras }).verdict, padrao).toBe('ask')
     }
     // `*.pem` é capturado pela régua de extensões sensíveis: o porquê é o segredo direto.
-    expect(decide('auto', 'Glob', { path: 'D:\\proj', pattern: '*.pem' }, { ...p, rules: regras })).toEqual({
-      verdict: 'ask',
-      why: 'arquivo sensível',
-    })
+    expect(decide('auto', 'Glob', { path: 'D:\\proj', pattern: '*.pem' }, { ...p, rules: regras }).verdict).toBe('deny')
     expect(decide('default', 'Glob', { pattern: '*' }, p)).toEqual({ verdict: 'ask', why: 'busca larga' })
   })
 
   it('guarda: Grep, Read e Glob comuns continuam como aprovado', () => {
     expect(decide('auto', 'Glob', { pattern: 'src/**/*.ts' }, p)).toEqual({ verdict: 'allow' })
-    expect(decide('auto', 'Glob', { pattern: '.env*' }, p)).toEqual({ verdict: 'ask', why: 'arquivo sensível' })
+    expect(decide('auto', 'Glob', { pattern: '.env*' }, p).verdict).toBe('deny')
     expect(decide('auto', 'Grep', { pattern: 'x', path: 'D:\\proj\\src', glob: '*.ts' }, p)).toEqual({ verdict: 'allow' })
     expect(decide('auto', 'Read', { file_path: 'D:\\proj\\src\\a.ts' }, p)).toEqual({ verdict: 'allow' })
   })
@@ -615,8 +587,8 @@ describe('agente contratado pela Emi (modo padrão)', () => {
     ['escrita fora da pasta', 'Write', { file_path: 'D:\\dados\\outro\\a.md' }],
   ]
   for (const [label, tool, input] of asks)
-    it(`${label} pede cartão`, () => {
-      expect(decide('default', tool, input, WIN).verdict).toBe('ask')
+    it(`${label} ${label === 'escrita fora da pasta' ? 'pede cartão' : 'é negado'}`, () => {
+      expect(decide('default', tool, input, WIN).verdict).toBe(label === 'escrita fora da pasta' ? 'ask' : 'deny')
     })
 
   // AO-60 critério 5: a própria Emi, mesmo no modo Automático, não faz merge, não dá push na main e não lê credenciais.
@@ -628,6 +600,6 @@ describe('agente contratado pela Emi (modo padrão)', () => {
       ['Bash', { command: 'cat ~/.aws/credentials' }],
     ]
     for (const mode of ['default', 'acceptEdits', 'auto'] as const)
-      for (const [tool, input] of pedidos) expect(decide(mode, tool, input, WIN).verdict, `${mode} ${tool}`).toBe('ask')
+      for (const [tool, input] of pedidos) expect(decide(mode, tool, input, WIN).verdict, `${mode} ${tool}`).toBe('deny')
   })
 })

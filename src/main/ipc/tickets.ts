@@ -53,7 +53,6 @@ export function registerTicketsIpc(ctx: IpcContext): void {
     } else {
       const inherited = projectFor(store.settings.projects, ticket?.cwd)?.permissionMode ?? store.settings.defaultPermissionMode
       const mode = cleaned.hire.permissionMode ?? inherited
-      if (mode === 'bypassPermissions') throw new Error('Tickets nunca podem rodar no modo "Sem pedir nada".')
       if (modeIsMorePermissive(mode, inherited)) {
         if (
           !(await confirmPermissionOverride(
