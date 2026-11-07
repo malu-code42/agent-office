@@ -79,7 +79,6 @@ export interface ProjectLayout {
   blocked: [number, number][]
   rooms: RoomArt[]
   emi: { desk: DeskArt; seat: SeatArt; plate: [number, number] }
-  meeting: { rect: Rect; table: [number, number]; seats: SeatArt[]; plate: [number, number] }
   director: { rect: Rect; plate: [number, number] }
   lounge: { rect: Rect; plate: [number, number] }
   /** Door tile, drop point (tiles) and the door on the back wall (x0, x1, height in art units). */
@@ -242,16 +241,6 @@ export function projectPlan2d(
   return {
     size: layout.size,
     elevator: { tile: layout.elevator.tile, point: { x: layout.elevator.point[0], z: layout.elevator.point[1] } },
-    meeting: {
-      rect: layout.meeting.rect,
-      table: { x: layout.meeting.table[0] / TILE, z: layout.meeting.table[1] / TILE },
-      seats: layout.meeting.seats.map((s) => ({
-        x: s.at[0] / TILE,
-        z: s.at[1] / TILE,
-        approach: [tileOf(s.at[0]), tileOf(s.at[1])],
-        face: headingOf(s.dir),
-      })),
-    },
     // by the elevator, a step into the lounge
     overflow: lounge.filter(([x, z]) => Math.abs(x - ex) <= 3 && z <= ez + 2).slice(0, 8),
     rooms,

@@ -66,8 +66,6 @@ export interface FlatView {
   emi: ScreenMode | null
   /** The name of each squad room (the tooltip over it). */
   rooms: string[]
-  /** How many sit in the meeting room. */
-  meeting: number
   /** Hovered tile and whether it can be walked to. */
   hover: { x: number; z: number; ok: boolean } | null
   /** Where the camera looks (tiles). */
@@ -85,7 +83,6 @@ export interface FlatView {
 export type Hit =
   | { kind: 'person'; key: string }
   | { kind: 'room'; room: number }
-  | { kind: 'meeting' }
   | { kind: 'elevator' }
   | { kind: 'casa'; act: CasaAct }
   | { kind: 'study'; act: StudyAct }
@@ -166,9 +163,8 @@ const GLYPHS: Record<string, string> = {
   '+': '000010111010000',
   '-': '000000111000000',
 }
-/** Height of the back walls and of the meeting table top, in art units. */
+/** Height of the back walls, in art units. */
 const WALL_H = 56
-const TABLE_H = 12
 
 const BG = '#1f1b24'
 /** How the hovered clickable thing of the Casa stands out. */
@@ -312,7 +308,6 @@ export class Renderer2d {
     const inRect = (r: readonly number[]) => at.x >= r[0] && at.z >= r[1] && at.x < r[2] && at.z < r[3]
     const room = layout.rooms.findIndex((r) => inRect(r.rect))
     if (room >= 0) return view.rooms[room] ?? null
-    if (inRect(layout.meeting.rect)) return view.meeting ? `Sala de reunião · ${view.meeting} em reunião` : 'Sala de reunião'
     if (inRect(layout.director.rect)) return view.emi === null ? 'Diretoria' : 'Diretoria · Emi'
     if (inRect(layout.lounge.rect)) return 'Descanso e lazer'
     return null
@@ -320,7 +315,7 @@ export class Renderer2d {
 
   /**
    * What is under a point of the page: a person (front first), a clickable thing of the Casa or the
-   * study floor, a squad room's back wall or the meeting table (project floors have no plates), or the elevator door.
+   * study floor, a squad room's back wall (project floors have no plates), or the elevator door.
    */
   pick(clientX: number, clientY: number): Hit | null {
     const view = this.last
@@ -336,13 +331,10 @@ export class Renderer2d {
       const act = actAt(this.items as { sprites: Sprite[]; act?: StudyAct }[], view.floor.layout.hot, p, solid)
       if (act) return { kind: 'study', act }
     } else {
-      const { origin, rooms, meeting } = view.floor.layout
-      // a squad room answers on its back wall (the whiteboard side), the meeting room on its table
+      const { origin, rooms } = view.floor.layout
+      // a squad room answers on its back wall (the whiteboard side)
       const room = rooms.findIndex((room) => onWestWall(origin, p, room.rect[1] * TILE, room.rect[3] * TILE, WALL_H))
       if (room >= 0) return { kind: 'room', room }
-      const fl = toFloor(origin, p.x, p.y + TABLE_H)
-      const [tx, tz] = meeting.table
-      if (Math.abs(fl.x * TILE - tx) < 18 && Math.abs(fl.z * TILE - tz) < 46) return { kind: 'meeting' }
     }
     const { origin, elevator } = view.floor.layout
     const [x0, x1, h] = elevator.door
@@ -531,7 +523,6 @@ export class Renderer2d {
     const emi = layout.emi.desk[crtOf(view.emi)]
     add(emi.fp, [place(emi)])
     chair(layout.emi.seat)
-    for (const seat of layout.meeting.seats) chair(seat)
   }
 
   /** Lights off over the empty rooms nobody works in; an amber outline over the rooms a proposal holds. */

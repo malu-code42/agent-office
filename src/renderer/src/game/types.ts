@@ -8,7 +8,7 @@ import type { HelperReturn } from './helper-return'
 import type { HomeAction } from '../world2d/home-layout'
 import type { StudyAct, Teacher } from '../world2d/estudos'
 
-export type Goal = 'desk' | 'boss' | 'meeting' | 'hang' | 'home' | 'leave' | 'chat' | 'seat'
+export type Goal = 'desk' | 'boss' | 'hang' | 'home' | 'leave' | 'chat' | 'seat'
 
 export interface Actor {
   id: string
@@ -16,7 +16,7 @@ export interface Actor {
   tag: Tag
   goal: Goal | null
   arrived: boolean
-  /** Reserved standing tile by a waiting area (House table or project meeting room). */
+  /** Reserved standing tile by a waiting area (House table). */
   spot: [number, number] | null
   /** Reserved lounge spot index. */
   hang: number | null
@@ -146,8 +146,6 @@ export interface GameHooks {
   onIncompatible?(project: ProjectFloor, issues: { code: string; name: string; reason: string; unplaced?: string[] }[]): void
   /** The player clicked a squad room: an empty room proposes a squad, a room with one opens its squad. */
   onRoomClick?(project: ProjectFloor, room: L.SquadRoom): void
-  /** The player clicked the meeting-room label on a project floor. */
-  onMeetingRoomClick?(project: ProjectFloor): void
   /** The player clicked the elevator door on a 2D floor. */
   onElevator?(): void
   /** The player clicked something of the study floor (a teacher opens the cycle, with who it is). */

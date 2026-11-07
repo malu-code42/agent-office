@@ -1,7 +1,6 @@
 import { unlockBarTimerSound } from './ui/timer-sound'
 import './styles/index.css'
 import { Game } from './game'
-import { latestProjectResult } from './game/result-destination'
 import { bindPerfKeys, perf } from './perf'
 import { State } from './state'
 import { Board } from './ui/board'
@@ -326,11 +325,6 @@ async function boot(): Promise<void> {
       else if (act === 'cards') void openStudyCards(ui, toast)
       else if (act === 'ideas') void openStudyIdeas(ui, toast)
       else if (act === 'schedule') void openStudySchedule(ui, toast, () => openAgenda(ui))
-    },
-    onMeetingRoomClick: (project) => {
-      const pending = latestProjectResult(project.id, state.agents.values(), state.results.values())
-      if (pending) openItem(pending.agent.id, pending.result.id)
-      else toast('Não há resultado aguardando nesta sala.', 'info')
     },
   })
 

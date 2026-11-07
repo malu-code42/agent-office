@@ -55,7 +55,7 @@ describe('tela de leitura: quais resultados ganham "Ler"', () => {
     expect(isTicketResult(agent('a', { ticketId: 't1' }), result('r', 'a'), projects)).toBe(true)
     expect(isTicketResult(agent('a', { role: 'orchestrator', squad: 'front', ticketId: 't1' }), result('r', 'a'), projects)).toBe(true)
   })
-  it('agente de projeto cujo andar existe (vai para a sala de reunião, #57)', () => {
+  it('agente de projeto cujo andar existe (espera na própria mesa, AO-105)', () => {
     expect(isTicketResult(agent('a', { project: 'p1' }), result('r', 'a'), projects)).toBe(true)
     expect(isTicketResult(agent('a', { project: 'sumiu' }), result('r', 'a'), projects)).toBe(false)
   })
