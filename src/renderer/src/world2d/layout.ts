@@ -162,6 +162,7 @@ function emptyRoom(art: RoomArt, index: number): SquadRoom {
     ],
     members: [],
     state: 'empty',
+    off: false,
   }
 }
 
@@ -203,7 +204,7 @@ function aisleTiles(grid: Grid, from: [number, number], rooms: readonly RoomArt[
  */
 export function projectPlan2d(
   layout: ProjectLayout,
-  squads: { code: string; name?: string; members: { id: string; execution: string; sector?: string }[] }[],
+  squads: { code: string; name?: string; state?: 'paused' | 'disabled'; members: { id: string; execution: string; sector?: string }[] }[],
   proposedRooms: readonly number[] = [],
 ): ProjectPlan {
   const grid = grid2d(layout)
@@ -239,6 +240,7 @@ export function projectPlan2d(
     room.squad = squad.code
     room.name = squad.name || squad.code
     room.state = 'live'
+    room.off = squad.state === 'disabled'
     const slots = layout.rooms[roomIndex].slots
     // what the room really seats: the limit, the desks the art draws and the screen indexes reserved to the room
     const capacity = Math.min(SQUAD_MAX_MEMBERS, SQUAD_DESKS_PER_ROOM, slots.length)

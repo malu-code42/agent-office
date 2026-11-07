@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { SQUAD_MAX_MEMBERS } from '@shared/types'
-import { AGENT_DESK_COUNT } from '../src/renderer/src/world2d/plan'
+import { AGENT_DESK_COUNT, roomLabel } from '../src/renderer/src/world2d/plan'
 import layoutData from '../src/renderer/src/assets/pixel/project.json'
 import { behind, depthSort, type Footprint } from '../src/renderer/src/world2d/depth'
 import { topmost } from '../src/renderer/src/world2d/hit'
@@ -368,5 +368,16 @@ describe('sprites', () => {
     expect(agentBubble('idle', false, 'error')).toBe('bang')
     expect(agentBubble('idle', false, 'ok')).toBe('ok')
     expect(agentBubble('idle', false, null)).toBeNull()
+  })
+})
+
+describe('AO-49: sala desativada', () => {
+  it('a sala do squad desativado fica com a luz apagada e o rótulo desativada; as outras não', () => {
+    const plan = projectPlan2d(LAYOUT, [{ ...squad('sala-1', 3), state: 'disabled' as const }, squad('sala-2', 3)])
+    const [off, on] = plan.rooms
+    expect(off.off).toBe(true)
+    expect(on.off).toBe(false)
+    expect(roomLabel(off)).toBe('sala-1 · desativada')
+    expect(roomLabel(on)).toBe('sala-2')
   })
 })

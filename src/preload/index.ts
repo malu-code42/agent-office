@@ -197,6 +197,7 @@ const api: OfficeAPI = {
   approveSquadProposal: (id, name) => ipcRenderer.invoke('office:approveSquadProposal', { id, name }),
   squadQueue: (code) => ipcRenderer.invoke('office:squadQueue', code),
   setSquadPaused: (cwd, code, paused) => ipcRenderer.invoke('office:setSquadPaused', cwd, code, paused),
+  setSquadDisabled: (cwd, code, disabled) => ipcRenderer.invoke('office:setSquadDisabled', cwd, code, disabled),
   retrySquadPublication: (code) => ipcRenderer.invoke('office:retrySquadPublication', code),
   retrySquadStart: (code) => ipcRenderer.invoke('office:retrySquadStart', code),
   getLedger: (query) => ipcRenderer.invoke('office:getLedger', query ?? {}),

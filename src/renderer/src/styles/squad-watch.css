@@ -111,6 +111,10 @@
   background: var(--amber);
 }
 
+.sw-dot-disabled {
+  background: var(--muted);
+}
+
 .sw-dot-error {
   background: var(--red);
 }

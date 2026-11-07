@@ -143,7 +143,7 @@ describe('estado do squad', () => {
   })
   it('pausado e desativado vêm do estado guardado', () => {
     expect(state(source({ squads: [squad('a', { state: 'paused' })], agents: [boss('a', { status: 'working' })] }))).toBe('paused')
-    expect(state(source({ squads: [squad('a', { state: 'disabled' })] }))).toBe('stopped')
+    expect(state(source({ squads: [squad('a', { state: 'disabled' })] }))).toBe('disabled')
   })
   it('processo parado = parado', () => {
     expect(state(source({ squads: [squad('a')], agents: [boss('a', { status: 'stopped' })] }))).toBe('stopped')

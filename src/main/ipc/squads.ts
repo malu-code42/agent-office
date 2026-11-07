@@ -23,6 +23,7 @@ import {
   squadProposalIdSchema,
   squadProposalRequestSchema,
   squadRenameSchema,
+  setSquadDisabledArgsSchema,
   setSquadPausedArgsSchema,
   parse,
   projectWorkflowBootstrapArgsSchema,
@@ -286,6 +287,7 @@ export function registerSquadsIpc(ctx: IpcContext): void {
         const cwd = floor().cwd
         const squad = findSquad(cwd, squadCodeSchema.parse(code))
         if (!squad) throw new Error(`O squad ${code} não existe neste andar. Use squads_list para ver os códigos.`)
+        if (state === 'disabled') assertSquadIdle(ctx, cwd, squad)
         ctx.squadStatus.set(cwd, squad.code, state)
         ctx.broadcast({ type: 'squads', squads: ctx.rereadSquads() })
         return state === 'paused'
@@ -524,6 +526,16 @@ export function registerSquadsIpc(ctx: IpcContext): void {
     ctx.squadStatus.set(cwd, squad.code, paused ? 'paused' : null)
     ctx.broadcast({ type: 'squads', squads: ctx.rereadSquads() })
   })
+  // AO-49: desativar a sala (luz apagada, sem squad_run) e reativar; só o estado muda, squads/ fica como está.
+  ipcMain.handle('office:setSquadDisabled', async (_e, ...args: unknown[]) => {
+    const [cwd, code, disabled] = parse(setSquadDisabledArgsSchema, args, 'Pedido de desativação inválido.')
+    if (projectFor(store.settings.projects, cwd)?.cwd !== cwd) throw new Error('Esse andar não existe mais.')
+    const squad = findSquad(cwd, code)
+    if (!squad) throw new Error(`O squad ${code} não existe neste andar.`)
+    if (disabled) assertSquadIdle(ctx, cwd, squad)
+    ctx.squadStatus.set(cwd, squad.code, disabled ? 'disabled' : null)
+    ctx.broadcast({ type: 'squads', squads: ctx.rereadSquads() })
+  })
   ipcMain.handle('office:retrySquadPublication', async (_e, code: unknown) => {
     const parsed = squadCodeSchema.safeParse(code)
     if (!parsed.success) throw new Error('Squad inválido.')
@@ -536,4 +548,10 @@ export function registerSquadsIpc(ctx: IpcContext): void {
     if (!queue?.active || queue.cycle?.ticketId !== queue.active) throw new Error('Não há ciclo ativo salvo para retomar.')
     await ctx.startActiveSquadTicket(parsed.data)
   })
+}
+
+/** AO-49: uma sala só desativa com o squad parado: nenhum agente dele rodando (ticket na fila espera a reativação). */
+export function assertSquadIdle(ctx: IpcContext, cwd: string, squad: { code: string; name: string }): void {
+  const busy = ctx.manager.list().find((a) => a.squad === squad.code && a.cwd === cwd && (a.status === 'working' || a.status === 'waiting'))
+  if (busy) throw new Error(`O squad ${squad.name} está rodando (${busy.name}); espere ele parar antes de desativar a sala.`)
 }

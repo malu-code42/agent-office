@@ -677,6 +677,8 @@ export interface OfficeAPI {
   /** Retenta publicar o resultado já salvo do ticket ativo; nunca reexecuta o agente. */
   /** AO-108: pausa (true) ou retoma (false) um squad do andar; pausado não inicia novos ciclos. */
   setSquadPaused(cwd: string, code: string, paused: boolean): Promise<void>
+  /** AO-49: desativa a sala do squad (luz apagada) ou reativa; recusa com o squad rodando. */
+  setSquadDisabled(cwd: string, code: string, disabled: boolean): Promise<void>
   retrySquadPublication(code: string): Promise<void>
   retrySquadStart(code: string): Promise<void>
   /** The cost book, cut to the days and folder asked for (all of it when empty). */
