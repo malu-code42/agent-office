@@ -746,7 +746,7 @@ export class SquadCreation extends EventEmitter {
       throw new Error('A proposta mudou durante a aprovação; nenhuma atribuição foi feita.')
   }
 
-  /** The composition has to fit the room: two to six members, with the two roles the pipeline needs. */
+  /** The composition has to fit the room (member limits in shared/types/squad-proposals.ts), with the two roles the pipeline needs. */
   private checkComposition(composition: SquadProposalComposition): void {
     const members = composition.members
     if (members.length < SQUAD_MIN_MEMBERS || members.length > SQUAD_MAX_MEMBERS)

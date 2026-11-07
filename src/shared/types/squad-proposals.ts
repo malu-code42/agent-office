@@ -103,7 +103,7 @@ export interface SquadProposal {
   projectId: string
   /** Project folder (the one that holds squads/). */
   cwd: string
-  /** Room of the floor: 0, 1 or 2. */
+  /** Room of the floor, from 0 (below SQUAD_ROOM_COUNT). */
   room: number
   createdAt: number
   updatedAt: number

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { SQUAD_MAX_COMPOSED, SQUAD_MAX_MEMBERS, SQUAD_MIN_MEMBERS, SQUAD_ROLES } from '../src/shared/types'
 import { compositionPrompt, extractJson, memberId, parseComposition } from '../src/main/squad-composition'
 
 // The answer of the model is untrusted: it only becomes a composition when it passes
@@ -231,6 +232,15 @@ describe('compositionPrompt', () => {
     expect(prompt).toContain('reviewer')
     expect(prompt).toContain('"opus"')
     expect(prompt).toContain('"pessoal"')
+  })
+
+  it('os limites do prompt vêm das constantes, sem repetir papel para encher mesa (AO-106)', () => {
+    const prompt = compositionPrompt({ cwd: '/tmp/projeto', brief: 'x', tickets: [], adjustments: [], ctx })
+    expect(prompt).toContain(`${SQUAD_MIN_MEMBERS} to ${SQUAD_MAX_COMPOSED} members`)
+    expect(prompt).toContain('never add a member or repeat a role just to fill a desk')
+    expect(prompt).not.toContain('2 to 6')
+    expect(SQUAD_MAX_COMPOSED).toBeLessThanOrEqual(SQUAD_MAX_MEMBERS)
+    expect(SQUAD_MAX_COMPOSED).toBeLessThanOrEqual(SQUAD_ROLES.length)
   })
 
   it('sem modelo nem conta, o prompt diz que só o padrão vale', () => {

@@ -67,9 +67,9 @@ export interface CoordinatorDesk {
 /** What a squad room shows: nobody, a team proposed and waiting, or the squad itself. */
 export type SquadRoomState = 'empty' | 'proposed' | 'live'
 
-/** One of the three squad rooms of a project floor. */
+/** One of the squad rooms of a project floor (SQUAD_ROOM_COUNT at most). */
 export interface SquadRoom {
-  /** 0, 1 or 2: the room's place among the three. */
+  /** Position of the room among the rooms of the floor, from 0. */
   index: number
   rect: Rect
   /** Squad code of the room; null while the room is empty. */
@@ -104,9 +104,9 @@ export interface ProjectPlan {
   elevator: { tile: [number, number]; point: { x: number; z: number } }
   /** Tiles where an orchestrator whose squad has no room waits. */
   overflow: [number, number][]
-  /** The three squad rooms, west side. */
+  /** The squad rooms the art draws, in order. */
   rooms: SquadRoom[]
-  /** The ten desks of the glass room with the individual agents. */
+  /** The desks the individual agents sit at (AGENT_DESK_COUNT at most). */
   agentDesks: DeskSlot[]
   /** Tiles of the agents' room where the agents beyond the ten desks stand. */
   agentStand: [number, number][]
