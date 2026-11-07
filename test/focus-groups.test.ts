@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { PlanningStore } from '../src/main/planning'
 import { groupFocusItems, focusItems } from '../src/shared/planning'
+import { addDays, isStale, REVIEW_STALE_DAYS } from '../src/shared/review'
 import { parseTasksFile } from '../src/shared/tasks'
 
 describe('groupFocusItems', () => {
@@ -55,5 +56,41 @@ describe('groupFocusItems', () => {
       { name: 'Casa', items: [items[0]] },
       { name: null, items: [items[1]] },
     ])
+  })
+})
+
+describe('parada no foco agrupado (AO-81)', () => {
+  // The "parada" mark is the stale rule of the review (REVIEW_STALE_DAYS without a step), the one focus_list
+  // and the daily review show. The popup itself draws no mark: this covers the rule over the grouped focus.
+  const lists = parseTasksFile('## Casa\n- [ ] Um ^taaaaaa\n## Estudo\n- [ ] Ler ^tdddddd\n- [ ] Rever ^teeeeee\n').lists
+  const today = '2026-11-06'
+  const staleIds = (store: PlanningStore): string[] =>
+    groupFocusItems(lists, focusItems(lists, store.focus()))
+      .flatMap((g) => g.items)
+      .filter((i) => !i.missing && isStale(store.lastStepDay(i.id), today))
+      .map((i) => i.id)
+
+  it('marca e desmarca a parada de tarefas em grupos de listas diferentes', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ao-focus-stale-'))
+    try {
+      const store = new PlanningStore(dir)
+      for (const id of ['taaaaaa', 'tdddddd', 'teeeeee']) store.add(id)
+      // No step yet: all three are parada
+      expect(staleIds(store).sort()).toEqual(['taaaaaa', 'tdddddd', 'teeeeee'])
+      // A step within the window takes the mark off, only for that task, in its own group
+      store.saveStep('tdddddd', 'Ler o capítulo 2', today)
+      store.saveStep('taaaaaa', 'Começar', addDays(today, -(REVIEW_STALE_DAYS - 1)))
+      expect(staleIds(store)).toEqual(['teeeeee'])
+      // A step older than the window leaves the task parada
+      store.saveStep('tdddddd', 'Antigo', addDays(today, -REVIEW_STALE_DAYS))
+      expect(staleIds(store).sort()).toEqual(['tdddddd', 'teeeeee'])
+      // Taking the step of today out (clearStep) puts the mark back
+      store.saveStep('taaaaaa', 'Hoje', today)
+      expect(staleIds(store)).not.toContain('taaaaaa')
+      store.clearStep('taaaaaa', today)
+      expect(staleIds(store)).toContain('taaaaaa')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
