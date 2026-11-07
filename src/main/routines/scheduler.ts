@@ -9,12 +9,14 @@ import type {
   HireRequest,
   OfficeEvent,
   OfficePermissionMode,
+  PermissionLevel,
   PermissionRequest,
   Routine,
   RoutineRun,
   Settings,
 } from '@shared/types'
 import { isDir } from '../squads'
+import { routineLevel } from '../permissions/levels'
 import type { CleanRoutineDraft } from '../validate'
 import type { RoutineStore } from './store'
 
@@ -32,7 +34,18 @@ export interface RoutineHost {
   hire(req: HireRequest, display?: string): Promise<AgentSummary>
   sendMessage(id: string, text: string, display?: string): void
   clearContext(id: string): void
-  configure(id: string, patch: { permissionMode?: OfficePermissionMode; model?: string; effort?: EffortLevel }): void
+  configure(
+    id: string,
+    patch: {
+      permissionMode?: OfficePermissionMode
+      permissionLevel?: PermissionLevel
+      routine?: boolean
+      model?: string
+      effort?: EffortLevel
+    },
+  ): void
+  /** AO-109: teto do nível durante a execução de uma rotina (undefined limpa). */
+  setRunCap?(id: string, level: PermissionLevel | undefined): void
   pendingRequests(): PermissionRequest[]
   pendingResults(): AgentResult[]
 }
@@ -290,6 +303,8 @@ export class RoutineScheduler {
       if (m.isBusy(a.id)) throw new Skip(`${a.name} estava ocupado com outra tarefa.`)
       // A routine attached to an existing agent follows that agent's current mode; it
       // must never mutate the agent's persistent permission mode for a scheduled task.
+      // AO-109: the run is capped by the routine's own level (default 2, ceiling 4), only for this run.
+      m.setRunCap?.(a.id, routineLevel(r.permissionLevel, r.permissionMode))
       this.send(active, a, `${header}\n\n${r.prompt}`)
       return
     }
@@ -312,7 +327,12 @@ export class RoutineScheduler {
       if (m.isBusy(own.id)) throw new Skip(`${own.name} estava ocupado com outra tarefa.`)
       // Each run starts a fresh conversation, so the context does not grow day after day.
       m.clearContext(own.id)
-      m.configure(own.id, { permissionMode: r.permissionMode, ...brain })
+      m.configure(own.id, {
+        permissionMode: r.permissionMode,
+        permissionLevel: routineLevel(r.permissionLevel, r.permissionMode),
+        routine: true,
+        ...brain,
+      })
       this.send(active, own, text)
       return
     }
@@ -323,6 +343,8 @@ export class RoutineScheduler {
       task: text,
       ...brain,
       permissionMode: r.permissionMode,
+      permissionLevel: routineLevel(r.permissionLevel, r.permissionMode),
+      routine: true,
       ...(template?.look ? { look: template.look } : {}),
     })
     r.agentId = a.id
@@ -409,6 +431,7 @@ export class RoutineScheduler {
 
   private finish(a: Active, status: RoutineRun['status'], extra: Partial<RoutineRun>): void {
     if (this.active.get(a.routineId) === a) this.active.delete(a.routineId)
+    if (a.run.agentId) this.d.manager.setRunCap?.(a.run.agentId, undefined)
     Object.assign(a.run, { status, endedAt: this.now(), ...extra })
     this.d.store.save()
     this.changed()

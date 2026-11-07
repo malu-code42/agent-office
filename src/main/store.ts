@@ -12,6 +12,7 @@ import { cleanLook, loadTemplates } from './templates'
 import type { SessionMark } from './ledger'
 import { backupCopies, shapeOf } from './backups'
 import { loadJson, reportLoad, writeJsonAtomic } from './fs-safe'
+import { cleanLevel } from './permissions/levels'
 import { cleanAlwaysAllowRules, legacyModeToCurrent, permissionModeSchema, cleanVideo } from './validate'
 
 export interface PersistedAgent {
@@ -137,6 +138,9 @@ export class Store {
           engine: agent.summary.engine === 'opencode' ? 'opencode' : 'claude',
           // AO-109: agente salvo em "Sem pedir nada" volta em "Pedir permissão".
           permissionMode: legacyModeToCurrent(agent.summary.permissionMode) as typeof agent.summary.permissionMode,
+          // AO-109: nível salvo inválido some (vale o modo); o teto de rotina nunca atravessa um reinício.
+          permissionLevel: cleanLevel(agent.summary.permissionLevel),
+          runCap: undefined,
         },
       })),
       results: raw.results ?? [],

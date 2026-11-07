@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { dialog, ipcMain, shell } from 'electron'
 import { z } from 'zod'
+import { projectFor } from '@shared/projects'
 import { buildAgendaView, weekProgress } from '@shared/agenda'
 import { GOALS_FILES, parseGoals } from '@shared/goals'
 import { achievedDates } from '../goal-dates'
@@ -324,16 +325,22 @@ export function registerTasksIpc(ctx: IpcContext): void {
   // On request only (a web and model search): the books are kept in the report of the topic.
   ipcMain.handle('office:suggestStudyBooks', (_e, ...args: unknown[]) => {
     const [discipline, name] = parse(suggestStudyBooksArgsSchema, args, 'Tópico inválido.')
-    return suggestTopicBooks(readinessStore, discipline, name, async (selected) => {
-      const trail = parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE))
-      const matches = studyBankTopics(trail, { discipline }).filter((t) =>
-        selected.id ? t.id === selected.id : t.title === selected.topic,
-      )
-      const [trailTopic] = matches
-      if (matches.length !== 1 || !trailTopic)
-        throw new Error('O tópico mudou ou está repetido na trilha. Confira a prontidão da disciplina de novo.')
-      return suggestBooks(trailTopic.title, trailTopic.discipline)
-    }, readinessQueue)
+    return suggestTopicBooks(
+      readinessStore,
+      discipline,
+      name,
+      async (selected) => {
+        const trail = parseStudyTrail(readOptionalFile(requireVault(), STUDY_TRAIL_FILE))
+        const matches = studyBankTopics(trail, { discipline }).filter((t) =>
+          selected.id ? t.id === selected.id : t.title === selected.topic,
+        )
+        const [trailTopic] = matches
+        if (matches.length !== 1 || !trailTopic)
+          throw new Error('O tópico mudou ou está repetido na trilha. Confira a prontidão da disciplina de novo.')
+        return suggestBooks(trailTopic.title, trailTopic.discipline)
+      },
+      readinessQueue,
+    )
   })
   ipcMain.handle('office:saveStudyQuestions', async (_e, ...args: unknown[]) => {
     const [token, selection, reviewConfirmed] = parse(studyQuestionSaveArgsSchema, args, 'Seleção de questões inválida.')
@@ -676,7 +683,18 @@ export function registerTasksIpc(ctx: IpcContext): void {
         review,
         callAgent: async ({ task, cwd, name }) => {
           const req = cleanHire({ task, cwd: cwd ?? requireVault(), ...(name ? { name } : {}) }, ctx.store.settings)
-          const agent = await ctx.manager.hire({ ...req, homeResident: true })
+          // AO-109: o agente chamado pela Luna nasce no nível 3 (no máximo), com cartão em tudo, e só em
+          // pasta de projeto cadastrado ou no cofre dela.
+          const vault = requireVault()
+          const known = req.cwd === vault || !!projectFor(ctx.store.settings.projects, req.cwd)
+          if (!known) throw new Error('Só chamo agente em pasta de projeto cadastrado ou no cofre.')
+          const agent = await ctx.manager.hire({
+            ...req,
+            permissionMode: 'default',
+            permissionLevel: 3,
+            createdByAgent: true,
+            homeResident: true,
+          })
           return { name: agent.name }
         },
         goals: lunaGoals,

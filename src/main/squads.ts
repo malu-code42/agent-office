@@ -5,6 +5,7 @@ import { basename, isAbsolute, join, relative, sep } from 'node:path'
 import type { AgentDefinition, HookCallbackMatcher } from '@anthropic-ai/claude-agent-sdk'
 import { parse } from 'yaml'
 import type { SquadInfo, SquadMember, SquadProgress, SquadStep } from '@shared/types'
+import { EDIT_TOOL_NAMES, isReadOnlyRole } from './permissions/levels'
 import { clearReservation, reservationState } from './squad-reservation'
 
 // Opensquad squads: squads/<code>/squad.yaml + agents/<id>.agent.md + pipeline/pipeline.yaml.
@@ -20,6 +21,8 @@ const SAFE_NAME = /^[\w-]{1,64}$/
 const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max'])
 /** Tools that start a subagent (Agent; Task in older Claude Code builds). */
 const SPAWN_TOOLS = new Set(['Agent', 'Task'])
+/** Papéis de membro reconhecidos (AO-109 dá a cada um o seu nível: permissions/levels.ts). */
+const MEMBER_ROLES = new Set(['implementer', 'reviewer', 'tester', 'analyst', 'writer', 'researcher'])
 
 export interface SquadDefinition extends SquadInfo {
   /** Member id -> body of its .agent.md (persona, principles). */
@@ -127,7 +130,7 @@ export function validateSquad(s: SquadDefinition): void {
   if (!SAFE_NAME.test(s.code)) throw new Error(`código inválido: ${s.code}`)
   const roles = new Map<string, string>()
   for (const m of s.members) {
-    if (m.role) {
+    if (m.role === 'implementer' || m.role === 'reviewer') {
       if (roles.has(m.role)) throw new Error(`mais de um membro está definido como ${m.role}`)
       roles.set(m.role, m.id)
     }
@@ -189,10 +192,7 @@ function loadSquad(cwd: string, dir: string): SquadDefinition {
       icon: str(a.icon) || str(meta.icon) || '•',
       title: str(meta.title),
       execution: str(meta.execution) === 'inline' ? 'inline' : 'subagent',
-      role:
-        (str(a.role) || str(meta.role)) === 'implementer' || (str(a.role) || str(meta.role)) === 'reviewer'
-          ? ((str(a.role) || str(meta.role)) as 'implementer' | 'reviewer')
-          : undefined,
+      role: MEMBER_ROLES.has(str(a.role) || str(meta.role)) ? ((str(a.role) || str(meta.role)) as SquadMember['role']) : undefined,
       ...(str(a.model) || str(meta.model) ? { model: str(a.model) || str(meta.model) } : {}),
       ...(EFFORTS.has(str(a.effort) || str(meta.effort)) ? { effort: (str(a.effort) || str(meta.effort)) as SquadMember['effort'] } : {}),
       sector: str(a.setor) || DEFAULT_SECTOR,
@@ -239,7 +239,8 @@ export function memberAgents(s: SquadDefinition): Record<string, AgentDefinition
       ...(m.model ? { model: m.model } : {}),
       ...(m.effort ? { effort: m.effort } : {}),
       // Members do their own step; only the orchestrator hands out work.
-      disallowedTools: [...SPAWN_TOOLS],
+      // AO-109: revisor, analista e pesquisador só leem: Edit/Write saem da lista por código, não só por prompt.
+      disallowedTools: isReadOnlyRole(m.role) ? [...SPAWN_TOOLS, ...EDIT_TOOL_NAMES] : [...SPAWN_TOOLS],
     }
   }
   return out

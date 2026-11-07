@@ -9,7 +9,7 @@ export interface SquadMember {
   /** subagent = called with the Agent tool; inline = the orchestrator plays the part in its own conversation. */
   execution: 'subagent' | 'inline'
   /** The independent delivery responsibility assigned in squad.yaml or member frontmatter. */
-  role?: 'implementer' | 'reviewer'
+  role?: 'implementer' | 'reviewer' | 'tester' | 'analyst' | 'writer' | 'researcher'
   /** Modelo do membro (alias ou id); ausente = herda o do orquestrador, isto é, o do ticket. */
   model?: string
   /** Esforço do membro; ausente = herda o do orquestrador. */

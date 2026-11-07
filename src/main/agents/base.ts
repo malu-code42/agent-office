@@ -94,8 +94,8 @@ export abstract class AgentBase extends EventEmitter {
               name: 'Luna',
               builtIn: 'luna' as const,
               engine: 'claude' as const,
-              // Automatic mode: edits and proven-safe commands in her folders run; risk still comes to the card.
-              permissionMode: 'auto' as const,
+              // AO-109: Luna works at level 3 (every edit in a project folder comes to the card); her house tools stay free.
+              permissionMode: 'default' as const,
               look: store.settings.lunaLook,
               model: store.settings.lunaModel || undefined,
               effort: store.settings.lunaEffort || undefined,

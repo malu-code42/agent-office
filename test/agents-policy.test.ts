@@ -198,7 +198,8 @@ describe('permissões: o Office decide antes do cartão (seam 2)', () => {
     await flush()
     const request = asked(evs)
     expect(request.toolName).toBe('Edit')
-    expect(request.canAlwaysAllow).toBe(true)
+    // AO-109: no nível 3 "Sempre permitir" só vale para leitura; edição nunca é oferecida.
+    expect(request.canAlwaysAllow).toBeFalsy()
     expect(m.agent(a.id)?.status).toBe('waiting')
 
     m.respond({ requestId: request.id, behavior: 'allow' })
@@ -209,21 +210,28 @@ describe('permissões: o Office decide antes do cartão (seam 2)', () => {
     expect(m.agent(a.id)?.status).toBe('working')
   })
 
-  it('Sempre permitir persiste regra exata no projeto, sem enviar updatedPermissions ao CLI', async () => {
+  it('Sempre permitir não existe para edição no nível 3: nem oferece, nem uma regra antiga libera', async () => {
     const { m, dir, canUse, store } = await started('default')
+    store.settings = {
+      ...store.settings,
+      projects: [{ id: 'p1', name: 'Teste', cwd: dir, alwaysAllow: [{ kind: 'tool', value: 'Edit' }] }] as never,
+    }
     const evs = track(m)
     const input = { file_path: join(dir, 'a.txt'), old_string: 'x', new_string: 'y' }
-    const waiting = canUse('Edit', input, {
-      signal: new AbortController().signal,
-      suggestions: [{ type: 'setMode', mode: 'acceptEdits' } as unknown],
-    })
+    const waiting = canUse('Edit', input, { signal: new AbortController().signal })
     await flush()
-    m.respond({ requestId: asked(evs).id, behavior: 'allow_always' })
+    const request = asked(evs)
+    expect(request.canAlwaysAllow).toBeFalsy()
+    m.respond({ requestId: request.id, behavior: 'allow_always' })
     expect(await waiting).toEqual({ behavior: 'allow', updatedInput: input })
-    expect(store.settings.projects[0]?.alwaysAllow).toMatchObject([{ kind: 'tool', value: 'Edit' }])
-    const next = await canUse('Edit', input, { signal: new AbortController().signal })
-    expect(next).toEqual({ behavior: 'allow', updatedInput: input })
-    expect(evs.filter((e) => e.type === 'permission:resolved')).toHaveLength(1)
+    // Responder "sempre" não grava regra nova (só havia a antiga).
+    expect(store.settings.projects[0]?.alwaysAllow).toHaveLength(1)
+    // E a regra antiga não libera a próxima edição: continua pedindo.
+    const again = canUse('Edit', input, { signal: new AbortController().signal })
+    await flush()
+    expect(evs.filter((e) => e.type === 'permission:new')).toHaveLength(2)
+    m.respond({ requestId: (evs.filter((e) => e.type === 'permission:new').at(-1) as { request: { id: string } }).request.id, behavior: 'deny' })
+    await again
   })
 
   it('negar encerra a chamada', async () => {

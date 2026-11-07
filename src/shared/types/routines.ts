@@ -1,6 +1,6 @@
 // Rotinas: tarefas que um agente roda sozinho num horário ("todo dia às 9h, o agente X faz Y").
 
-import type { EffortLevel, OfficePermissionMode } from './agents'
+import type { EffortLevel, OfficePermissionMode, PermissionLevel } from './agents'
 
 /**
  * When a routine runs, always in the computer's local time.
@@ -63,6 +63,8 @@ export interface Routine {
   floor?: string
   /** For agents the routine hires; an existing agent keeps its own. */
   permissionMode: OfficePermissionMode
+  /** AO-109: nível da rotina (1 a 4; padrão 2; nunca 5). Ausente = derivado do modo, com teto 4. */
+  permissionLevel?: PermissionLevel
   schedule: Schedule
   enabled: boolean
   missed: MissedPolicy
@@ -87,6 +89,7 @@ export interface RoutineDraft {
   cwd?: string
   floor?: string
   permissionMode?: OfficePermissionMode
+  permissionLevel?: PermissionLevel
   /** Present only after explicit confirmation of a more permissive project override. */
   confirmPermissionOverride?: boolean
   schedule: Schedule
