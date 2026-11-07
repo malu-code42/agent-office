@@ -37,6 +37,33 @@ export async function openStudyIdeas(root: HTMLElement, toast: Toast): Promise<v
     paint()
   }
 
+  const spec = async (topic: string, title: string) => {
+    if (busy) return
+    busy = `${topic}|${title}`
+    paint()
+    try {
+      const set = await window.office.generateStudySpec(topic, title)
+      sets = { ...sets, [topic]: set }
+      announce(`Especificação de ${title} gerada.`)
+    } catch (error) {
+      toast(cleanError(error), 'err')
+    }
+    busy = null
+    paint()
+  }
+
+  const exportSpec = async (topic: string, title: string) => {
+    try {
+      const file = await window.office.exportStudySpec(topic, title)
+      if (file) {
+        toast(`Especificação exportada em ${file}`, 'ok')
+        announce('Especificação exportada.')
+      }
+    } catch (error) {
+      toast(cleanError(error), 'err')
+    }
+  }
+
   const paint = () => {
     body.replaceChildren(
       ...(topics.length
@@ -57,7 +84,30 @@ export async function openStudyIdeas(root: HTMLElement, toast: Toast): Promise<v
                   busy === topic ? 'Gerando…' : set ? 'Gerar de novo' : 'Gerar ideias',
                 ),
               ),
-              ...(set?.ideas.map((idea) => h('div', { class: 'tk-actions' }, h('b', {}, idea.title), h('div', { class: 'tk-sub' }, idea.description))) ?? []),
+              ...(set?.ideas.map((idea) => {
+                const working = busy === `${topic}|${idea.title}`
+                return h(
+                  'div',
+                  { class: 'tk-actions' },
+                  h('b', {}, idea.title),
+                  h('div', { class: 'tk-sub' }, idea.description),
+                  h(
+                    'div',
+                    { class: 'tk-top' },
+                    h(
+                      'button',
+                      { class: 'btn btn-small', type: 'button', disabled: busy !== null, onclick: () => void spec(topic, idea.title) },
+                      working ? 'Gerando…' : idea.spec ? 'Gerar especificação de novo' : 'Gerar especificação',
+                    ),
+                    idea.spec
+                      ? h('button', { class: 'btn btn-small', type: 'button', onclick: () => void exportSpec(topic, idea.title) }, 'Exportar .md')
+                      : '',
+                  ),
+                  idea.spec
+                    ? h('details', {}, h('summary', {}, 'Ver especificação'), h('pre', { class: 'tk-sub tk-spec' }, idea.spec.markdown))
+                    : '',
+                )
+              }) ?? []),
             )
           })
         : [h('div', { class: 'empty-box panelbox' }, h('b', {}, 'Nenhum tópico estudado ainda'), h('span', {}, 'Os tópicos vêm do ciclo de estudos: comece um diagnóstico para eles aparecerem aqui.'))]),

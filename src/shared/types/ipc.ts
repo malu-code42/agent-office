@@ -355,6 +355,10 @@ export interface OfficeAPI {
   readStudyIdeas(): Promise<Record<string, StudyIdeaSet>>
   /** Gera (ou refaz) as ideias de software de um tópico estudado e as guarda. */
   generateStudyIdeas(topic: string): Promise<StudyIdeaSet>
+  /** Gera a especificação passo a passo de um projeto guardado (tópico, título) e a guarda junto dele. */
+  generateStudySpec(topic: string, title: string): Promise<StudyIdeaSet>
+  /** Exporta a especificação como .md numa pasta escolhida; devolve o caminho, ou null se cancelou. */
+  exportStudySpec(topic: string, title: string): Promise<string | null>
   /** Volta a um ciclo guardado no histórico (troca de tópico), sem apagar nada do ciclo ativo. */
   resumeStudyCycle(cycleId: string): Promise<StudyCycleState>
   deleteStudyCycle(cycleId: string): Promise<StudyCycleState>
