@@ -80,8 +80,9 @@ export interface ProjectLayout {
   blocked: [number, number][]
   rooms: RoomArt[]
   emi: { desk: DeskArt; seat: SeatArt; plate: [number, number] }
-  director: { rect: Rect; plate: [number, number] }
-  lounge: { rect: Rect; plate: [number, number] }
+  /** The old directors' room and lounge: only the tooltip still reads them; the four-room floor has neither (AO-106). */
+  director?: { rect: Rect; plate: [number, number] }
+  lounge?: { rect: Rect; plate: [number, number] }
   /** Door tile, drop point (tiles) and the door on the back wall (x0, x1, height in art units). */
   elevator: {
     tile: [number, number]
@@ -164,10 +165,33 @@ function emptyRoom(art: RoomArt, index: number): SquadRoom {
   }
 }
 
-/** Walkable tiles of a rectangle (tiles), row by row from the bottom. */
-function freeTiles(grid: Grid, rect: Rect): [number, number][] {
+/**
+ * The walkable tiles outside the squad rooms, nearest first from a start tile: the aisles where the ones
+ * without a desk wait (AO-106: no lounge). Walking from the elevator, so every tile can be reached.
+ */
+function aisleTiles(grid: Grid, from: [number, number], rooms: readonly RoomArt[], limit: number): [number, number][] {
+  const inRoom = (x: number, z: number) => rooms.some((r) => x >= r.rect[0] && x < r.rect[2] && z >= r.rect[1] && z < r.rect[3])
+  const key = (x: number, z: number) => z * grid.w + x
+  const seen = new Set<number>([key(from[0], from[1])])
+  const queue: [number, number][] = [from]
   const out: [number, number][] = []
-  for (let z = rect[3] - 1; z >= rect[1]; z--) for (let x = rect[0]; x < rect[2]; x++) if (grid.walkable(x, z)) out.push([x, z])
+  for (let i = 0; i < queue.length && out.length < limit; i++) {
+    const [x, z] = queue[i]
+    if (i > 0 && !inRoom(x, z)) out.push([x, z])
+    for (const [dx, dz] of [
+      [0, 1],
+      [1, 0],
+      [0, -1],
+      [-1, 0],
+    ]) {
+      const nx = x + dx
+      const nz = z + dz
+      if (nx < 0 || nz < 0 || nx >= grid.w || nz >= grid.h || seen.has(key(nx, nz))) continue
+      if (!grid.canStep(x, z, nx, nz) || inRoom(nx, nz)) continue
+      seen.add(key(nx, nz))
+      queue.push([nx, nz])
+    }
+  }
   return out
 }
 
@@ -175,7 +199,7 @@ function freeTiles(grid: Grid, rect: Rect): [number, number][] {
  * The plan of a 2D project floor: the same rules as projectPlan (world/layout.ts) for
  * which squad takes which room and what does not fit, on the approved layout. The
  * individual agents sit at the member desks no squad uses (the approved art shows one
- * in a squad room), up to AGENT_DESK_COUNT; the rest stand in the lounge.
+ * in a squad room), up to AGENT_DESK_COUNT; the rest stand in the aisles.
  */
 export function projectPlan2d(
   layout: ProjectLayout,
@@ -244,27 +268,15 @@ export function projectPlan2d(
   const agentDesks: DeskSlot[] = stableOrder(free, 'agentes', (f) => `${f.room}:${f.slot}`)
     .slice(0, AGENT_DESK_COUNT)
     .map((f, i) => deskSlot(i, layout.rooms[f.room].slots[f.slot].desk, layout.rooms[f.room].slots[f.slot].seat))
-  const lounge = freeTiles(grid, layout.lounge.rect)
-  const [ex, ez] = layout.elevator.tile
-  const emi = layout.emi.seat
-  const ux = emi.at[0] / TILE
-  const uz = emi.at[1] / TILE
+  // the aisles by the elevator: the first eight for the orchestrators without a room, the next eight for the agents without a desk
+  const aisle = aisleTiles(grid, layout.elevator.tile, layout.rooms, 16)
   return {
     size: layout.size,
     elevator: { tile: layout.elevator.tile, point: { x: layout.elevator.point[0], z: layout.elevator.point[1] } },
-    // by the elevator, a step into the lounge
-    overflow: lounge.filter(([x, z]) => Math.abs(x - ex) <= 3 && z <= ez + 2).slice(0, 8),
+    overflow: aisle.slice(0, 8),
     rooms,
     agentDesks,
-    agentStand: lounge.slice(0, 8),
-    director: {
-      index: 0,
-      x: tileOf(layout.emi.desk.green.fp[0]),
-      z: tileOf(layout.emi.desk.green.fp[1]),
-      seat: { x: ux, z: uz },
-      approach: [Math.floor(ux), Math.floor(uz)],
-      face: headingOf(emi.dir),
-    },
+    agentStand: aisle.slice(8, 16),
     partitions: layout.walls,
     squadOf,
     issues,

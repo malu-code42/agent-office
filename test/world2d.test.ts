@@ -139,7 +139,6 @@ describe('layout 2D do andar de projeto', () => {
       [0, 12, 9, 18],
     ])
     expect(LAYOUT.rooms.every((r) => r.slots.length === SQUAD_MAX_MEMBERS)).toBe(true)
-    expect(LAYOUT.director.rect).toEqual([18, 7, 24, 18])
   })
 
   it('a porta da diretoria continua na parede', () => {
@@ -160,7 +159,7 @@ describe('layout 2D do andar de projeto', () => {
         ...r.desks.map((d) => d.approach),
       ]),
       ...plan.agentDesks.map((d) => d.approach),
-      plan.director.approach,
+      [Math.floor(LAYOUT.emi.seat.at[0] / 16), Math.floor(LAYOUT.emi.seat.at[1] / 16)],
     ]
     for (const [x, z] of goals) {
       expect(grid.walkable(x, z), `${x},${z}`).toBe(true)

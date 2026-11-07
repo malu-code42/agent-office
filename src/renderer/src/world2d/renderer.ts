@@ -308,8 +308,8 @@ export class Renderer2d {
     const inRect = (r: readonly number[]) => at.x >= r[0] && at.z >= r[1] && at.x < r[2] && at.z < r[3]
     const room = layout.rooms.findIndex((r) => inRect(r.rect))
     if (room >= 0) return view.rooms[room] ?? null
-    if (inRect(layout.director.rect)) return view.emi === null ? 'Diretoria' : 'Diretoria · Emi'
-    if (inRect(layout.lounge.rect)) return 'Descanso e lazer'
+    if (layout.director && inRect(layout.director.rect)) return view.emi === null ? 'Diretoria' : 'Diretoria · Emi'
+    if (layout.lounge && inRect(layout.lounge.rect)) return 'Descanso e lazer'
     return null
   }
 

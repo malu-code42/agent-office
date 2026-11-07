@@ -7,7 +7,7 @@ import { canContinueHomeArrival, freeHomeSeat, homeSpot } from './home-seats'
 import { LOUNGE_AFTER_MS, screenMode, seatKey, SQUAD_SPEED, type Actor, type Goal } from './types'
 import { resultDestination } from './result-destination'
 
-/** The agents: arriving, choosing where to be (desk, boss, lounge), posing and leaving. */
+/** The agents: arriving, choosing where to be (desk, lounge, home), posing and leaving. */
 export abstract class GameActors extends GameBoards {
   // ---------- agents ----------
 
@@ -42,7 +42,6 @@ export abstract class GameActors extends GameBoards {
       arrived: false,
       spot: null,
       hang: null,
-      waveUntil: 0,
       down: false,
       shoutUntil: 0,
       shout: '',
@@ -160,7 +159,6 @@ export abstract class GameActors extends GameBoards {
       actor.avatar.setProp('none')
       if (goal !== 'home') actor.homeSeat = null
       if (goal === 'desk') this.goDesk(actor, a, instant)
-      else if (goal === 'boss') this.goBoss(actor, instant)
       else if (goal === 'home') this.goHomeResident(actor, instant)
       else if (goal === 'seat') this.goLunaSeat(actor, instant)
       else this.goHang(actor, instant)
@@ -305,13 +303,6 @@ export abstract class GameActors extends GameBoards {
       }
       av.face(desk.face ?? Math.PI)
       av.pose = a.status === 'working' ? 'type' : 'sit'
-    } else if (actor.goal === 'boss') {
-      const items = this.state.itemsFor(a.id)
-      const result = items.results[0]
-      av.setProp(items.permissions.length ? 'none' : result ? (result.isError ? 'redPaper' : 'paper') : 'none')
-      if (av.floor === this.player.floor && this.playerInBossRoom()) av.faceTowards(this.player.position.x, this.player.position.z)
-      else av.faceTowards(this.home.boss.x, this.home.boss.z)
-      av.pose = this.time < actor.waveUntil ? 'wave' : actor.id === this.nearId ? 'talk' : 'stand'
     } else if (actor.goal === 'seat') {
       av.setProp('none')
       av.face(this.home.luna.face)

@@ -102,16 +102,14 @@ export interface ProjectPlan {
   size: [number, number]
   /** The elevator: the tile its door opens on and where it drops people. */
   elevator: { tile: [number, number]; point: { x: number; z: number } }
-  /** Tiles where an orchestrator whose squad has no room waits. */
+  /** Aisle tiles by the elevator where an orchestrator whose squad has no room waits. */
   overflow: [number, number][]
   /** The squad rooms the art draws, in order. */
   rooms: SquadRoom[]
   /** The desks the individual agents sit at (AGENT_DESK_COUNT at most). */
   agentDesks: DeskSlot[]
-  /** Tiles of the agents' room where the agents beyond the ten desks stand. */
+  /** Aisle tiles where the individual agents beyond the desks stand. */
   agentStand: [number, number][]
-  /** The director's desk, in the director's room. */
-  director: DeskSlot
   partitions: Partition[]
   /** Member key -> squad code, for every member of every squad of the floor. */
   squadOf: Map<string, string>
