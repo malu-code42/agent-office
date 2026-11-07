@@ -10,3 +10,19 @@ export function brainForTicket(
 ): { model: string | undefined; effort: EffortLevel | undefined } {
   return { model: ticket.model || base.model || undefined, effort: ticket.effort || base.effort || undefined }
 }
+
+/**
+ * AO-86: os padrões com que o ciclo de um ticket de squad inicia o orquestrador. Se já existe um
+ * orquestrador deste ticket, o novo herda dele (modelo, esforço, contas); senão vale o par do ticket,
+ * completado pelo padrão das configurações. O modo de permissão chega pronto e passa sem mudança.
+ */
+export function cycleDefaults<M>(
+  prior: { model?: string; effort?: EffortLevel; accounts?: string[] } | undefined,
+  ticket: { model?: string; effort?: EffortLevel },
+  base: AgentBrain,
+  permissionMode: M,
+): AgentBrain & { permissionMode: M } {
+  return prior
+    ? { model: prior.model, effort: prior.effort, accounts: prior.accounts, permissionMode }
+    : { ...base, ...brainForTicket(ticket, base), permissionMode }
+}
