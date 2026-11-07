@@ -9,6 +9,7 @@ import type {
   HireRequest,
   LogEntry,
   OfficePermissionMode,
+  PermissionLevel,
   SquadInfo,
   SquadProgress,
   SubagentInfo,
@@ -82,6 +83,7 @@ export abstract class AgentOffice extends AgentBase {
         accounts: engine === 'claude' && req.accounts?.length ? req.accounts : undefined,
         ...(req.profile ? { profile: req.profile } : {}),
         permissionMode: req.permissionMode,
+        ...(req.permissionLevel ? { permissionLevel: req.permissionLevel } : {}),
         status: 'starting',
         activity: 'Chegando ao escritório',
         ...this.seat(req.cwd),
@@ -94,6 +96,8 @@ export abstract class AgentOffice extends AgentBase {
       if (seat.temporary) summary.temporary = true
       // #105: an agent called to the house (by Luna) stays around it after the task until sent away.
       if (req.homeResident) summary.homeResident = true
+      if (req.createdByAgent) summary.createdByAgent = true
+      if (req.routine) summary.routineRun = true
       const agent: Agent = { summary, log: [], started: false }
       this.agents.set(id, agent)
       this.upsert(agent)
@@ -325,15 +329,34 @@ export abstract class AgentOffice extends AgentBase {
    * A routine's own agent before its next run: freedom and brain as the routine says now.
    * They count from the next start of the CLI (the routine clears the context first).
    */
-  configure(id: string, patch: { permissionMode?: OfficePermissionMode; model?: string; effort?: AgentBrain['effort'] }): void {
+  configure(
+    id: string,
+    patch: {
+      permissionMode?: OfficePermissionMode
+      permissionLevel?: PermissionLevel
+      routine?: boolean
+      model?: string
+      effort?: AgentBrain['effort']
+    },
+  ): void {
     const agent = this.agents.get(id)
     if (!agent || agent.summary.source !== 'office' || agent.summary.departed || this.busy(agent)) return
     if (agent.summary.engine === 'opencode') return
     const s = agent.summary
     if (patch.permissionMode) s.permissionMode = patch.permissionMode
+    if (patch.permissionLevel) s.permissionLevel = patch.permissionLevel
+    if (patch.routine) s.routineRun = true
     if ('model' in patch) s.model = patch.model || undefined
     if ('effort' in patch) s.effort = patch.effort || undefined
     this.upsert(agent)
+  }
+
+  /** AO-109: teto temporário do nível durante uma rotina num agente existente; `undefined` solta o teto. */
+  setRunCap(id: string, level: PermissionLevel | undefined): void {
+    const agent = this.agents.get(id)
+    if (!agent || agent.summary.source !== 'office') return
+    if (level === undefined) delete agent.summary.runCap
+    else agent.summary.runCap = level
   }
 
   /** Demo mode: moves a simulated cycle along. */

@@ -21,6 +21,7 @@ export function bonnieAgentSummary(now = Date.now(), settings?: Pick<Settings, '
     cwd: '',
     // Always asks: anything outside her own study tools reaches the policy, which keeps her off the files.
     permissionMode: 'default',
+    permissionLevel: 1,
     status: 'idle',
     activity: 'Pronta para conversar sobre os estudos',
     desk: -1,

@@ -8,6 +8,7 @@ import { projectFor } from '@shared/projects'
 import { outsideTeam, readProgress, type SquadDefinition } from '../squads'
 import { changesSince, displayPath } from '../git'
 import { decide } from '../permissions/policy'
+import { canOfferAlwaysAllow, decideByLevel } from '../permissions/levels'
 import { floorCheck, type FloorScope } from '../permissions/floor'
 import { permissionFromTool } from './permissions'
 import { LUNA_CONFIRM_TOOLS, LUNA_SERVER } from '../luna-tools'
@@ -49,6 +50,7 @@ export function lenientRealpath(p: string): string {
 /** Permissions (asking the player, decisions) and results, shared by office and terminal agents. */
 export abstract class AgentDecisions extends AgentSubagents {
   private readonly changesSettled = new Map<string, Promise<void>>()
+
   protected askPlayer(
     agent: Agent,
     tool: string,
@@ -96,16 +98,19 @@ export abstract class AgentDecisions extends AgentSubagents {
       rules: project?.alwaysAllow,
       ...floorScope,
     }
-    const check = decide(s.permissionMode, tool, input, scope)
-    if (check.verdict === 'deny') return Promise.resolve({ behavior: 'deny', message: `Negado pelo escritório: ${check.why ?? 'ação proibida'}.` })
+    // O nível (AO-109) decide: o piso corre primeiro, e depois a regra de cada nível (1 a 5).
+    const lv = this.levelOf(agent, opts.agentID).level
+    const check = decideByLevel(lv, tool, input, scope)
+    if (check.verdict === 'deny')
+      return Promise.resolve({ behavior: 'deny', message: `Negado pelo escritório: ${check.why ?? 'ação proibida'}.` })
     if (check.verdict === 'allow' && !confirm) return Promise.resolve({ behavior: 'allow', updatedInput: input })
     // #101: Luna reads every project floor without asking, as the policy would in each folder. In
     // Automatic mode the same goes for what the policy allows there (edits, proven-safe commands).
     if (
       luna &&
       !confirm &&
-      (LUNA_READ_TOOLS.has(tool) || s.permissionMode === 'auto') &&
-      this.lunaRoots().some((cwd) => decide(s.permissionMode, tool, input, { ...scope, cwd }).verdict === 'allow')
+      LUNA_READ_TOOLS.has(tool) &&
+      this.lunaRoots().some((cwd) => decideByLevel(lv, tool, input, { ...scope, cwd }).verdict === 'allow')
     )
       return Promise.resolve({ behavior: 'allow', updatedInput: input })
     // Emi and her Goldfish reviewers read the EGM plugin's personas, standards and skills without
@@ -114,11 +119,12 @@ export abstract class AgentDecisions extends AgentSubagents {
       emi &&
       !confirm &&
       LUNA_READ_TOOLS.has(tool) &&
-      this.egmReadRoots().some((cwd) => decide(s.permissionMode, tool, input, { ...scope, cwd }).verdict === 'allow')
+      this.egmReadRoots().some((cwd) => decideByLevel(lv, tool, input, { ...scope, cwd }).verdict === 'allow')
     )
       return Promise.resolve({ behavior: 'allow', updatedInput: input })
     // O que pede é o risco classificado (o porquê da política), não a sugestão do CLI.
-    const canAlwaysAllow = !confirm && !!project && s.permissionMode !== 'plan' && decide('auto', tool, input, scope).verdict === 'allow'
+    // "Sempre permitir" (AO-109): só para leitura, nos níveis 2 e 3.
+    const canAlwaysAllow = !confirm && !!project && canOfferAlwaysAllow(lv, tool) && decide('auto', tool, input, scope).verdict === 'allow'
     const req = permissionFromTool(tool, input, check.why ?? opts.decisionReason, canAlwaysAllow)
     if (opts.agentID) req.subagent = this.subagentLabel(agent, opts.agentID)
     if (squad) req.context = this.squadContext(agent, squad, tool === 'AskUserQuestion')

@@ -19,6 +19,13 @@ export type AgentEngine = 'claude' | 'opencode'
 
 export type OfficePermissionMode = 'default' | 'acceptEdits' | 'auto' | 'plan'
 
+/**
+ * Nível de permissão (AO-109), do mais rígido ao mais livre: 1 somente leitura, 2 leitura e análise,
+ * 3 edição com cartão, 4 autônomo na própria worktree, 5 livre dentro das regras (publicar só pelo código).
+ * Campo opcional: dado salvo sem nível continua valendo pelo `permissionMode` (ver permissions/levels.ts).
+ */
+export type PermissionLevel = 1 | 2 | 3 | 4 | 5
+
 /** How hard the model thinks, as in /effort. Unset = the model's default. */
 export type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 export const EFFORT_LEVELS: readonly EffortLevel[] = ['low', 'medium', 'high', 'xhigh', 'max']
@@ -64,6 +71,8 @@ export interface AgentSummary {
   /** When "Limpar conversa" last ran: the panel shows only log entries from then on. The stored log stays. */
   clearedAt?: number
   permissionMode: OfficePermissionMode
+  /** AO-109: nível pedido; ausente = derivado do modo. O que vale em execução sai de `effectiveLevel`. */
+  permissionLevel?: PermissionLevel
   status: AgentStatus
   /** Short present-tense description of what the agent is doing ("Editando app.ts"). */
   activity: string
@@ -97,6 +106,12 @@ export interface AgentSummary {
   departed?: true
   /** AO-94: invited to stay at the house independently of the task/session lifecycle. */
   homeResident?: true
+  /** AO-109: contratado por outro agente (Luna agent_call, Emi agent_create): o nível nasce com teto 3. */
+  createdByAgent?: true
+  /** AO-109: agente de rotina: nível 1, 2 ou 4; sem worktree o 4 vira 2 (nunca 3, nunca 5). */
+  routineRun?: true
+  /** AO-109: teto do nível só durante a execução de uma rotina num agente existente; some ao terminar. */
+  runCap?: PermissionLevel
   /** Squad code, for orchestrators. */
   squad?: string
   /** Board ticket currently delivered to this office agent (or isolated squad cycle), if any. */
@@ -262,6 +277,8 @@ export interface HireRequest {
   effort?: EffortLevel
   accounts?: string[]
   permissionMode: OfficePermissionMode
+  /** AO-109: nível pedido (avulso vai até 4; criado por outro agente, até 3). */
+  permissionLevel?: PermissionLevel
   /** Set only after an explicit confirmation when selecting a more permissive project override. */
   confirmPermissionOverride?: boolean
   /** Work in an isolated copy (git worktree). Missing = yes when the folder is a git repo. */
@@ -270,6 +287,9 @@ export interface HireRequest {
   profile?: ProfileId
   /** #105: stays in the house after the task until the user sends it away. Set by the main process only. */
   homeResident?: boolean
+  /** AO-109: set by the main process only (agent_call, agent_create, routines). */
+  createdByAgent?: boolean
+  routine?: boolean
   /** Looks picked in a saved template; missing = drawn from the name. */
   look?: Look
 }

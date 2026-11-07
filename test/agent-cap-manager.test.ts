@@ -49,7 +49,7 @@ describe('cap central de hires e summons (AO-42)', () => {
     const first = sdk.calls[0]!.options
     // Sem vault configurado, a casa dela é a pasta de dados do Office.
     expect(first.cwd).toBe(store.dataDirectory)
-    expect(first.permissionMode).toBe('auto')
+    expect(first.permissionMode).toBe('default')
     expect(first.sessionId).toEqual(expect.any(String))
     expect((first.systemPrompt as { append: string }).append).toBe(`${LUNA_PROMPT}\n\n${ECONOMY_RULE}`)
     expect(Object.keys(first.mcpServers as object)).toEqual(expect.arrayContaining(['casa']))
@@ -79,7 +79,7 @@ describe('cap central de hires e summons (AO-42)', () => {
     manager.setBuiltInMessageHandler(handler)
 
     const luna = manager.list().find((agent) => agent.id === LUNA_AGENT_ID)
-    expect(luna).toMatchObject({ name: 'Luna', builtIn: 'luna', status: 'idle', permissionMode: 'auto' })
+    expect(luna).toMatchObject({ name: 'Luna', builtIn: 'luna', status: 'idle', permissionMode: 'default' })
     sdk.calls.length = 0
     await manager.sendMessage(LUNA_AGENT_ID, 'Ajude a organizar o dia')
     await vi.waitFor(() => expect(sdk.calls).toHaveLength(1))

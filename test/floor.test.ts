@@ -211,7 +211,9 @@ describe('modo "Sem pedir nada" removido', () => {
   it('o porteiro do piso está ligado nos hooks PreToolUse do agente', () => {
     const sdk = readFileSync(join(__dirname, '..', 'src', 'main', 'agents', 'sdk.ts'), 'utf8')
     expect(sdk).toMatch(/PreToolUse: \[this\.floorGuardHook\(\)/)
-    expect(sdk).toMatch(/permissionMode: runtimeMode\(s\.permissionMode\)/)
+    // AO-109 parte 2: o Claude recebe sempre `default`; o nível vive só no escritório.
+    expect(sdk).toMatch(/permissionMode: 'default'/)
+    expect(sdk).not.toMatch(/permissionMode: (runtimeMode|s\.permissionMode)/)
   })
 
   it('merge: nenhum código do app roda git merge nem gh pr merge', () => {

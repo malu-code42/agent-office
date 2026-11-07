@@ -315,7 +315,15 @@ export function registerSquadsIpc(ctx: IpcContext): void {
       createAgent: async (name, task) => {
         const project = floor()
         // Always the default mode, never the floor's: a hire without a card must not inherit a permissive mode.
-        const agent = await ctx.manager.hire({ name, cwd: project.cwd, task, ...defaultBrain(), permissionMode: 'default' })
+        const agent = await ctx.manager.hire({
+          name,
+          cwd: project.cwd,
+          task,
+          ...defaultBrain(),
+          permissionMode: 'default',
+          permissionLevel: 3,
+          createdByAgent: true,
+        })
         return `Agente ${agent.name} contratado no andar ${project.name}.`
       },
       // Only idle agents of this floor; names that match more than one agent are refused.

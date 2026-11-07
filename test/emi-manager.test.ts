@@ -75,7 +75,7 @@ describe('a Emi de cada andar', () => {
     await vi.waitFor(() => expect(sdk.calls).toHaveLength(1))
     const options = sdk.calls[0]!.options
     expect(options.cwd).toBe(p1.cwd)
-    expect(options.permissionMode).toBe('auto')
+    expect(options.permissionMode).toBe('default')
     expect((options.systemPrompt as { append: string }).append).toBe(`${emiPrompt(p1)}\n\n${ECONOMY_RULE}`)
     expect(Object.keys(options.mcpServers as object)).toEqual(['emi'])
     expect(manager.emiTools).toHaveBeenCalledWith('p1')

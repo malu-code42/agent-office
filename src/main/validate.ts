@@ -53,6 +53,7 @@ import type {
   TicketStatus,
 } from '@shared/types'
 import { isDir } from './squads'
+import { routineLevel } from './permissions/levels'
 import { SKILL_NAME_RE } from './agent-plugins'
 
 // Everything the renderer sends goes through here. The page runs sandboxed, but the
@@ -1101,6 +1102,7 @@ export const routineDraftSchema = z.object({
   cwd: pathSchema.optional(),
   floor: z.string().min(1).max(40).optional(),
   permissionMode: permissionModeSchema.optional(),
+  permissionLevel: z.number().int().min(1).max(5).optional().catch(undefined),
   confirmPermissionOverride: z.boolean().optional(),
   schedule: scheduleSchema,
   enabled: z.boolean().optional(),
@@ -1111,7 +1113,7 @@ export const routineDraftSchema = z.object({
 export type CleanRoutineDraft = Required<
   Pick<RoutineDraft, 'name' | 'prompt' | 'who' | 'permissionMode' | 'schedule' | 'enabled' | 'missed'>
 > &
-  Pick<RoutineDraft, 'id' | 'cwd' | 'floor'>
+  Pick<RoutineDraft, 'id' | 'cwd' | 'floor' | 'permissionLevel'>
 
 /**
  * A routine from the renderer. Throws a message the form can show: a name, a task, a
@@ -1160,6 +1162,8 @@ export function cleanRoutineDraft(
       (d.floor ? ctx.settings.projects.find((p) => p.id === d.floor)?.permissionMode : undefined) ??
       (d.cwd ? projectFor(ctx.settings.projects, d.cwd)?.permissionMode : undefined) ??
       ctx.settings.defaultPermissionMode,
+    // AO-109: padrão 2, teto 4, nunca 5 e nunca 3. Sem nível pedido, o padrão é 2 (o modo não o sobe).
+    permissionLevel: routineLevel(d.permissionLevel, d.permissionMode),
     schedule,
     enabled: d.enabled ?? true,
     missed: d.missed ?? 'run',

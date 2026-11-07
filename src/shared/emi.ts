@@ -26,6 +26,7 @@ export function emiAgentSummary(
     project: floor.id,
     // Automatic: the plan and squad tools still reach the confirmation card (EMI_CONFIRM_TOOLS), whatever the mode.
     permissionMode: 'auto',
+    permissionLevel: 5,
     status: 'idle',
     activity: 'Pronta para montar os squads',
     desk: -1,

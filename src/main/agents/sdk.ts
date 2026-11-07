@@ -20,7 +20,7 @@ import { findClaude } from '../claude-path'
 import { findSquad, memberAgents, teamGuard, validateSquad, type SquadDefinition } from '../squads'
 import { takeSnapshot } from '../git'
 import { floorCheck } from '../permissions/floor'
-import { runtimeMode } from '../permissions/policy'
+import { blockedToolsForLevel, effectiveLevel, type EffectiveLevel } from '../permissions/levels'
 import { InputQueue, kTokens, toMs, WRITE_TOOLS, type Agent, type Prompt } from './types'
 import { AgentOffice } from './office'
 import { officeAgentPrompt } from '../agent-prompt'
@@ -28,6 +28,29 @@ import { ECONOMY_PLUGINS, ECONOMY_RULE, missingEconomyPlugins } from '../token-e
 
 /** Runs on the Claude Agent SDK: starting the query and turning its messages into status, activity and log. */
 export abstract class AgentSdk extends AgentOffice {
+  /**
+   * O nível de permissão que vale agora para este agente (AO-109), com o rebaixamento sem worktree.
+   * `agentID` é o subagente que pede: o membro de squad com papel (revisor, analista…) usa o nível do papel.
+   */
+  protected levelOf(agent: Agent, agentID?: string): EffectiveLevel {
+    const s = agent.summary
+    const subs = s.subagents ?? []
+    const sub = agentID ? subs.find((x) => x.id === agentID) : undefined
+    const member = sub?.member ? agent.squad?.members.find((m) => m.id === sub.member) : undefined
+    return effectiveLevel({
+      level: s.permissionLevel,
+      mode: s.permissionMode,
+      hasWorktree: !!s.worktree,
+      builtIn: s.builtIn as 'luna' | 'emi' | 'bonnie' | undefined,
+      squad: !!agent.squad || s.role === 'orchestrator',
+      ticket: !!s.ticketId,
+      memberRole: member?.role,
+      createdByAgent: s.createdByAgent,
+      routine: s.routineRun || s.runCap !== undefined,
+      ...(s.runCap !== undefined ? { cap: s.runCap } : {}),
+    })
+  }
+
   protected run(agent: Agent, prompt: Prompt): void {
     const s = agent.summary
     agent.lastPrompt = prompt
@@ -126,6 +149,8 @@ export abstract class AgentSdk extends AgentOffice {
     const luna = s.builtIn === 'luna'
     const emiFloor = s.builtIn === 'emi' ? this.store.settings.projects.find((p) => p.id === s.project) : undefined
     const bonnie = s.builtIn === 'bonnie'
+    // AO-109: o que o nível não oferece nem chega a ser listado ao Claude (segunda parede, além do canUseTool).
+    const levelBlocked = blockedToolsForLevel(this.levelOf(agent).level)
     const before = s.account
     const paused = s.quotaPaused
     let account: ReturnType<NonNullable<typeof this.accounts>['get']>
@@ -185,8 +210,9 @@ export abstract class AgentSdk extends AgentOffice {
         model: s.model,
         effort: s.effort,
         pathToClaudeCodeExecutable: claude,
-        // O modo antigo "Sem pedir nada" (AO-109) nunca chega ao Claude: registro velho vira "Pedir permissão".
-        permissionMode: runtimeMode(s.permissionMode),
+        // AO-109: o Claude recebe SEMPRE `default`. O nível vive só no escritório (decideByLevel em askPlayer),
+        // então o classificador do modo `auto`, o `acceptEdits` e o bypass nunca decidem por cima do piso.
+        permissionMode: 'default',
         // Fontes de settings em arquivo ficam fechadas (modo isolado do SDK): regra
         // salva de fora não executa antes do canUseTool — quem decide aqui é o Office.
         settingSources: [],
@@ -208,7 +234,7 @@ export abstract class AgentSdk extends AgentOffice {
         ...(agent.started ? { resume: s.sessionId } : { sessionId: s.sessionId }),
         ...(luna ? { additionalDirectories: this.lunaRoots().filter((dir) => dir !== workDir) } : {}),
         // #75/#90: Bonnie talks through her study tools only; file, shell and web tools are not hers.
-        ...(bonnie ? { disallowedTools: [...BONNIE_BLOCKED_TOOLS] } : {}),
+        ...(bonnie ? { disallowedTools: [...BONNIE_BLOCKED_TOOLS] } : levelBlocked.length ? { disallowedTools: levelBlocked } : {}),
         systemPrompt: {
           type: 'preset',
           preset: 'claude_code',
