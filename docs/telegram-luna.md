@@ -36,7 +36,7 @@ Ligar e desligar vale na hora, sem reiniciar o app. A configuração persiste: a
 - Não faz merge, push ou qualquer comando de terminal: o piso de permissões do app continua valendo e a Luna do Telegram não tem ferramentas.
 - Não inicia tarefas de perfil nem abre rascunhos de mídia: só avisa para abrir o Agent Office.
 - Não atende grupos, canais, outros usuários, áudios, fotos ou arquivos.
-- Não confirma ações por código (por exemplo "responda SIM"). A confirmação no chat é só uma orientação ao modelo e pode falhar. Essa confirmação por código está planejada à parte (AO-109, parte 3).
+- Pedidos que podem apagar ou alterar algo exigem confirmação por código: o app responde com "SIM <código>" e só passa o pedido à Luna se o mesmo chat devolver exatamente esse código. A Luna do Telegram continua sem ferramentas, então a confirmação é uma camada a mais, não a única barreira (AO-109, parte 3).
 - Não funciona com o app fechado: não há serviço em segundo plano.
 - Não é criptografia de ponta a ponta: conversas com bots passam pelos servidores do Telegram.
 
