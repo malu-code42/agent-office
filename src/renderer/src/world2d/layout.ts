@@ -7,6 +7,7 @@ import { SQUAD_DESKS_PER_ROOM, SQUAD_MAX_MEMBERS, SQUAD_MIN_MEMBERS, SQUAD_ROOM_
 import { floorRooms } from '@shared/squad-rooms'
 import { AGENT_DESK_COUNT, memberKey, type DeskSlot, type Partition, type ProjectIssue, type ProjectPlan, type SquadRoom } from './plan'
 import { Grid } from './pathfinding'
+import { memberDeskOrder, stableOrder } from './desk-order'
 import type { Footprint } from './depth'
 import { headingOf, TILE, type Dir } from './iso'
 
@@ -206,7 +207,7 @@ export function projectPlan2d(
     })
   }
 
-  const used = rooms.map(() => 0)
+  const taken = rooms.map(() => new Set<number>())
   for (const [roomIndex, squad] of placed) {
     const room = rooms[roomIndex]
     if (!room) continue // floorRooms already keeps squads inside rooms.length; this is the last guard
@@ -226,17 +227,23 @@ export function projectPlan2d(
     }
     const seated = members.slice(0, capacity)
     room.members = seated.map((m) => memberKey(squad.code, m.id))
-    room.desks = seated.map((_, k) => deskSlot(memberDeskIndex(roomIndex, k), slots[k].desk, slots[k].seat))
-    used[roomIndex] = seated.length
+    // Any desk of the room, at random but always the same one for this squad (AO-106): the k-th member
+    // takes the k-th desk of the squad's own order, and the screen index names the desk, not the member.
+    const order = memberDeskOrder(capacity, `squad:${squad.code}`)
+    room.desks = seated.map((_, k) => deskSlot(memberDeskIndex(roomIndex, order[k]), slots[order[k]].desk, slots[order[k]].seat))
+    for (const s of order.slice(0, seated.length)) taken[roomIndex].add(s)
   }
 
-  // the desks no squad member takes, room by room, for the individual agents
-  const agentDesks: DeskSlot[] = []
-  rooms.forEach((_, r) =>
-    layout.rooms[r].slots.slice(used[r], SQUAD_DESKS_PER_ROOM).forEach((slot) => {
-      if (agentDesks.length < AGENT_DESK_COUNT) agentDesks.push(deskSlot(agentDesks.length, slot.desk, slot.seat))
-    }),
-  )
+  // The desks no squad member takes, for the individual agents: any free desk of any room, at random but
+  // stable (each desk ranks by its own place, so a desk taken by a squad does not reshuffle the others).
+  const free: { room: number; slot: number }[] = []
+  rooms.forEach((_, r) => {
+    const n = Math.min(layout.rooms[r].slots.length, SQUAD_DESKS_PER_ROOM)
+    for (let s = 0; s < n; s++) if (!taken[r].has(s)) free.push({ room: r, slot: s })
+  })
+  const agentDesks: DeskSlot[] = stableOrder(free, 'agentes', (f) => `${f.room}:${f.slot}`)
+    .slice(0, AGENT_DESK_COUNT)
+    .map((f, i) => deskSlot(i, layout.rooms[f.room].slots[f.slot].desk, layout.rooms[f.room].slots[f.slot].seat))
   const lounge = freeTiles(grid, layout.lounge.rect)
   const [ex, ez] = layout.elevator.tile
   const emi = layout.emi.seat
