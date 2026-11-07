@@ -13,11 +13,15 @@
 // - Cartões de permissão do app (commit, push, PR...) nunca são aprovados por aqui: a ponte só avisa "confirme no Agent Office".
 // - A regra única de commit/PR/merge continua em commit-rule.ts, já presente no prompt da Luna; a ponte não a altera.
 
+import { IRIS_REQUEST_MAX } from '@shared/iris'
 import { LUNA_TELEGRAM_RULE } from './luna-prompt'
 
 export const TELEGRAM_MAX_MESSAGE = 4096
-/** Mensagem recebida acima disso nem chega à Luna. */
-export const TELEGRAM_MAX_INCOMING = 4000
+/**
+ * Mensagem recebida acima disso nem chega à Luna. É o mesmo limite do pedido da Luna no app (AO-85): antes eram 4000 aqui e 2000 lá,
+ * e uma mensagem entre os dois passava pela ponte para só então falhar com a resposta genérica "A Luna não conseguiu concluir".
+ */
+export const TELEGRAM_MAX_INCOMING = IRIS_REQUEST_MAX
 /** Máximo de mensagens aceitas por chat dentro da janela; o excedente é descartado. */
 export const TELEGRAM_RATE_LIMIT = { max: 10, windowMs: 60_000 }
 /** Uma resposta gigante não vira uma enxurrada de mensagens. */
