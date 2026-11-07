@@ -10,6 +10,32 @@ export function roomCode(room: number): string {
   return `sala-${room + 1}`
 }
 
+const ROMAN: [number, string][] = [
+  [10, 'X'],
+  [9, 'IX'],
+  [5, 'V'],
+  [4, 'IV'],
+  [1, 'I'],
+]
+
+/** The numeral a room is called on screen: room 0 is "I" (the code keeps the number: "sala-1"). */
+export function roomNumeral(room: number): string {
+  let n = room + 1
+  let out = ''
+  for (const [value, glyph] of ROMAN) {
+    while (n >= value) {
+      out += glyph
+      n -= value
+    }
+  }
+  return out
+}
+
+/** The name of a room on screen: "Sala I" to "Sala IV". */
+export function roomTitle(room: number): string {
+  return `Sala ${roomNumeral(room)}`
+}
+
 /** The room a code names, when it is one of ours (the office creates them). */
 export function roomOfCode(code: string, count: number = SQUAD_ROOM_COUNT): number | undefined {
   const match = /^sala-(\d+)(?:-\d+)?$/.exec(code)

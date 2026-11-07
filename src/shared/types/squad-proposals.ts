@@ -27,10 +27,10 @@ export const SQUAD_ROLE_LABELS: Record<SquadRole, string> = {
 export const SQUAD_MIN_MEMBERS = 2
 /**
  * Member desks the art draws in every squad room (the coordinator has a desk of its own). The plan numbers
- * the desks of a room with this stride, so it is the one number that follows the art: 5 today, 9 with the
- * four-room floor (AO-106).
+ * the desks of a room with this stride, so it is the one number that follows the art: the 3 x 3 grid of the
+ * four L-shaped rooms of the floor (AO-106).
  */
-export const SQUAD_DESKS_PER_ROOM = 5
+export const SQUAD_DESKS_PER_ROOM = 9
 /** Ceiling of members of a squad: one per member desk. */
 export const SQUAD_MAX_MEMBERS = SQUAD_DESKS_PER_ROOM
 /**
@@ -40,8 +40,8 @@ export const SQUAD_MAX_MEMBERS = SQUAD_DESKS_PER_ROOM
 export const SQUAD_MAX_COMPOSED = Math.min(SQUAD_MAX_MEMBERS, SQUAD_ROLES.length)
 /** The name of a squad: it may not be empty and it is short (HANDOFF §3.4.2). */
 export const SQUAD_NAME_MAX = 60
-/** Squad rooms per project floor, and never more (ticket 04). The floor's art may draw fewer: the plan reads its own layout too. */
-export const SQUAD_ROOM_COUNT = 3
+/** Squad rooms per project floor, and never more (ticket 04): the four L-shaped rooms of the floor (AO-106). The art may draw fewer: the plan reads its own layout too. */
+export const SQUAD_ROOM_COUNT = 4
 /** Models a member may run on; '' = the default of Claude Code. */
 export const SQUAD_MODELS = ['', 'fable', 'opus', 'sonnet', 'haiku'] as const
 /** The label of each model, as the agent form shows them. */

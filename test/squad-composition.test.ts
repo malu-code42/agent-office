@@ -30,7 +30,7 @@ describe('parseComposition', () => {
   it('recusa uma equipe fora do tamanho da sala', () => {
     const one = [{ name: 'Maya', role: 'implementer' }]
     expect(() => parseComposition(answer(one), ctx)).toThrow(/sala/)
-    const many = Array.from({ length: 7 }, (_, i) => ({ name: `M${i}`, role: i === 0 ? 'implementer' : 'tester' }))
+    const many = Array.from({ length: SQUAD_MAX_MEMBERS + 1 }, (_, i) => ({ name: `M${i}`, role: i === 0 ? 'implementer' : 'tester' }))
     expect(() => parseComposition(answer(many), ctx)).toThrow(/sala/)
   })
 
@@ -238,7 +238,7 @@ describe('compositionPrompt', () => {
     const prompt = compositionPrompt({ cwd: '/tmp/projeto', brief: 'x', tickets: [], adjustments: [], ctx })
     expect(prompt).toContain(`${SQUAD_MIN_MEMBERS} to ${SQUAD_MAX_COMPOSED} members`)
     expect(prompt).toContain('never add a member or repeat a role just to fill a desk')
-    expect(prompt).not.toContain('2 to 6')
+    expect(prompt).not.toContain(`${SQUAD_MIN_MEMBERS} to ${SQUAD_MAX_MEMBERS} members`)
     expect(SQUAD_MAX_COMPOSED).toBeLessThanOrEqual(SQUAD_MAX_MEMBERS)
     expect(SQUAD_MAX_COMPOSED).toBeLessThanOrEqual(SQUAD_ROLES.length)
   })

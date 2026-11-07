@@ -153,7 +153,7 @@ describe('os canais de squad', () => {
   it('um nome vazio é recusado', async () => {
     const proposal = await propose('proposta-9')
     await expect(callHandler('office:renameSquadProposal', { id: proposal.id, name: '   ' })).rejects.toThrow()
-    expect(creation.get(proposal.id)?.name).toBe('Squad da Sala 1')
+    expect(creation.get(proposal.id)?.name).toBe('Squad da Sala I')
   })
 
   it('o ajuste leva o nome que a pessoa editou', async () => {

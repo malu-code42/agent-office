@@ -376,7 +376,7 @@ src/
     world2d/            o mundo em pixel art (Canvas2D); ver docs/specs/motor-2d.md
       renderer.ts       desenha o andar na tela: cache dos móveis, só os retângulos que mudaram
       avatar.ts         quem anda (jogador, agentes, ajudantes, membros): posição, pose, andar, Look
-      plan.ts           tipos da planta (mesas, salas de squad, coordenação, reunião)
+      plan.ts           tipos da planta (mesas, salas de squad, coordenação)
       layout.ts, casa.ts, estudos.ts  plantas dos andares a partir do layout exportado da arte
       pathfinding.ts    A* em 8 direções com paredes finas
       overlays.ts       crachás com nome e balões de fala (HTML sobre o canvas)

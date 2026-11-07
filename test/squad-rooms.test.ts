@@ -78,8 +78,8 @@ describe('as salas de um andar', () => {
   })
 
   it('quem não tem sala volta como issue, e some do mapa', () => {
-    const { rooms, without } = floorRooms([squad('sala-1'), squad('sala-2'), squad('sala-3'), squad('alfa')])
-    expect(rooms.size).toBe(3)
+    const { rooms, without } = floorRooms([squad('sala-1'), squad('sala-2'), squad('sala-3'), squad('sala-4'), squad('alfa')])
+    expect(rooms.size).toBe(4)
     expect(without.map((s) => s.code)).toEqual(['alfa'])
   })
 

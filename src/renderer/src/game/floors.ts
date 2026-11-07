@@ -86,7 +86,7 @@ export abstract class GameFloors extends GameBase {
       // What does not fit on this floor (more squads than rooms): the user has to know.
       let issueTag: Tag | null = null
       if (plan.issues.length) {
-        issueTag = this.overlays.add(new Tag(new Point3(5, 2.7, 4), '', false))
+        issueTag = this.overlays.add(new Tag(new Point3(plan.elevator.point.x, 2.7, 3.5), '', false))
         issueTag.el.classList.add('tag-issue')
         issueTag.setDot('error')
       }
