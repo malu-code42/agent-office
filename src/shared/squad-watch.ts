@@ -283,6 +283,29 @@ export function nextRequest(list: readonly SquadRequest[], afterId?: string): Sq
   return list[i + 1]
 }
 
+/** O que "Responder em sequência" faz depois que a pessoa mexeu no cartão atual. */
+export type SequenceStep =
+  /** A atual continua pendente: espera (ou a pessoa fechou o cartão sem responder). */
+  | { type: 'wait' }
+  /** A atual foi respondida: abre a mais antiga que sobrou na lista do filtro/grupo. */
+  | { type: 'open'; next: SquadRequest }
+  /** Respondida e não sobrou nada: a sequência acaba. */
+  | { type: 'done' }
+
+export function sequenceStep(list: readonly SquadRequest[], currentId: string): SequenceStep {
+  if (list.some((r) => r.id === currentId)) return { type: 'wait' }
+  const next = nextRequest(list)
+  return next ? { type: 'open', next } : { type: 'done' }
+}
+
+/** Quantos cartões cabem na lista que rola do detalhe do squad antes de precisar rolar. */
+export const DETAIL_VISIBLE = 6
+
+/** "Mostrando 6 de 9": o que aparece sem rolar (já com o filtro) sobre o total do squad. */
+export function requestCounter(filtered: number, total: number, visible = DETAIL_VISIBLE): string {
+  return `Mostrando ${Math.min(filtered, visible)} de ${total}`
+}
+
 export interface OverviewGroup {
   code: string
   name: string

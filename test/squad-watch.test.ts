@@ -9,6 +9,8 @@ import {
   formatTokens,
   nextRequest,
   overviewGroups,
+  requestCounter,
+  sequenceStep,
   squadDetail,
   type WatchSource,
 } from '@shared/squad-watch'
@@ -309,6 +311,35 @@ describe('visão geral agrupada', () => {
     )
     expect(overviewGroups(w, 'result', new Set()).map((g) => g.shown.map((r) => r.kind))).toEqual([['result']])
     expect(overviewGroups(w, 'error', new Set())).toEqual([])
+  })
+})
+
+describe('sequência e contador da lista', () => {
+  const list = () =>
+    buildWatch(
+      source({
+        squads: [squad('a')],
+        agents: [boss('a')],
+        permissions: [perm('p1', 'o-a', 1), perm('p2', 'o-a', 2), perm('p3', 'o-a', 3)],
+      }),
+    ).requestsByCode.get('a')!
+  it('espera enquanto a atual continua pendente', () => {
+    const l = list()
+    expect(sequenceStep(l, l[0].id)).toEqual({ type: 'wait' })
+  })
+  it('respondida a atual, abre a mais antiga que sobrou (a próxima sobe sozinha)', () => {
+    const l = list()
+    const rest = l.slice(1)
+    expect(sequenceStep(rest, l[0].id)).toEqual({ type: 'open', next: rest[0] })
+  })
+  it('não sobrou nada: a sequência acaba', () => {
+    expect(sequenceStep([], 'x')).toEqual({ type: 'done' })
+  })
+  it('o contador mostra o que aparece sem rolar sobre o total do squad', () => {
+    expect(requestCounter(9, 9)).toBe('Mostrando 6 de 9')
+    expect(requestCounter(2, 9)).toBe('Mostrando 2 de 9')
+    expect(requestCounter(0, 0)).toBe('Mostrando 0 de 0')
+    expect(requestCounter(9, 9, 4)).toBe('Mostrando 4 de 9')
   })
 })
 

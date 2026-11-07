@@ -7,7 +7,9 @@ import {
   formatTokens,
   nextRequest,
   overviewGroups,
+  requestCounter,
   REQUEST_KIND_LABELS,
+  sequenceStep,
   SQUAD_STATE_LABELS,
   squadDetail,
   type LogFilter,
@@ -219,17 +221,17 @@ export function openSquadWatch(root: HTMLElement, state: State, project: Project
   const advanceSequence = () => {
     if (!sequence) return
     const seq = sequence
-    const list = seq.scope()
-    if (list.some((r) => r.id === seq.current)) {
+    const step = sequenceStep(seq.scope(), seq.current)
+    if (step.type === 'wait') {
       // Ainda pendente: a pessoa fechou o cartão sem responder.
       if (!document.querySelector('.dialog:not(.hidden)')) sequence = null
       return
     }
-    const next = nextRequest(list)
-    if (!next) {
+    if (step.type === 'done') {
       sequence = null
       return
     }
+    const next = step.next
     seq.current = next.id
     clearTimeout(sequenceTimer)
     // Deixa o cartão anterior terminar de fechar.
@@ -347,7 +349,7 @@ export function openSquadWatch(root: HTMLElement, state: State, project: Project
                 render()
               },
             },
-            `Ver as outras ${g.hidden} de ${g.name}`,
+            `Ver as outras ${g.hidden} da ${g.name}`,
             h('i', {}, '›'),
           ),
         )
@@ -429,7 +431,7 @@ export function openSquadWatch(root: HTMLElement, state: State, project: Project
             'div',
             { class: 'sw-sec' },
             h('span', {}, `TODAS AS SOLICITAÇÕES (${all.length})`),
-            h('span', {}, 'por squad · mais antigas primeiro'),
+            h('span', {}, 'agrupadas por squad · mais antigas primeiro'),
           ),
           kindChips(all),
           h('div', { class: 'sw-list', 'data-scroll': 'list' }, ...list),
@@ -453,7 +455,7 @@ export function openSquadWatch(root: HTMLElement, state: State, project: Project
         h(
           'span',
           {},
-          'Cada squad mostra as 3 mais antigas; "Ver as outras" abre o resto. Clique num cartão para responder do mesmo jeito que com o agente.',
+          'Cada squad mostra as 3 mais antigas; "Ver as outras" abre o resto. Ao responder uma, a próxima do grupo sobe sozinha.',
         ),
         h(
           'button',
@@ -657,7 +659,7 @@ export function openSquadWatch(root: HTMLElement, state: State, project: Project
         h(
           'span',
           {},
-          `Mostrando ${list.length} de ${d.requests.length}. Role a lista ou filtre por tipo. Ao responder uma, a próxima sobe sozinha.`,
+          `${requestCounter(list.length, d.requests.length)}. Role a lista ou filtre por tipo. Ao responder uma, a próxima sobe sozinha.`,
         ),
         h(
           'button',
