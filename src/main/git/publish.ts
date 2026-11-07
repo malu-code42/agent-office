@@ -154,6 +154,27 @@ export async function pullRequestRemoteIdentityForRepo(root: string): Promise<{ 
   return { host, repository }
 }
 
+/** What GitHub says about a PR. Anything else (no gh, no network, unknown value) is null: the caller changes nothing. */
+export type PullRequestState = 'OPEN' | 'MERGED' | 'CLOSED'
+
+/**
+ * AO-58: the state of one PR of this repository, read with `gh pr view`. The URL must be a PR of the repository's
+ * own remote (the same check as everywhere else); a closed PR that was not merged is CLOSED, not MERGED.
+ */
+export async function pullRequestState(root: string, url: string): Promise<PullRequestState | null> {
+  const { host, repository } = await selectedRemote(root)
+  if (!isPullRequestUrl(url, host, repository)) return null
+  const gh = findOnPath(['gh'])
+  if (!gh) return null
+  const out = await run(gh, ['pr', 'view', url, '--json=state'], root, { timeout: 30_000 }, await safeGitEnv(root))
+  try {
+    const state = (JSON.parse(out) as { state?: unknown }).state
+    return state === 'OPEN' || state === 'MERGED' || state === 'CLOSED' ? state : null
+  } catch {
+    return null
+  }
+}
+
 async function selectedRemote(root: string): Promise<{ remote: string; host: string; repository: string }> {
   const remotes = (await git(root, ['remote'])).split('\n').map((r) => r.trim()).filter(Boolean)
   const remote = remotes.includes('origin') ? 'origin' : remotes[0]

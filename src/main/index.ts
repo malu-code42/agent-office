@@ -47,6 +47,7 @@ import {
   pullRequestForBranch,
   pullRequestRemoteIdentity,
   pullRequestRemoteIdentityForRepo,
+  pullRequestState,
   worktreeState,
 } from './git'
 import { publishSquadTicket, publishThenStartNext, SquadPublicationGate } from './squad-ticket-lifecycle'
@@ -362,6 +363,11 @@ app
     creation.on('proposals', (proposals) => broadcast({ type: 'squadProposals', proposals }))
     creation.on('queues', (queues) => broadcast({ type: 'squadQueues', queues }))
     await creation.verifyPendingPRs(pullRequestRemoteIdentityForRepo)
+    // AO-58: a PR merged on GitHub takes its ticket out of the Caixa de entrada (and to done); checked now and every 10 minutes.
+    const dropMergedPRs = () =>
+      creation.reconcileMergedPRs(pullRequestState).catch((err) => log.warn(`Não consegui conferir os PRs mesclados: ${err instanceof Error ? err.message : String(err)}`))
+    void dropMergedPRs()
+    setInterval(() => void dropMergedPRs(), 10 * 60_000).unref()
 
     const publishing = new SquadPublicationGate()
     const startActiveSquadTicket = async (code: string): Promise<void> => {
