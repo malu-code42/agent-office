@@ -296,16 +296,30 @@ export class Dialog {
     this.frame(agent, 'veio pedir sua permissão', body, buttons, 'wait')
   }
 
-  /** AO-101: one question as numbered steps; several as a sequence with review (question-card.ts). */
+  /** The "2 de 4" counter and the line under the agent name, in the header of the question popup. */
+  private setHeading(subtitle: string, count: string): void {
+    const sub = this.el.querySelector('.dialog-sub')
+    if (sub) sub.textContent = subtitle
+    let badge = this.el.querySelector('.dialog-count')
+    if (!count) return badge?.remove()
+    if (!badge) {
+      badge = h('span', { class: 'dialog-count' })
+      this.el.querySelector('.dialog-head')?.insertBefore(badge, this.el.querySelector('.dialog-head .icon-btn'))
+    }
+    badge.textContent = count
+  }
+
+  /** AO-101: one question, or several as a sequence with review (question-card.ts); the card draws its own footer. */
   private showQuestion(agent: AgentSummary, p: PermissionRequest): void {
-    const card = questionCard(p.questions ?? [], {
+    const card = questionCard(p.questions ?? [], agent.name, {
       submit: (answers) => this.decide({ requestId: p.id, behavior: 'allow', answers }),
-      dismiss: () => this.decide({ requestId: p.id, behavior: 'deny', message: 'O usuário preferiu não responder.' }),
       toast: (text, kind) => this.actions.toast(text, kind),
       described: (el) => this.el.setAttribute('aria-describedby', idOf(el)),
+      heading: (subtitle, count) => this.setHeading(subtitle, count),
     })
     this.keys = { allow: card.onEnter }
     this.frame(agent, card.subtitle, [card.body], card.buttons, 'wait')
+    this.setHeading(card.subtitle, card.count)
     this.el.classList.toggle('dialog-wide', card.wide)
     this.el.setAttribute('aria-describedby', idOf(card.body.querySelector<HTMLElement>('.q-ask') ?? card.body))
   }

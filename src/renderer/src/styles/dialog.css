@@ -149,54 +149,16 @@
   font-family: var(--font);
 }
 
-.q-steps {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.q-step {
-  display: flex;
-  gap: 12px;
-}
-
-.q-step-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.q-num {
-  flex: none;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--surface-3);
-  border: 2px solid var(--outline);
-  color: var(--muted);
-  font: 500 13px var(--mono);
-}
-
-.q-num-on {
-  background: var(--accent-solid);
-  color: var(--on-accent);
-}
-
 .q-step-name {
   display: flex;
   align-items: center;
   gap: 8px;
   margin: 0;
   font-family: var(--font);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--muted);
 }
 
@@ -205,7 +167,7 @@
 }
 
 .q-context {
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.55;
   display: flex;
   flex-direction: column;
@@ -239,7 +201,7 @@
 }
 
 .q-ask:focus-visible,
-.q-seq-title:focus-visible {
+.q-note:focus-visible {
   outline: 2px solid var(--accent-hi);
   outline-offset: 2px;
 }
@@ -344,23 +306,6 @@
 }
 
 /* sequência de perguntas */
-.q-seq-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.q-seq-title {
-  margin: 0;
-  font-size: 17px;
-}
-
-.q-seq-count {
-  font: 500 13px var(--mono);
-  color: var(--muted);
-}
-
 .q-stepper {
   list-style: none;
   margin: 0;
@@ -369,12 +314,21 @@
   gap: 6px;
 }
 
+.q-stp-li {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
 .q-stp {
   display: flex;
   align-items: center;
   gap: 8px;
   flex: 1;
   min-width: 0;
+  color: inherit;
+  text-align: left;
+  font-family: var(--font);
   min-height: 44px;
   padding: 0 12px;
   background: var(--surface-3);
@@ -505,4 +459,13 @@
   margin-right: 10px;
   min-height: 44px;
   font-size: 13px;
+}
+
+.dialog-count {
+  font: 500 13px var(--mono);
+  color: var(--muted);
+}
+
+.q-help {
+  text-align: left;
 }

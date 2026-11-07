@@ -83,6 +83,13 @@ export function goBack(f: FlowState): FlowState {
   return { ...f, index: f.index - 1 }
 }
 
+/** Click on a step of the list: opens that question from anywhere (also from the review, which then comes back to it). */
+export function jump(f: FlowState, i: number): FlowState {
+  if (i < 0 || i >= f.answers.length) return f
+  if (!f.reviewing && i === f.index) return f
+  return { ...f, reviewing: false, index: i, fromReview: f.reviewing || f.fromReview }
+}
+
 /** "Editar" in the review. */
 export function edit(f: FlowState, i: number): FlowState {
   if (i < 0 || i >= f.answers.length) return f
@@ -103,4 +110,44 @@ export function buildAnswers(questions: FlowQuestion[], f: FlowState): Record<st
   const result: Record<string, string> = {}
   questions.forEach((q, i) => (result[q.question] = answerText(f, i)))
   return result
+}
+
+/** Footer of a sequence: "1 respondida · 3 faltam". */
+export function progressText(f: FlowState): string {
+  const total = f.answers.length
+  const done = answeredCount(f)
+  const left = total - done
+  return `${done} respondida${done === 1 ? '' : 's'} · ${left} ${left === 1 ? 'falta' : 'faltam'}`
+}
+
+/** Header counter of a sequence: "2 de 4"; the review is "4 de 4". Empty for a single question. */
+export function positionText(f: FlowState): string {
+  const total = f.answers.length
+  if (total < 2) return ''
+  return `${f.reviewing ? total : f.index + 1} de ${total}`
+}
+
+/** Spoken state of a step of the list. */
+export function stepState(f: FlowState, i: number): 'pergunta atual' | 'respondida' | 'ainda sem resposta' {
+  if (!f.reviewing && i === f.index) return 'pergunta atual'
+  return isAnswered(f, i) ? 'respondida' : 'ainda sem resposta'
+}
+
+/** Help text of the footer of a single question. */
+export function helpText(multiSelect: boolean): string {
+  return multiSelect ? 'Escolha uma ou mais respostas, ou escreva a sua.' : 'Escolha uma resposta ou escreva a sua.'
+}
+
+/** The question line of the review: a multiple choice says how many marks it has ("marcou 2"). */
+export function reviewQuestion(q: FlowQuestion, f: FlowState, i: number): string {
+  const n = f.answers[i]?.chosen.length ?? 0
+  return q.multiSelect && n > 1 ? `${q.question} (marcou ${n})` : q.question
+}
+
+/** The answer line of the review: parts separated by " · " (the agent still gets answerText). */
+export function reviewAnswer(f: FlowState, i: number): string {
+  const a = f.answers[i]
+  if (!a) return ''
+  const extra = a.other.trim()
+  return [...a.chosen, ...(extra ? [extra] : [])].join(' · ')
 }
