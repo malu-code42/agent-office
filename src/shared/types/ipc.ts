@@ -44,7 +44,7 @@ import type { StudyBankJob, StudyBankRequest } from '../study-bank'
 import type { StudyReadiness } from '../study-readiness'
 import type { StudyTrail } from '../study-trail'
 import type { StudySubtopics } from '../study-outline'
-import type { StudyIdeaSet } from '../study-ideas'
+import type { StudyProject, StudyProjectStatus } from '../study-ideas'
 import type { ClassScheduleView } from '../class-schedule'
 import type { StudyLibrarySearch, StudySourceInventory } from '../study-library'
 import type { StudySourceRecommendations } from '../study-sources'
@@ -352,14 +352,16 @@ export interface OfficeAPI {
   readStudySubtopics(): Promise<Record<string, StudySubtopics>>
   /** Builds (or rebuilds) a trail topic's subtopics from its book's table of contents. */
   buildStudySubtopics(topic: string): Promise<StudySubtopics>
-  /** Ideias de software já geradas, por tópico estudado. */
-  readStudyIdeas(): Promise<Record<string, StudyIdeaSet>>
-  /** Gera (ou refaz) as ideias de software de um tópico estudado e as guarda. */
-  generateStudyIdeas(topic: string): Promise<StudyIdeaSet>
-  /** Gera a especificação passo a passo de um projeto guardado (tópico, título) e a guarda junto dele. */
-  generateStudySpec(topic: string, title: string): Promise<StudyIdeaSet>
+  /** Projetos de software já gerados (AO-34), com estado e tópicos usados. */
+  readStudyProjects(): Promise<StudyProject[]>
+  /** Gera projetos que cobrem os tópicos estudados (no máximo MAX_TOPICS_PER_REQUEST); guarda sem apagar os anteriores. */
+  generateStudyProjects(topics: string[]): Promise<{ projects: StudyProject[]; skipped: { topic: string; reason: string }[] }>
+  setStudyProjectStatus(id: string, status: StudyProjectStatus): Promise<StudyProject[]>
+  deleteStudyProject(id: string): Promise<StudyProject[]>
+  /** Gera a especificação passo a passo de um projeto guardado e a guarda junto dele. */
+  generateStudySpec(id: string): Promise<StudyProject[]>
   /** Exporta a especificação como .md numa pasta escolhida; devolve o caminho, ou null se cancelou. */
-  exportStudySpec(topic: string, title: string): Promise<string | null>
+  exportStudySpec(id: string): Promise<string | null>
   /** Volta a um ciclo guardado no histórico (troca de tópico), sem apagar nada do ciclo ativo. */
   resumeStudyCycle(cycleId: string): Promise<StudyCycleState>
   deleteStudyCycle(cycleId: string): Promise<StudyCycleState>

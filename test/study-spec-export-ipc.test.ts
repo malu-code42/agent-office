@@ -28,6 +28,7 @@ const { registerTasksIpc } = await import('../src/main/ipc/tasks')
 const invoke = (channel: string, ...args: unknown[]) => ipc.handlers.get(channel)!(undefined, ...args)
 
 const TITLE = 'Simulador de Circuitos'
+const ID = `sp-${(1).toString(36)}-1`
 const MD = '# Especificação: Simulador de Circuitos\n\n## 1. Objetivo\n\ntexto\n'
 let data: string
 let target: string
@@ -48,14 +49,14 @@ afterEach(() => {
 
 function seed(withSpec: boolean): void {
   const store = new StudyIdeaStore(data)
-  store.save({ topic: 'Circuitos', generatedAt: 1, ideas: [{ title: TITLE, description: 'Simula.' }] })
-  if (withSpec) store.saveSpec('Circuitos', TITLE, { generatedAt: 2, markdown: MD })
+  store.add([{ title: TITLE, description: 'Simula.', topics: ['Circuitos'] }], 0, 'motivo', 1)
+  if (withSpec) store.saveSpec(ID, { generatedAt: 2, markdown: MD })
 }
 
 describe('office:exportStudySpec (AO-36)', () => {
   it('grava o .md com o texto da spec na pasta escolhida e devolve o caminho', async () => {
     seed(true)
-    const file = (await invoke('office:exportStudySpec', 'Circuitos', TITLE)) as string
+    const file = (await invoke('office:exportStudySpec', ID)) as string
     expect(file).toBe(join(target, specFileName(TITLE)))
     expect(readFileSync(file, 'utf8')).toBe(MD)
     expect(ipc.dialog).toHaveBeenCalledTimes(1)
@@ -66,9 +67,9 @@ describe('office:exportStudySpec (AO-36)', () => {
     seed(true)
     const base = specFileName(TITLE).replace(/\.md$/, '')
     writeFileSync(join(target, `${base}.md`), 'da usuária')
-    const second = (await invoke('office:exportStudySpec', 'Circuitos', TITLE)) as string
+    const second = (await invoke('office:exportStudySpec', ID)) as string
     expect(second).toBe(join(target, `${base}-2.md`))
-    const third = (await invoke('office:exportStudySpec', 'Circuitos', TITLE)) as string
+    const third = (await invoke('office:exportStudySpec', ID)) as string
     expect(third).toBe(join(target, `${base}-3.md`))
     expect(readFileSync(join(target, `${base}.md`), 'utf8')).toBe('da usuária')
     expect(readFileSync(second, 'utf8')).toBe(MD)
@@ -78,23 +79,23 @@ describe('office:exportStudySpec (AO-36)', () => {
   it('cancelar o diálogo devolve null e não grava nada', async () => {
     seed(true)
     ipc.canceled = true
-    expect(await invoke('office:exportStudySpec', 'Circuitos', TITLE)).toBeNull()
+    expect(await invoke('office:exportStudySpec', ID)).toBeNull()
     ipc.canceled = false
     ipc.folder = null
-    expect(await invoke('office:exportStudySpec', 'Circuitos', TITLE)).toBeNull()
+    expect(await invoke('office:exportStudySpec', ID)).toBeNull()
     expect(readdirSync(target)).toEqual([])
   })
 
   it('sem spec gerada dá erro claro e nem abre o diálogo', async () => {
     seed(false)
-    await expect(invoke('office:exportStudySpec', 'Circuitos', TITLE)).rejects.toThrow('Gere a especificação antes de exportar.')
+    await expect(invoke('office:exportStudySpec', ID)).rejects.toThrow('Gere a especificação antes de exportar.')
     expect(ipc.dialog).not.toHaveBeenCalled()
     expect(readdirSync(target)).toEqual([])
   })
 
   it('projeto que não está mais guardado dá erro e não grava', async () => {
     seed(true)
-    await expect(invoke('office:exportStudySpec', 'Circuitos', 'Outro projeto')).rejects.toThrow('Esse projeto não está mais guardado.')
+    await expect(invoke('office:exportStudySpec', 'sp-inexistente')).rejects.toThrow('Esse projeto não está mais guardado.')
     expect(existsSync(join(target, specFileName('Outro projeto')))).toBe(false)
   })
 })

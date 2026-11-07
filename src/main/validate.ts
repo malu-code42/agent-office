@@ -261,7 +261,11 @@ export const evaluateStudyAnswerArgsSchema = z.tuple([studyBankQuestionIdSchema]
 export const advanceStudyCycleArgsSchema = z.tuple([])
 export const resetStudyCycleArgsSchema = z.tuple([])
 export const studySubtopicsArgsSchema = z.tuple([z.string().trim().min(1).max(200)])
-export const studySpecArgsSchema = z.tuple([z.string().trim().min(1).max(200), z.string().trim().min(1).max(200)])
+/** Pedido de projetos (AO-34): os tópicos vêm da janela; o limite por pedido é conferido em generateProjects, com mensagem clara. */
+export const generateStudyProjectsArgsSchema = z.tuple([z.array(z.string().trim().min(1).max(200)).min(1).max(500)])
+export const studyProjectIdSchema = z.string().regex(/^sp-[a-z0-9-]{1,60}$/)
+export const studyProjectArgsSchema = z.tuple([studyProjectIdSchema])
+export const setStudyProjectStatusArgsSchema = z.tuple([studyProjectIdSchema, z.enum(['ideia', 'escolhido', 'feito'])])
 export const resumeStudyCycleArgsSchema = z.tuple([z.string().regex(/^sc-\d{1,16}-[a-z0-9]{1,16}$/)])
 export const deleteStudyQuestionsArgsSchema = z.tuple([z.array(studyBankQuestionIdSchema).min(1).max(1000)])
 export const reviewStudyGapArgsSchema = z.tuple([
