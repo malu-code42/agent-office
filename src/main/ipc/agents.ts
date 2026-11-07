@@ -17,9 +17,13 @@ import {
   permissionModeSchema,
   subagentLogArgsSchema,
   setHomeResidentArgsSchema,
+  setPermissionLevelsArgsSchema,
   homeResidentSchema,
 } from '../validate'
 import { projectFor } from '@shared/projects'
+import type { LevelChange, LevelsSnapshot } from '@shared/permission-levels'
+import { applyLevelChanges, levelRows } from '../permissions/screen'
+import { normalizeGithubAccounts } from '../git/owner-gate'
 import { confirmPermissionOverride, id, type IpcContext } from './context'
 
 /** Agents: hire, summon, talk to them, answer permissions and ack results. */
@@ -80,6 +84,17 @@ export function registerAgentsIpc(ctx: IpcContext): void {
       )
     },
   )
+  // AO-109, parte 4: a tela "Níveis de permissão". SÓ a usuária muda um nível: este canal vem da janela, e nenhuma
+  // ferramenta de agente (Luna, Emi, Bonnie, MCP da casa) chama `setPermissionLevel`. Nível inválido recusa o lote todo.
+  ipcMain.handle(
+    'office:permissionLevels',
+    (): LevelsSnapshot => ({ rows: levelRows(manager.list()), githubAccounts: normalizeGithubAccounts(store.settings.githubAccounts) }),
+  )
+  ipcMain.handle('office:setPermissionLevels', (_e, ...args: unknown[]) => {
+    const [changes] = parse(setPermissionLevelsArgsSchema, args, 'Nível inválido: escolha de 1 a 5.')
+    applyLevelChanges(manager, changes as LevelChange[], store.settings.githubAccounts)
+    return { rows: levelRows(manager.list()), githubAccounts: normalizeGithubAccounts(store.settings.githubAccounts) } satisfies LevelsSnapshot
+  })
   ipcMain.handle('office:setHomeResident', (_e, ...args: unknown[]) => {
     const [agentId, resident] = parse(setHomeResidentArgsSchema, args, 'Presença inválida.')
     manager.setHomeResident(agentId, resident)

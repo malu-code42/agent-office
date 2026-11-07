@@ -15,6 +15,8 @@ import { cleanError, field, modal } from './common'
 import { brainFields, meterField, modeOptions, MODES } from './brain'
 import { brandFields } from './brand'
 import { openProfileMemories } from './profile-memory'
+import { openPermissionLevels } from './levels'
+import { LEVEL_TEXT } from '@shared/permission-levels'
 
 // Configurações: player, defaults, floors, accounts, data, video and the terminal bridge.
 
@@ -569,6 +571,18 @@ export function openSettings(
           'div',
           { class: 'bridge-row' },
           h('button', { class: 'btn', type: 'button', onclick: () => openAccounts(root, state, toast) }, 'Gerenciar contas'),
+        ),
+      ),
+      // AO-109, parte 4: os cinco níveis de permissão por agente.
+      h(
+        'div',
+        { class: 'bridge-box' },
+        h('div', { class: 'bridge-title' }, icon('check', 16), LEVEL_TEXT.windowTitle),
+        h('div', { class: 'field-hint' }, LEVEL_TEXT.settingsHint),
+        h(
+          'div',
+          { class: 'bridge-row' },
+          h('button', { class: 'btn', type: 'button', onclick: () => openPermissionLevels(root, toast) }, LEVEL_TEXT.settingsButton),
         ),
       ),
       // Luna's own model, effort and look (it was the "Preferências" button of her panel).

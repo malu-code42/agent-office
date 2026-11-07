@@ -1,6 +1,7 @@
 // What crosses the IPC bridge: the full state, the events and window.office.
 
 import type { AccountStatus, PlanUsage } from './accounts'
+import type { LevelChange, LevelsSnapshot } from '../permission-levels'
 import type {
   AgentBrain,
   AgentSummary,
@@ -534,6 +535,10 @@ export interface OfficeAPI {
     engine?: 'claude',
     homeResident?: boolean,
   ): Promise<AgentSummary>
+  /** AO-109, parte 4: os agentes com o nível que vale agora, e a lista de contas do GitHub autorizadas. */
+  permissionLevels(): Promise<LevelsSnapshot>
+  /** AO-109, parte 4: a usuária grava níveis (null tira o salvo). Recusa nível inválido, nível fixo e o 5 sem a conta do dono. */
+  setPermissionLevels(changes: LevelChange[]): Promise<LevelsSnapshot>
   /** Ends only an agent's presence at the house; its session and history remain untouched. */
   setHomeResident(agentId: string, resident: boolean): Promise<void>
   send(agentId: string, text: string, attachments?: AttachmentInput[]): Promise<void>
