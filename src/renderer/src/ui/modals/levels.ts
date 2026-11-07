@@ -151,7 +151,7 @@ export function openPermissionLevels(root: HTMLElement, toast: Toast): void {
             else pending.set(row.id, l)
             render()
           },
-          (l) => row.fixed || (l === 5 && !ownerListed()),
+          (l) => l === 5 && !ownerListed(),
         ),
         ...row.warnings.map((w) => h('div', { class: 'nv-warn', role: 'status' }, w)),
       )

@@ -20,8 +20,7 @@ const NO_WORKTREE = 'Sem worktree, este agente vale como nível 3 (ou 2 numa rot
 
 /** Avisos de uma linha, nas palavras do design aprovado. */
 export function warningsFor(row: Pick<LevelRow, 'hasWorktree' | 'createdByAgent' | 'requested' | 'level' | 'note' | 'fixed'>): string[] {
-  if (row.fixed) return [LEVEL_TEXT.fixed]
-  const out: string[] = []
+  const out: string[] = row.fixed ? [LEVEL_TEXT.fixed] : []
   if (row.requested >= 4 && !row.hasWorktree) out.push(NO_WORKTREE)
   if (row.createdByAgent && row.requested > 3) out.push('Agente criado por outro agente vale no máximo como nível 3.')
   if (!out.length && row.note && row.level < row.requested) out.push(row.note)
@@ -32,6 +31,7 @@ export function levelRow(a: AgentSummary): LevelRow {
   const fixed = isFixedLevel(a)
   const eff = effectiveLevel({
     level: a.permissionLevel,
+    chosen: a.chosenLevel,
     mode: a.permissionMode,
     hasWorktree: !!a.worktree,
     builtIn: a.builtIn,
@@ -41,7 +41,7 @@ export function levelRow(a: AgentSummary): LevelRow {
     routine: !!a.routineRun || a.runCap !== undefined,
     ...(a.runCap !== undefined ? { cap: a.runCap } : {}),
   })
-  const stored = cleanLevel(a.permissionLevel)
+  const stored = cleanLevel(fixed ? a.chosenLevel : a.permissionLevel)
   const base = {
     id: a.id,
     name: a.name,
@@ -85,7 +85,6 @@ export function applyLevelChanges(manager: LevelManager, changes: readonly Level
   for (const c of changes) {
     const a = byId.get(c.id)
     if (!a || a.source !== 'office') throw new Error('Esse agente não está mais no escritório.')
-    if (isFixedLevel(a)) throw new Error(`${a.name}: ${LEVEL_TEXT.fixed}`)
     if (c.level !== null) {
       if (!PERMISSION_LEVELS.includes(c.level)) throw new Error('Nível inválido: escolha de 1 a 5.')
       const err = levelChoiceError(c.level, githubAccounts)

@@ -28,7 +28,7 @@ export const LEVEL_TEXT = {
   pickHint: 'Escolha o nível. A mudança vale na próxima ação do agente.',
   withWorktree: 'Com worktree',
   withoutWorktree: 'Sem worktree',
-  fixed: 'Nível fixo da casa: este agente não muda de nível aqui.',
+  fixed: 'Este agente tem um nível padrão da casa. Escolha outro nível para trocar; sem escolha, vale o padrão.',
   floor: 'em nenhum nível há merge, push na main, leitura de credenciais nem edição de ~/.claude*.',
   rules:
     'Sem worktree, os níveis 4 e 5 valem como 3. Agente criado por outro agente nasce no máximo no nível 3. O nível 5 só liga com a conta malu-code42.',
@@ -40,6 +40,8 @@ export const LEVEL_TEXT = {
   fieldLabel: 'Nível de permissão',
   newAgentHint: 'O nível 4 precisa de worktree; sem ela vale como 3. Você muda depois em Ajustes, Níveis de permissão.',
   settingsHint: 'Um nível de 1 a 5 por agente: do só leitura ao livre dentro das regras. O piso vale em todos.',
+  routineLabel: 'Nível de permissão da rotina',
+  routineHint: 'Padrão 2, no máximo 4. O nível 3 vale como 2 e o 5 como 4. Sem worktree, a rotina roda no nível 2.',
   settingsButton: 'Níveis de permissão',
   accountsTitle: 'Contas do GitHub autorizadas',
   accountsHint: 'Só estas contas publicam e mesclam pelo escritório. Adicionar uma conta pede a sua confirmação numa janela do sistema.',
@@ -59,7 +61,7 @@ export interface LevelRow {
   note?: string
   hasWorktree: boolean
   createdByAgent: boolean
-  /** Nível dado pela casa (Luna, Emi, Bonnie, squad, ticket): a tela mostra, mas não deixa mudar. */
+  /** Agente com nível padrão da casa (Luna, Emi, Bonnie, squad, ticket): a escolha da usuária vale sobre o padrão. */
   fixed: boolean
   /** Frases de aviso para este agente, em português. */
   warnings: string[]

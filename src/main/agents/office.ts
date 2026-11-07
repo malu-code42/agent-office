@@ -26,6 +26,7 @@ import { createWorktree } from '../git'
 import { endSubagent } from '../subagent-log'
 import { type Agent } from './types'
 import { AgentBase } from './base'
+import { isFixedLevel } from '../permissions/screen'
 import { AgentCapReservations } from '@shared/agent-cap'
 import { profileById, profileTaskInstructions } from '@shared/profiles'
 
@@ -368,8 +369,10 @@ export abstract class AgentOffice extends AgentBase {
   setPermissionLevel(id: string, level: PermissionLevel | undefined): void {
     const agent = this.agents.get(id)
     if (!agent || agent.summary.source !== 'office' || agent.summary.departed) throw new Error('Esse agente não está mais no escritório.')
-    if (level === undefined) delete agent.summary.permissionLevel
-    else agent.summary.permissionLevel = level
+    // AO-115: agente de nível da casa guarda a escolha à parte (o padrão dele não muda enquanto nada for escolhido).
+    const key = isFixedLevel(agent.summary) ? 'chosenLevel' : 'permissionLevel'
+    if (level === undefined) delete agent.summary[key]
+    else agent.summary[key] = level
     this.upsert(agent)
   }
 

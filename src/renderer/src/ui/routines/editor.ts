@@ -6,6 +6,9 @@ import type { State } from '../../state'
 import { h, icon } from '../dom'
 import { brainFields, meterField, modeOptions, MODES } from '../modals/brain'
 import { field, LAST_CWD } from '../modals/common'
+import { levelButtons } from '../modals/levels'
+import { LEVEL_TEXT } from '@shared/permission-levels'
+import type { PermissionLevel } from '@shared/types'
 
 // The routine form: who runs it, where, when (with a live sentence and the next 3 runs).
 
@@ -299,6 +302,20 @@ export function routineEditor(
   const modeHint = h('span', {})
   const modeField = field('Permissões', mode, modeHint)
 
+  // AO-115: nível da rotina (padrão 2, teto 4). O 3 vale como 2 e o 5 como 4, então os dois ficam desligados.
+  let routineLvl: PermissionLevel = initial?.permissionLevel === 1 || initial?.permissionLevel === 4 ? initial.permissionLevel : 2
+  const levelField = field(
+    LEVEL_TEXT.routineLabel,
+    levelButtons(
+      () => routineLvl,
+      (l) => {
+        routineLvl = l
+      },
+      (l) => l === 3 || l === 5,
+    ),
+    LEVEL_TEXT.routineHint,
+  )
+
   const syncWho = () => {
     const k = kind.value as RoutineWho['kind']
     whoNew.classList.toggle('hidden', k !== 'new')
@@ -353,6 +370,7 @@ export function routineEditor(
       who: w,
       ...(k !== 'agent' ? (where.value ? { floor: where.value } : cwd ? { cwd } : {}) : {}),
       ...(k !== 'agent' ? { permissionMode: mode.value as OfficePermissionMode } : {}),
+      permissionLevel: routineLvl,
       schedule: sched.value(),
       enabled: enabled.checked,
       missed: missedSkip.checked ? 'skip' : 'run',
@@ -392,6 +410,7 @@ export function routineEditor(
     field('Quem roda', h('div', { class: 'rt-col' }, kind, whoNew, template, agent), whoHint),
     whereField,
     modeField,
+    levelField,
     sched.el,
     missed,
     h('label', { class: 'check' }, enabled, 'Ativa (desmarque para salvar pausada)'),

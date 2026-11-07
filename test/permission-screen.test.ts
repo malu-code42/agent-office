@@ -69,7 +69,7 @@ describe('A) o que a tela mostra: nível efetivo e avisos', () => {
     expect(r.downgraded).toBe(true)
   })
 
-  it('agentes da casa têm nível fixo e a tela não deixa mudar', () => {
+  it('agentes da casa têm nível padrão da casa (a escolha da usuária vale sobre ele, ver AO-115)', () => {
     for (const [extra, level] of [
       [{ builtIn: 'bonnie' }, 1],
       [{ builtIn: 'luna' }, 3],
@@ -168,8 +168,7 @@ describe('B) validação e IPC no processo principal', () => {
     expect(manager.setPermissionLevel).not.toHaveBeenCalled()
   })
 
-  it('agente de nível fixo, agente que não existe e o 5 sem a conta são recusados sem gravar nada', () => {
-    expect(() => invoke('office:setPermissionLevels', [{ id: ID(1), level: 4 }, { id: ID(2), level: 1 }])).toThrow(/fixo/)
+  it('agente que não existe e o 5 sem a conta são recusados sem gravar nada', () => {
     expect(() => invoke('office:setPermissionLevels', [{ id: ID(9), level: 4 }])).toThrow(/não está mais/)
     settings = { githubAccounts: ['outra'] }
     expect(() => invoke('office:setPermissionLevels', [{ id: ID(1), level: 5 }])).toThrow(/malu-code42/)
@@ -180,7 +179,7 @@ describe('B) validação e IPC no processo principal', () => {
   })
 
   it('applyLevelChanges é tudo ou nada', () => {
-    expect(() => applyLevelChanges(manager, [{ id: ID(1), level: 3 }, { id: ID(2), level: 3 }], undefined)).toThrow()
+    expect(() => applyLevelChanges(manager, [{ id: ID(1), level: 3 }, { id: ID(9), level: 3 }], undefined)).toThrow()
     expect(manager.setPermissionLevel).not.toHaveBeenCalled()
   })
 
