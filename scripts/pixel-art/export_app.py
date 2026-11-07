@@ -267,76 +267,92 @@ def main():
 
     # ---------- fixed items ----------
     sc = Capture(L)
-    P.lounge(sc, people=False)
-    static = items('lounge', sc.take())
-    P.meeting_walls(sc)
-    P.meeting_table(sc)
-    P.meeting_decor(sc)
-    static += items('meeting', sc.take())
-    sc.kind = 'wall'  # the door posts and lintel of the diretoria too
-    P.diretoria_walls(sc)
-    sc.kind = 'furniture'
-    P.diretoria_back(sc)
-    P.diretoria_front(sc)
-    static += items('diretoria', sc.take())
-    for r, (ry0, h, *_rest) in enumerate(P.ROOMS):
-        P.room_walls(sc, ry0, h)
-        P.room_shelf(sc, ry0, h)
-        static += items(f'room{r}', sc.take())
+    P.halls(sc)
+    static = items('halls', sc.take())
+    P.partitions(sc)
+    static += items('walls', sc.take())
+    P.office_decor(sc)
+    static += items('office', sc.take())
     walls = sc.walls
 
     # ---------- squad rooms ----------
+    def tile_of(v):
+        return int(v // TS)
+
     rooms = []
-    for r, (ry0, h, *_rest) in enumerate(P.ROOMS):
-        cx0, cy0 = P.coordinator_at(ry0, h)
-        px, py = L.P(0, ry0 + h // 2, WALL_H + 2)
-        cpx, cpy = L.P(23, ry0 + h // 2 + 13, 40)
-        dark = [L.P(0, ry0, PART_H + 4), L.P(P.RW, ry0, PART_H + 4), L.P(P.RW, ry0, 0), L.P(P.RW, ry0 + h, 0),
-                L.P(0, ry0 + h, 0), L.P(0, ry0 + h, PART_H + 4)]
-        room = {
-            'rect': [0, ry0 // TS, P.RW // TS, (ry0 + h) // TS],
+    for r, room in enumerate(P.ROOMS):
+        cx0, cy0, cface = P.coord_at(room)
+        ccx, ccy, _ = P.coord_chair(room)
+        px, py = L.P(*P.plate_at(room))
+        cpx, cpy = L.P(cx0 + 7, cy0 + P.COORD_LEN // 2, 40)
+        cells = P.cells_of(room['rects'])
+        hgt = PART_H + 4
+        dark = []
+        for x0, y0, x1, y1 in ([v * TS for v in rect] for rect in room['rects']):
+            pts = [L.P(x0, y0, hgt), L.P(x1, y0, hgt), L.P(x1, y0, 0), L.P(x1, y1, 0), L.P(x0, y1, 0), L.P(x0, y1, hgt)]
+            dark.append([[round(a, 1), round(b, 1)] for a, b in pts])
+        coord = {
+            'desk': desk(f'room{r}/coord', lambda s, st, room=room: P.draw_coord(s, room, None, st)),
+            'center': [cx0 + 7, cy0 + P.COORD_LEN // 2],
+            'seat': seat(f'room{r}/coord', ccx, ccy, cface, col=F.CHAIRS[room['chairs'][9]]),
+            'plate': [cpx, int(cpy) - 6],
+        }
+        # the tile beside the coordinator's chair (the other tile of the desk's length): where an inline member stands
+        chair_tile = (tile_of(ccx + 5), tile_of(ccy + 5))
+        desk_rows = covered(cy0, cy0 + P.COORD_LEN)
+        other = next(t for t in desk_rows if t != chair_tile[1])
+        coord['side'] = [chair_tile[0] + 0.5, other + 0.5]
+        coord['sideApproach'] = [chair_tile[0], other]
+        # the tiles in front of the desk where the members hand their delivery over, the middle first: the free row
+        # beside the strip, then the two tiles by the ends of the desk (one per member of a full room)
+        by0, by1 = room['block'][1], room['block'][3]
+        mid = (cy0 + P.COORD_LEN / 2) / TS
+        row = sorted(range(by0, by1), key=lambda z: (abs(z + 0.5 - mid), z))
+        coord['deliver'] = [[room['spare'], z] for z in row] + [[room['coord_col'], desk_rows[0] - 1], [room['coord_col'], desk_rows[-1] + 1]]
+        # the extension, door end first: the tiles where a member stands when there is no desk for it
+        step = -1 if room['top'] else 1
+        stand = [[room['spare'] + step * k, room['ext']] for k in range(1, 6)]
+        axis, at, ext = room['door']
+        inside, outside = ([at - 1, ext], [at, ext]) if room['top'] else ([at, ext], [at - 1, ext])
+        out = {
+            'rect': [min(r_[0] for r_ in room['rects']), min(r_[1] for r_ in room['rects']),
+                     max(r_[2] for r_ in room['rects']), max(r_[3] for r_ in room['rects'])],
+            'rects': [list(r_) for r_ in room['rects']],
+            'outline': [list(p_) for p_ in P.outline(cells)],
+            'back': room['back'],
+            'door': {'axis': axis, 'at': at, 'tile': ext, 'in': inside, 'out': outside},
             'plate': [px, int(py) - 6],
-            'dark': [[round(a, 1), round(b, 1)] for a, b in dark],
-            'coordinator': {
-                'desk': desk(f'room{r}/coord', lambda s, st: ws_front_x(s, cx0, cy0, None, st)),
-                'center': [cx0 + 7, cy0 + 17],
-                'seat': seat(f'room{r}/coord', cx0 - 12, cy0 + 34 - 13, '+x', col=F.CHAIRS[P.ROOM_CHAIRS[r][5]]),
-                'plate': [cpx, int(cpy) - 6],
-            },
+            'dark': dark,
+            'coordinator': coord,
+            'stand': stand,
             'slots': [],
         }
-        for i, (x, y) in enumerate(P.slots(ry0, h)):
-            sx, sy = x + 16, y + 3
-            ipx, ipy = L.P(sx + 5 + 6, sy + 5 + 6, 30)
-            room['slots'].append({
-                'desk': desk(f'room{r}/slot{i}', lambda s, st, x=x, y=y: ws_back(s, x, y, None, st)),
-                'seat': seat(f'room{r}/slot{i}', sx, sy, '-x', col=F.CHAIRS[P.ROOM_CHAIRS[r][i]]),
+        for k in range(9):
+            cx, cy, face = P.member_chair(room, k)
+            ipx, ipy = L.P(cx + 11, cy + 11, 30)
+            out['slots'].append({
+                'desk': desk(f'room{r}/slot{k}', lambda s, st, room=room, k=k: P.draw_member(s, room, k, None, st)),
+                'seat': seat(f'room{r}/slot{k}', cx, cy, face, col=F.CHAIRS[room['chairs'][k]]),
                 'plate': [ipx + 26, int(ipy) + 2],
             })
-        rooms.append(room)
+        rooms.append(out)
 
-    # ---------- Emi and the meeting room ----------
+    # ---------- Emi's office ----------
     ex, ey, ew = P.EMI_DESK
-    epx, epy = L.P(336, 282, 0)
+    epx, epy = L.P(ex + 7, ey + ew // 2, 40)
     emi = {
         'desk': desk('emi', lambda s, st: ws_back(s, ex, ey, None, st, d_=ew)),
         'seat': seat('emi', ex + 16, ey + (ew - 26) // 2 + 3, '-x', col=F.CHAIRS[P.EMI_CHAIR]),
         'plate': [epx, int(epy)],
     }
-    mpx, mpy = L.P(232, 282, 0)
-    meeting = {
-        'rect': [11, 7, 18, 18],
-        'table': [225, 202],
-        'seats': [seat(f'meeting/{i}', x, y, face, wood=True) for i, (x, y, face) in enumerate(P.MEETING_SEATS)],
-        'plate': [mpx, int(mpy)],
-    }
-    lpx, lpy = L.P(282, 44, 0)
+    axis, at, idxs = P.OFFICE_DOOR
+    office = {'rect': list(P.OFFICE), 'door': {'axis': axis, 'at': at, 'tiles': list(idxs)}}
 
     # ---------- tiles: blocked by furniture (walls block edges instead) ----------
     blocked = set()
     furniture = [it['fp'] for it in static if not it.get('wall')]
     furniture += [room['coordinator']['desk']['green']['fp'] for room in rooms]
-    # all five member desks: the 5th stands against the far wall, so the middle rows stay the aisle
+    # all nine member desks of every room are always built: they block their tiles even when nobody sits there
     furniture += [slot['desk']['green']['fp'] for room in rooms for slot in room['slots']]
     furniture.append(emi['desk']['green']['fp'])
     for x0, y0, x1, y1 in furniture:
@@ -344,6 +360,7 @@ def main():
             for ty in covered(y0, y1):
                 blocked.add((tx, ty))
 
+    ex0, ex1 = P.ELEVATOR
     layout = {
         'tile': TS,
         'size': [W // TS, D // TS],
@@ -355,10 +372,9 @@ def main():
         'blocked': sorted([list(t) for t in blocked]),
         'rooms': rooms,
         'emi': emi,
-        'meeting': meeting,
-        'director': {'rect': [18, 7, 24, 18], 'plate': emi['plate']},
-        'lounge': {'rect': [11, 0, 24, 7], 'plate': [lpx, int(lpy)]},
-        'elevator': {'tile': [17, 1], 'point': [17.5, 0.45], 'door': [P.ELEVATOR[0], P.ELEVATOR[1], 50],
+        'office': office,
+        'windows': P.WINDOWS,
+        'elevator': {'tile': list(P.ELEVATOR_TILE), 'point': [(ex0 + ex1) / 2 / TS, 0.45], 'door': [ex0, ex1, 50],
                      'open': elevator_doors(place, 'project', *P.ELEVATOR)},
     }
     with open(os.path.join(APP, 'project.json'), 'w', encoding='utf8') as f:
@@ -387,7 +403,7 @@ def main():
     img, x0, y0 = render(small, lambda: (small.begin(), small.ell(32, 32, 6, 2.5, (40, 30, 30, 70)), small.end(False)),
                          (64, 64))
     anchors[atlas.put('shadow', img)] = [32 - x0, 32 - y0]
-    for name, fn in (('oak', OAK), ('walnut', WALNUT), ('slate', P.SLATE), ('warmg', P.WARMG), ('sage', P.SAGE)):
+    for name, fn in (('oak', OAK), ('walnut', WALNUT), ('slate', P.SLATE), ('warmg', P.WARMG), ('sage', P.SAGE), ('rose', P.ROSE)):
         t = Layer(32, 16, 16, 0, (0, 0, 0, 0))
         draw_floor(t, 16, 16, lambda x, y, fn=fn: fn(x + 32, y + 32), slab=False)
         atlas.put(f'tile/{name}', t.img)
