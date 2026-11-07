@@ -338,6 +338,18 @@ export abstract class PanelHead extends PanelSearch {
         { class: 'ab-foot' },
         // Emi lives on her floor: she is not seated on the map, nor saved as a template or dismissed.
         a.builtIn ? null : h('button', { class: 'btn btn-small', onclick: () => this.actions.goTo(a.id) }, icon('walk', 14), 'Ir até'),
+        a.builtIn === 'emi'
+          ? h(
+              'button',
+              {
+                class: 'btn btn-small',
+                title: 'Visão geral, fila, solicitações e membros de cada squad deste andar',
+                onclick: () => this.actions.openSquads(a.id),
+              },
+              icon('users', 14),
+              'Squads do andar',
+            )
+          : null,
         a.homeResident
           ? h(
               'button',

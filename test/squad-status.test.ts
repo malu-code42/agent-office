@@ -29,6 +29,7 @@ describe('estado de pausa e desativação dos squads', () => {
     const [paused, free] = store.apply('/floor/a', [squad('sala-1'), squad('sala-2')])
     expect(paused!.availability).toBe('unavailable')
     expect(paused!.unavailableReason).toMatch(/^Pausado: retome/)
+    expect(paused!.state).toBe('paused')
     expect(free!.availability).toBe('available')
   })
 

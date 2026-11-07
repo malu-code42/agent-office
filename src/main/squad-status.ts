@@ -62,7 +62,7 @@ export class SquadStatusStore {
         : state === 'paused'
           ? 'Pausado: retome o squad para ele voltar a rodar.'
           : 'Desativado: reative o squad para ele voltar a rodar.'
-      return { ...s, availability: 'unavailable', unavailableReason }
+      return { ...s, availability: 'unavailable', unavailableReason, state }
     })
   }
 }

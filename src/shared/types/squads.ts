@@ -36,6 +36,8 @@ export interface SquadInfo {
   steps: SquadStep[]
   /** Missing means available for older persisted renderer snapshots. */
   availability?: 'available' | 'unavailable'
+  /** AO-108: o estado guardado pelo usuário (pausado ou desativado); ausente = liberado. */
+  state?: 'paused' | 'disabled'
   /** Validation reason shown to the user; never includes member prompts. */
   unavailableReason?: string
   /** Canonical file the user can inspect or restore manually. */

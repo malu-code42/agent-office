@@ -23,6 +23,7 @@ import {
   squadProposalIdSchema,
   squadProposalRequestSchema,
   squadRenameSchema,
+  setSquadPausedArgsSchema,
   parse,
   projectWorkflowBootstrapArgsSchema,
   projectWorkflowBrainstormArgsSchema,
@@ -503,6 +504,17 @@ export function registerSquadsIpc(ctx: IpcContext): void {
   ipcMain.handle('office:squadQueue', (_e, code: unknown) => {
     const plain = squadCodeSchema.safeParse(code)
     return plain.success ? ctx.creation.queue(plain.data) : undefined
+  })
+  // AO-108: o mesmo estado que a Emi muda com squad_pause e squad_resume; o desativado só a Emi mexe.
+  ipcMain.handle('office:setSquadPaused', async (_e, ...args: unknown[]) => {
+    const [cwd, code, paused] = parse(setSquadPausedArgsSchema, args, 'Pedido de pausa inválido.')
+    if (projectFor(store.settings.projects, cwd)?.cwd !== cwd) throw new Error('Esse andar não existe mais.')
+    const squad = findSquad(cwd, code)
+    if (!squad) throw new Error(`O squad ${code} não existe neste andar.`)
+    const state = ctx.squadStatus.get(cwd, squad.code)
+    if (state === 'disabled' && paused) throw new Error(`O squad ${squad.name} está desativado; peça à Emi para reativá-lo.`)
+    ctx.squadStatus.set(cwd, squad.code, paused ? 'paused' : null)
+    ctx.broadcast({ type: 'squads', squads: ctx.rereadSquads() })
   })
   ipcMain.handle('office:retrySquadPublication', async (_e, code: unknown) => {
     const parsed = squadCodeSchema.safeParse(code)

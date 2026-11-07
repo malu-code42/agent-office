@@ -17,6 +17,8 @@ export const MOD = navigator.userAgent.includes('Mac') ? '⌘' : 'Ctrl+'
 
 export interface PanelActions {
   goTo(id: string): void
+  /** AO-108: a popup de acompanhamento dos squads (botão do painel da Emi), do andar de quem pediu. */
+  openSquads(agentId: string): void
   closeTerminal(id: string): void
   openItem(agentId: string, itemId: string): void
   toast(text: string, kind?: 'info' | 'ok' | 'err'): void

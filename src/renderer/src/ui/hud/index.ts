@@ -55,6 +55,8 @@ export interface HudActions {
   tasks(): void
   /** Timer: opens the popup of the interval (no keyboard shortcut: it lives on the bar). */
   timer(): void
+  /** AO-108: a popup de acompanhamento dos squads do andar de projeto em que você está. */
+  squads(): void
   /** Bastidores (B): the agent copies (worktrees) floor by floor. */
   backstage(): void
   /** Sair do Agent Office: asks, waits for the agents or interrupts them. */
@@ -511,7 +513,27 @@ export class Hud {
             h('span', { class: 'floor-name' }, 'Andar de projeto'),
           )
         : null
-    this.floorsEl.replaceChildren(h('div', { class: 'floors-head' }, 'Elevador'), ...rows, ...(add ? [add] : []))
+    // AO-108: num andar de projeto, o atalho para acompanhar os squads (a cena 2D da Emi muda no AO-106).
+    const onProject = this.floor >= 1 && this.floor <= this.state.settings.projects.length
+    const squads = onProject
+      ? h(
+          'button',
+          {
+            class: 'floor-btn floor-add',
+            'data-tour': 'squads',
+            title: 'Acompanhar os squads deste andar: visão geral, fila, solicitações e membros',
+            onclick: () => this.actions.squads(),
+          },
+          h('span', { class: 'floor-num' }, icon('users', 12)),
+          h('span', { class: 'floor-name' }, 'Squads do andar'),
+        )
+      : null
+    this.floorsEl.replaceChildren(
+      h('div', { class: 'floors-head' }, 'Elevador'),
+      ...rows,
+      ...(squads ? [squads] : []),
+      ...(add ? [add] : []),
+    )
   }
 
   /** Redraws the limits and load card (also when usage or system numbers arrive). */
