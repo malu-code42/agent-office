@@ -45,7 +45,7 @@ Método: leitura do código e testes automatizados com Telegram (`fetch`) e Clau
 
 ## Riscos e o que não foi provado
 
-- **R1. Chat_id errado ou de terceiros.** Se a usuária digitar o chat_id de outra pessoa, essa pessoa comanda a Luna (com confirmação ainda no app). Não há verificação de posse (por exemplo, um código enviado ao chat para confirmar).
+- **R1. Chat_id errado ou de terceiros (RESOLVIDO, AO-112).** Antes, quem digitasse o chat_id de outra pessoa dava a ela o comando da Luna. Agora a ponte só liga depois da verificação de posse (ver a atualização AO-111 e AO-112, abaixo).
 - **R2. Conta do Telegram comprometida.** Quem controla a conta da usuária controla a Luna pelo Telegram. A defesa é a confirmação no app, não o canal. Mensagens encaminhadas ou coladas com instruções (injeção por conteúdo de terceiros) chegam como texto normal da usuária.
 - **R3. Token roubado.** Permite ler as mensagens que o bot recebe e enviar mensagens como o bot (respostas da Luna trazem agenda e tarefas). Não permite fazer-se passar pelo chat permitido. Mitigação: `/revoke` no @BotFather. O token fica protegido por `safeStorage` (no Windows, DPAPI): qualquer programa rodando como o mesmo usuário do Windows pode, em tese, decifrá-lo. Não testado com o `safeStorage` real.
 - **R4. Achar o chat_id pelo navegador** deixa o token na URL e no histórico; o passo está documentado com o aviso.
@@ -56,9 +56,9 @@ Método: leitura do código e testes automatizados com Telegram (`fetch`) e Clau
 
 ### Falhas fora do pequeno (viram tickets separados)
 1. **Mensagens antigas na abertura.** Ao ligar, a ponte processa as mensagens pendentes no Telegram (até 24 h), como "descarte X" mandado com o app fechado; viram propostas no app, mas podem surpreender. Sugestão: ignorar mensagens com `date` antigo ou avisar a usuária.
-2. **Alterar chat_id/token sem confirmação no app.** O IPC de salvar não pede confirmação (diferente de mudanças de permissão). Um renderer comprometido poderia apontar a ponte para outro chat. Sugestão: caixa de diálogo do processo principal ao mudar chat_id ou token.
+2. **(RESOLVIDA, AO-111)** **Alterar chat_id/token sem confirmação no app.** O IPC de salvar não pede confirmação (diferente de mudanças de permissão). Um renderer comprometido poderia apontar a ponte para outro chat. Sugestão: caixa de diálogo do processo principal ao mudar chat_id ou token.
 3. **Confirmação por código** (AO-109, parte 3), já planejada: não implementada aqui.
-4. **Verificação de posse do chat_id** (R1) e custo: 10 mensagens por minuto ainda podem gerar muitas chamadas ao Claude; avaliar limite por hora.
+4. **(R1 RESOLVIDA, AO-112; custo já tratado no AO-109)** **Verificação de posse do chat_id** (R1) e custo: 10 mensagens por minuto ainda podem gerar muitas chamadas ao Claude; avaliar limite por hora.
 
 ### Não provado
 - Nada foi visto no app rodando (tela do Telegram, indicador de estado, foco por teclado).
@@ -72,4 +72,10 @@ Método: leitura do código e testes automatizados com Telegram (`fetch`) e Clau
 - **Conta como destrutivo** (texto sem acento e sem maiúsculas, `DESTRUCTIVE_PATTERNS`): apagar, excluir, deletar, remover/remova, descartar, cancelar, limpar, zerar, sobrescrever, destruir, formatar, resetar, tirar; commit, push, merge, mesclar, deploy, publicar, pull request, PR; em inglês delete, remove, discard, cancel, erase, wipe, drop, overwrite, clear, destroy, purge, truncate, rm. Na dúvida, vale como destrutivo. Fora dessa lista a detecção é por palavra: um pedido destrutivo escrito com outras palavras passa, mas o efeito continua sendo uma proposta que só o app confirma.
 - **Falha 1 corrigida**: mensagem com mais de 5 minutos ou sem data é descartada, com um aviso por lote.
 - **Falha 4 corrigida**: limite de 60 mensagens por hora por chat, além dos 10 por minuto.
-- **Seguem abertas**: falha 2 (diálogo ao mudar chat_id/token) e a verificação de posse do chat_id (R1).
+- **Seguiam abertas**: falha 2 (diálogo ao mudar chat_id/token) e a verificação de posse do chat_id (R1); tratadas abaixo.
+
+## Atualização AO-111 e AO-112
+
+- **Falha 2 resolvida (AO-111)**: mudar o chat_id ou colar um token diferente do guardado abre um diálogo NATIVO do processo principal (`dialog.showMessageBox`, `telegram-change-dialog.ts`), não do renderer. Mostra o chat_id de e para; do token diz só "será substituído", nunca o valor. Só o botão "Confirmar mudança" salva; "Cancelar", Esc/X, falha do diálogo ou ausência de janela contam como não: nada é gravado e a ponte continua como estava (o salvar responde com erro). A validação roda antes do diálogo. O serviço exige a função de confirmação na construção: sem quem pergunte, nada que mude o destino é salvo. Ligar/desligar sem mudar chat_id nem token não pergunta.
+- **R1 resolvida (AO-112)**: a ponte não liga sem chat_id verificado (`TelegramSettingsStore.isVerified`, usado no `config` da ponte). A usuária salva token e chat_id, pede o código nos Ajustes, o bot o envia ao chat configurado, e ela o digita. Código de 6 dígitos de `crypto.randomInt`, uso único, validade de 5 minutos, 3 tentativas (a terceira errada descarta o código), intervalo mínimo de 30 s entre envios, um código pendente por vez. O código só viaja ao chat do Telegram: a `TelegramView` só diz `codePending` e `verified`, o código não é registrado em log, e erros de envio viram texto fixo (a URL leva o token). Trocar chat_id ou token zera a verificação e descarta o código pendente. Instalações anteriores (sem o campo `verified`) precisam verificar uma vez antes de a ponte ligar de novo. A verificação não aprova nada: só libera a ponte; pedidos da Luna continuam sendo confirmados no app.
+- **Não provado**: nenhuma chamada real à API do Telegram (o envio do código é simulado nos testes), nada visto no app rodando (diálogo nativo, seção de verificação), `safeStorage` real. Quem controla a conta do Telegram da usuária (R2) ainda recebe o código: a verificação prova que o chat_id é de quem lê aquele chat, não que é a usuária.

@@ -12,7 +12,12 @@ const saveSchema = z.object({
   enabled: z.boolean(),
 })
 
+// AO-112: o código de verificação digitado entra por aqui; o código enviado ao chat nunca volta (as respostas são a TelegramView).
+const codeSchema = z.string().max(20)
+
 export function registerTelegramIpc(ctx: Pick<IpcContext, 'telegram'>): void {
   ipcMain.handle('office:telegramState', () => ctx.telegram.view())
   ipcMain.handle('office:telegramSave', (_e, raw: unknown) => ctx.telegram.save(parse(saveSchema, raw, 'Dados do Telegram inválidos.')))
+  ipcMain.handle('office:telegramRequestCode', () => ctx.telegram.requestCode())
+  ipcMain.handle('office:telegramSubmitCode', (_e, raw: unknown) => ctx.telegram.submitCode(parse(codeSchema, raw, 'Código inválido.')))
 }
