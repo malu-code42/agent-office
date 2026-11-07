@@ -44,6 +44,24 @@ export interface SquadInfo {
   recoveryPath?: string
 }
 
+/** AO-100: a fase de um ciclo de squad, guardada em disco para o squad voltar sozinho ao reabrir o app. */
+export type SquadPhase = 'iniciando' | 'implementando' | 'revisando' | 'testando' | 'trabalhando' | 'aguardando' | 'concluido'
+
+/** AO-100: o estado mínimo para retomar o ciclo de um squad. */
+export interface SquadPhaseRecord {
+  code: string
+  ticketId: string
+  ticketKey?: string
+  phase: SquadPhase
+  /** Quantas vezes o ciclo entrou na revisão (0 antes da primeira). */
+  round: number
+  /** Id do membro do passo corrente, quando há. */
+  member?: string
+  /** Nome do passo corrente ("Revisão"), quando há. */
+  step?: string
+  updatedAt: number
+}
+
 export interface SquadProgress {
   /** 1-based; 0 before the first step. */
   current: number
