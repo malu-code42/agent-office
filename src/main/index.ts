@@ -378,7 +378,7 @@ app
     creation.on('proposals', (proposals) => broadcast({ type: 'squadProposals', proposals }))
     creation.on('queues', (queues) => broadcast({ type: 'squadQueues', queues }))
     await creation.verifyPendingPRs(pullRequestRemoteIdentityForRepo)
-    // AO-58: a PR merged on GitHub takes its ticket out of the Caixa de entrada (and to done); checked now and every 10 minutes.
+    // AO-58: a PR merged on GitHub takes its ticket out of the Caixa de entrada (the ticket is not moved to done: only people do that); checked now and every 10 minutes.
     const dropMergedPRs = () =>
       creation.reconcileMergedPRs(pullRequestState).catch((err) => log.warn(`Não consegui conferir os PRs mesclados: ${err instanceof Error ? err.message : String(err)}`))
     void dropMergedPRs()
