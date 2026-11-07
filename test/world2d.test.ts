@@ -255,6 +255,50 @@ describe('projectPlan2d', () => {
   })
 })
 
+describe('plano com outro número de salas e mesas que as constantes (AO-106 etapa 1)', () => {
+  it('uma squad da sala 3 de um andar com 2 salas pega a sala livre ou vira aviso, sem exceção', () => {
+    const two: ProjectLayout = { ...LAYOUT, rooms: LAYOUT.rooms.slice(0, 2) }
+    const plan = projectPlan2d(two, [squad('sala-3', 3), squad('sala-1', 2), squad('z', 2)])
+    expect(plan.rooms).toHaveLength(2)
+    expect(plan.rooms[0].squad).toBe('sala-1')
+    expect(plan.rooms[1].squad).toBe('sala-3')
+    expect(plan.issues.map((i) => i.code)).toEqual(['z'])
+    expect(plan.issues[0].reason).toContain('2 salas')
+    expect(plan.squadOf.get('z/m0')).toBe('z')
+  })
+
+  it('proposta numa sala que o andar não tem é ignorada', () => {
+    const one: ProjectLayout = { ...LAYOUT, rooms: LAYOUT.rooms.slice(0, 1) }
+    const plan = projectPlan2d(one, [squad('x', 2)], [0, 2])
+    expect(plan.rooms.map((r) => r.state)).toEqual(['proposed'])
+    expect(plan.issues.map((i) => i.code)).toEqual(['x'])
+  })
+
+  it('sala com menos mesas que o limite senta só as que tem e avisa', () => {
+    const fewer: ProjectLayout = { ...LAYOUT, rooms: LAYOUT.rooms.map((r) => ({ ...r, slots: r.slots.slice(0, 3) })) }
+    const plan = projectPlan2d(fewer, [squad('sala-1', 5)])
+    expect(plan.rooms[0].desks).toHaveLength(3)
+    expect(plan.rooms[0].members).toHaveLength(3)
+    expect(plan.issues[0].reason).toContain('de 2 a 3 membros')
+    // the other desks (3 per room, 9 in all, 3 taken) are still free for the individual agents
+    expect(plan.agentDesks).toHaveLength(6)
+  })
+
+  it('sala sem nenhuma mesa não derruba o plano', () => {
+    const none: ProjectLayout = { ...LAYOUT, rooms: LAYOUT.rooms.map((r) => ({ ...r, slots: [] })) }
+    const plan = projectPlan2d(none, [squad('sala-2', 3)])
+    expect(plan.rooms[1].desks).toEqual([])
+    expect(plan.agentDesks).toEqual([])
+    expect(plan.issues).toHaveLength(1)
+  })
+
+  it('o índice de tela das mesas de duas salas nunca se repete', () => {
+    const plan = projectPlan2d(LAYOUT, [squad('sala-1', 5), squad('sala-2', 5), squad('sala-3', 5)])
+    const all = [...plan.agentDesks, ...plan.rooms.flatMap((r) => r.desks)].map((d) => d.index)
+    expect(new Set(all).size).toBe(all.length)
+  })
+})
+
 describe('sprites', () => {
   it('o penteado do visual escolhe o sprite; Luna e Emi têm o seu', () => {
     const look = { skin: '#f7d7b5', hair: '#3a3340', hairStyle: 2, shirt: '#86acd8', pants: '#4f5873', shoes: '#5a4038' }

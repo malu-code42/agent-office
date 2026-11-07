@@ -3,7 +3,7 @@
 // DOM, so the tests check it. Layout numbers are art units (16 per tile) unless named
 // in tiles (world2d/plan.ts).
 
-import { SQUAD_MAX_MEMBERS, SQUAD_MIN_MEMBERS, SQUAD_ROOM_COUNT } from '@shared/types'
+import { SQUAD_DESKS_PER_ROOM, SQUAD_MAX_MEMBERS, SQUAD_MIN_MEMBERS, SQUAD_ROOM_COUNT } from '@shared/types'
 import { floorRooms } from '@shared/squad-rooms'
 import { AGENT_DESK_COUNT, memberKey, type DeskSlot, type Partition, type ProjectIssue, type ProjectPlan, type SquadRoom } from './plan'
 import { Grid } from './pathfinding'
@@ -124,8 +124,8 @@ function deskSlot(index: number, desk: DeskArt, seat: SeatArt): DeskSlot {
   }
 }
 
-/** Screen index of a member desk: the agents' desks first, then five per room. */
-export const memberDeskIndex = (room: number, k: number) => AGENT_DESK_COUNT + room * SQUAD_MAX_MEMBERS + k
+/** Screen index of a member desk: the agents' desks first, then SQUAD_DESKS_PER_ROOM per room. */
+export const memberDeskIndex = (room: number, k: number) => AGENT_DESK_COUNT + room * SQUAD_DESKS_PER_ROOM + k
 
 /** An empty squad room of the 2D floor: the coordinator's desk is there, no member desks. */
 function emptyRoom(art: RoomArt, index: number): SquadRoom {
@@ -183,6 +183,7 @@ export function projectPlan2d(
 ): ProjectPlan {
   const grid = grid2d(layout)
   const issues: ProjectIssue[] = []
+  // The floor has the rooms its art draws, never more than the limit: a squad is never sent to a room that is not there.
   const rooms = layout.rooms.slice(0, SQUAD_ROOM_COUNT).map((art, i) => emptyRoom(art, i))
   const squadOf = new Map<string, string>()
   for (const squad of squads) for (const m of squad.members) squadOf.set(memberKey(squad.code, m.id), squad.code)
@@ -190,7 +191,7 @@ export function projectPlan2d(
   const reserved = new Set(proposedRooms.filter((r) => r >= 0 && r < rooms.length))
   for (const room of reserved) rooms[room].state = 'proposed'
 
-  const floor = floorRooms(squads, [...reserved])
+  const floor = floorRooms(squads, [...reserved], rooms.length)
   const placed = new Map<number, (typeof squads)[number]>()
   for (const squad of squads) {
     const room = floor.rooms.get(squad.code)
@@ -201,26 +202,29 @@ export function projectPlan2d(
     issues.push({
       code: squad.code,
       name: squad.name || squad.code,
-      reason: `Não há sala livre para ${squad.name || squad.code}: o andar tem ${SQUAD_ROOM_COUNT} salas de squad e elas já têm squad ou uma proposta em aberto.`,
+      reason: `Não há sala livre para ${squad.name || squad.code}: o andar tem ${rooms.length} ${rooms.length === 1 ? 'sala' : 'salas'} de squad e elas já têm squad ou uma proposta em aberto.`,
     })
   }
 
   const used = rooms.map(() => 0)
   for (const [roomIndex, squad] of placed) {
     const room = rooms[roomIndex]
+    if (!room) continue // floorRooms already keeps squads inside rooms.length; this is the last guard
     const members = squad.members.filter((m) => m.execution === 'subagent')
     room.squad = squad.code
     room.name = squad.name || squad.code
     room.state = 'live'
-    if (members.length < SQUAD_MIN_MEMBERS || members.length > SQUAD_MAX_MEMBERS) {
+    const slots = layout.rooms[roomIndex].slots
+    // what the room really seats: the limit, the desks the art draws and the screen indexes reserved to the room
+    const capacity = Math.min(SQUAD_MAX_MEMBERS, SQUAD_DESKS_PER_ROOM, slots.length)
+    if (members.length < SQUAD_MIN_MEMBERS || members.length > capacity) {
       issues.push({
         code: squad.code,
         name: room.name,
-        reason: `A sala comporta de ${SQUAD_MIN_MEMBERS} a ${SQUAD_MAX_MEMBERS} membros e ${room.name} tem ${members.length}.`,
+        reason: `A sala comporta de ${SQUAD_MIN_MEMBERS} a ${capacity} membros e ${room.name} tem ${members.length}.`,
       })
     }
-    const slots = layout.rooms[roomIndex].slots
-    const seated = members.slice(0, Math.min(SQUAD_MAX_MEMBERS, slots.length))
+    const seated = members.slice(0, capacity)
     room.members = seated.map((m) => memberKey(squad.code, m.id))
     room.desks = seated.map((_, k) => deskSlot(memberDeskIndex(roomIndex, k), slots[k].desk, slots[k].seat))
     used[roomIndex] = seated.length
@@ -229,7 +233,7 @@ export function projectPlan2d(
   // the desks no squad member takes, room by room, for the individual agents
   const agentDesks: DeskSlot[] = []
   rooms.forEach((_, r) =>
-    layout.rooms[r].slots.slice(used[r]).forEach((slot) => {
+    layout.rooms[r].slots.slice(used[r], SQUAD_DESKS_PER_ROOM).forEach((slot) => {
       if (agentDesks.length < AGENT_DESK_COUNT) agentDesks.push(deskSlot(agentDesks.length, slot.desk, slot.seat))
     }),
   )

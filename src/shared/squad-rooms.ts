@@ -11,11 +11,11 @@ export function roomCode(room: number): string {
 }
 
 /** The room a code names, when it is one of ours (the office creates them). */
-export function roomOfCode(code: string): number | undefined {
+export function roomOfCode(code: string, count: number = SQUAD_ROOM_COUNT): number | undefined {
   const match = /^sala-(\d+)(?:-\d+)?$/.exec(code)
   if (!match) return undefined
   const room = Number(match[1]) - 1
-  return room >= 0 && room < SQUAD_ROOM_COUNT ? room : undefined
+  return room >= 0 && room < count ? room : undefined
 }
 
 /** The squads of a floor, in the order they are read. */
@@ -38,19 +38,20 @@ export interface RoomSquad {
 
 /**
  * The room of every squad of a floor, and the squads that stayed out. `squads` are the
- * squads of one floor; `proposedRooms` are the rooms a proposal is holding.
+ * squads of one floor; `proposedRooms` are the rooms a proposal is holding. `count` is how
+ * many rooms the floor really has: the art may have fewer than SQUAD_ROOM_COUNT (AO-106).
  */
-export function floorRooms(squads: readonly RoomSquad[], proposedRooms: readonly number[] = []): FloorRooms {
+export function floorRooms(squads: readonly RoomSquad[], proposedRooms: readonly number[] = [], count: number = SQUAD_ROOM_COUNT): FloorRooms {
   const reserved = new Set(proposedRooms)
   const byRoom = new Map<number, RoomSquad>()
   const rest: RoomSquad[] = []
   for (const squad of squads) {
-    const named = roomOfCode(squad.code)
+    const named = roomOfCode(squad.code, count)
     if (named !== undefined && !reserved.has(named) && !byRoom.has(named)) byRoom.set(named, squad)
     else rest.push(squad)
   }
   for (const squad of rest) {
-    const room = Array.from({ length: SQUAD_ROOM_COUNT }, (_, i) => i).find((r) => !reserved.has(r) && !byRoom.has(r))
+    const room = Array.from({ length: count }, (_, i) => i).find((r) => !reserved.has(r) && !byRoom.has(r))
     if (room === undefined) continue
     byRoom.set(room, squad)
   }
