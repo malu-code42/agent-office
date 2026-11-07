@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { SQUAD_PHASE_FILE, SquadPhaseStore, decideResume, resumeNote, resumeSquads, squadPhaseOf, type ResumeFacts } from '../src/main/squad-phase'
+import { SQUAD_PHASE_FILE, SquadPhaseStore, createPhaseRecorder, decideResume, resumeNote, resumeSquads, squadPhaseOf, type ResumeFacts } from '../src/main/squad-phase'
 import type { SquadPhaseRecord, SquadProgress } from '../src/shared/types'
 
 // AO-100: a fase de cada ciclo de squad em disco, para o squad voltar sozinho ao reabrir o app.
@@ -207,5 +207,91 @@ describe('retomar ao reabrir o app (critérios 2, 3, 4 e 5)', () => {
     const [a, b] = await Promise.all([resumeSquads(r.deps), resumeSquads(r.deps)])
     expect(r.starts).toHaveLength(1)
     expect([...a, ...b]).toEqual(['sala-1'])
+  })
+})
+
+describe('a rodada de revisão depois de retomar (AO-100)', () => {
+  it('voltar de "iniciando" para "revisando" depois da retomada é a mesma rodada, não outra', () => {
+    const store = new SquadPhaseStore(dir)
+    store.record({ code: 'c', ticketId: 't1', phase: 'implementando' })
+    expect(store.record({ code: 'c', ticketId: 't1', phase: 'revisando' }).round).toBe(1)
+    // reabriu o app: o orquestrador novo passa por "iniciando" antes de voltar ao passo do revisor
+    expect(store.record({ code: 'c', ticketId: 't1', phase: 'iniciando' }).round).toBe(1)
+    expect(store.record({ code: 'c', ticketId: 't1', phase: 'revisando', member: 'reviewer' }).round).toBe(1)
+  })
+  it('uma revisão nova de verdade ainda conta: retomou em "implementando" e revisou de novo', () => {
+    const store = new SquadPhaseStore(dir)
+    store.record({ code: 'c', ticketId: 't1', phase: 'revisando' })
+    store.record({ code: 'c', ticketId: 't1', phase: 'iniciando' })
+    store.record({ code: 'c', ticketId: 't1', phase: 'implementando' })
+    expect(store.record({ code: 'c', ticketId: 't1', phase: 'revisando' }).round).toBe(2)
+  })
+  it('a primeira revisão logo depois de "iniciando" (rodada 0) conta 1', () => {
+    const store = new SquadPhaseStore(dir)
+    store.record({ code: 'c', ticketId: 't1', phase: 'iniciando' })
+    expect(store.record({ code: 'c', ticketId: 't1', phase: 'revisando' }).round).toBe(1)
+  })
+})
+
+describe('createPhaseRecorder, o gancho que grava a fase (AO-100 critério 1)', () => {
+  const setup = (over: { active?: string | undefined } = {}) => {
+    const calls: unknown[] = []
+    const membersOf = vi.fn(() => members)
+    const deps = {
+      members: membersOf,
+      activeTicket: vi.fn(() => ('active' in over ? over.active : 't1')),
+      ticketKey: vi.fn(() => 'AO-1'),
+      record: (input: unknown) => void calls.push(input),
+    }
+    return { calls, membersOf, deps, recorder: createPhaseRecorder(deps) }
+  }
+  const orch = (over: Record<string, unknown> = {}) =>
+    ({ id: 'o1', role: 'orchestrator', squad: 'sala-1', ticketId: 't1', status: 'working', cwd: 'C:/p', squadStep: step('reviewer', { label: 'Revisar' }), ...over }) as never
+
+  it('grava squad, ticket, chave, fase, membro e passo do orquestrador do ticket ativo', () => {
+    const { calls, recorder } = setup()
+    recorder(orch())
+    expect(calls).toEqual([{ code: 'sala-1', ticketId: 't1', ticketKey: 'AO-1', phase: 'revisando', member: 'reviewer', step: 'Revisar' }])
+  })
+  it('ignora quem não é orquestrador de squad e quem não tem ticket', () => {
+    const { calls, recorder } = setup()
+    recorder(orch({ role: 'worker' }))
+    recorder(orch({ squad: undefined }))
+    recorder(orch({ ticketId: undefined }))
+    expect(calls).toEqual([])
+  })
+  it('ignora ticket que não é o ativo da fila, e estado que não diz nada novo', () => {
+    const other = setup({ active: 't2' })
+    other.recorder(orch())
+    expect(other.calls).toEqual([])
+    const idle = setup()
+    idle.recorder(orch({ status: 'idle' }))
+    expect(idle.calls).toEqual([])
+  })
+  it('só relê o squad quando o passo ou o estado mudou', () => {
+    const { calls, membersOf, recorder } = setup()
+    recorder(orch())
+    recorder(orch())
+    expect(membersOf).toHaveBeenCalledTimes(1)
+    expect(calls).toHaveLength(1)
+    recorder(orch({ squadStep: step('qa', { label: 'Testar' }) }))
+    expect(membersOf).toHaveBeenCalledTimes(2)
+    expect(calls).toHaveLength(2)
+    expect(calls[1]).toMatchObject({ phase: 'testando', member: 'qa', step: 'Testar' })
+  })
+  it('ligado ao store: a fase vira registro em disco e a retomada não soma rodada', () => {
+    const store = new SquadPhaseStore(dir)
+    const recorder = createPhaseRecorder({
+      members: () => members,
+      activeTicket: () => 't1',
+      ticketKey: () => 'AO-1',
+      record: (input) => void store.record(input),
+    })
+    recorder(orch())
+    expect(store.get('sala-1')).toMatchObject({ phase: 'revisando', round: 1, member: 'reviewer', ticketKey: 'AO-1' })
+    recorder(orch({ id: 'o2', squadStep: undefined, status: 'starting' }))
+    expect(store.get('sala-1')).toMatchObject({ phase: 'iniciando', round: 1 })
+    recorder(orch({ id: 'o2' }))
+    expect(store.get('sala-1')).toMatchObject({ phase: 'revisando', round: 1 })
   })
 })

@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { z } from 'zod'
-import type { AgentStatus, SquadMember, SquadPhase, SquadPhaseRecord, SquadProgress, TicketStatus } from '@shared/types'
+import type { AgentStatus, AgentSummary, SquadMember, SquadPhase, SquadPhaseRecord, SquadProgress, TicketStatus } from '@shared/types'
 import { loadJson, quarantineParts, writeJsonAtomic } from './fs-safe'
 import { log } from './log'
 
@@ -111,13 +111,16 @@ export class SquadPhaseStore {
 
   /**
    * Grava a fase do ciclo do squad. Só escreve quando algo mudou. A rodada de revisão conta cada
-   * entrada na fase "revisando" dentro do mesmo ticket; outro ticket recomeça em 0.
+   * entrada na fase "revisando" dentro do mesmo ticket; outro ticket recomeça em 0. Depois de retomar
+   * (o orquestrador novo passa por "iniciando"), voltar a "revisando" é a mesma rodada, não outra.
    */
   record(input: { code: string; ticketId: string; ticketKey?: string; phase: SquadPhase; member?: string; step?: string }): SquadPhaseRecord {
     const prev = this.data[input.code]
     const same = prev?.ticketId === input.ticketId
     if (same && prev.phase === input.phase && prev.member === input.member && prev.step === input.step) return prev
-    const round = (same ? prev.round : 0) + (input.phase === 'revisando' && !(same && prev.phase === 'revisando') ? 1 : 0)
+    const resumedIntoReview = same && prev.phase === 'iniciando' && prev.round > 0
+    const entersReview = input.phase === 'revisando' && !(same && prev.phase === 'revisando') && !resumedIntoReview
+    const round = (same ? prev.round : 0) + (entersReview ? 1 : 0)
     const next: SquadPhaseRecord = {
       code: input.code,
       ticketId: input.ticketId,
@@ -146,6 +149,40 @@ export class SquadPhaseStore {
       // Guardar a fase é ajuda para retomar; falhar não pode derrubar o ciclo.
       log.warn(`Não consegui guardar a fase do squad: ${err instanceof Error ? err.message : String(err)}`)
     }
+  }
+}
+
+export interface PhaseRecorderDeps {
+  /** Os membros do squad `code` no projeto `cwd`. */
+  members: (cwd: string, code: string) => Pick<SquadMember, 'id' | 'role'>[]
+  /** O ticket ativo da fila do squad. */
+  activeTicket: (code: string) => string | undefined
+  ticketKey: (ticketId: string) => string | undefined
+  record: (input: { code: string; ticketId: string; ticketKey?: string; phase: SquadPhase; member?: string; step?: string }) => void
+}
+
+/**
+ * O gancho que grava a fase a cada mudança do orquestrador (AO-100). Só relê o squad quando o passo ou o
+ * estado mudou, ignora quem não é orquestrador de squad e quem não roda o ticket ativo da fila.
+ */
+export function createPhaseRecorder(deps: PhaseRecorderDeps): (a: Pick<AgentSummary, 'id' | 'role' | 'squad' | 'ticketId' | 'status' | 'squadStep' | 'cwd'>) => void {
+  const seen = new Map<string, string>()
+  return (a) => {
+    if (a.role !== 'orchestrator' || !a.squad || !a.ticketId) return
+    const key = `${a.ticketId}|${a.status}|${JSON.stringify(a.squadStep ?? null)}`
+    if (seen.get(a.id) === key) return
+    seen.set(a.id, key)
+    const phase = squadPhaseOf(a.squadStep, a.status, deps.members(a.cwd, a.squad))
+    if (!phase) return
+    if (deps.activeTicket(a.squad) !== a.ticketId) return
+    deps.record({
+      code: a.squad,
+      ticketId: a.ticketId,
+      ticketKey: deps.ticketKey(a.ticketId),
+      phase,
+      member: a.squadStep?.agent,
+      step: a.squadStep?.label || undefined,
+    })
   }
 }
 
