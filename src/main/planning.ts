@@ -21,6 +21,8 @@ import { parseProposal, proposalSchema, reviewDraftSchema } from './validate'
 interface Planning {
   focus: string[]
   steps: Record<string, Step>
+  /** Ids the user marked "parada" by hand (AO-114). Optional: a file without it loads as no marks. */
+  stalled?: string[] | undefined
   timer?: FocusTimer | undefined
   archived?: Record<string, ArchivedTask> | undefined
   proposals?: Proposal[] | undefined
@@ -72,6 +74,7 @@ export class PlanningStore {
   private file: string
   private focusIds: string[]
   private steps: Map<string, Step>
+  private stalledIds: Set<string>
   private timer: FocusTimer | undefined
   private archived: Map<string, ArchivedTask>
   private proposals: Proposal[]
@@ -104,6 +107,9 @@ export class PlanningStore {
       Object.entries(raw.steps ?? {})
         .filter(([, s]) => isStep(s))
         .map(([id, s]) => [focusKey(id), s]),
+    )
+    this.stalledIds = new Set(
+      (Array.isArray(raw.stalled) ? raw.stalled : []).filter((id): id is string => typeof id === 'string').map(focusKey),
     )
     this.timer = parseTimer(raw.timer)
     this.archived = new Map(
@@ -151,6 +157,25 @@ export class PlanningStore {
     this.save()
   }
 
+  /** Ids of the focused tasks the user marked "parada". Only planning.json carries the mark; tarefas.md is never touched. */
+  stalled(): Set<string> {
+    return new Set([...this.stalledIds].filter((id) => this.focusIds.includes(id)))
+  }
+
+  isStalled(id: string): boolean {
+    const key = focusKey(id)
+    return this.stalledIds.has(key) && this.focusIds.includes(key)
+  }
+
+  /** Marks or unmarks "parada" on a focused task. A mark that is already as asked writes nothing. */
+  setStalled(id: string, on: boolean): void {
+    const key = this.focusedKey(id, 'Só tarefas em foco podem ser marcadas como paradas.')
+    if (this.stalledIds.has(key) === on) return
+    if (on) this.stalledIds.add(key)
+    else this.stalledIds.delete(key)
+    this.save()
+  }
+
   private focusedKey(id: string, refusal = STEP_REFUSAL): string {
     const key = focusKey(id)
     if (!this.focusIds.includes(key)) throw new Error(refusal)
@@ -189,6 +214,7 @@ export class PlanningStore {
     const key = focusKey(id)
     if (!this.focusIds.includes(key)) return
     this.focusIds = this.focusIds.filter((f) => f !== key)
+    this.stalledIds.delete(key)
     this.save()
   }
 
@@ -196,6 +222,7 @@ export class PlanningStore {
   archive(id: string, record: ArchivedTask): void {
     const key = focusKey(id)
     this.focusIds = this.focusIds.filter((f) => f !== key)
+    this.stalledIds.delete(key)
     this.archived.set(key, record)
     this.save()
   }
@@ -260,7 +287,10 @@ export class PlanningStore {
   ): void {
     const i = this.proposals.findIndex((p) => p.id === id)
     if (i < 0) throw new Error('Essa proposta não existe mais.')
-    if (change.focus) this.focusIds = [...new Set(change.focus.map(focusKey))]
+    if (change.focus) {
+      this.focusIds = [...new Set(change.focus.map(focusKey))]
+      this.stalledIds = new Set([...this.stalledIds].filter((id) => this.focusIds.includes(id)))
+    }
     for (const a of change.archived ?? []) this.archived.set(focusKey(a.id), a.record)
     for (const s of change.steps ?? []) this.steps.set(focusKey(s.id), s.step)
     if (change.operations.length) this.proposals[i] = { ...this.proposals[i]!, operations: change.operations, failure: change.failure }
@@ -323,6 +353,7 @@ export class PlanningStore {
       {
         focus: this.focusIds,
         steps: Object.fromEntries(this.steps),
+        stalled: this.stalledIds.size ? [...this.stalledIds] : undefined,
         timer: this.timer,
         archived: this.archived.size ? Object.fromEntries(this.archived) : undefined,
         proposals: this.proposals.length ? this.proposals : undefined,

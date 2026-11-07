@@ -59,9 +59,9 @@ export interface FocusTimerView {
   confirmedMinutes?: number
 }
 
-/** A focused task: its title and list in tarefas.md; `missing` when its id is no longer there. `step` is today's step, when there is one; `timer` is the session of this task, when it has one. */
+/** A focused task: its title and list in tarefas.md; `missing` when its id is no longer there. `step` is today's step, when there is one; `stalled` is the "parada" mark the user put on it; `timer` is the session of this task, when it has one. */
 export type FocusItem =
-  | { id: string; missing: false; text: string; list: string; date?: string; step?: string; timer?: FocusTimerView }
+  | { id: string; missing: false; text: string; list: string; date?: string; step?: string; stalled?: true; timer?: FocusTimerView }
   | { id: string; missing: true }
 
 /** mm:ss for the popup. Rounds up, so the last second still shows 00:01. */
@@ -101,6 +101,7 @@ export function focusItems(
   focus: readonly string[],
   todaySteps: ReadonlyMap<string, string> = new Map(),
   timers: ReadonlyMap<string, FocusTimerView> = new Map(),
+  stalled: ReadonlySet<string> = new Set(),
 ): FocusItem[] {
   const tasks = new Map<string, { text: string; list: string; date?: string }>()
   for (const list of lists) {
@@ -119,6 +120,7 @@ export function focusItems(
       list: task.list,
       ...(task.date ? { date: task.date } : {}),
       ...(step ? { step } : {}),
+      ...(stalled.has(id) ? { stalled: true as const } : {}),
       ...(timer ? { timer } : {}),
     }
   })

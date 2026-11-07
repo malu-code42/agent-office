@@ -104,7 +104,7 @@ export function openReview(vault: string, deps: ReviewDeps): ReviewView {
           title: item.text,
           list: item.list,
           missing: false,
-          stale: !planning.archivedOf(item.id) && isStale(planning.lastStepDay(item.id), today),
+          stale: !planning.archivedOf(item.id) && (planning.isStalled(item.id) || isStale(planning.lastStepDay(item.id), today)),
         },
   )
   return {

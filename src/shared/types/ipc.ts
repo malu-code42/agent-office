@@ -491,6 +491,8 @@ export interface OfficeAPI {
   unfocusTask(id: string): Promise<FocusItem[]>
   /** Guarda o passo de hoje da tarefa em foco (um por tarefa, do dia de hoje) e devolve o foco. Não escreve no tarefas.md. */
   saveStep(id: string, text: string): Promise<FocusItem[]>
+  /** Marca ou desmarca "parada" numa tarefa em foco (AO-114). Só o planning.json muda; devolve o foco. */
+  setStalled(id: string, on: boolean): Promise<FocusItem[]>
   /** Tira o passo de hoje da tarefa; o de outros dias fica no histórico. Devolve o foco. */
   clearStep(id: string): Promise<FocusItem[]>
   /** Lê o Timer da barra como ele está agora; null quando está Parado. */

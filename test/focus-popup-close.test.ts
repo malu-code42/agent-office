@@ -82,6 +82,7 @@ function setup() {
     saveStep: vi.fn(),
     clearStep: vi.fn(),
     discardTask: vi.fn(),
+    setStalled: vi.fn(),
   }
   vi.stubGlobal('window', { office })
   return { office, root: { append: vi.fn() }, toast: vi.fn(), state: { settings: { vaultPath: 'C:/vault' } } }
@@ -112,7 +113,7 @@ describe('fechar a janela Tarefas em foco', () => {
     byLabel('Fechar Tarefas em foco').listeners.click[0]({})
     expect(backdrop().remove).toHaveBeenCalledTimes(1)
     expect(isFocusPopupOpen()).toBe(false)
-    for (const call of [office.unfocusTask, office.completeTask, office.saveStep, office.clearStep, office.discardTask]) {
+    for (const call of [office.unfocusTask, office.completeTask, office.saveStep, office.clearStep, office.discardTask, office.setStalled]) {
       expect(call).not.toHaveBeenCalled()
     }
     expect(office.readFocus).toHaveBeenCalledTimes(1)

@@ -91,7 +91,7 @@ export function registerReviewIpc(
     }
     ctx.planning.add(task.item.id!)
     const board = parseTasksFile(files.tasks.current(path))
-    return { id: task.item.id!, board, focus: focusItems(board.lists, ctx.planning.focus(), ctx.planning.todaySteps(dayKey())) }
+    return { id: task.item.id!, board, focus: focusItems(board.lists, ctx.planning.focus(), ctx.planning.todaySteps(dayKey()), undefined, ctx.planning.stalled()) }
   }
   ipcMain.handle('office:resumePersonalRoutineOccurrence', async (_e, raw: unknown) => {
     const id = parse(personalRoutineOccurrenceSchema, raw, 'Ocorrência inválida.')

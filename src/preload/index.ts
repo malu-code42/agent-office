@@ -102,6 +102,7 @@ const api: OfficeAPI = {
   focusTask: (line) => ipcRenderer.invoke('office:focusTask', line),
   unfocusTask: (id) => ipcRenderer.invoke('office:unfocusTask', id),
   saveStep: (id, text) => ipcRenderer.invoke('office:saveStep', id, text),
+  setStalled: (id, on) => ipcRenderer.invoke('office:setStalled', id, on),
   clearStep: (id) => ipcRenderer.invoke('office:clearStep', id),
   telegramState: () => ipcRenderer.invoke('office:telegramState'),
   saveTelegram: (input) => ipcRenderer.invoke('office:telegramSave', input),
