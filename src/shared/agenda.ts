@@ -2,11 +2,11 @@ import { fillCompletions, parseTasksFile, TIME_FORMAT } from './tasks'
 
 /** A line of agenda.md as the file wrote it. Any line that matches none of the known forms is unknown. */
 export type AgendaLine =
-  { kind: 'commitment'; time: string; title: string } | { kind: 'task'; time: string; id: string } | { kind: 'unknown'; text: string }
+  { kind: 'commitment'; time: string; title: string; confirmed?: true } | { kind: 'task'; time: string; id: string } | { kind: 'unknown'; text: string }
 
 /** A line in the view: a task reference carries the task's text from tarefas.md, or null when its id is not there. */
 export type AgendaEntry =
-  | { kind: 'commitment'; time: string; title: string; conflict?: true }
+  | { kind: 'commitment'; time: string; title: string; confirmed?: true; conflict?: true }
   | { kind: 'task'; time: string; id: string; text: string | null; conflict?: true }
   | { kind: 'class'; id: string; time: string; title: string; attended?: true; conflict?: true }
   /** A task completed that day, at the moment it was completed (✅ DD.MM.AAAA HH:MM in tarefas.md). */
@@ -175,6 +175,9 @@ const DATE_HEADING = /^##\s+(\d{4}-\d{2}-\d{2})$/
 const COMMITMENT = /^-\s+(\d{2}:\d{2})\s+(.+)$/
 const TASK_REFERENCE = /^-\s+(\d{2}:\d{2})\s+↦\s+\^(t[a-z0-9]{6})$/i
 const ARROW = '↦'
+/** AO-53: a commitment of agenda.md only shows in the Agenda after the user confirmed it; the line then ends with this mark. */
+export const CONFIRMED_MARK = '✅'
+const CONFIRMED_SUFFIX = /\s+✅$/u
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -196,7 +199,9 @@ export function parseAgendaLine(trimmed: string, raw = trimmed): AgendaLine {
   if (reference && TIME_FORMAT.test(reference[1]!)) return { kind: 'task', time: reference[1]!, id: reference[2]! }
   const commitment = COMMITMENT.exec(trimmed)
   if (commitment && TIME_FORMAT.test(commitment[1]!) && !commitment[2]!.includes(ARROW)) {
-    return { kind: 'commitment', time: commitment[1]!, title: commitment[2]!.trim() }
+    const confirmed = CONFIRMED_SUFFIX.test(commitment[2]!)
+    const title = commitment[2]!.replace(CONFIRMED_SUFFIX, '').trim()
+    return { kind: 'commitment', time: commitment[1]!, title, ...(confirmed ? { confirmed: true as const } : {}) }
   }
   return { kind: 'unknown', text: raw }
 }
@@ -258,22 +263,35 @@ export function buildAgendaView(
   const parsedClasses = parseClasses(classes)
   const resolve = (line: AgendaLine): AgendaEntry =>
     line.kind === 'task' ? { kind: 'task', time: line.time, id: line.id, text: titles.get(line.id.toLowerCase()) ?? null } : line
+  // AO-53: the Agenda shows only what the user confirmed she did. A commitment needs the ✅ mark in agenda.md,
+  // a task needs to be completed (on that day, for a dated line), a class needs a presença line in aulas.md.
+  const completedIds = (date?: string): Set<string> =>
+    new Set(
+      (date ? (completedByDay.get(date) ?? []) : [...completedByDay.values()].flat()).flatMap((done) => (done.id ? [done.id.toLowerCase()] : [])),
+    )
+  const confirmedOnly = (lines: AgendaLine[], date?: string): AgendaLine[] => {
+    const completed = completedIds(date)
+    return lines.filter(
+      (line) => line.kind === 'unknown' || (line.kind === 'commitment' ? line.confirmed === true : completed.has(line.id.toLowerCase())),
+    )
+  }
   const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - ((today.getDay() + 6) % 7))
   const week = Array.from({ length: 7 }, (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i))
   const dayOf = (day: Date): AgendaDay => {
     const date = isoDay(day)
-    const entries = (days.get(date) ?? []).map(resolve)
+    const entries = confirmedOnly(days.get(date) ?? [], date).map(resolve)
     const exceptionMap = new Map(parsedClasses.exceptions.filter((item) => item.date === date).map((item) => [item.id, item]))
     for (const rule of parsedClasses.rules) {
       if (day.getDay() !== rule.weekday) continue
       const exception = exceptionMap.get(rule.id)
       if (exception?.cancelled) continue
+      if (!parsedClasses.attended.has(`${rule.id}/${date}`)) continue
       const entry = {
         kind: 'class' as const,
         id: rule.id,
         time: exception?.time ?? rule.time,
         title: exception?.title ?? rule.title,
-        ...(parsedClasses.attended.has(`${rule.id}/${date}`) ? { attended: true as const } : {}),
+        attended: true as const,
       }
       const isClassMatch = (item: AgendaEntry): boolean =>
         'time' in item &&
@@ -312,7 +330,7 @@ export function buildAgendaView(
     warnings: parsedClasses.warnings,
     today: dayOf(today),
     week: week.map(dayOf),
-    undated: undated.map(resolve),
+    undated: confirmedOnly(undated).map(resolve),
   }
 }
 

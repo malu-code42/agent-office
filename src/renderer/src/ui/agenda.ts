@@ -456,7 +456,7 @@ export function openAgenda(root: HTMLElement): void {
           { class: 'tl-empty' },
           icon('calendar', 28),
           h('b', {}, 'Nenhum compromisso'),
-          h('span', {}, 'A agenda vem de agenda.md e das aulas de aulas.md no vault. Peça à Luna para marcar um compromisso.'),
+          h('span', {}, 'A agenda mostra só o que você confirmou ter feito: compromissos de agenda.md marcados com ✅, aulas de aulas.md com presença e tarefas concluídas. Conte à Luna o que você fez.'),
         ),
       )
       return

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { allCommitments, planAddCommitment, planRemoveCommitment } from '../src/main/agenda-write'
+import { allCommitments, planAddCommitment, planConfirmCommitment, planRemoveCommitment } from '../src/main/agenda-write'
 
 /** The agenda operations of the Íris (AO-13): a commitment added or taken out, one line at a time, the rest of the file kept. */
 
@@ -63,6 +63,29 @@ describe('planRemoveCommitment', () => {
   it('dois compromissos iguais são recusados: não se sabe qual tirar', () => {
     const twin = AGENDA.replace('- 14:00 Dentista', '- 14:00 Dentista\n- 14:00 Dentista')
     expect(() => planRemoveCommitment(twin, { day: '2026-10-17', time: '14:00', title: 'Dentista' })).toThrow('Há mais de um compromisso')
+  })
+})
+
+describe('planConfirmCommitment', () => {
+  it('põe o ✅ no fim da linha do compromisso e não mexe no resto', () => {
+    const next = planConfirmCommitment(AGENDA, { day: '2026-10-17', time: '14:00', title: 'Dentista' })
+    expect(next).toBe(AGENDA.replace('- 14:00 Dentista', '- 14:00 Dentista ✅'))
+    // o compromisso confirmado continua sendo achado pelo mesmo título
+    expect(allCommitments(next)[0]).toEqual({ day: '2026-10-17', time: '14:00', title: 'Dentista' })
+  })
+
+  it('mantém o fim de linha CRLF', () => {
+    const crlf = AGENDA.replace(/\n/g, '\r\n')
+    const next = planConfirmCommitment(crlf, { day: '2026-10-18', time: '09:00', title: 'Reunião' })
+    expect(next).toContain('- 09:00 Reunião ✅\r\n')
+  })
+
+  it('recusa o que já está confirmado, o que não existe e o que está duplicado', () => {
+    const once = planConfirmCommitment(AGENDA, { day: '2026-10-17', time: '14:00', title: 'Dentista' })
+    expect(() => planConfirmCommitment(once, { day: '2026-10-17', time: '14:00', title: 'Dentista' })).toThrow('já está confirmado')
+    expect(() => planConfirmCommitment(AGENDA, { day: '2026-10-17', time: '15:00', title: 'Dentista' })).toThrow('Não encontrei o compromisso')
+    const twin = AGENDA.replace('- 14:00 Dentista', '- 14:00 Dentista\n- 14:00 Dentista')
+    expect(() => planConfirmCommitment(twin, { day: '2026-10-17', time: '14:00', title: 'Dentista' })).toThrow('Há mais de um compromisso')
   })
 })
 

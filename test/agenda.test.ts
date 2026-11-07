@@ -79,14 +79,18 @@ describe('agenda view', () => {
       '- id: aula-b | dia: domingo | hora: 12:00 | título: Aula B (SIMULADO)',
       '- id: aula-a | data: 2026-10-19 | hora: 10:00 | título: Reposição (SIMULADO)',
       '- id: aula-b | data: 2026-10-25 | cancelar',
+      '- id: aula-a | data: 2026-10-19 | presença',
+      '- id: aula-a | data: 2026-10-26 | presença',
     ].join('\n')
     const view = buildAgendaView(null, '', new Date(2026, 9, 19, 0, 30), source)
     expect(view.found).toBe(false)
     expect(view.classesFound).toBe(true)
-    expect(view.week[0]!.entries).toEqual([{ kind: 'class', id: 'aula-a', time: '10:00', title: 'Reposição (SIMULADO)' }])
+    expect(view.week[0]!.entries).toEqual([
+      { kind: 'class', id: 'aula-a', time: '10:00', title: 'Reposição (SIMULADO)', attended: true },
+    ])
     expect(view.week[6]!.entries).toEqual([])
     expect(buildAgendaView(null, '', new Date(2026, 9, 26), source).today.entries).toEqual([
-      { kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)' },
+      { kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)', attended: true },
     ])
   })
 
@@ -108,68 +112,79 @@ describe('agenda view', () => {
   })
 
   it('deduplicates exact class/commitment entries and marks distinct same-time entries as conflicts', () => {
-    const agendaText = '## 2026-10-19\n- 09:00 Aula A (SIMULADO)\n- 09:00 Outro compromisso'
-    const classText =
-      '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A (SIMULADO)\n- id: aula-b | dia: segunda | hora: 09:00 | título: Aula B (SIMULADO)'
+    const agendaText = '## 2026-10-19\n- 09:00 Aula A (SIMULADO) ✅\n- 09:00 Outro compromisso ✅'
+    const classText = [
+      '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A (SIMULADO)',
+      '- id: aula-b | dia: segunda | hora: 09:00 | título: Aula B (SIMULADO)',
+      '- id: aula-a | data: 2026-10-19 | presença',
+      '- id: aula-b | data: 2026-10-19 | presença',
+    ].join('\n')
     const view = buildAgendaView(agendaText, '', new Date(2026, 9, 19), classText)
     expect(view.today.entries).toEqual([
-      { kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)', conflict: true },
-      { kind: 'commitment', time: '09:00', title: 'Outro compromisso', conflict: true },
-      { kind: 'class', id: 'aula-b', time: '09:00', title: 'Aula B (SIMULADO)', conflict: true },
+      { kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)', attended: true, conflict: true },
+      { kind: 'commitment', time: '09:00', title: 'Outro compromisso', confirmed: true, conflict: true },
+      { kind: 'class', id: 'aula-b', time: '09:00', title: 'Aula B (SIMULADO)', attended: true, conflict: true },
     ])
   })
 
   it('replaces a matched commitment in place before later agenda entries', () => {
     const view = buildAgendaView(
-      '## 2026-10-19\n- 09:00 Aula A (SIMULADO)\n- 10:00 Compromisso posterior (SIMULADO)',
+      '## 2026-10-19\n- 09:00 Aula A (SIMULADO) ✅\n- 10:00 Compromisso posterior (SIMULADO) ✅',
       '',
       new Date(2026, 9, 19),
-      '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A (SIMULADO)',
+      '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A (SIMULADO)\n- id: aula-a | data: 2026-10-19 | presença',
     )
 
     expect(view.today.entries).toEqual([
-      { kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)' },
-      { kind: 'commitment', time: '10:00', title: 'Compromisso posterior (SIMULADO)' },
+      { kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)', attended: true },
+      { kind: 'commitment', time: '10:00', title: 'Compromisso posterior (SIMULADO)', confirmed: true },
     ])
   })
 
   it('merges a class with matching commitment and resolved task entries into one class without conflict', () => {
     const view = buildAgendaView(
-      '## 2026-10-19\n- 09:00 Aula A (SIMULADO)\n- 09:00 ↦ ^tabc123',
-      '## Casa\n- [ ] Aula A (SIMULADO) ^tabc123',
+      '## 2026-10-19\n- 09:00 Aula A (SIMULADO) ✅\n- 09:00 ↦ ^tabc123',
+      '## Casa\n- [x] Aula A (SIMULADO) ✅ 2026-10-19 ^tabc123',
       new Date(2026, 9, 19),
-      '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A (SIMULADO)',
+      '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A (SIMULADO)\n- id: aula-a | data: 2026-10-19 | presença',
     )
 
-    expect(view.today.entries).toEqual([{ kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)' }])
+    // a tarefa concluída sem hora aparece também, como concluída
+    expect(view.today.entries).toEqual([
+      { kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)', attended: true },
+      { kind: 'unknown', text: '✔ Aula A (SIMULADO)' },
+    ])
   })
 
   it('replaces a matching resolved task reference with the class view entry', () => {
     const view = buildAgendaView(
       '## 2026-10-19\n- 09:00 ↦ ^tabc123',
-      '## Casa\n- [ ] Aula A (SIMULADO) ^tabc123',
+      '## Casa\n- [x] Aula A (SIMULADO) ✅ 2026-10-19 ^tabc123',
       new Date(2026, 9, 19),
-      '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A (SIMULADO)',
+      '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A (SIMULADO)\n- id: aula-a | data: 2026-10-19 | presença',
     )
 
-    expect(view.today.entries).toEqual([{ kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)' }])
+    // a tarefa concluída sem hora aparece também, como concluída
+    expect(view.today.entries).toEqual([
+      { kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)', attended: true },
+      { kind: 'unknown', text: '✔ Aula A (SIMULADO)' },
+    ])
   })
 
   it('preserves repeated unmatched commitments, unresolved task references, and unknown lines', () => {
     const view = buildAgendaView(
-      '## 2026-10-19\n- 08:00 Repetido (SIMULADO)\n- 08:00 Repetido (SIMULADO)\n- 09:00 ↦ ^tzzzzzz\n- 09:00 ↦ ^tzzzzzz\nAnotação sem formato',
+      '## 2026-10-19\n- 08:00 Repetido (SIMULADO) ✅\n- 08:00 Repetido (SIMULADO) ✅\n- 09:00 ↦ ^tzzzzzz\n- 09:00 ↦ ^tzzzzzz\nAnotação sem formato',
       '',
       new Date(2026, 9, 19),
-      '- id: aula-a | dia: segunda | hora: 10:00 | título: Aula A (SIMULADO)',
+      '- id: aula-a | dia: segunda | hora: 10:00 | título: Aula A (SIMULADO)\n- id: aula-a | data: 2026-10-19 | presença',
     )
 
     expect(view.today.entries).toEqual([
-      { kind: 'commitment', time: '08:00', title: 'Repetido (SIMULADO)', conflict: true },
-      { kind: 'commitment', time: '08:00', title: 'Repetido (SIMULADO)', conflict: true },
-      { kind: 'task', time: '09:00', id: 'tzzzzzz', text: null, conflict: true },
-      { kind: 'task', time: '09:00', id: 'tzzzzzz', text: null, conflict: true },
+      { kind: 'commitment', time: '08:00', title: 'Repetido (SIMULADO)', confirmed: true, conflict: true },
+      { kind: 'commitment', time: '08:00', title: 'Repetido (SIMULADO)', confirmed: true, conflict: true },
+      // a referência de tarefa sem conclusão (nem existe em tarefas.md) não aparece
       { kind: 'unknown', text: 'Anotação sem formato' },
-      { kind: 'class', id: 'aula-a', time: '10:00', title: 'Aula A (SIMULADO)' },
+      { kind: 'class', id: 'aula-a', time: '10:00', title: 'Aula A (SIMULADO)', attended: true },
     ])
   })
 
@@ -178,17 +193,20 @@ describe('agenda view', () => {
       '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A (SIMULADO)',
       '- id: aula-a | data: 2026-10-19 | hora: 10:00',
       '- id: aula-a | data: 2026-10-26 | título: Aula especial (SIMULADO)',
+      '- id: aula-a | data: 2026-10-19 | presença',
+      '- id: aula-a | data: 2026-10-26 | presença',
+      '- id: aula-a | data: 2026-11-02 | presença',
     ].join('\n')
 
     expect(parseClasses(source).warnings).toEqual([])
     expect(buildAgendaView(null, '', new Date(2026, 9, 19), source).today.entries).toEqual([
-      { kind: 'class', id: 'aula-a', time: '10:00', title: 'Aula A (SIMULADO)' },
+      { kind: 'class', id: 'aula-a', time: '10:00', title: 'Aula A (SIMULADO)', attended: true },
     ])
     expect(buildAgendaView(null, '', new Date(2026, 9, 26), source).today.entries).toEqual([
-      { kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula especial (SIMULADO)' },
+      { kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula especial (SIMULADO)', attended: true },
     ])
     expect(buildAgendaView(null, '', new Date(2026, 10, 2), source).today.entries).toEqual([
-      { kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)' },
+      { kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)', attended: true },
     ])
   })
 
@@ -198,7 +216,7 @@ describe('agenda view', () => {
 
   it('keeps classes out of media commitment links', () => {
     const view = buildAgendaView(
-      '## 2026-10-19\n- 11:00 Compromisso (SIMULADO)',
+      '## 2026-10-19\n- 11:00 Compromisso (SIMULADO) ✅',
       '',
       new Date(2026, 9, 19),
       '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A (SIMULADO)',
@@ -219,7 +237,11 @@ describe('agenda view', () => {
       '2026-10-17',
       '2026-10-18',
     ])
-    expect(view.today.entries).toEqual([{ kind: 'commitment', time: '08:00', title: 'Corrida' }])
+    // sem o ✅ na linha, o compromisso não aparece
+    expect(view.today.entries).toEqual([])
+    expect(buildAgendaView(agenda.replace('08:00 Corrida', '08:00 Corrida ✅'), tasks, new Date(2026, 9, 18, 9)).today.entries).toEqual([
+      { kind: 'commitment', time: '08:00', title: 'Corrida', confirmed: true },
+    ])
   })
 
   it('shows the week that starts on the Monday, for a Monday', () => {
@@ -230,19 +252,50 @@ describe('agenda view', () => {
     expect(view.week[6]!.date).toBe('2026-10-25')
   })
 
-  it('resolves a task reference to its text, and shows a missing id with no text', () => {
+  it('mostra só o confirmado: compromisso sem ✅ e tarefa aberta ficam de fora', () => {
     const view = buildAgendaView(agenda, tasks, new Date(2026, 9, 17, 9))
 
+    expect(view.today.entries).toEqual([{ kind: 'unknown', text: 'Anotar o almoço' }])
+    expect(view.undated.filter((e) => e.kind !== 'unknown')).toEqual([])
+  })
+
+  it('resolves a task reference to its text, and shows a missing id with no text', () => {
+    const confirmed = agenda.replace('09:00 Reunião com Ana', '09:00 Reunião com Ana ✅')
+    const done = '## Casa\n- [x] Lavar roupa ✅ 2026-10-17 ^tabc123\n- [x] Outra ✅ 2026-10-17 ^tzzzzzz\n'
+    const view = buildAgendaView(confirmed, done, new Date(2026, 9, 17, 9))
+
     expect(view.today.entries).toEqual([
-      { kind: 'commitment', time: '09:00', title: 'Reunião com Ana' },
+      { kind: 'commitment', time: '09:00', title: 'Reunião com Ana', confirmed: true },
       { kind: 'task', time: '10:30', id: 'tabc123', text: 'Lavar roupa' },
-      { kind: 'task', time: '11:00', id: 'tzzzzzz', text: null },
+      { kind: 'task', time: '11:00', id: 'tzzzzzz', text: 'Outra' },
+      { kind: 'unknown', text: 'Anotar o almoço' },
+    ])
+    // concluída em outro dia: a linha deste dia não aparece
+    expect(buildAgendaView(agenda, '## Casa\n- [x] Lavar roupa ✅ 2026-10-16 ^tabc123\n', new Date(2026, 9, 17, 9)).today.entries).toEqual([
       { kind: 'unknown', text: 'Anotar o almoço' },
     ])
   })
 
+  it('aula só aparece com presença confirmada, em nenhum outro dia', () => {
+    const classes = '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A\n- id: aula-a | data: 2026-10-26 | presença'
+    const week = buildAgendaView(null, '', new Date(2026, 9, 19), classes).week
+    expect(week[0]!.entries).toEqual([])
+    expect(buildAgendaView(null, '', new Date(2026, 9, 26), classes).today.entries).toEqual([
+      { kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A', attended: true },
+    ])
+    expect(buildAgendaView(null, '', new Date(2026, 10, 2), classes).today.entries).toEqual([])
+  })
+
+  it('o ✅ no fim da linha confirma o compromisso e sai do título', () => {
+    expect(parseAgenda('## 2026-10-17\n- 09:00 Dentista ✅\n- 10:00 Banco\n- 11:00 Feito').days.get('2026-10-17')).toEqual([
+      { kind: 'commitment', time: '09:00', title: 'Dentista', confirmed: true },
+      { kind: 'commitment', time: '10:00', title: 'Banco' },
+      { kind: 'commitment', time: '11:00', title: 'Feito' },
+    ])
+  })
+
   it('matches an id regardless of case', () => {
-    const view = buildAgendaView('## 2026-10-17\n- 10:30 ↦ ^TABC123\n', tasks, new Date(2026, 9, 17))
+    const view = buildAgendaView('## 2026-10-17\n- 10:30 ↦ ^TABC123\n', '## Casa\n- [x] Lavar roupa ✅ 2026-10-17 ^tabc123\n', new Date(2026, 9, 17))
 
     expect(view.today.entries).toEqual([{ kind: 'task', time: '10:30', id: 'TABC123', text: 'Lavar roupa' }])
   })
@@ -262,13 +315,13 @@ describe('weekProgress', () => {
   const now = new Date(2026, 9, 28, 12, 0)
   const agendaText = [
     '## 2026-10-26',
-    '- 09:00 Dentista',
+    '- 09:00 Dentista ✅',
     '- 10:00 ↦ ^tabc123',
     '## 2026-10-28',
-    '- 08:00 Reunião',
-    '- 15:00 Revisar contrato',
+    '- 08:00 Reunião ✅',
+    '- 15:00 Revisar contrato ✅',
     '## 2026-10-30',
-    '- 10:00 Banco',
+    '- 10:00 Banco ✅',
   ].join('\n')
   const tasksText = [
     '## Hoje',
@@ -299,7 +352,8 @@ describe('weekProgress', () => {
   it('aula passada é prevista; só conta como concluída com presença registrada', () => {
     const classes = '- id: aula-a | dia: segunda | hora: 09:00 | título: Aula A'
     const week = (source: string) => buildAgendaView(null, '', now, source).week
-    expect(weekProgress(week(classes), '', []).days[0]).toEqual({ date: '2026-10-26', done: 0, planned: 1 })
+    // sem presença a aula nem aparece na agenda, então não é prevista
+    expect(weekProgress(week(classes), '', []).days[0]).toEqual({ date: '2026-10-26', done: 0, planned: 0 })
     const attended = `${classes}
 - id: aula-a | data: 2026-10-26 | presença`
     expect(weekProgress(week(attended), '', []).days[0]).toEqual({ date: '2026-10-26', done: 1, planned: 1 })
@@ -366,9 +420,9 @@ describe('tarefas concluídas na agenda', () => {
   const now = new Date(2026, 9, 28, 12, 0)
   it('entram no dia pela hora da conclusão; sem hora, aparecem sem hora; a agendada vira a conclusão', () => {
     const tasks = ['## Hoje', '- [x] Pagar boleto ^tabc123', '- [x] Ligar para a Ana ✅ 28.10.2026'].join('\n')
-    const view = buildAgendaView('## 2026-10-28\n- 10:00 Banco\n- 09:00 ↦ ^tabc123', tasks, now, null, new Map([['tabc123', { day: '2026-10-28', time: '14:32' }]]))
+    const view = buildAgendaView('## 2026-10-28\n- 10:00 Banco ✅\n- 09:00 ↦ ^tabc123', tasks, now, null, new Map([['tabc123', { day: '2026-10-28', time: '14:32' }]]))
     expect(view.today.entries).toEqual([
-      { kind: 'commitment', time: '10:00', title: 'Banco' },
+      { kind: 'commitment', time: '10:00', title: 'Banco', confirmed: true },
       { kind: 'done', time: '14:32', id: 'tabc123', text: 'Pagar boleto' },
       { kind: 'unknown', text: '✔ Ligar para a Ana' },
     ])

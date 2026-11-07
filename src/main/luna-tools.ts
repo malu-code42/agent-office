@@ -9,7 +9,7 @@ import type { ParsedBoard } from '@shared/tasks'
 import type { Goal } from '@shared/goals'
 import { MEDIA_STATUSES, type MediaKind, type MediaStatus } from '@shared/media'
 import type { PersonalRoutineOverview } from '@shared/routine-personal'
-import { allCommitments, planAddCommitment, planRemoveCommitment } from './agenda-write'
+import { allCommitments, planAddCommitment, planConfirmCommitment, planRemoveCommitment } from './agenda-write'
 
 export const LUNA_SERVER = 'casa'
 /** Tools the user confirms on the permission card before they run: they take something away. */
@@ -184,6 +184,16 @@ export function lunaToolDefs(deps: LunaToolDeps) {
         run(() => {
           agendaChange((text) => planAddCommitment(text, args))
           return `Compromisso “${args.title}” marcado em ${args.day} às ${args.time}.`
+        })(),
+    ),
+    tool(
+      'agenda_confirm',
+      'Marca com ✅ um compromisso de agenda.md que a usuária disse ter feito. Só depois disso ele aparece na Agenda do app. Nunca confirme por conta própria nem pelo horário.',
+      { day, time, title: z.string().min(1).max(300) },
+      (args) =>
+        run(() => {
+          agendaChange((text) => planConfirmCommitment(text, args))
+          return `Compromisso “${args.title}” de ${args.day} às ${args.time} confirmado.`
         })(),
     ),
     tool(

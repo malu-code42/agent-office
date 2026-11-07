@@ -95,6 +95,7 @@ A edição livre da aparência dos andares, inspirada em The Sims, fica para uma
 ### 2.5 Estudos, Bonnie e Cora
 
 - A aparência aprovada do andar de estudos é preservada. Haverá grade fixa semanal de aulas, lida de arquivo do vault, e as ocorrências aparecem na agenda. Uma exceção altera apenas aquela ocorrência; não muda a grade semanal.
+- **Agenda só mostra o que foi confirmado (AO-53, decisão da usuária):** aula aparece só com a linha `- id: <id> | data: AAAA-MM-DD | presença` em `aulas.md`; tarefa só quando concluída (✅); compromisso de `agenda.md` só depois de confirmado, e a confirmação é o sinal ` ✅` no fim da linha (`- 14:00 Dentista ✅`), que a Luna escreve com `agenda_confirm` quando a usuária disser que fez. Rotina feita já é tarefa concluída. Sem confirmação, o item continua no arquivo, mas não aparece na Agenda nem conta no resumo da semana.
 - **Bonnie** fica na diretoria do andar e controla a sequência do ciclo; não permite avanço até verificar critérios objetivos:
   1. **Diagnóstico:** responder todas as questões selecionadas e marcar incertezas; sem nota mínima.
   2. **Erros e dúvidas:** toda resposta errada/incerta deve ter causa e próximo passo definidos. Se não houver nenhuma, Bonnie encerra/pula essa etapa.

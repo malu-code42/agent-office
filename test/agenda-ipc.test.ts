@@ -59,10 +59,10 @@ type View = {
 describe('agenda IPC', () => {
   it('shows the day and the week from agenda.md, resolves the task ids, and leaves both files byte-identical', async () => {
     const agendaSource = Buffer.from(
-      '## 2026-10-17\r\n- 09:00 Reunião com Ana\r\n- 10:30 ↦ ^tabc123\r\n- 11:00 ↦ ^tzzzzzz\r\nAnotar\r\n',
+      '## 2026-10-17\r\n- 09:00 Reunião com Ana ✅\r\n- 10:30 ↦ ^tabc123\r\n- 11:00 ↦ ^tzzzzzz\r\n- 12:00 Sem confirmar\r\nAnotar\r\n',
       'utf8',
     )
-    const tasksSource = Buffer.from('## Casa\n- [ ] Lavar roupa ^tabc123\n', 'utf8')
+    const tasksSource = Buffer.from('## Casa\n- [x] Lavar roupa ✅ 2026-10-17 ^tabc123\n- [ ] Aberta ^tzzzzzz\n', 'utf8')
     writeFileSync(join(vault, 'agenda.md'), agendaSource)
     writeFileSync(join(vault, 'tarefas.md'), tasksSource)
     settings.vaultPath = vault
@@ -72,9 +72,8 @@ describe('agenda IPC', () => {
     expect(view.found).toBe(true)
     expect(view.today.date).toBe('2026-10-17')
     expect(view.today.entries).toEqual([
-      { kind: 'commitment', time: '09:00', title: 'Reunião com Ana' },
+      { kind: 'commitment', time: '09:00', title: 'Reunião com Ana', confirmed: true },
       { kind: 'task', time: '10:30', id: 'tabc123', text: 'Lavar roupa' },
-      { kind: 'task', time: '11:00', id: 'tzzzzzz', text: null },
       { kind: 'unknown', text: 'Anotar' },
     ])
     expect(view.week).toHaveLength(7)
@@ -85,21 +84,21 @@ describe('agenda IPC', () => {
   })
 
   it('shows a change made to agenda.md in Obsidian on the next read', async () => {
-    writeFileSync(join(vault, 'agenda.md'), '## 2026-10-17\n- 09:00 Reunião\n')
+    writeFileSync(join(vault, 'agenda.md'), '## 2026-10-17\n- 09:00 Reunião ✅\n')
     settings.vaultPath = vault
     expect(((await invoke('office:readAgenda')) as View).today.entries).toHaveLength(1)
 
-    writeFileSync(join(vault, 'agenda.md'), '## 2026-10-17\n- 09:00 Reunião\n- 15:00 Dentista\n')
+    writeFileSync(join(vault, 'agenda.md'), '## 2026-10-17\n- 09:00 Reunião ✅\n- 15:00 Dentista ✅\n')
     const second = (await invoke('office:readAgenda')) as View
 
     expect(second.today.entries).toEqual([
-      { kind: 'commitment', time: '09:00', title: 'Reunião' },
-      { kind: 'commitment', time: '15:00', title: 'Dentista' },
+      { kind: 'commitment', time: '09:00', title: 'Reunião', confirmed: true },
+      { kind: 'commitment', time: '15:00', title: 'Dentista', confirmed: true },
     ])
   })
 
   it('reads the vault from the saved settings, never from a path the renderer sends', async () => {
-    writeFileSync(join(vault, 'agenda.md'), '## 2026-10-17\n- 09:00 Reunião\n')
+    writeFileSync(join(vault, 'agenda.md'), '## 2026-10-17\n- 09:00 Reunião ✅\n')
     settings.vaultPath = vault
 
     const view = (await invoke('office:readAgenda', 'C:/outra-pasta')) as View
@@ -116,14 +115,16 @@ describe('agenda IPC', () => {
   })
 
   it('reads aulas.md from the configured vault even without agenda.md, without writing either file', async () => {
-    const source = Buffer.from('- id: aula-a | dia: sábado | hora: 09:00 | título: Aula A (SIMULADO)\n')
+    const source = Buffer.from(
+      '- id: aula-a | dia: sábado | hora: 09:00 | título: Aula A (SIMULADO)\n- id: aula-a | data: 2026-10-17 | presença\n',
+    )
     writeFileSync(join(vault, 'aulas.md'), source)
     settings.vaultPath = vault
 
     const view = (await invoke('office:readAgenda', 'C:/ignorado')) as View & { classesFound: boolean }
 
     expect(view).toMatchObject({ found: false, classesFound: true })
-    expect(view.today.entries).toEqual([{ kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)' }])
+    expect(view.today.entries).toEqual([{ kind: 'class', id: 'aula-a', time: '09:00', title: 'Aula A (SIMULADO)', attended: true }])
     expect(readFileSync(join(vault, 'aulas.md'))).toEqual(source)
     expect(existsSync(join(vault, 'agenda.md'))).toBe(false)
   })
@@ -134,7 +135,8 @@ describe('agenda IPC', () => {
 
     const view = (await invoke('office:readAgenda')) as View
 
-    expect(view.today.entries).toEqual([{ kind: 'task', time: '10:30', id: 'tabc123', text: null }])
+    // sem tarefas.md a tarefa não está concluída, então não aparece
+    expect(view.today.entries).toEqual([])
     expect(existsSync(join(vault, 'tarefas.md'))).toBe(false)
   })
 
@@ -143,19 +145,19 @@ describe('agenda IPC', () => {
   })
 
   it('readAgendaForDate lê a semana que contém a data pedida, navegando entre semanas', async () => {
-    writeFileSync(join(vault, 'agenda.md'), '## 2026-10-28\n- 09:00 Reunião na próxima semana\n')
+    writeFileSync(join(vault, 'agenda.md'), '## 2026-10-28\n- 09:00 Reunião na próxima semana ✅\n')
     settings.vaultPath = vault
 
     const view = (await invoke('office:readAgendaForDate', '2026-10-28')) as View
 
     expect(view.today.date).toBe('2026-10-28')
-    expect(view.today.entries).toEqual([{ kind: 'commitment', time: '09:00', title: 'Reunião na próxima semana' }])
+    expect(view.today.entries).toEqual([{ kind: 'commitment', time: '09:00', title: 'Reunião na próxima semana', confirmed: true }])
     expect(view.week[0]!.date).toBe('2026-10-26')
     expect(view.week[6]!.date).toBe('2026-11-01')
   })
 
   it('readAgendaForDate traz concluídos e previstos da semana, com as tarefas concluídas do tarefas.md', async () => {
-    writeFileSync(join(vault, 'agenda.md'), '## 2025-10-28\n- 09:00 Dentista\n')
+    writeFileSync(join(vault, 'agenda.md'), '## 2025-10-28\n- 09:00 Dentista ✅\n')
     writeFileSync(join(vault, 'tarefas.md'), '## Hoje\n- [x] Pagar boleto ✅ 2025-10-29\n')
     settings.vaultPath = vault
 
