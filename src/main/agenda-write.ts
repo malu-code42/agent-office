@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { parseAgendaLine } from '@shared/agenda'
+import { CONFIRMED_MARK, parseAgendaLine } from '@shared/agenda'
 import { dayPt, isIsoDay, type CommitmentMove, type CommitmentRef } from '@shared/proposals'
 import { TIME_FORMAT } from '@shared/tasks'
 import { writeFileAtomic } from './fs-safe'
@@ -176,6 +176,21 @@ export function planRemoveCommitment(text: string, c: CommitmentRef): string {
   if (!isIsoDay(c.day) || !TIME_FORMAT.test(c.time)) throw new Error('Data ou hora inválida no compromisso. Use AAAA-MM-DD e HH:MM.')
   const lines = text.split('\n')
   lines.splice(findCommitment(lines, c, 'tirar'), 1)
+  return lines.join('\n')
+}
+
+/**
+ * AO-53: marks a commitment as done (` ✅` at the end of its line), which is what makes it show in the Agenda.
+ * Only the user's own confirmation may call this. Already marked: refused, so nothing is written twice.
+ */
+export function planConfirmCommitment(text: string, c: CommitmentRef): string {
+  if (!isIsoDay(c.day) || !TIME_FORMAT.test(c.time)) throw new Error('Data ou hora inválida no compromisso. Use AAAA-MM-DD e HH:MM.')
+  const lines = text.split('\n')
+  const at = findCommitment(lines, c, 'confirmar')
+  const raw = lines[at]!
+  const body = raw.replace(/\r$/, '').trimEnd()
+  if (body.endsWith(CONFIRMED_MARK)) throw new Error(`O compromisso “${c.title}” às ${c.time} já está confirmado.`)
+  lines[at] = `${body} ${CONFIRMED_MARK}${raw.endsWith('\r') ? '\r' : ''}`
   return lines.join('\n')
 }
 

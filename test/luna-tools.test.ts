@@ -120,6 +120,13 @@ describe('ferramentas da Luna (#101)', () => {
     expect(readFileSync(join(vault, 'agenda.md'), 'utf8')).not.toContain('Dentista')
   })
 
+  it('agenda_confirm põe ✅ no compromisso sem pedir cartão', async () => {
+    expect(LUNA_CONFIRM_TOOLS.has('mcp__casa__agenda_confirm')).toBe(false)
+    expect((await call('agenda_confirm', { day: '2026-10-30', time: '09:00', title: 'Dentista' })).isError).toBe(false)
+    expect(readFileSync(join(vault, 'agenda.md'), 'utf8')).toContain('- 09:00 Dentista ✅')
+    expect((await call('agenda_confirm', { day: '2026-10-30', time: '09:00', title: 'Dentista' })).isError).toBe(true)
+  })
+
   it('chama um agente para a Casa', async () => {
     expect((await call('agent_call', { task: 'Revisar o orçamento' })).text).toBe('Grace está a caminho com a tarefa.')
     expect(deps.callAgent).toHaveBeenCalledWith({ task: 'Revisar o orçamento' })
