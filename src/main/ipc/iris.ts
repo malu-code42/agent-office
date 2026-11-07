@@ -114,6 +114,8 @@ export function registerIrisIpc(ctx: IpcContext, files: { tasks: TaskWriter; age
     files.vault,
   )
   chatRef.current = chat
+  // AO-84: the Telegram bridge talks to the Luna through the same chat, with the channel rules added to her prompt.
+  ctx.telegram?.attachLuna({ ask: (request) => chat.askRemote(request.text, request.channelRules) })
   ctx.manager.setBuiltInMessageHandler((agentId, request, attachments) => {
     if (agentId !== LUNA_AGENT_ID) return
     return chat.send(request, attachments).finally(() => ctx.broadcast({ type: 'proposals', proposals: ctx.planning.pendingProposals() }))

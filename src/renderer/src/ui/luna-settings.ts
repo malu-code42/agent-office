@@ -3,17 +3,20 @@ import { h } from './dom'
 import { brainFields } from './modals/brain'
 import { cleanError, field, modal } from './modals/common'
 import { lookEditor } from './templates'
+import { telegramSection } from './telegram-section'
 import type { Toast } from './tasks-complete'
 
 /** Edits only Luna's model, effort, and portrait; global defaults are never included in the patch. */
 export function openLunaSettings(root: HTMLElement, settings: Settings, toast: Toast): void {
   const look = lookEditor(settings.lunaLook)
   const brain = brainFields({ model: settings.lunaModel, effort: settings.lunaEffort }, true)
+  const telegram = telegramSection(toast)
   let saving = false
   let done = false
   const finish = () => {
     if (done) return
     done = true
+    telegram.dispose()
     el.remove()
   }
   const save = async () => {
@@ -38,6 +41,7 @@ export function openLunaSettings(root: HTMLElement, settings: Settings, toast: T
       look.el,
       field('Modelo', brain.model, brain.hint),
       brain.meter,
+      telegram.el,
     ],
     [h('button', { class: 'btn', type: 'button', onclick: finish }, 'Cancelar'), saveButton],
     finish,

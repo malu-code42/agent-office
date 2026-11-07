@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, nativeImage, Notification, powerMonitor, session, type NativeImage } from 'electron'
+import { app, BrowserWindow, dialog, nativeImage, Notification, powerMonitor, safeStorage, session, type NativeImage } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -28,6 +28,9 @@ import { BarTimerStore } from './bar-timer-store'
 import { FocusLogStore } from './focus-log-store'
 import { BarTimerSound } from './bar-timer-sound'
 import { ProfileMemoryStore } from './profile-memory'
+import { TelegramSettingsStore } from './telegram-settings'
+import { TelegramService } from './telegram-service'
+import { registerTelegramIpc } from './ipc/telegram'
 import { ProjectWorkflowStore } from './project-workflows'
 import { claudeProjectWorkflowGenerator } from './project-workflow-claude'
 import { createMediaPosters } from './media-posters'
@@ -692,6 +695,15 @@ app
       ...manager.list().flatMap((a) => (a.worktree ? [a.worktree.repo] : [])),
     ])
 
+    const telegram = new TelegramService({
+      store: new TelegramSettingsStore(store.dataDirectory, {
+        isAvailable: () => safeStorage.isEncryptionAvailable(),
+        encrypt: (plain) => safeStorage.encryptString(plain),
+        decrypt: (data) => safeStorage.decryptString(Buffer.from(data)),
+      }),
+      onChange: (view) => broadcast({ type: 'telegram', view }),
+    })
+
     // ---------- IPC ----------
     // One file per area in ipc/; every argument from the renderer passes through validate.ts first.
     const ipc: IpcContext = {
@@ -731,6 +743,7 @@ app
       startActiveSquadTicket,
       onBattery: () => onBattery,
       quit,
+      telegram,
     }
     registerAppIpc(ipc)
     registerAccountsIpc(ipc)
@@ -748,6 +761,7 @@ app
     registerProfileMemoryIpc(ipc)
     registerMediaIpc(ipc)
     registerVoiceIpc(ipc)
+    registerTelegramIpc(ipc)
 
     // Modo voz: do Chromium, só o microfone e só para a página do próprio app.
     session.defaultSession.setPermissionRequestHandler((_wc, permission, cb, details) => {
@@ -785,6 +799,8 @@ app
     // After the demo is in place: what was due while the app was closed runs (or is skipped) now.
     routines.start()
     macJobs.start()
+    // AO-84: the Telegram bridge starts only if the saved settings say so (on, token and chat_id present).
+    void telegram.startFromSettings()
     if (stress) startStress(manager)
     if (process.env.AGENT_OFFICE_SEED) seedAgents(manager, process.env.AGENT_OFFICE_SEED)
     if (process.env.AGENT_OFFICE_SHOTS) captureShots(win, process.env.AGENT_OFFICE_SHOTS)
@@ -799,6 +815,7 @@ app
       log.info('Saindo')
       updater.stop()
       bridge.stop()
+      void telegram.stop()
       usage.stop()
       stats.stop()
       system.stop()

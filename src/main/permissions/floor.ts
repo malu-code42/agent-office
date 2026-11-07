@@ -37,6 +37,7 @@ const SENSITIVE_NAMES = new Set([
   '.credentials.json',
   'bridge-token',
   'tokens.json',
+  'telegram-secret.json', // AO-84: token do bot, criptografado com safeStorage
   '.netrc',
   '.npmrc',
   '.pypirc',

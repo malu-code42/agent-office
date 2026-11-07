@@ -39,7 +39,8 @@ export class IrisUnavailable extends Error {}
 
 /** Sends the context to a model and resolves with its text. `signal` aborts the call when the time is up. */
 export interface IrisInterpreter {
-  interpret(context: string, signal: AbortSignal, preferences?: { model?: string; effort?: EffortLevel }): Promise<string>
+  /** `channelRules` (AO-84): extra rules of the channel the request came from (Telegram); the interpreter appends them to the instructions. */
+  interpret(context: string, signal: AbortSignal, preferences?: { model?: string; effort?: EffortLevel }, channelRules?: string): Promise<string>
 }
 
 export interface IrisLog {
@@ -65,6 +66,7 @@ interface Pending {
   vault: string
   context: string
   captureId?: string
+  channelRules?: string
 }
 
 const messageOf = (err: unknown): string => (err instanceof Error ? err.message : String(err)).replace(/\.$/, '')
@@ -97,7 +99,7 @@ export class IrisDesk {
    * Builds the context from tarefas.md and agenda.md and keeps it under a token. Nothing is sent: the caller
    * shows the returned text, and only send() with that token sends it.
    */
-  prepare(vault: string, request: string, captureId?: string): IrisPreview {
+  prepare(vault: string, request: string, captureId?: string, channelRules?: string): IrisPreview {
     const text = request.trim()
     if (!text) throw new Error(EMPTY)
     if ([...text].length > IRIS_REQUEST_MAX) throw new Error(TOO_LONG)
@@ -114,7 +116,7 @@ export class IrisDesk {
       memories: this.deps.memories?.(),
     })
     const token = this.newId()
-    this.pending = { token, vault, context, ...(captureId ? { captureId } : {}) }
+    this.pending = { token, vault, context, ...(captureId ? { captureId } : {}), ...(channelRules ? { channelRules } : {}) }
     return { token, context }
   }
 
@@ -130,7 +132,7 @@ export class IrisDesk {
       const previous = this.deps.planning.pendingProposals().find((proposal) => proposal.captureId === p.captureId)
       if (previous) return { kind: 'proposal', proposal: previous, profile: null }
     }
-    const answer = await this.ask(p.context)
+    const answer = await this.ask(p.context, p.channelRules)
     if (answer.question) return { kind: 'question', text: answer.question }
     if (answer.mediaDraft) return { kind: 'media-draft', draft: answer.mediaDraft }
     if (answer.profile && answer.operations.length === 0) return { kind: 'task', profile: answer.profile }
@@ -162,12 +164,12 @@ export class IrisDesk {
     if (this.pending?.token === token) this.pending = undefined
   }
 
-  private async ask(context: string): Promise<IrisAnswer> {
+  private async ask(context: string, channelRules?: string): Promise<IrisAnswer> {
     const ac = new AbortController()
     const timer = setTimeout(() => ac.abort(), this.deps.timeoutMs ?? IRIS_TIMEOUT_MS)
     let raw: unknown
     try {
-      raw = await this.deps.interpreter.interpret(context, ac.signal, this.deps.lunaPreferences?.())
+      raw = await this.deps.interpreter.interpret(context, ac.signal, this.deps.lunaPreferences?.(), channelRules)
     } catch (err) {
       if (ac.signal.aborted) {
         this.deps.log.warn('Luna: a resposta demorou demais')

@@ -10,6 +10,7 @@ import type { MacJobs } from '../mac-jobs'
 import type { PlanningStore } from '../planning'
 import type { RoutineScheduler } from '../routines'
 import type { QuitFlow } from '../quit'
+import type { TelegramService } from '../telegram-service'
 import type { SquadCreation } from '../squad-creation'
 import type { SquadStatusStore } from '../squad-status'
 import type { StatsReader } from '../stats'
@@ -75,6 +76,8 @@ export interface IpcContext {
   onBattery(): boolean
   /** Leaving on purpose: asks, waits or interrupts. */
   quit: QuitFlow
+  /** AO-84: the Telegram bridge with its encrypted settings. */
+  telegram: TelegramService
 }
 
 // Every argument from the renderer passes through validate.ts first.

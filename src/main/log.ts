@@ -32,6 +32,8 @@ const PATTERNS: [RegExp, string][] = [
   [/(authorization["']?\s*[:=]\s*["']?)(bearer\s+)?[^\s"',}]+/gi, '$1[redacted]'],
   [/\bbearer\s+[\w.~+/=-]{8,}/gi, 'Bearer [redacted]'],
   [/\bsk-ant-[\w-]+/g, '[redacted]'],
+  // AO-84: token de bot do Telegram (123456:ABC...), puro ou dentro de uma URL /bot<token>/.
+  [/\b(?:bot)?\d{6,12}:[A-Za-z0-9_-]{30,}/g, '[redacted]'],
   [/(["']?(?:token|api[_-]?key|secret|password)["']?\s*[:=]\s*["']?)[^\s"',}]+/gi, '$1[redacted]'],
 ]
 

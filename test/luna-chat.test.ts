@@ -85,3 +85,43 @@ describe('LunaChat', () => {
     await second
   })
 })
+
+describe('LunaChat.askRemote (Telegram, AO-84)', () => {
+  it('passa as regras do canal ao desk e devolve a pergunta da Luna', async () => {
+    const { chat, desk, host } = setup()
+    const turn = await chat.askRemote('Qual minha agenda?', 'REGRAS-TELEGRAM')
+    expect(desk.prepare).toHaveBeenCalledWith('C:/vault', 'Qual minha agenda?', undefined, 'REGRAS-TELEGRAM')
+    expect(desk.send).toHaveBeenCalledWith('preview-1')
+    expect(turn).toEqual({ text: 'Qual lista?', needsAppCard: false })
+    expect(host.log).toHaveBeenCalledWith('user', 'Telegram: Qual minha agenda?')
+  })
+
+  it('uma proposta fica esperando no app: avisa que há cartão pendente e não altera nada', async () => {
+    const { chat, host } = setup({
+      kind: 'proposal',
+      profile: null,
+      proposal: { id: 'p1', source: 'Luna', createdAt: 1, operations: [{ kind: 'discard', id: 't1', reason: 'x' }] },
+    } as unknown as IrisResult)
+    const turn = await chat.askRemote('descarte t1', 'R')
+    expect(turn.needsAppCard).toBe(true)
+    expect(turn.text).toContain('Nada foi alterado ainda')
+    expect(host.startProfileTask).not.toHaveBeenCalled()
+  })
+
+  it('tarefa sugerida e rascunho de mídia não abrem nada no app a partir do Telegram', async () => {
+    const task = setup({ kind: 'task', profile: 'estudo-avulso' })
+    const turn = await task.chat.askRemote('estudar', 'R')
+    expect(turn.text).toContain('Abra o Agent Office')
+    expect(task.host.startProfileTask).not.toHaveBeenCalled()
+    const media = setup({ kind: 'media-draft', draft: { kind: 'livro', title: 'X' } } as unknown as IrisResult)
+    await media.chat.askRemote('adicione livro X', 'R')
+    expect(media.host.openMediaDraft).not.toHaveBeenCalled()
+  })
+
+  it('erro do desk cancela o contexto e propaga (a ponte responde com falha fixa)', async () => {
+    const { chat, desk } = setup()
+    desk.send.mockRejectedValueOnce(new Error('falhou'))
+    await expect(chat.askRemote('oi', 'R')).rejects.toThrow('falhou')
+    expect(desk.cancel).toHaveBeenCalledWith('preview-1')
+  })
+})
