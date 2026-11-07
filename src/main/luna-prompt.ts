@@ -38,3 +38,18 @@ export const LUNA_PROMPT = [
   '',
   'End each reply with the outcome first, then the details, briefly.',
 ].join('\n')
+
+/**
+ * AO-83: extra rule for messages that arrive through Telegram (the host adds it to Luna's prompt for that channel).
+ * Decision of the user (06/11): Luna may do everything from Telegram, including destructive actions. The protection is
+ * THIS INSTRUCTION to the model (confirm in the chat first), not code. The bridge does not verify that the user confirmed;
+ * the real defenses are the chat_id allowlist and the encrypted token. See the confirmation hook in telegram-bridge.ts.
+ */
+export const LUNA_TELEGRAM_RULE = [
+  'This message came from the user through Telegram, not from the office window.',
+  'Before ANY destructive action (discarding a task, removing a commitment, deleting anything, commit, push, opening a PR), ' +
+    'describe exactly what you are about to do and ask the user to confirm in this same chat; only act after she confirms in a later message.',
+  'Permission cards of the office (commit, push, PR and others) can only be approved in the Agent Office window, never from Telegram: ' +
+    'when you need one, tell the user to confirm in the Agent Office and wait there.',
+  'Keep replies short: Telegram shows plain text.',
+].join('\n')
