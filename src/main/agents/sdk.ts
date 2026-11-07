@@ -13,6 +13,7 @@ import { LUNA_PROMPT } from '../luna-prompt'
 import { LUNA_SERVER } from '../luna-tools'
 import { emiPrompt } from '../emi-prompt'
 import { EMI_SERVER } from '../emi-tools'
+import { createMergeTools, MERGE_SERVER } from '../merge-tools'
 import { BONNIE_PROMPT } from '../bonnie-prompt'
 import { BONNIE_BLOCKED_TOOLS, BONNIE_SERVER } from '../bonnie-tools'
 import { claudeNotFoundMessage } from '../claude-messages'
@@ -48,6 +49,21 @@ export abstract class AgentSdk extends AgentOffice {
       createdByAgent: s.createdByAgent,
       routine: s.routineRun || s.runCap !== undefined,
       ...(s.runCap !== undefined ? { cap: s.runCap } : {}),
+    })
+  }
+
+  /** Pasta onde o merge roda: a cópia isolada do agente (o nível 5 sempre tem uma). */
+  protected mergeRoot(agent: Agent): string {
+    return agent.summary.worktree?.path ?? agent.summary.cwd
+  }
+
+  protected mergeToolsFor(agent: Agent) {
+    const ops = this.mergeOps!
+    const root = this.mergeRoot(agent)
+    return createMergeTools({
+      agentId: agent.summary.id,
+      approvals: this.mergeApprovals,
+      merge: (pr, sha) => ops.merge(root, pr, sha),
     })
   }
 
@@ -254,6 +270,8 @@ export abstract class AgentSdk extends AgentOffice {
           ...(bonnie && this.bonnieTools ? { [BONNIE_SERVER]: this.bonnieTools() } : {}),
           ...(luna && this.lunaTools ? { [LUNA_SERVER]: this.lunaTools() } : {}),
           ...(emiFloor && this.emiTools ? { [EMI_SERVER]: this.emiTools(emiFloor.id) } : {}),
+          // AO-109: merge_pr existe só para o nível 5 (e só com cartão reforçado a cada uso).
+          ...(this.mergeOps && this.levelOf(agent).level === 5 ? { [MERGE_SERVER]: this.mergeToolsFor(agent) } : {}),
         },
         // Lets the terminal bridge ignore hook events coming from office-managed sessions.
         env: {

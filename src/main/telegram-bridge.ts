@@ -7,9 +7,10 @@
 // - Só o chat_id da lista de permitidos é atendido; qualquer outro é ignorado, sem resposta e sem chamar a Luna.
 // - O token vai na URL da Bot API, por isso NENHUM erro de fetch é registrado com a mensagem original (ela pode trazer a URL):
 //   o log só recebe textos fixos e códigos HTTP. O estado exposto também usa só motivos curtos fixos.
-// - Confirmação de ação destrutiva é por ORIENTAÇÃO AO MODELO (LUNA_TELEGRAM_RULE no prompt do canal), não por código.
-//   A ponte não sabe se a usuária confirmou. O ponto de extensão para uma confirmação por código é `confirmation`
-//   (ver TelegramConfirmationHook), hoje sem implementação.
+// - Confirmação de ação destrutiva é por CÓDIGO (AO-109, parte 3): o gancho `confirmation` (telegram-confirm.ts, ligado em
+//   telegram-service.ts) segura o pedido destrutivo até a usuária responder "SIM <código>" neste mesmo chat. LUNA_TELEGRAM_RULE
+//   no prompt continua como segunda camada (orientação ao modelo), nunca como a única.
+// - Mensagens antigas (recebidas com o app fechado) e excesso por hora são descartados (AO-109, parte 3).
 // - Cartões de permissão do app (commit, push, PR...) nunca são aprovados por aqui: a ponte só avisa "confirme no Agent Office".
 // - A regra única de commit/PR/merge continua em commit-rule.ts, já presente no prompt da Luna; a ponte não a altera.
 
@@ -24,6 +25,10 @@ export const TELEGRAM_MAX_MESSAGE = 4096
 export const TELEGRAM_MAX_INCOMING = IRIS_REQUEST_MAX
 /** Máximo de mensagens aceitas por chat dentro da janela; o excedente é descartado. */
 export const TELEGRAM_RATE_LIMIT = { max: 10, windowMs: 60_000 }
+/** Limite por hora (AO-85, falha 4): 10 por minuto ainda poderiam virar 600 chamadas ao Claude por hora. */
+export const TELEGRAM_HOURLY_LIMIT = { max: 60, windowMs: 3_600_000 }
+/** Mensagem mais velha que isto ao ser lida (ex.: enviada com o app fechado) é descartada, com um aviso por chat (AO-85, falha 1). */
+export const TELEGRAM_MAX_AGE_MS = 5 * 60_000
 /** Uma resposta gigante não vira uma enxurrada de mensagens. */
 export const TELEGRAM_MAX_PARTS = 8
 
@@ -31,6 +36,9 @@ export const MSG_CONFIRM_IN_APP =
   'Confirme no Agent Office: essa ação precisa do cartão de permissão do app, e ele não pode ser aprovado pelo Telegram.'
 export const MSG_TOO_LONG = 'Essa mensagem é grande demais para a Luna. Mande um texto mais curto.'
 export const MSG_RATE_LIMIT = 'Muitas mensagens em pouco tempo. Aguarde um minuto e tente de novo.'
+export const MSG_HOURLY_LIMIT = 'Você chegou ao limite de mensagens por hora para a Luna. Tente de novo mais tarde.'
+export const MSG_STALE =
+  'Ignorei mensagem(ns) antiga(s) que chegaram enquanto o Agent Office estava fechado ou parado. Se ainda valer, mande de novo.'
 export const MSG_LUNA_FAILED = 'A Luna não conseguiu concluir esse pedido. Tente novamente.'
 
 export type TelegramState = { status: 'off' } | { status: 'connecting' } | { status: 'connected' } | { status: 'error'; reason: string }
@@ -54,14 +62,15 @@ export interface LunaPort {
 }
 
 /**
- * Ponto de extensão (NÃO implementado): uma confirmação por código para ações destrutivas.
- * Se informado, é chamado antes de a Luna ver a mensagem. Pode responder sozinho (`handled: true`, ex.: "responda SIM para
- * confirmar") ou deixar passar. Hoje ninguém o fornece e toda mensagem permitida vai direto à Luna.
+ * Confirmação por código para ações destrutivas (implementada em telegram-confirm.ts). É chamado, só para chat permitido, antes de
+ * a Luna ver a mensagem. Pode responder sozinho (`handled: true`, ex.: "responda SIM <código>") ou deixar passar
+ * (`handled: false`); neste caso `text` troca o texto que a Luna recebe (o pedido original, ao confirmar) e `reply` é enviado antes.
+ * Sem o gancho, toda mensagem permitida vai direto à Luna.
  */
 export type TelegramConfirmationHook = (message: {
   chatId: number
   text: string
-}) => Promise<{ handled: false } | { handled: true; reply?: string }>
+}) => Promise<{ handled: false; text?: string; reply?: string } | { handled: true; reply?: string }>
 
 export interface TelegramBridgeDeps {
   config(): TelegramConfig
@@ -82,7 +91,7 @@ const SEND_ATTEMPTS = 3
 
 interface Update {
   update_id: number
-  message?: { text?: string; chat?: { id?: number; type?: string } }
+  message?: { text?: string; date?: number; chat?: { id?: number; type?: string } }
 }
 
 class HttpError extends Error {
@@ -134,6 +143,8 @@ export class TelegramBridge {
   private offset = 0
   private readonly recent = new Map<number, number[]>()
   private readonly warned = new Set<number>()
+  private readonly recentHour = new Map<number, number[]>()
+  private readonly warnedHour = new Set<number>()
 
   constructor(private readonly deps: TelegramBridgeDeps) {}
 
@@ -163,6 +174,8 @@ export class TelegramBridge {
     this.loop = undefined
     this.recent.clear()
     this.warned.clear()
+    this.recentHour.clear()
+    this.warnedHour.clear()
     if (this.state.status !== 'off') this.setState({ status: 'off' })
   }
 
@@ -229,11 +242,13 @@ export class TelegramBridge {
           this.setState({ status: 'connected' })
           this.log('info', 'Telegram conectado.')
         }
+        const staleChats = new Set<number>()
         for (const update of Array.isArray(updates) ? updates : []) {
           this.offset = Math.max(this.offset, update.update_id + 1)
-          await this.handle(config, update, signal)
+          await this.handle(config, update, signal, staleChats)
           if (signal.aborted) return
         }
+        for (const chatId of staleChats) await this.reply(config, chatId, MSG_STALE, signal)
       } catch (error) {
         if (signal.aborted) return
         if (error instanceof HttpError && (error.status === 401 || error.status === 404)) {
@@ -255,7 +270,7 @@ export class TelegramBridge {
     return error instanceof HttpError && error.retryAfter ? Math.min(error.retryAfter * 1000, BACKOFF.max) : backoff
   }
 
-  private async handle(config: TelegramConfig, update: Update, signal: AbortSignal): Promise<void> {
+  private async handle(config: TelegramConfig, update: Update, signal: AbortSignal, staleChats: Set<number>): Promise<void> {
     const message = update.message
     const chatId = message?.chat?.id
     // Allowlist: quem não está nela não recebe nada e a Luna nem fica sabendo.
@@ -263,10 +278,20 @@ export class TelegramBridge {
     const text = message.text
     if (typeof text !== 'string' || !text.trim()) return
 
-    if (!this.admit(chatId)) {
-      if (!this.warned.has(chatId)) {
-        this.warned.add(chatId)
-        await this.reply(config, chatId, MSG_RATE_LIMIT, signal)
+    // Mensagem antiga (ou sem data legível: na dúvida, descarta) não é executada; a usuária recebe um aviso por lote.
+    const date = message.date
+    const sentAt = typeof date === 'number' && Number.isFinite(date) ? date * 1000 : undefined
+    if (sentAt === undefined || (this.deps.now ?? Date.now)() - sentAt > TELEGRAM_MAX_AGE_MS) {
+      staleChats.add(chatId)
+      return
+    }
+
+    const admitted = this.admit(chatId)
+    if (admitted !== 'ok') {
+      const warned = admitted === 'minute' ? this.warned : this.warnedHour
+      if (!warned.has(chatId)) {
+        warned.add(chatId)
+        await this.reply(config, chatId, admitted === 'minute' ? MSG_RATE_LIMIT : MSG_HOURLY_LIMIT, signal)
       }
       return
     }
@@ -276,16 +301,24 @@ export class TelegramBridge {
     }
 
     // Texto repassado como veio: a ponte não interpreta nem altera regras; "ignore suas regras" é só mais uma mensagem para a Luna.
+    let forLuna = text
     if (this.deps.confirmation) {
-      const decision = await this.deps.confirmation({ chatId, text })
-      if (decision.handled) {
-        if (decision.reply) await this.reply(config, chatId, decision.reply, signal)
+      let decision: Awaited<ReturnType<TelegramConfirmationHook>>
+      try {
+        decision = await this.deps.confirmation({ chatId, text })
+      } catch {
+        // O gancho falhou: na dúvida, o pedido NÃO segue.
+        this.log('warn', 'A confirmação do Telegram falhou; o pedido não foi repassado.')
+        await this.reply(config, chatId, MSG_LUNA_FAILED, signal)
         return
       }
+      if (decision.reply) await this.reply(config, chatId, decision.reply, signal)
+      if (decision.handled) return
+      if (typeof decision.text === 'string') forLuna = decision.text
     }
     let turn: LunaTurn
     try {
-      turn = await this.deps.luna.ask({ text, channel: 'telegram', channelRules: LUNA_TELEGRAM_RULE })
+      turn = await this.deps.luna.ask({ text: forLuna, channel: 'telegram', channelRules: LUNA_TELEGRAM_RULE })
     } catch {
       if (signal.aborted) return
       this.log('warn', 'A Luna falhou ao responder uma mensagem do Telegram.')
@@ -297,18 +330,20 @@ export class TelegramBridge {
     if (turn.needsAppCard) await this.reply(config, chatId, MSG_CONFIRM_IN_APP, signal)
   }
 
-  /** Janela deslizante por chat. */
-  private admit(chatId: number): boolean {
+  /** Janelas deslizantes por chat: por minuto e por hora. Só uma mensagem admitida conta nas duas. */
+  private admit(chatId: number): 'ok' | 'minute' | 'hour' {
     const now = (this.deps.now ?? Date.now)()
     const times = (this.recent.get(chatId) ?? []).filter((t) => now - t < TELEGRAM_RATE_LIMIT.windowMs)
+    const hour = (this.recentHour.get(chatId) ?? []).filter((t) => now - t < TELEGRAM_HOURLY_LIMIT.windowMs)
     if (times.length === 0) this.warned.delete(chatId)
-    if (times.length >= TELEGRAM_RATE_LIMIT.max) {
-      this.recent.set(chatId, times)
-      return false
-    }
-    times.push(now)
+    if (hour.length === 0) this.warnedHour.delete(chatId)
     this.recent.set(chatId, times)
-    return true
+    this.recentHour.set(chatId, hour)
+    if (hour.length >= TELEGRAM_HOURLY_LIMIT.max) return 'hour'
+    if (times.length >= TELEGRAM_RATE_LIMIT.max) return 'minute'
+    times.push(now)
+    hour.push(now)
+    return 'ok'
   }
 
   private async reply(config: TelegramConfig, chatId: number, text: string, signal: AbortSignal): Promise<void> {

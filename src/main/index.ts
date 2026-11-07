@@ -45,7 +45,11 @@ import {
   commitChanges,
   createWorktree,
   excludeSquadRuntime,
+  gateOwner,
+  inspectPullRequest,
+  mergePullRequest,
   openPullRequest,
+  setGithubAccountsProvider,
   pruneWorktrees,
   pullRequestForBranch,
   pullRequestRemoteIdentity,
@@ -302,6 +306,12 @@ app
       profileMemory.flush()
     })
     manager.officeTools = (agent) => board.toolsFor(agent, () => store.settings.projects)
+    setGithubAccountsProvider(() => store.settings.githubAccounts)
+    manager.mergeOps = {
+      inspect: (root, pr) => inspectPullRequest(root, pr),
+      gate: (root, host) => gateOwner(root, host),
+      merge: (root, pr, sha) => mergePullRequest(root, pr, sha),
+    }
     const desk = new TicketDesk(board, manager, () => store.settings)
     // Old tickets in "Feito" close by themselves: now, then every hour.
     board.autoClose(store.settings.ticketAutoCloseDays)

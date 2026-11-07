@@ -65,3 +65,11 @@ Método: leitura do código e testes automatizados com Telegram (`fetch`) e Clau
 - Nada contra a API real do Telegram (formato real de respostas, erro 409, `retry_after`, limites reais) nem contra o Claude real.
 - `safeStorage` real do Electron não foi exercitado; os testes injetam uma criptografia de mentira e provam apenas que o texto puro não vai ao disco.
 - O comportamento do modelo diante de injeções reais não foi medido; os testes simulam um modelo que obedece ao ataque para provar que a arquitetura contém o efeito.
+
+## Atualização AO-109, parte 3
+
+- **R6 tratado**: o gancho `confirmation` agora existe (`src/main/telegram-confirm.ts`, ligado em `telegram-service.ts`). Um pedido destrutivo vindo do Telegram não chega à Luna; a ponte responde "SIM <código>" no mesmo chat (código de 5 caracteres, uso único, 5 minutos, 3 tentativas, um pendente por chat; qualquer outra mensagem cancela). Se o gancho falhar, o pedido não segue.
+- **Conta como destrutivo** (texto sem acento e sem maiúsculas, `DESTRUCTIVE_PATTERNS`): apagar, excluir, deletar, remover/remova, descartar, cancelar, limpar, zerar, sobrescrever, destruir, formatar, resetar, tirar; commit, push, merge, mesclar, deploy, publicar, pull request, PR; em inglês delete, remove, discard, cancel, erase, wipe, drop, overwrite, clear, destroy, purge, truncate, rm. Na dúvida, vale como destrutivo. Fora dessa lista a detecção é por palavra: um pedido destrutivo escrito com outras palavras passa, mas o efeito continua sendo uma proposta que só o app confirma.
+- **Falha 1 corrigida**: mensagem com mais de 5 minutos ou sem data é descartada, com um aviso por lote.
+- **Falha 4 corrigida**: limite de 60 mensagens por hora por chat, além dos 10 por minuto.
+- **Seguem abertas**: falha 2 (diálogo ao mudar chat_id/token) e a verificação de posse do chat_id (R1).

@@ -30,6 +30,8 @@ export interface Settings {
   bonnieModel: string
   bonnieEffort: EffortLevel | ''
   defaultPermissionMode: OfficePermissionMode
+  /** AO-109: contas do GitHub aceitas para publicar e mesclar. Ausente = só malu-code42; lista vazia = recusa tudo. */
+  githubAccounts?: string[]
   notifications: boolean
   bridgePort: number
   /** One floor per project, in elevator order (1º andar first). */

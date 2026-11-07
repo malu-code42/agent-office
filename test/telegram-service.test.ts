@@ -126,7 +126,7 @@ describe('TelegramService', () => {
       }
       if (first) {
         first = false
-        return new Response(JSON.stringify({ ok: true, result: [{ update_id: 1, message: { text: 'oi', chat: { id: 42, type: 'private' } } }] }))
+        return new Response(JSON.stringify({ ok: true, result: [{ update_id: 1, message: { text: 'oi', date: Math.floor(Date.now() / 1000), chat: { id: 42, type: 'private' } } }] }))
       }
       const signal = init?.signal as AbortSignal
       return new Promise<Response>((_r, reject) => signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))))

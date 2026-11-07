@@ -1007,6 +1007,7 @@ const settingsFields = {
   bonnieModel: z.union([z.literal(''), z.string().regex(MODEL_RE)]),
   bonnieEffort: z.union([z.literal(''), z.enum(EFFORT_LEVELS as [EffortLevel, ...EffortLevel[]])]),
   defaultPermissionMode: permissionModeSchema,
+  githubAccounts: z.array(z.string().trim().regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/)).max(10),
   notifications: z.boolean(),
   ticketAutoCloseDays: numberField.pipe(z.number().int().min(0).max(365)),
   maxSubagents: numberField.pipe(z.number().int().min(0).max(100)),

@@ -5,6 +5,7 @@ import { gitRemoteHost, gitRemoteRepository, isPullRequestUrl } from '@shared/pu
 import { insideRoot } from './repo'
 import { chunked, git, run, runBatch, safeGitEnv, zsplit } from './run'
 import { checkWorktree, worktreeState } from './worktrees'
+import { assertOwnerAccount } from './owner-gate'
 
 /**
  * Commits exactly the listed files (not whatever else is staged). The message goes on
@@ -98,6 +99,8 @@ export async function openPullRequest(wt: WorktreeInfo, title: string, body: str
   // Credentials come from gh's own helper only (the repo's credential.helper is wiped by
   // the safe config). gh's path goes inside single quotes, so it can't carry any.
   if (gh.includes("'")) throw new Error('O caminho do gh tem aspas; não dá para usar com segurança.')
+  // AO-109: o portão do dono. Só a conta autorizada do gh publica; qualquer dúvida recusa antes do push.
+  await assertOwnerAccount(gh, wt.root, host, await safeGitEnv(wt.root))
   // The ref is spelled out so it can't read as an option.
   try {
     await git(wt.root, ['push', '-u', remote, `refs/heads/${wt.branch}:refs/heads/${wt.branch}`], {
