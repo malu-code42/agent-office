@@ -130,6 +130,17 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
         ),
       )
       actions.append(
+        h(
+          'button',
+          {
+            class: 'btn btn-small focus-card-stalled',
+            type: 'button',
+            'aria-pressed': item.stalled ? 'true' : 'false',
+            title: item.stalled ? 'Tirar a marca de parada' : 'Marcar como parada',
+            onclick: () => void toggleStalled(item),
+          },
+          'Parada',
+        ),
         h('button', { class: 'btn btn-small', type: 'button', onclick: () => openStep(actions, item.id, item.step) }, 'Passo de hoje'),
         h('button', { class: 'btn btn-small focus-card-discard', type: 'button', onclick: () => void discard(item) }, 'Descartar'),
       )
@@ -247,6 +258,18 @@ export async function openFocusPopup(root: HTMLElement, state: State, toast: Toa
       paint(next.focus)
       refreshTasksBoard(root, state, toast, next.board)
     })
+
+  // "Parada" is a toggle kept in planning.json only; the card is drawn again and keeps the keyboard focus.
+  const toggleStalled = async (item: TaskItem): Promise<void> => {
+    const on = !item.stalled
+    try {
+      paint(await window.office.setStalled(item.id, on))
+      toast(on ? 'Tarefa marcada como parada.' : 'Marca de parada tirada.', 'ok')
+      focusCard(item.id)
+    } catch (err) {
+      toast(cleanError(err), 'err')
+    }
+  }
 
   // Taking a task out writes nothing to tarefas.md: only the focus set changes.
   const remove = async (id: string) => {

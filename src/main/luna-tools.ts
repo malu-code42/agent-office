@@ -215,7 +215,7 @@ export function lunaToolDefs(deps: LunaToolDeps) {
     ),
     tool(
       'focus_list',
-      `Lista as tarefas em foco, o grupo do que a usuária quer fazer agora, seja qual for o prazo. "parada" marca as que estão sem avanço há ${REVIEW_STALE_DAYS} dias ou mais.`,
+      `Lista as tarefas em foco, o grupo do que a usuária quer fazer agora, seja qual for o prazo. "parada" marca as que a usuária marcou como paradas ou que estão sem avanço há ${REVIEW_STALE_DAYS} dias ou mais.`,
       {},
       () =>
         run(() => {

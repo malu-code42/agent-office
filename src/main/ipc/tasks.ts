@@ -186,7 +186,7 @@ export function registerTasksIpc(ctx: IpcContext): void {
     return service
   }
   // Reads the file without remembering it: the board's line numbers come from its own read.
-  const focusView = (lists: TaskList[]) => focusItems(lists, ctx.planning.focus(), ctx.planning.todaySteps(dayKey()))
+  const focusView = (lists: TaskList[]) => focusItems(lists, ctx.planning.focus(), ctx.planning.todaySteps(dayKey()), undefined, ctx.planning.stalled())
   // The popup can discard or complete without the board open, so what it reads is what the writer checks against.
   const focusOf = (path: string) => {
     const content = readTasksFile(path)
@@ -865,6 +865,15 @@ export function registerTasksIpc(ctx: IpcContext): void {
     const step = parseStepText(text)
     const path = requireVault()
     ctx.planning.saveStep(taskId, step, dayKey())
+    return focusOf(path)
+  })
+
+  // The "parada" mark goes to planning.json only, like the step: tarefas.md is read, never written.
+  ipcMain.handle('office:setStalled', async (_e, id: unknown, on: unknown) => {
+    const taskId = parse(taskIdSchema, id, 'Identificador inválido.')
+    if (typeof on !== 'boolean') throw new Error('Valor inválido.')
+    const path = requireVault()
+    ctx.planning.setStalled(taskId, on)
     return focusOf(path)
   })
 
