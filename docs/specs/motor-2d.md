@@ -46,6 +46,15 @@ fundo de uma sala de squad, Emi, móveis clicáveis da Casa e do andar de estudo
 - `scene_casa2.py` dividida como o projeto: `shell()` vira `casa-base.png`; o resto vira sprites em `casa.json`.
 - O jogo pergunta os lugares do térreo ao `HomePlan` de `casaPlan`: cadeira do jogador, visitas, mesa da Luna e
   cadeiras dos residentes (`homeSpot`), cantos de lazer, elevador e espera.
+- **Mesa da Luna com 12 computadores (AO-110)**: grade de 3 colunas × 4 fileiras no Escritório (`DESKS` em
+  `scene_casa2.py`, numerada como o board aprovado `casa12`). Os quatro antigos (1 a 4) ficam onde estavam; entram
+  uma fileira em cima (5 a 7), a coluna leste (8 e 9) e uma fileira embaixo (10 a 12). A Luna senta no 10
+  (`LUNA_DESK`, fileira de baixo, coluna da esquerda); o `SEAT_ORDER` exporta a cadeira dela primeiro
+  (`table.seats[0]`, que o jogo lê como `plan.luna`) e os 11 residentes sentam nas outras, na ordem 1 a 9, 11, 12.
+  O 12º morador em diante fica de pé em volta da mesa (`homeSpot`). A coluna leste está 2 unidades de arte (4 px)
+  mais afastada que as outras, para a cadeira cair num tile sem mesa. As duas portas da parede leste, a divisória
+  "Sua mesa" e o tamanho da casa não mudam. O teto de 10 mesas de agentes individuais (`AGENT_DESK_COUNT`) é do
+  andar de projeto, não da Casa.
 - Clique (`world2d/hit.ts actAt`): pessoa da frente primeiro, depois o móvel pintado naquele pixel, depois os quadros
   da parede, depois a porta do elevador. Hover: o clicável fica mais claro e o `title` diz o que faz.
 - Tags pequenas (`tag-mini`) para Caveira, Rotinas de agentes, Novo agente, quadros, Claude FM, Livros, Filmes, Jogos,

@@ -22,19 +22,25 @@ ELEVATOR = (180, 204)
 HALF_WALLS = [(160, [(56, 88), (176, 208)]), (224, [(56, 88), (176, 208)])]
 # the boards on the back wall: x0, x1, action, name
 BOARDS = [(8, 42, 'agenda', 'Agenda'), (54, 90, 'goals', 'Objetivos'), (102, 138, 'personal-routines', 'Rotinas pessoais')]
-# the four work desks (x, y; each 14 x 30, the sitter east of it looking -x); Luna takes the first,
-# then the residents fill them in order
+# the twelve work desks, a grid of 3 columns x 4 rows (each 14 x 30, the sitter east of it looking -x),
+# numbered as in the approved board (AO-110, casa12): the four original ones first (1-4, left where they
+# were), then the row above (5-7), the east column (8-9) and the row below (10-12)
 DESK_D = 30
-DESKS = [(30, 84), (76, 84), (30, 120), (76, 120)]
+DESKS = [(30, 84), (76, 84), (30, 120), (76, 120),
+         (30, 48), (76, 48), (124, 48), (124, 84), (124, 120),
+         (30, 156), (76, 156), (124, 156)]
+# Luna sits at desk 10 (bottom row, west column); her old desk 1 is a resident's now
+LUNA_DESK = 9
 # the chair of each desk: x, y, the way the sitter looks
 TABLE_SEATS = [(x + 16, y + 10, '-x') for x, y in DESKS]
 # the rug under the desks: x0, y0, x1, y1
-DESK_RUG = (20, 74, 112, 156)
+DESK_RUG = (20, 38, 156, 192)
 # the bounding box of the desks (x, y, w, d): its middle is where the group looks at
-TABLE = (30, 84, 82, 66)
-# who sits where in the preview (variant, or None for an empty chair)
-TABLE_PEOPLE = [6, 1, 2, None]
-SEAT_ORDER = [0, 1, 2, 3]
+TABLE = (30, 48, 108, 138)
+# who sits where in the preview (variant, or None for an empty chair), by desk
+TABLE_PEOPLE = [1, 2, None, 3, 4, None, 7, 5, None, 6, 2, None]
+# the order the seats are exported in: Luna's first, then the residents' (desks 1-9, 11, 12)
+SEAT_ORDER = [LUNA_DESK] + [i for i in range(len(DESKS)) if i != LUNA_DESK]
 # the user's desk (x, y, width), against the front wall
 VOCE_DESK = (70, 266, 36)
 # footprints of the clickable furniture (export_app.py tags the items with these)
@@ -62,7 +68,7 @@ HANG = [
 ]
 # names shown when the pointer is over a part of the floor (tiles: x0, y0, x1, y1)
 ZONES = [
-    ('Mesa da Luna', (0, 4, 10, 10)),
+    ('Mesa da Luna', (0, 3, 10, 12)),
     ('Sua mesa', (0, 13, 10, 18)),
     ('Escritório', (0, 0, 10, 18)),
     ('Entrada', (10, 0, 14, 18)),
@@ -143,7 +149,9 @@ def office(sc):
 
 
 # the work desks' look, mixed from the floor's palette: (chair, screen) of each table desk and of the user's desk
-TABLE_LOOK = [('terra', 'blue'), ('green', 'lilac'), ('blue', 'rose'), ('mustard', 'mint')]
+TABLE_LOOK = [('terra', 'blue'), ('green', 'lilac'), ('blue', 'rose'), ('mustard', 'mint'),
+              ('green', 'blue'), ('terra', 'mint'), ('mustard', 'lilac'), ('blue', 'blue'),
+              ('terra', 'rose'), ('terra', 'blue'), ('blue', 'mint'), ('green', 'rose')]
 VOCE_LOOK = ('lilac', 'green')
 
 
@@ -154,7 +162,7 @@ def work_desk(L, x, y, screen):
 
 
 def luna_table(sc):
-    """the four work desks: each one item, chair and sitter drawn after it."""
+    """the twelve work desks: each one item, chair and sitter drawn after it."""
     L = sc.L
     for i, (x, y) in enumerate(DESKS):
         cx, cy, _face = TABLE_SEATS[i]
@@ -168,7 +176,7 @@ def luna_table(sc):
             F.chair(L, cx, cy, '-x', 'back', col)
         sc.add((x, y, x + 14, y + DESK_D), lambda x=x, y=y, i=i: work_desk(L, x, y, TABLE_LOOK[i][1]), True)
         sc.add((cx, cy, cx + 10, cy + 10), chair)
-    px, py = L.P(TABLE_SEATS[0][0] + 5, TABLE_SEATS[0][1] + 5, 7)
+    px, py = L.P(TABLE_SEATS[LUNA_DESK][0] + 5, TABLE_SEATS[LUNA_DESK][1] + 5, 7)
     sc.heads['luna'] = (int(px) + 3 * L.S, int(py) - 24 * L.S)
 
 
@@ -234,7 +242,7 @@ def build():
     sc.label('Caveira', 150, 24, 36)
     sc.label('Claude FM', 234, 133, 34)
     sc.label('Escritório', 124, 40)
-    sc.label('Mesa da Luna', 124, 130)
+    sc.label('Mesa da Luna', 118, 110)
     mx, my = L.P(68, 270, 34)
     sc.labels.append(('Novo agente', mx + 2, int(my) - 18))
     vx, vy = L.P(98, 262, 0)

@@ -76,12 +76,48 @@ describe('layout 2D da Casa', () => {
     for (const s of CASA.static) expect(ATLAS.frames[s.f], s.f).toBeDefined()
   })
 
-  it('as quatro mesas de trabalho têm uma cadeira cada, a da Luna primeiro, todas viradas para a mesa', () => {
+  it('as doze mesas de trabalho (AO-110) têm uma cadeira cada, a da Luna primeiro, todas viradas para a mesa', () => {
     const { seats } = CASA.table
-    expect(seats).toHaveLength(4)
-    expect(new Set(seats.map((s) => s.at.join())).size).toBe(4)
+    expect(seats).toHaveLength(12)
+    expect(new Set(seats.map((s) => s.at.join())).size).toBe(12)
     // every sitter faces its desk, which is west of the chair
     for (const s of seats) expect(s.dir, s.seat.f).toBe('BL')
+  })
+
+  it('as doze cadeiras formam uma grade de 3 colunas por 4 fileiras, de espaçamento regular', () => {
+    const seats = CASA.table.seats.map((s) => s.at)
+    const cols = [...new Set(seats.map((a) => a[0]))].sort((a, b) => a - b)
+    const rows = [...new Set(seats.map((a) => a[1]))].sort((a, b) => a - b)
+    expect(cols).toHaveLength(3)
+    expect(rows).toHaveLength(4)
+    // every cell of the grid has exactly one chair
+    for (const x of cols) for (const z of rows) expect(seats.filter((a) => a[0] === x && a[1] === z)).toHaveLength(1)
+    // rows are evenly spaced; the east column is within 2 units of the spacing of the first two (tile alignment)
+    expect(new Set(rows.slice(1).map((z, i) => z - rows[i])).size).toBe(1)
+    expect(Math.abs(cols[2] - cols[1] - (cols[1] - cols[0]))).toBeLessThanOrEqual(2)
+    // the four original chairs stayed where they were (AO-110 does not move them)
+    for (const a of [[51, 99], [97, 99], [51, 135], [97, 135]]) expect(seats.some((c) => c[0] === a[0] && c[1] === a[1])).toBe(true)
+  })
+
+  it('a Luna senta na cadeira 10 (fileira de baixo, coluna da esquerda); o lugar antigo dela é de agente', () => {
+    const [luna, ...residents] = CASA.table.seats
+    expect(luna.at).toEqual([51, 171])
+    expect(residents.some((s) => s.at[0] === 51 && s.at[1] === 99)).toBe(true)
+    expect(residents.some((s) => s.at.join() === luna.at.join())).toBe(false)
+  })
+
+  it('as cadeiras e as mesas não se sobrepõem e as duas portas da parede leste continuam livres', () => {
+    const grid = grid2d(CASA)
+    const blocked = new Set(CASA.blocked.map(([x, z]) => `${x},${z}`))
+    for (const s of CASA.table.seats) {
+      const tile = [Math.floor(s.at[0] / 16), Math.floor(s.at[1] / 16)]
+      expect(blocked.has(tile.join()), `cadeira ${s.at}`).toBe(false)
+    }
+    // the office's doors in the east half wall (x = 10): their tiles and the ones on both sides walk
+    const wall = CASA.walls.find((w) => w.axis === 'x' && w.at === 10)!
+    for (const z of wall.doors) for (const x of [9, 10]) expect(grid.walkable(x, z), `${x},${z}`).toBe(true)
+    // no desk sits on a door tile or in the strip against the wall
+    for (const z of wall.doors) expect(blocked.has(`9,${z}`)).toBe(false)
   })
 
   it('dá para chegar do elevador a toda cadeira, à sua mesa, aos cantos de lazer e às portas', () => {
@@ -111,6 +147,8 @@ describe('layout 2D da Casa', () => {
 
   it('diz o nome do lugar sob o ponteiro', () => {
     expect(zoneAt(CASA, 3, 8)).toBe('Mesa da Luna')
+    expect(zoneAt(CASA, 3, 3)).toBe('Mesa da Luna')
+    expect(zoneAt(CASA, 3, 11)).toBe('Mesa da Luna')
     expect(zoneAt(CASA, 12, 9)).toBe('Entrada')
     expect(zoneAt(CASA, 18, 15)).toBe('Jogos')
     expect(zoneAt(CASA, 30, 30)).toBeNull()
@@ -137,18 +175,28 @@ describe('plano da Casa 2D', () => {
 
   it('os residentes sentam nas cadeiras livres na ordem da arte, nunca na da Luna', () => {
     const spots = plan.chairs.map((_, n) => homeSpot(grid, n, plan)!)
-    expect(spots).toHaveLength(3)
+    expect(spots).toHaveLength(11)
     expect(spots.every((s) => s.sit)).toBe(true)
     expect(spots.some((s) => s.point.x === plan.luna.x && s.point.z === plan.luna.z)).toBe(false)
-    expect(new Set(spots.map((s) => `${s.point.x},${s.point.z}`)).size).toBe(3)
-    // the residents fill the desks in order after Luna's
+    expect(new Set(spots.map((s) => `${s.point.x},${s.point.z}`)).size).toBe(11)
+    // the residents fill the desks in order after Luna's: the four original ones, the row above, the east column, the row below
     expect(spots.map((s) => s.tile)).toEqual([
+      [3, 6],
       [6, 6],
       [3, 8],
       [6, 8],
+      [3, 3],
+      [6, 3],
+      [9, 3],
+      [9, 6],
+      [9, 8],
+      [6, 10],
+      [9, 10],
     ])
     // the same seat number always gives the same chair
     expect(homeSpot(grid, 2, plan)).toEqual(spots[2])
+    // the 12th resident has no chair: stands (the house has 11 resident chairs plus Luna's)
+    expect(homeSpot(grid, 11, plan)!.sit).toBe(false)
   })
 
   it('quem passa das cadeiras fica de pé perto da mesa, longe das cadeiras e das portas', () => {
