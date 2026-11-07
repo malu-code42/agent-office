@@ -7,8 +7,15 @@ import {
   edit,
   goBack,
   goNext,
+  helpText,
   isAnswered,
+  jump,
+  positionText,
+  progressText,
+  reviewAnswer,
+  reviewQuestion,
   setOther,
+  stepState,
   toggleOption,
 } from '../src/renderer/src/ui/question-flow'
 
@@ -140,5 +147,70 @@ describe('fluxo de perguntas em passos (AO-101)', () => {
 
   it('fluxo sem perguntas não envia nada', () => {
     expect(canSubmit(createFlow([]))).toBe(false)
+  })
+
+  it('rodapé conta respondidas e faltam, no singular e no plural', () => {
+    const f0 = createFlow(qs)
+    expect(progressText(f0)).toBe('0 respondidas · 3 faltam')
+    const f1 = toggleOption(f0, 0, 'A')
+    expect(progressText(f1)).toBe('1 respondida · 2 faltam')
+    const f2 = toggleOption(toggleOption(f1, 1, 'X'), 2, 'Agora')
+    expect(progressText(f2)).toBe('3 respondidas · 0 faltam')
+    expect(progressText(toggleOption(toggleOption(f0, 0, 'A'), 1, 'X')).endsWith('1 falta')).toBe(true)
+  })
+
+  it('posição "2 de 4": revisão é "N de N" e pergunta única não mostra nada', () => {
+    let f = toggleOption(createFlow(qs), 0, 'A')
+    expect(positionText(f)).toBe('1 de 3')
+    f = goNext(f)
+    expect(positionText(f)).toBe('2 de 3')
+    expect(positionText({ ...f, reviewing: true })).toBe('3 de 3')
+    expect(positionText(createFlow([qs[0]]))).toBe('')
+  })
+
+  it('clicar num passo abre a pergunta; vindo da revisão, volta para ela ao responder', () => {
+    let f = createFlow(qs)
+    expect(jump(f, 0)).toBe(f)
+    expect(jump(f, 5)).toBe(f)
+    expect(jump(f, -1)).toBe(f)
+    f = jump(f, 2)
+    expect(f.index).toBe(2)
+    expect(f.fromReview).toBe(false)
+    f = goNext(toggleOption(createFlow(qs), 0, 'A'))
+    f = goNext(toggleOption(f, 1, 'X'))
+    f = goNext(toggleOption(f, 2, 'Agora'))
+    expect(f.reviewing).toBe(true)
+    f = jump(f, 1)
+    expect(f.reviewing).toBe(false)
+    expect(f.index).toBe(1)
+    expect(goNext(f).reviewing).toBe(true)
+  })
+
+  it('estado falado de cada passo', () => {
+    let f = toggleOption(createFlow(qs), 0, 'A')
+    f = goNext(f)
+    expect(stepState(f, 0)).toBe('respondida')
+    expect(stepState(f, 1)).toBe('pergunta atual')
+    expect(stepState(f, 2)).toBe('ainda sem resposta')
+    expect(stepState({ ...f, reviewing: true }, 1)).toBe('ainda sem resposta')
+  })
+
+  it('texto de ajuda da pergunta única', () => {
+    expect(helpText(false)).toBe('Escolha uma resposta ou escreva a sua.')
+    expect(helpText(true)).toContain('uma ou mais')
+  })
+
+  it('revisão: respostas separadas por " · " e "(marcou N)" só na múltipla com mais de uma marca', () => {
+    let f = createFlow(qs)
+    f = toggleOption(toggleOption(f, 1, 'Livros'), 1, 'Apostila')
+    f = setOther(f, 2, ' amanhã ')
+    expect(reviewAnswer(f, 1)).toBe('Livros · Apostila')
+    expect(reviewAnswer(f, 2)).toBe('amanhã')
+    expect(reviewAnswer(f, 9)).toBe('')
+    expect(reviewQuestion(qs[1], f, 1)).toBe('Quais fontes? (marcou 2)')
+    expect(reviewQuestion(qs[0], f, 0)).toBe('Qual arquivo?')
+    expect(reviewQuestion(qs[1], toggleOption(createFlow(qs), 1, 'A'), 1)).toBe('Quais fontes?')
+    // o que o agente recebe não muda
+    expect(buildAnswers(qs, toggleOption(f, 0, 'D'))?.['Quais fontes?']).toBe('Livros, Apostila')
   })
 })

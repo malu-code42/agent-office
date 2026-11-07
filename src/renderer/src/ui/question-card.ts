@@ -1,42 +1,49 @@
 import type { AskQuestion } from '@shared/types'
 import { h, icon } from './dom'
 import {
-  answeredCount,
-  answerText,
   buildAnswers,
   canSubmit,
   createFlow,
-  edit,
   goBack,
   goNext,
+  helpText,
   isAnswered,
+  jump,
+  positionText,
+  progressText,
+  reviewAnswer,
+  reviewQuestion,
   setOther,
+  stepState,
   toggleOption,
   type FlowState,
 } from './question-flow'
 import { splitQuestion } from './question-text'
 
 /**
- * AO-101: the body of the AskUserQuestion card. One question: numbered steps (what happened,
- * the question, the answer). Two or more: one question at a time, step list on top, Voltar and
- * Próxima, and a review screen before sending. The answers go out in the same shape as ever
+ * AO-101: the body of the AskUserQuestion card (designs q-uma, q-seq, q-rev). One question: what
+ * happened, the question, the options, and a footer with the help text and "Enviar resposta".
+ * Two or more: one question at a time, a clickable step list on top, Voltar / count / Próxima,
+ * and a review screen before sending. The answers go out in the same shape as ever
  * (question text -> chosen labels joined by ", "), through hooks.submit.
  */
 export interface QuestionCardHooks {
   submit(answers: Record<string, string>): void
-  /** "Agora não": the user prefers not to answer. */
-  dismiss(): void
   toast(text: string, kind?: 'info' | 'ok' | 'err'): void
   /** The element that names the open question, for aria-describedby of the card. */
   described(el: HTMLElement): void
+  /** The header of the popup changed (sequence only): the line under the agent name and the "2 de 4" counter. */
+  heading(subtitle: string, count: string): void
 }
 
 export interface QuestionCard {
   subtitle: string
+  /** "2 de 4" for the header of the popup; empty for a single question. */
+  count: string
   body: HTMLElement
-  /** Footer buttons for the dialog frame; empty when the card draws its own footer (sequence). */
+  /** Footer buttons for the dialog frame: always empty, the card draws its own footer. */
   buttons: HTMLElement[]
-  /** Wider popup for a sequence. */
+  /** The wide popup of the designs (two columns of options). */
   wide: boolean
   /** Enter with no control focused. */
   onEnter(): void
@@ -60,20 +67,21 @@ function contextBlocks(ctx: ReturnType<typeof splitQuestion>['context']): HTMLEl
   return root
 }
 
-export function questionCard(questions: AskQuestion[], hooks: QuestionCardHooks): QuestionCard {
+export function questionCard(questions: AskQuestion[], agentName: string, hooks: QuestionCardHooks): QuestionCard {
   let flow: FlowState = createFlow(questions)
   const seq = questions.length > 1
   const root = h('div', { class: seq ? 'q-flow q-seq' : 'q-flow' })
+  // The dialog frame does not exist yet while the first render runs.
+  let ready = false
 
   const submit = () => {
     const answers = buildAnswers(questions, flow)
     if (!answers) return hooks.toast('Responda todas as perguntas.', 'err')
     hooks.submit(answers)
   }
-  /** Próxima, or send when this is the only question. */
+  /** Próxima, or send when this is the only question (or the review). */
   const advance = () => {
-    if (!seq) return submit()
-    if (flow.reviewing) return submit()
+    if (!seq || flow.reviewing) return submit()
     const next = goNext(flow)
     if (next === flow) return hooks.toast('Responda esta pergunta para seguir.', 'err')
     go(next)
@@ -108,6 +116,7 @@ export function questionCard(questions: AskQuestion[], hooks: QuestionCardHooks)
       flow = toggleOption(flow, i, label)
       if (!multi) other.value = ''
       sync()
+      refreshFooter()
     }
 
     q.options.forEach((o, k) => {
@@ -154,56 +163,21 @@ export function questionCard(questions: AskQuestion[], hooks: QuestionCardHooks)
     other.addEventListener('input', () => {
       flow = setOther(flow, i, other.value)
       sync()
-      if (seq) refreshFooter()
+      refreshFooter()
     })
     sync()
     return h('div', { class: 'q-answer' }, group, h('label', { class: 'q-other-label' }, 'Outra resposta', other))
   }
 
-  // ----- one question alone: variant C, numbered steps -----
-  function renderSingle(): void {
-    const q = questions[0]
-    const { context, question } = splitQuestion(q.question)
-    const steps: HTMLElement[] = []
-    let n = 0
-    const num = (on: boolean) => h('span', { class: on ? 'q-num q-num-on' : 'q-num', 'aria-hidden': 'true' }, String(++n))
-    if (context.length) {
-      steps.push(
-        h(
-          'li',
-          { class: 'q-step' },
-          num(false),
-          h('div', { class: 'q-step-body' }, h('h3', { class: 'q-step-name' }, 'O que aconteceu'), contextBlocks(context)),
-        ),
-      )
-    }
-    const ask = h('p', { class: 'q-ask', id: 'q-ask-0' }, question || q.question)
-    steps.push(
-      h(
-        'li',
-        { class: 'q-step' },
-        num(true),
-        h(
-          'div',
-          { class: 'q-step-body' },
-          h('h3', { class: 'q-step-name q-step-hi' }, 'A pergunta', q.header ? h('span', { class: 'chip' }, q.header) : null),
-          ask,
-        ),
-      ),
-    )
-    steps.push(h('li', { class: 'q-step' }, num(false), h('div', { class: 'q-step-body' }, answerBlock(0))))
-    root.replaceChildren(h('ol', { class: 'q-steps' }, ...steps))
-    hooks.described(ask)
-  }
-
-  // ----- several questions: step list, one question, footer; then the review -----
+  // ----- the step list, the footer and the review -----
   let footerEl: HTMLElement | null = null
+  const headingText = () => (flow.reviewing ? 'Revisar as respostas' : `veio te fazer ${questions.length} perguntas`)
+
+  /** Count of the sequence and the enabled state of Próxima / Enviar resposta. */
   function refreshFooter(): void {
     if (!footerEl) return
-    const total = questions.length
-    const done = answeredCount(flow)
-    footerEl.querySelector('.q-count')!.textContent =
-      `${done} respondida${done === 1 ? '' : 's'} · ${total - done} ${total - done === 1 ? 'falta' : 'faltam'}`
+    const count = footerEl.querySelector('.q-count[aria-live]')
+    if (count) count.textContent = progressText(flow)
     const next = footerEl.querySelector<HTMLButtonElement>('.q-next')
     if (next) next.disabled = !isAnswered(flow, flow.index)
   }
@@ -215,93 +189,113 @@ export function questionCard(questions: AskQuestion[], hooks: QuestionCardHooks)
       ...questions.map((q, i) => {
         const done = isAnswered(flow, i)
         const cur = !flow.reviewing && i === flow.index
-        const state = cur ? 'pergunta atual' : done ? 'respondida' : 'ainda sem resposta'
         return h(
           'li',
-          { class: `q-stp${done ? ' q-stp-done' : ''}${cur ? ' q-stp-on' : ''}`, 'aria-current': cur ? 'step' : undefined },
-          h('span', { class: 'q-stp-n', 'aria-hidden': 'true' }, done && !cur ? '✓' : String(i + 1)),
-          h('span', { class: 'q-stp-t' }, q.header || `Pergunta ${i + 1}`),
-          h('span', { class: 'sr-only' }, ` (${state})`),
+          { class: 'q-stp-li' },
+          h(
+            'button',
+            {
+              type: 'button',
+              class: `q-stp${done ? ' q-stp-done' : ''}${cur ? ' q-stp-on' : ''}`,
+              'aria-current': cur ? 'step' : undefined,
+              onclick: () => go(jump(flow, i)),
+            },
+            h('span', { class: 'q-stp-n', 'aria-hidden': 'true' }, done && !cur ? '✓' : String(i + 1)),
+            h('span', { class: 'q-stp-t' }, q.header || `Pergunta ${i + 1}`),
+            h('span', { class: 'sr-only' }, ` (${stepState(flow, i)})`),
+          ),
         )
       }),
     )
   }
 
-  function renderSeq(): void {
+  function renderReview(): void {
+    const total = questions.length
+    const rows = questions.map((q, k) =>
+      h(
+        'li',
+        { class: 'q-rv' },
+        h('span', { class: 'q-rv-n', 'aria-hidden': 'true' }, String(k + 1)),
+        h('div', { class: 'q-rv-t' }, h('span', { class: 'q-rv-q' }, reviewQuestion(q, flow, k)), h('span', { class: 'q-rv-a' }, reviewAnswer(flow, k))),
+        h(
+          'button',
+          {
+            type: 'button',
+            class: 'btn q-edit',
+            'aria-label': `Editar a resposta ${k + 1}: ${q.header || q.question}`,
+            onclick: () => go(jump(flow, k)),
+          },
+          'Editar',
+        ),
+      ),
+    )
+    const note = h(
+      'p',
+      { class: 'q-note', id: 'q-review-note', tabindex: -1, 'data-q-focus': '' },
+      `Confira antes de enviar. ${agentName} só continua depois que você enviar.`,
+    )
+    root.replaceChildren(
+      stepList(),
+      note,
+      h('ol', { class: 'q-review' }, ...rows),
+      h(
+        'div',
+        { class: 'q-footer' },
+        h('button', { type: 'button', class: 'btn', onclick: () => go(goBack(flow)) }, 'Voltar'),
+        h('div', { class: 'grow' }),
+        h(
+          'button',
+          { type: 'button', class: 'btn btn-primary', disabled: !canSubmit(flow), onclick: submit },
+          icon('send', 15),
+          `Enviar as ${total} respostas`,
+        ),
+      ),
+    )
+    footerEl = null
+    hooks.described(note)
+  }
+
+  /** One question: alone (q-uma, no steps) or one of a sequence (q-seq). */
+  function renderQuestion(): void {
     const total = questions.length
     const i = flow.index
-    if (flow.reviewing) {
-      const rows = questions.map((q, k) =>
-        h(
-          'li',
-          { class: 'q-rv' },
-          h('span', { class: 'q-rv-n', 'aria-hidden': 'true' }, String(k + 1)),
-          h('div', { class: 'q-rv-t' }, h('span', { class: 'q-rv-q' }, q.question), h('span', { class: 'q-rv-a' }, answerText(flow, k))),
-          h(
-            'button',
-            {
-              type: 'button',
-              class: 'btn q-edit',
-              'aria-label': `Editar a resposta ${k + 1}: ${q.header || q.question}`,
-              onclick: () => go(edit(flow, k)),
-            },
-            'Editar',
-          ),
-        ),
-      )
-      const title = h('h3', { class: 'q-seq-title', tabindex: -1, 'data-q-focus': '' }, 'Revisar as respostas')
-      const send = h(
-        'button',
-        { type: 'button', class: 'btn btn-primary', disabled: !canSubmit(flow), onclick: submit },
-        icon('send', 15),
-        `Enviar as ${total} respostas`,
-      )
-      root.replaceChildren(
-        h('div', { class: 'q-seq-head' }, title, h('span', { class: 'q-seq-count' }, `${total} de ${total}`)),
-        stepList(),
-        h('p', { class: 'q-note' }, 'Confira antes de enviar. O agente só continua depois que você enviar.'),
-        h('ol', { class: 'q-review' }, ...rows),
-        h(
-          'div',
-          { class: 'q-footer' },
-          h('button', { type: 'button', class: 'btn', onclick: () => go(goBack(flow)) }, 'Voltar'),
-          h('button', { type: 'button', class: 'btn btn-danger-soft', onclick: hooks.dismiss }, 'Agora não'),
-          h('div', { class: 'grow' }),
-          send,
-        ),
-      )
-      footerEl = null
-      hooks.described(title)
-      return
-    }
     const q = questions[i]
     const { context, question } = splitQuestion(q.question)
     const ask = h('p', { class: 'q-ask q-ask-big', id: `q-ask-${i}`, tabindex: -1, 'data-q-focus': '' }, question || q.question)
-    const next = h(
-      'button',
-      { type: 'button', class: 'btn btn-primary q-next', disabled: !isAnswered(flow, i), onclick: advance },
-      i === total - 1 || flow.fromReview ? 'Revisar' : 'Próxima',
-    )
-    const footer = h(
-      'div',
-      { class: 'q-footer' },
-      h('button', { type: 'button', class: 'btn', disabled: i === 0 && !flow.fromReview, onclick: () => go(goBack(flow)) }, 'Voltar'),
-      h('button', { type: 'button', class: 'btn btn-danger-soft', onclick: hooks.dismiss }, 'Agora não'),
-      h('span', { class: 'q-count', 'aria-live': 'polite' }),
-      next,
-    )
+    const footer = seq
+      ? h(
+          'div',
+          { class: 'q-footer' },
+          h('button', { type: 'button', class: 'btn', disabled: i === 0 && !flow.fromReview, onclick: () => go(goBack(flow)) }, 'Voltar'),
+          h('span', { class: 'q-count', 'aria-live': 'polite' }),
+          h(
+            'button',
+            { type: 'button', class: 'btn btn-primary q-next', disabled: !isAnswered(flow, i), onclick: advance },
+            i === total - 1 || flow.fromReview ? 'Revisar' : 'Próxima',
+          ),
+        )
+      : h(
+          'div',
+          { class: 'q-footer' },
+          h('span', { class: 'q-count q-help' }, helpText(q.multiSelect)),
+          h(
+            'button',
+            { type: 'button', class: 'btn btn-primary q-next', disabled: !isAnswered(flow, i), onclick: advance },
+            icon('send', 15),
+            'Enviar resposta',
+          ),
+        )
     root.replaceChildren(
-      h(
-        'div',
-        { class: 'q-seq-head' },
-        h('h3', { class: 'q-seq-title' }, `Pergunta ${i + 1} de ${total}`),
-        h('span', { class: 'q-seq-count' }, `${i + 1} de ${total}`),
-      ),
-      stepList(),
+      ...(seq ? [stepList()] : []),
       ...(context.length
         ? [h('div', { class: 'q-block' }, h('h4', { class: 'q-step-name' }, 'O que aconteceu'), contextBlocks(context))]
         : []),
-      h('div', { class: 'q-block' }, h('h4', { class: 'q-step-name q-step-hi' }, 'A pergunta'), ask),
+      h(
+        'div',
+        { class: 'q-block' },
+        h('h4', { class: 'q-step-name q-step-hi' }, 'A pergunta', q.header && !seq ? h('span', { class: 'chip' }, q.header) : null),
+        ask,
+      ),
       answerBlock(i),
       footer,
     )
@@ -311,22 +305,19 @@ export function questionCard(questions: AskQuestion[], hooks: QuestionCardHooks)
   }
 
   function render(): void {
-    if (seq) renderSeq()
-    else renderSingle()
+    if (flow.reviewing) renderReview()
+    else renderQuestion()
+    if (ready && seq) hooks.heading(headingText(), positionText(flow))
   }
   render()
+  ready = true
 
   return {
-    subtitle: seq ? `veio te fazer ${questions.length} perguntas` : 'veio te fazer uma pergunta',
+    subtitle: seq ? headingText() : 'veio te fazer uma pergunta',
+    count: positionText(flow),
     body: root,
-    buttons: seq
-      ? []
-      : [
-          h('button', { type: 'button', class: 'btn', title: 'Deixar sem resposta', onclick: hooks.dismiss }, 'Agora não'),
-          h('div', { class: 'grow' }),
-          h('button', { type: 'button', class: 'btn btn-primary', onclick: submit }, icon('send', 15), 'Responder'),
-        ],
-    wide: seq,
+    buttons: [],
+    wide: true,
     onEnter: advance,
   }
 }
